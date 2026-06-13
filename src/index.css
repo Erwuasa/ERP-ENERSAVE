@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  
+  --color-primary-600: #2563eb;
+  --color-primary-500: #3b82f6;
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-panel: var(--brand-panel);
+  --color-brand-border: var(--brand-border);
+  --color-brand-text: var(--brand-text);
+  --color-brand-subtext: var(--brand-subtext);
+}
+
+:root {
+  --brand-bg: #f8fafc; /* Beautiful soft slate/blue background from screenshot */
+  --brand-panel: #ffffff; /* Pure white cards for maximum pop from screenshot */
+  --brand-border: #e2e8f0; /* Soft slate-200 border */
+  --brand-text: #0f172a; /* Slate-900 corporate primary text */
+  --brand-subtext: #475569; /* Slate-600 subtitle text */
+}
+
+.dark {
+  --brand-bg: #090d16; /* Clean deep blue-slate background */
+  --brand-panel: #0f172a; /* Deep blue-slate cards */
+  --brand-border: rgba(255, 255, 255, 0.06);
+  --brand-text: #f8fafc; /* Slate-50 white text */
+  --brand-subtext: #94a3b8; /* Slate-400 muted text */
+}
+
+/* Clases animadas de utilidad */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s infinite;
+}
+
+/* Personalización de barra de scroll para ambos modos */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+

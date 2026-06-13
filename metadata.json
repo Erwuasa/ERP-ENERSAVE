@@ -1,0 +1,6 @@
+{
+  "name": "ERP Comercializadora Energia",
+  "description": "ERP de gestión para una comercializadora y asesoría de energía (luz y gas) con roles jerárquicos y liquidaciones de red comercial",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
