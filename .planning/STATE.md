@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-16T23:37:28.824Z"
-last_activity: 2026-06-17 — Phase 1 planned and verified
+last_updated: "2026-06-17T12:00:00.000Z"
+last_activity: 2026-06-17 — Phase 1 code committed; migration checkpoints pending
 progress:
   phases_total: 7
   phases_complete: 0
@@ -17,9 +17,9 @@ progress:
 ## Current Position
 
 Phase: 1 — Schema & Supabase Ventas
-Plan: 01-01, 01-02, 01-03 (3 plans, 2 waves)
-Status: Ready to execute
-Last activity: 2026-06-17 — Phase 1 planned and verified
+Plan: 01-01 ✓, 01-02 ✓, 01-03 ✓ (code committed)
+Status: Checkpoint pending — apply migrations to Supabase
+Last activity: 2026-06-17 — Phase 1 code committed; migration checkpoints pending
 
 ## Accumulated Context
 
@@ -31,9 +31,12 @@ Last activity: 2026-06-17 — Phase 1 planned and verified
 
 ### Blockers
 
-- Migraciones `prospectos` / `actividades_ventas` / `tareas_ventas` no están en repo local — verificar y commitear en fase 1
-- Supabase MCP no autorizado en este entorno — validar schema manualmente o con CLI
+- **Checkpoint 01-01:** Apply migrations 20260617000001–000003 to Supabase (`db push` or SQL Editor)
+- **Checkpoint 01-02:** Apply migration 20260617000004 and run `ventas_rls.test.sql`
+- Supabase MCP unauthorized — use CLI or Dashboard for apply
 
 ### Todos
 
-- [ ] Ejecutar `/gsd-discuss-phase 1` o `/gsd-plan-phase 1` para iniciar implementación
+- [ ] User confirms "migrations applied" after checkpoint verification
+- [ ] Run `/gsd-verify-work 1` after remote apply
+- [ ] `/gsd-plan-phase 2` when Phase 1 verified

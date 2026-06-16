@@ -33,9 +33,9 @@ Este milestone construye el **Sistema de Ventas** sobre el ERP brownfield existe
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Commitear/verificar migraciones ventas + triggers (`handle_updated_at`, `handle_fase_change`, `handle_dias_en_fase`)
-- [ ] 01-02: RLS policies por `comercial_id` y jerarquía jefe/superadmin
-- [ ] 01-03: `src/lib/ventas/types.ts` + `src/lib/supabase/ventas.ts` con mappers
+- [x] 01-01: Commitear/verificar migraciones ventas + triggers (`handle_updated_at`, `handle_fase_change`, `handle_dias_en_fase`)
+- [x] 01-02: RLS policies por `comercial_id` y jerarquía jefe/superadmin
+- [x] 01-03: `src/lib/ventas/types.ts` + `src/lib/supabase/ventas.ts` con mappers
 
 ### Phase 2: Pipeline Domain
 
