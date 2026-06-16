@@ -867,22 +867,13 @@ export function getSupabaseClient(): SupabaseClient<Database> | null {
 | A5 | `contrato_equipo_id` column name (not `contratos_equipo_id`) | Schema Design | FK mapping breaks |
 | A6 | JWT will carry `app_metadata.comercial_id` at auth milestone | RLS Strategy | Policy rewrite needed |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Exact remote DDL**
-   - What we know: User applied migrations remotely; not in repo
-   - What's unclear: Column names, ENUM vs TEXT, existing RLS
-   - Recommendation: First plan task = export + diff; treat remote as source of truth
+1. **Exact remote DDL** — **RESOLVED:** Plan 01-01 Task 1 exports remote schema via `supabase db pull` or Dashboard SQL export, diffs against committed migrations, and treats remote as source of truth when user reports migrations already applied. Repo becomes canonical after reconcile commit.
 
-2. **RLS acceptance without Auth**
-   - What we know: Simulated login cannot set JWT claims from browser anon client
-   - What's unclear: Whether Phase 1 gate accepts SQL-only RLS proof
-   - Recommendation: Add `supabase/tests/` policy scripts; document app-level testing blocked until auth
+2. **RLS acceptance without Auth** — **RESOLVED:** Phase 1 DATA-02 acceptance uses `supabase/tests/ventas_rls.test.sql` with simulated JWT claims in SQL Editor. Browser anon client returning empty rows is expected and documented in RLS migration header. Live app RLS proof deferred to auth milestone.
 
-3. **`contratos_equipo` RLS scope**
-   - What we know: No RLS on existing migration
-   - What's unclear: Whether Phase 1 includes contratos policies
-   - Recommendation: At minimum, document; ideally add parallel comercial_id policies
+3. **`contratos_equipo` RLS scope** — **RESOLVED:** Deferred to Phase 7 (integración contratos). Phase 1 documents gap in `20260617000004_create_ventas_rls.sql` header comment and 01-02-SUMMARY.md. Ventas tables get full RLS; `contratos_equipo` remains without RLS until integration phase.
 
 ## Sources
 
@@ -942,11 +933,11 @@ export function getSupabaseClient(): SupabaseClient<Database> | null {
 | Architecture | MEDIUM | Remote schema unverified; RLS/auth gap requires bridge table |
 | Pitfalls | HIGH | Documented from project blockers and Supabase docs |
 
-### Open Questions
+### Open Questions (RESOLVED)
 
-- Exact remote column names and existing RLS/triggers
-- Phase 1 acceptance criteria for RLS without live JWT auth
-- Whether to add RLS to `contratos_equipo` in this phase
+- Exact remote column names → resolved via 01-01 export/diff task
+- RLS without live JWT → resolved via SQL test script acceptance
+- `contratos_equipo` RLS → deferred to Phase 7 with documented gap in 01-02
 
 ### Ready for Planning
 
