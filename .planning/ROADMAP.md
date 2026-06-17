@@ -54,8 +54,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: `pipeline.ts` — fases, transiciones, terminales, helpers `canTransition`, `getNextFases`
-- [ ] 02-02: SLA config, motivos descarte, badge classes alineados con convenciones ERP
+- [ ] 02-01-PLAN.md — vitest Wave 0 + `pipeline.ts` core (fases, TRANSITIONS, validateTransition)
+- [ ] 02-02-PLAN.md — SLA, MOTIVOS_DESCARTE, badge/column classes, getSlaUrgencia
 
 ### Phase 3: Hooks, Quick-Wins & Realtime
 
