@@ -25,9 +25,11 @@ Last activity: 2026-06-17 — Phase 2 plans created and verified
 
 ### Decisions
 
-- Ventas como módulo en `src/pages/ventas/` + `src/lib/ventas/`
-- Triggers Supabase para actividades en cambio de fase; quick-wins en cliente para tareas
-- Conversión en fase `enviado` vía wizard existente
+- **Dos módulos en una app:** Ventas (`/ventas/*`) + ERP Admin (`/erp/*`); mismo Supabase y auth; tablas compartidas, scope por rol (locked 2026-06-17)
+- Selector de módulo solo jefe_comercial y superadmin; comercial entra directo a Ventas
+- Tramitación prospecto en fase `tramitacion` → auto `contratos_equipo` visible en ERP Admin
+- Ventas como módulo en `src/pages/ventas/` + ERP en `src/pages/erp/`
+- **Pipeline 11 fases locked** — bidireccional; `tramitacion`/`activado`/`con_dudas`; elimina `documentacion`/`enviado`/`cliente_activo` (DATA-05 en Phase 2)
 
 ### Blockers
 

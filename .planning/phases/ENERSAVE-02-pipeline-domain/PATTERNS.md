@@ -1,6 +1,7 @@
 # Phase ENERSAVE-02: Pipeline Domain — Pattern Map
 
-**Mapped:** 2026-06-17
+**Mapped:** 2026-06-17 (updated for 11-phase replan)
+**Pipeline:** 11 fases — `activado`/`descartado` terminals; `tramitacion` replaces `enviado`; `con_dudas` new; kanban 11 columns (Phase 4)
 **Files analyzed:** 3 new (+ 1 optional test)
 **Analogs found:** 3 / 4 (no JS/TS test analog)
 
