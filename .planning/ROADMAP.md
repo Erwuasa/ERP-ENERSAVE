@@ -9,7 +9,7 @@ Este milestone construye el **Sistema de Ventas** sobre el ERP brownfield existe
 - [ ] **Phase 1: Schema & Supabase Ventas** — Migraciones, RLS, tipos y cliente de datos
 - [ ] **Phase 2: Pipeline Domain** — Config visual, transiciones, SLA y motivos de descarte
 - [ ] **Phase 3: Hooks, Quick-Wins & Realtime** — Motor de tareas y suscripciones live
-- [ ] **Phase 4: Pipeline UI** — Kanban 10 columnas, lista, filtros, alta rápida
+- [ ] **Phase 4: Pipeline UI** — Kanban 11 columnas, lista, filtros, alta rápida
 - [ ] **Phase 5: Mi Día** — Cola priorizada y objetivos diarios del comercial
 - [ ] **Phase 6: Ficha Prospecto 360** — Timeline, energía, fase, documentos, contrato vinculado
 - [ ] **Phase 7: Reporting & Integración Contratos** — Funnel, actividad equipo, wizard `enviado`, nav ERP
@@ -39,23 +39,25 @@ Plans:
 
 ### Phase 2: Pipeline Domain
 
-**Goal**: Lógica de negocio del pipeline centralizada y testable sin UI.
+**Goal**: Lógica de negocio del pipeline 11 fases centralizada y testable sin UI — migración DATA-05, transiciones bidireccionales, SLA heterogéneo y validación PIPE-05.
 
 **Depends on**: Phase 1
 
-**Requirements**: PIPE-01, PIPE-02, PIPE-03, PIPE-04
+**Requirements**: DATA-05, PIPE-01, PIPE-02, PIPE-03, PIPE-04, PIPE-05, PIPE-06
 
 **Success Criteria** (what must be TRUE):
-1. Las 10 fases tienen label, color badge y orden kanban definidos en `pipeline.ts`
-2. Intentar transición inválida devuelve error claro antes de llamar a Supabase
-3. SLA y motivos de descarte están tipados y usables desde UI
-4. UI puede mostrar días en fase desde datos del prospecto
+1. Migración DATA-05 aplicada: `prospectos.fase` CHECK con 11 valores; seis columnas nuevas; legacy fases remapeadas
+2. Las 11 fases tienen label, color badge y orden kanban definidos en `pipeline.ts`
+3. Transiciones bidireccionales (PIPE-02) y campos obligatorios por fase (PIPE-05) validados antes de Supabase
+4. SLA 4 h (`prospecto_nuevo` vía `faseChangedAt`), personalizado (`contactado`) y días (`diasEnFase`) tipados en `getSlaUrgencia`
+5. Nueve motivos de descarte y subtipo prioridad máxima (PIPE-06) exportados para UI
 
-**Plans**: 2 plans
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — vitest Wave 0 + `pipeline.ts` core (fases, TRANSITIONS, validateTransition)
-- [ ] 02-02-PLAN.md — SLA, MOTIVOS_DESCARTE, badge/column classes, getSlaUrgencia
+- [ ] 02-01-PLAN.md — DATA-05 migration + types.ts + ventas.ts mappers (11 fases, 6 columnas)
+- [ ] 02-02-PLAN.md — vitest Wave 0 + pipeline.ts core (FUNNEL_ORDER, TRANSITIONS, validateTransition PIPE-05)
+- [ ] 02-03-PLAN.md — SLA (horas+días), MOTIVOS_DESCARTE (9 ids), badges, getSlaUrgencia, PIPE-06
 
 ### Phase 3: Hooks, Quick-Wins & Realtime
 
@@ -87,7 +89,7 @@ Plans:
 **Requirements**: UI-PIPE-01, UI-PIPE-02, UI-PIPE-03, UI-PIPE-04, UI-PIPE-05, UI-PIPE-06
 
 **Success Criteria** (what must be TRUE):
-1. Comercial ve kanban con 10 columnas y cards con nombre, compañía, SLA
+1. Comercial ve kanban con 11 columnas y cards con nombre, compañía, SLA
 2. Drag a columna inválida se revierte con toast de error
 3. Vista lista muestra mismos prospectos con cambio de fase
 4. Alta prospecto nuevo completable en menos de 30 segundos en flujo guiado
