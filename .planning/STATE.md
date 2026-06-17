@@ -3,45 +3,40 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-17T23:05:00.000Z"
-last_activity: 2026-06-17 — Phase 2 executed (code complete)
+last_updated: "2026-06-17T23:12:00.000Z"
+last_activity: 2026-06-17 — Phase 3 hooks executed
 progress:
   phases_total: 7
-  phases_complete: 1
+  phases_complete: 2
   requirements_total: 60
-  requirements_complete: 7
+  requirements_complete: 17
 ---
 
 # State
 
 ## Current Position
 
-Phase: 2 — Pipeline Domain
-Plan: 02-01, 02-02, 02-03 complete (code)
-Status: Phase 2 code complete — apply DATA-05 migration checkpoint
-Last activity: 2026-06-17 — Phase 2 pipeline domain implemented
+Phase: 3 — Hooks, Quick-Wins & Realtime
+Plan: 03-01, 03-02, 03-03 complete (code)
+Status: Phase 3 code complete — ready for Phase 4 UI wiring
+Last activity: 2026-06-17 — ventas hooks + quick-wins implemented
 
 ## Accumulated Context
 
 ### Decisions
 
-- **Dos módulos en una app:** Ventas (`/ventas/*`) + ERP Admin (`/erp/*`); mismo Supabase y auth; tablas compartidas, scope por rol (locked 2026-06-17)
-- Selector de módulo solo jefe_comercial y superadmin; comercial entra directo a Ventas
-- Tramitación prospecto en fase `tramitacion` → auto `contratos_equipo` visible en ERP Admin
-- Ventas como módulo en `src/pages/ventas/` + ERP en `src/pages/erp/`
-- **Pipeline 11 fases locked** — bidireccional; `tramitacion`/`activado`/`con_dudas`
-- `updateProspectoFase` accepts `UpdateProspectoFaseInput` object for PIPE-05 fields
-- `prospecto_nuevo` SLA uses `faseChangedAt` hours (4h), not `diasEnFase`
-- Vitest 4.1.9 for pipeline unit tests
+- **Dos módulos en una app:** Ventas (`/ventas/*`) + ERP Admin (`/erp/*`)
+- Quick-wins generated client-side after fase change; dedup by prospecto + origen_fase + tipo
+- Hooks use `VentasActor` (comercialId, comercialName, role) from App profile
+- Realtime via `useRealtimeRefresh` on prospectos, tareas_ventas, actividades_ventas
 
 ### Blockers
 
-- **Checkpoint 02-01:** Apply migration `20260617000005` to Supabase
-- **Checkpoint 01-01–01-02:** Phase 1 migrations if not yet applied
-- Supabase MCP unauthorized — use CLI or Dashboard
+- Migrations 000001–000005 apply checkpoint (Supabase remote)
+- Live Realtime requires authenticated session for RLS
 
 ### Todos
 
-- [ ] Apply migration `20260617000005` (reply "migration applied")
-- [ ] `/gsd-plan-phase 3` or `/gsd-execute-phase 3` — ventas hooks
-- [ ] `/gsd-verify-work 1` after Phase 1 migrations applied
+- [ ] `/gsd-execute-phase 4` — Pipeline UI
+- [ ] Apply migrations if not done
+- [ ] `/gsd-verify-work 3` after remote smoke test

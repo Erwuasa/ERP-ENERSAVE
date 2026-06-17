@@ -7,8 +7,8 @@ Este milestone construye el **Sistema de Ventas** sobre el ERP brownfield existe
 ## Phases
 
 - [ ] **Phase 1: Schema & Supabase Ventas** — Migraciones, RLS, tipos y cliente de datos
-- [ ] **Phase 2: Pipeline Domain** — Config visual, transiciones, SLA y motivos de descarte
-- [ ] **Phase 3: Hooks, Quick-Wins & Realtime** — Motor de tareas y suscripciones live
+- [x] **Phase 2: Pipeline Domain** — Config visual, transiciones, SLA y motivos de descarte
+- [x] **Phase 3: Hooks, Quick-Wins & Realtime** — Motor de tareas y suscripciones live
 - [ ] **Phase 4: Pipeline UI** — Kanban 11 columnas, lista, filtros, alta rápida
 - [ ] **Phase 5: Mi Día** — Cola priorizada y objetivos diarios del comercial
 - [ ] **Phase 6: Ficha Prospecto 360** — Timeline, energía, fase, documentos, contrato vinculado
@@ -55,9 +55,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — DATA-05 migration + types.ts + ventas.ts mappers (11 fases, 6 columnas)
-- [ ] 02-02-PLAN.md — vitest Wave 0 + pipeline.ts core (FUNNEL_ORDER, TRANSITIONS, validateTransition PIPE-05)
-- [ ] 02-03-PLAN.md — SLA (horas+días), MOTIVOS_DESCARTE (9 ids), badges, getSlaUrgencia, PIPE-06
+- [x] 02-01-PLAN.md — DATA-05 migration + types.ts + ventas.ts mappers (11 fases, 6 columnas)
+- [x] 02-02-PLAN.md — vitest Wave 0 + pipeline.ts core (FUNNEL_ORDER, TRANSITIONS, validateTransition PIPE-05)
+- [x] 02-03-PLAN.md — SLA (horas+días), MOTIVOS_DESCARTE (9 ids), badges, getSlaUrgencia, PIPE-06
 
 ### Phase 3: Hooks, Quick-Wins & Realtime
 
@@ -76,9 +76,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: `quick-wins.ts` — reglas por fase y deduplicación
-- [ ] 03-02: `useProspectos.ts` — CRUD, cambio fase, Realtime
-- [ ] 03-03: `useTareas.ts` + `useActividades.ts` — cola, completar, timeline, Realtime
+- [x] 03-01: `quick-wins.ts` — reglas por fase y deduplicación
+- [x] 03-02: `useProspectos.ts` — CRUD, cambio fase, Realtime
+- [x] 03-03: `useTareas.ts` + `useActividades.ts` — cola, completar, timeline, Realtime
 
 ### Phase 4: Pipeline UI
 
