@@ -4,11 +4,34 @@ export type ProspectoFase =
   | "cualificado"
   | "propuesta_enviada"
   | "negociacion"
-  | "documentacion"
-  | "enviado"
-  | "cliente_activo"
-  | "recontactar"
+  | "tramitacion"
+  | "pendiente_firma"
+  | "activado"
+  | "con_dudas"
   | "descartado"
+  | "recontactar"
+
+export type SubtipoProspecto =
+  | "base_datos"
+  | "vecino_zona"
+  | "contacto_previo"
+  | "referido"
+
+export type SubEstadoTramitacion =
+  | "en_proceso"
+  | "incidencia_administrativa"
+  | "pendiente_de_firma"
+
+export type MotivoDescarte =
+  | "precio_competencia"
+  | "no_interesado"
+  | "permanencia_activa"
+  | "no_es_decisor"
+  | "moroso"
+  | "sin_respuesta"
+  | "consumo_bajo"
+  | "ya_es_cliente"
+  | "otro"
 
 export type ActividadTipo =
   | "llamada"
@@ -44,7 +67,13 @@ export interface Prospecto {
   fase: ProspectoFase
   faseChangedAt: string
   diasEnFase: number
-  motivoDescarte?: string
+  subtipoProspecto?: SubtipoProspecto
+  fechaProximoContacto?: string
+  subEstado?: SubEstadoTramitacion
+  motivoConDudas?: string
+  motivoRecontacto?: string
+  fechaRecontactar?: string
+  motivoDescarte?: MotivoDescarte
   contratoEquipoId?: string
   cups?: string
   tipoSuministro?: "luz" | "gas"
@@ -101,6 +130,7 @@ export interface CreateProspectoInput {
   email?: string
   nif?: string
   fase?: ProspectoFase
+  subtipoProspecto?: SubtipoProspecto
   cups?: string
   tipoSuministro?: "luz" | "gas"
   consumoAnualKwh?: number
@@ -122,6 +152,12 @@ export interface UpdateProspectoPatch {
   telefono?: string
   email?: string
   nif?: string
+  subtipoProspecto?: SubtipoProspecto
+  fechaProximoContacto?: string
+  subEstado?: SubEstadoTramitacion
+  motivoConDudas?: string
+  motivoRecontacto?: string
+  fechaRecontactar?: string
   cups?: string
   tipoSuministro?: "luz" | "gas"
   consumoAnualKwh?: number
@@ -137,6 +173,17 @@ export interface UpdateProspectoPatch {
   provincia?: string
   contratoEquipoId?: string
   metadata?: Record<string, unknown>
+}
+
+export interface UpdateProspectoFaseInput {
+  fase: ProspectoFase
+  motivoDescarte?: MotivoDescarte
+  subtipoProspecto?: SubtipoProspecto
+  fechaProximoContacto?: string
+  subEstado?: SubEstadoTramitacion
+  motivoConDudas?: string
+  motivoRecontacto?: string
+  fechaRecontactar?: string
 }
 
 export interface CreateActividadInput {

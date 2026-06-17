@@ -7,12 +7,16 @@ import type {
   CreateTareaInput,
   ListProspectosFilters,
   ListTareasFilters,
+  MotivoDescarte,
   Prospecto,
   ProspectoFase,
+  SubEstadoTramitacion,
+  SubtipoProspecto,
   TareaEstado,
   TareaPrioridad,
   TareaTipo,
   TareaVenta,
+  UpdateProspectoFaseInput,
   UpdateProspectoPatch,
   UpdateTareaPatch,
 } from "../ventas/types"
@@ -39,7 +43,13 @@ export interface ProspectoRow {
   fase: ProspectoFase
   fase_changed_at: string
   dias_en_fase: number
-  motivo_descarte: string | null
+  subtipo_prospecto: SubtipoProspecto | null
+  fecha_proximo_contacto: string | null
+  sub_estado: SubEstadoTramitacion | null
+  motivo_con_dudas: string | null
+  motivo_recontacto: string | null
+  fecha_recontactar: string | null
+  motivo_descarte: MotivoDescarte | null
   contrato_equipo_id: string | null
   cups: string | null
   tipo_suministro: "luz" | "gas" | null
@@ -138,6 +148,12 @@ export function mapProspectoRow(row: ProspectoRow): Prospecto {
     fase: row.fase,
     faseChangedAt: row.fase_changed_at,
     diasEnFase: row.dias_en_fase,
+    subtipoProspecto: row.subtipo_prospecto ?? undefined,
+    fechaProximoContacto: row.fecha_proximo_contacto ?? undefined,
+    subEstado: row.sub_estado ?? undefined,
+    motivoConDudas: row.motivo_con_dudas ?? undefined,
+    motivoRecontacto: row.motivo_recontacto ?? undefined,
+    fechaRecontactar: row.fecha_recontactar ?? undefined,
     motivoDescarte: row.motivo_descarte ?? undefined,
     contratoEquipoId: row.contrato_equipo_id ?? undefined,
     cups: row.cups ?? undefined,
@@ -201,6 +217,7 @@ export function buildProspectoInsert(input: CreateProspectoInput) {
     email: input.email ?? null,
     nif: input.nif ?? null,
     fase: input.fase ?? "prospecto_nuevo",
+    subtipo_prospecto: input.subtipoProspecto ?? null,
     cups: input.cups ?? null,
     tipo_suministro: input.tipoSuministro ?? null,
     consumo_anual_kwh: input.consumoAnualKwh ?? null,
@@ -309,6 +326,13 @@ export async function updateProspecto(
   if (patch.telefono !== undefined) row.telefono = patch.telefono
   if (patch.email !== undefined) row.email = patch.email
   if (patch.nif !== undefined) row.nif = patch.nif
+  if (patch.subtipoProspecto !== undefined) row.subtipo_prospecto = patch.subtipoProspecto
+  if (patch.fechaProximoContacto !== undefined)
+    row.fecha_proximo_contacto = patch.fechaProximoContacto
+  if (patch.subEstado !== undefined) row.sub_estado = patch.subEstado
+  if (patch.motivoConDudas !== undefined) row.motivo_con_dudas = patch.motivoConDudas
+  if (patch.motivoRecontacto !== undefined) row.motivo_recontacto = patch.motivoRecontacto
+  if (patch.fechaRecontactar !== undefined) row.fecha_recontactar = patch.fechaRecontactar
   if (patch.cups !== undefined) row.cups = patch.cups
   if (patch.tipoSuministro !== undefined) row.tipo_suministro = patch.tipoSuministro
   if (patch.consumoAnualKwh !== undefined) row.consumo_anual_kwh = patch.consumoAnualKwh
@@ -340,16 +364,20 @@ export async function updateProspecto(
 /** DB trigger inserts cambio_fase activity — do not duplicate in client */
 export async function updateProspectoFase(
   id: string,
-  fase: ProspectoFase,
-  motivoDescarte?: string
+  input: UpdateProspectoFaseInput
 ): Promise<VentasResult<Prospecto>> {
   const clientOrError = requireSupabase()
   if (isVentasFailure(clientOrError)) return clientOrError
 
-  const row: Record<string, unknown> = { fase }
-  if (fase === "descartado" && motivoDescarte) {
-    row.motivo_descarte = motivoDescarte
-  }
+  const row: Record<string, unknown> = { fase: input.fase }
+  if (input.motivoDescarte !== undefined) row.motivo_descarte = input.motivoDescarte
+  if (input.subtipoProspecto !== undefined) row.subtipo_prospecto = input.subtipoProspecto
+  if (input.fechaProximoContacto !== undefined)
+    row.fecha_proximo_contacto = input.fechaProximoContacto
+  if (input.subEstado !== undefined) row.sub_estado = input.subEstado
+  if (input.motivoConDudas !== undefined) row.motivo_con_dudas = input.motivoConDudas
+  if (input.motivoRecontacto !== undefined) row.motivo_recontacto = input.motivoRecontacto
+  if (input.fechaRecontactar !== undefined) row.fecha_recontactar = input.fechaRecontactar
 
   const { data, error } = await clientOrError
     .from("prospectos")
