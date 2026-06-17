@@ -379,11 +379,11 @@ export default defineConfig({
 | A6 | Motivo ids as snake_case text | Motivos | Legacy rows need normalization |
 | A7 | Stale dias_en_fase acceptable v1.0 | PIPE-04 | SLA visibility delayed |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **SLA day defaults** — Ship proposed table as tunable `PIPELINE_FASE_CONFIG`; confirm with user after first pipeline UAT
-2. **Backward transitions** — Include 3 edges by default; remove if user wants strict forward-only funnel
-3. **`MotivoDescarte` on Prospecto type** — Keep `motivoDescarte?: string` on domain type; pipeline exports union for validation/UI only
+1. **SLA day defaults** — RESOLVED: ship RESEARCH SLA table as tunable `slaDiasMax` in `PIPELINE_FASE_CONFIG` (02-02 Task 2); confirm with user at UAT
+2. **Backward transitions** — RESOLVED: include 3 backward edges in TRANSITIONS (02-01 Task 2)
+3. **`MotivoDescarte` on Prospecto type** — RESOLVED: keep `motivoDescarte?: string` on types.ts; pipeline validates MotivoDescarte ids (02-02 Task 1)
 
 ## Environment Availability
 
@@ -504,10 +504,10 @@ export default defineConfig({
 | Pitfalls | HIGH | dias_en_fase stale + motivo gap documented |
 | SLA defaults | MEDIUM | Product assumptions — tunable constants |
 
-### Open Questions
+### Open Questions (RESOLVED)
 
-- Confirm SLA day table with user
-- Confirm backward transitions (3 edges) vs forward-only
+- SLA day table shipped as constants — confirm at UAT
+- Backward transitions: 3 edges included in plans
 
 ### Ready for Planning
 
