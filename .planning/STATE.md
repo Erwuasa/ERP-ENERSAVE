@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-17T12:00:00.000Z"
-last_activity: 2026-06-17 — Phase 1 code committed; migration checkpoints pending
+last_updated: "2026-06-17T15:00:00.000Z"
+last_activity: 2026-06-17 — Phase 2 planned
 progress:
   phases_total: 7
   phases_complete: 0
@@ -16,10 +16,10 @@ progress:
 
 ## Current Position
 
-Phase: 1 — Schema & Supabase Ventas
-Plan: 01-01 ✓, 01-02 ✓, 01-03 ✓ (code committed)
-Status: Checkpoint pending — apply migrations to Supabase
-Last activity: 2026-06-17 — Phase 1 code committed; migration checkpoints pending
+Phase: 2 — Pipeline Domain
+Plan: 02-01, 02-02 (planned, ready to execute)
+Status: Phase 2 planned — execute next
+Last activity: 2026-06-17 — Phase 2 plans created and verified
 
 ## Accumulated Context
 
@@ -37,6 +37,6 @@ Last activity: 2026-06-17 — Phase 1 code committed; migration checkpoints pend
 
 ### Todos
 
-- [ ] User confirms "migrations applied" after checkpoint verification
-- [ ] Run `/gsd-verify-work 1` after remote apply
-- [ ] `/gsd-plan-phase 2` when Phase 1 verified
+- [ ] `/gsd-execute-phase 2` — pipeline.ts domain logic
+- [ ] Complete Phase 1 migration checkpoints if not done
+- [ ] `/gsd-verify-work 1` after remote apply
