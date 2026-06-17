@@ -422,6 +422,22 @@ export async function createActividad(
   return { ok: true, data: mapActividadRow(data as ActividadVentaRow) }
 }
 
+export async function listTareasByProspecto(
+  prospectoId: string
+): Promise<VentasResult<TareaVenta[]>> {
+  const clientOrError = requireSupabase()
+  if (isVentasFailure(clientOrError)) return clientOrError
+
+  const { data, error } = await clientOrError
+    .from("tareas_ventas")
+    .select("*")
+    .eq("prospecto_id", prospectoId)
+    .order("created_at", { ascending: false })
+
+  if (error) return mapSupabaseError(error)
+  return { ok: true, data: (data as TareaVentaRow[]).map(mapTareaRow) }
+}
+
 export async function listTareas(
   comercialId: string,
   filters?: ListTareasFilters
