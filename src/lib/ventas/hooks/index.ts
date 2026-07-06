@@ -1,5 +1,8 @@
 export type { VentasActor, VentasRole } from "./types"
 export { useActividades } from "./useActividades"
+export { useActividadesComercial } from "./useActividadesComercial"
 export { useProspectos, type ChangeFaseResult } from "./useProspectos"
 export { useTareas } from "./useTareas"
 export { useRealtimeRefresh } from "./useRealtimeRefresh"
+export { useFichaProspecto } from "./useFichaProspecto"
+export { useReportingActividad } from "./useReportingActividad"

@@ -1,10 +1,19 @@
+import {
+  aplicaPenalizacionCincoPorCiento,
+  type ContractSegmentContext,
+} from "./contract-segment-rules"
+
 export interface PenaltyInput {
   precioFijoConsumo?: number
   consumoAnual?: number
   diasHastaRenovacion?: number
 }
 
-export function calcularPenalizacion(input: PenaltyInput): number | null {
+export type PenaltyContractInput = PenaltyInput & ContractSegmentContext
+
+export function calcularPenalizacion(input: PenaltyContractInput): number | null {
+  if (!aplicaPenalizacionCincoPorCiento(input)) return null
+
   const { precioFijoConsumo, consumoAnual, diasHastaRenovacion } = input
 
   if (
@@ -40,6 +49,5 @@ export function formatPenalizacionFormula(
   diasHastaRenovacion: number
 ): string {
   const meses = Math.max(0, Math.round((diasHastaRenovacion / 365) * 12))
-  const base = precioFijoConsumo * consumoAnual * 0.05
   return `(${precioFijoConsumo.toFixed(4)} × ${consumoAnual.toLocaleString("es-ES")} × 0,05) × (${meses}/12)`
 }

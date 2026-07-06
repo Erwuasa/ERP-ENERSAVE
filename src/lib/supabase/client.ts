@@ -10,7 +10,13 @@ export function getSupabaseClient(): SupabaseClient | null {
 
   if (!url || !key) return null
 
-  client = createClient(url, key)
+  client = createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  })
   return client
 }
 

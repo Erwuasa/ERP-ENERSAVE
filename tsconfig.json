@@ -18,11 +18,13 @@
     "paths": {
       "@/*": [
         "./*"
-      ]
+      ],
+      "sonner": ["./src/lib/sonner-silent.ts"],
+      "sonner-original": ["./node_modules/sonner/dist/index.d.mts"]
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["app", "app/**/*"]
+  "include": ["src/**/*", "app/**/*"],
+  "exclude": []
 }

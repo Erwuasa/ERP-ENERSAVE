@@ -1,47 +1,100 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
+/* next-themes uses class="dark" on <html> — required for Tailwind v4 dark: utilities */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
-  
+
   --color-primary-600: #2563eb;
   --color-primary-500: #3b82f6;
   --color-brand-bg: var(--brand-bg);
   --color-brand-panel: var(--brand-panel);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-elevated: var(--brand-elevated);
   --color-brand-border: var(--brand-border);
   --color-brand-text: var(--brand-text);
   --color-brand-subtext: var(--brand-subtext);
+  --color-brand-accent: var(--brand-accent);
 }
 
 :root {
-  --brand-bg: #f8fafc; /* Beautiful soft slate/blue background from screenshot */
-  --brand-panel: #ffffff; /* Pure white cards for maximum pop from screenshot */
-  --brand-border: #e2e8f0; /* Soft slate-200 border */
-  --brand-text: #0f172a; /* Slate-900 corporate primary text */
-  --brand-subtext: #475569; /* Slate-600 subtitle text */
+  --brand-bg: #f8fafc;
+  --brand-panel: #ffffff;
+  --brand-surface: #f1f5f9;
+  --brand-elevated: #e2e8f0;
+  --brand-border: #e2e8f0;
+  --brand-text: #0f172a;
+  --brand-subtext: #475569;
+  --brand-accent: #0891b2;
+  --brand-glow-cyan: rgba(6, 182, 212, 0.06);
+  --brand-glow-amber: rgba(245, 158, 11, 0.05);
 }
 
 .dark {
-  --brand-bg: #090d16; /* Clean deep blue-slate background */
-  --brand-panel: #0f172a; /* Deep blue-slate cards */
-  --brand-border: rgba(255, 255, 255, 0.06);
-  --brand-text: #f8fafc; /* Slate-50 white text */
-  --brand-subtext: #94a3b8; /* Slate-400 muted text */
+  /* Slate-900 base — más claro que OLED (#020617), cómodo para trabajo prolongado */
+  --brand-bg: #111827;
+  --brand-panel: #1e293b;
+  --brand-surface: #273549;
+  --brand-elevated: #334155;
+  --brand-border: rgba(148, 163, 184, 0.18);
+  --brand-text: #f1f5f9;
+  --brand-subtext: #9ca3af;
+  --brand-accent: #22d3ee;
+  --brand-glow-cyan: rgba(34, 211, 238, 0.05);
+  --brand-glow-amber: rgba(251, 191, 36, 0.04);
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--brand-bg);
+  color: var(--brand-text);
 }
 
 /* Clases animadas de utilidad */
-@keyframes shimmer {
+@keyframes shimmer-ltr {
+  0% {
+    transform: translateX(-100%);
+  }
   100% {
     transform: translateX(100%);
   }
 }
 
 .animate-shimmer {
-  animation: shimmer 1.5s infinite;
+  animation: shimmer-ltr 1.4s ease-in-out infinite;
 }
 
-/* Personalización de barra de scroll para ambos modos */
+@keyframes sla-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 14px 2px rgba(244, 63, 94, 0.45);
+  }
+}
+
+.animate-sla-pulse {
+  animation: sla-pulse 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sla-pulse {
+    animation: none;
+  }
+}
+
+/* Personalización de barra de scroll */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -50,17 +103,22 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(148, 163, 184, 0.25);
   border-radius: 99px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(148, 163, 184, 0.45);
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(148, 163, 184, 0.18);
 }
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(148, 163, 184, 0.32);
 }
 
+/* Form controls: native selects/options inherit theme in dark mode */
+.dark select,
+.dark option {
+  color-scheme: dark;
+}

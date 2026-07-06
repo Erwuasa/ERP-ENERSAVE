@@ -1,9 +1,16 @@
 import type {
   MotivoDescarte,
+  Prospecto,
   ProspectoFase,
   SubEstadoTramitacion,
   SubtipoProspecto,
 } from "./types"
+import {
+  getCualificadoSlaHorasFromMetadata,
+  getProspectoNuevoSlaHorasFromMetadata,
+  isLeadDigitalFromMetadata,
+  isPropuestaSimpleFromMetadata,
+} from "./sla-rules"
 
 export const FASE_INICIAL: ProspectoFase = "prospecto_nuevo"
 
@@ -20,6 +27,12 @@ export const FUNNEL_ORDER = [
 
 export const FUNNEL_ACTIVE = FUNNEL_ORDER.slice(0, -1)
 
+export const ARCHIVO_FASES: readonly ProspectoFase[] = [
+  "con_dudas",
+  "descartado",
+  "recontactar",
+]
+
 export interface PipelineFaseConfig {
   id: ProspectoFase
   label: string
@@ -32,15 +45,18 @@ export interface PipelineFaseConfig {
   isTerminal: boolean
 }
 
+export const PIPELINE_COLUMN_DARK =
+  "dark:border-brand-border/55 dark:bg-brand-surface/55"
+
 export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
   {
     id: "prospecto_nuevo",
     label: "Prospecto nuevo",
     kanbanOrder: 1,
-    columnAccent: "border-slate-400/30 bg-slate-400/5",
+    columnAccent: `border-slate-400/30 bg-slate-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-slate-400/20 text-slate-600 dark:text-slate-300 border border-slate-400/30",
-    slaHorasMax: 4,
+    slaHorasMax: 24,
     slaDiasMax: null,
     slaUsesFechaProximoContacto: false,
     isTerminal: false,
@@ -49,23 +65,23 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "contactado",
     label: "Contactado",
     kanbanOrder: 2,
-    columnAccent: "border-sky-400/30 bg-sky-400/5",
+    columnAccent: `border-sky-400/30 bg-sky-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-sky-100/90 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200 border border-sky-300/50 dark:border-sky-500/25",
-    slaHorasMax: null,
+    slaHorasMax: 48,
     slaDiasMax: null,
-    slaUsesFechaProximoContacto: true,
+    slaUsesFechaProximoContacto: false,
     isTerminal: false,
   },
   {
     id: "cualificado",
     label: "Cualificado",
     kanbanOrder: 3,
-    columnAccent: "border-indigo-400/30 bg-indigo-400/5",
+    columnAccent: `border-indigo-400/30 bg-indigo-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-indigo-100/90 text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-200 border border-indigo-300/50 dark:border-indigo-500/25",
-    slaHorasMax: null,
-    slaDiasMax: 3,
+    slaHorasMax: 48,
+    slaDiasMax: null,
     slaUsesFechaProximoContacto: false,
     isTerminal: false,
   },
@@ -73,11 +89,11 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "propuesta_enviada",
     label: "Propuesta enviada",
     kanbanOrder: 4,
-    columnAccent: "border-violet-400/30 bg-violet-400/5",
+    columnAccent: `border-violet-400/30 bg-violet-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-violet-100/90 text-violet-800 dark:bg-violet-500/15 dark:text-violet-200 border border-violet-300/50 dark:border-violet-500/25",
     slaHorasMax: null,
-    slaDiasMax: 2,
+    slaDiasMax: 5,
     slaUsesFechaProximoContacto: false,
     isTerminal: false,
   },
@@ -85,7 +101,7 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "negociacion",
     label: "Negociación",
     kanbanOrder: 5,
-    columnAccent: "border-purple-400/30 bg-purple-400/5",
+    columnAccent: `border-purple-400/30 bg-purple-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-purple-100/90 text-purple-800 dark:bg-purple-500/15 dark:text-purple-200 border border-purple-300/50 dark:border-purple-500/25",
     slaHorasMax: null,
@@ -97,7 +113,7 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "tramitacion",
     label: "Tramitación",
     kanbanOrder: 6,
-    columnAccent: "border-teal-400/30 bg-teal-400/5",
+    columnAccent: `border-teal-400/30 bg-teal-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-teal-100/90 text-teal-800 dark:bg-teal-500/15 dark:text-teal-200 border border-teal-300/50 dark:border-teal-500/25",
     slaHorasMax: null,
@@ -109,11 +125,11 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "pendiente_firma",
     label: "Pendiente firma",
     kanbanOrder: 7,
-    columnAccent: "border-amber-400/30 bg-amber-400/5",
+    columnAccent: `border-amber-400/30 bg-amber-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-amber-100/90 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200 border border-amber-300/50 dark:border-amber-500/25",
-    slaHorasMax: null,
-    slaDiasMax: 2,
+    slaHorasMax: 48,
+    slaDiasMax: null,
     slaUsesFechaProximoContacto: false,
     isTerminal: false,
   },
@@ -121,7 +137,7 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "activado",
     label: "Activado",
     kanbanOrder: 8,
-    columnAccent: "border-emerald-500/30 bg-emerald-500/5",
+    columnAccent: `border-emerald-500/30 bg-emerald-500/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25",
     slaHorasMax: null,
@@ -133,7 +149,7 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "con_dudas",
     label: "Con dudas",
     kanbanOrder: 9,
-    columnAccent: "border-orange-400/30 bg-orange-400/5",
+    columnAccent: `border-orange-400/30 bg-orange-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-orange-100/90 text-orange-800 dark:bg-orange-500/15 dark:text-orange-200 border border-orange-300/50 dark:border-orange-500/25",
     slaHorasMax: null,
@@ -145,7 +161,7 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "descartado",
     label: "Descartado",
     kanbanOrder: 10,
-    columnAccent: "border-slate-500/30 bg-slate-500/5",
+    columnAccent: `border-slate-500/30 bg-slate-500/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/25",
     slaHorasMax: null,
@@ -157,7 +173,7 @@ export const PIPELINE_FASE_CONFIG: readonly PipelineFaseConfig[] = [
     id: "recontactar",
     label: "Recontactar",
     kanbanOrder: 11,
-    columnAccent: "border-cyan-400/30 bg-cyan-400/5",
+    columnAccent: `border-cyan-400/30 bg-cyan-400/5 ${PIPELINE_COLUMN_DARK}`,
     badgeClass:
       "bg-cyan-100/90 text-cyan-800 dark:bg-cyan-500/15 dark:text-cyan-200 border border-cyan-300/50 dark:border-cyan-500/25",
     slaHorasMax: null,
@@ -258,18 +274,43 @@ export interface SlaInput {
   faseChangedAt: string
   diasEnFase: number
   fechaProximoContacto?: string
+  metadata?: Record<string, unknown>
+  subtipoProspecto?: SubtipoProspecto
+}
+
+export function slaInputFromProspecto(prospecto: Prospecto): SlaInput {
+  return {
+    fase: prospecto.fase,
+    faseChangedAt: prospecto.faseChangedAt,
+    diasEnFase: prospecto.diasEnFase,
+    fechaProximoContacto: prospecto.fechaProximoContacto,
+    metadata: prospecto.metadata,
+    subtipoProspecto: prospecto.subtipoProspecto,
+  }
 }
 
 const WARNING_RATIO = 0.8
 
+function resolveSlaHorasMax(input: SlaInput): number | null {
+  if (input.fase === "prospecto_nuevo") {
+    return getProspectoNuevoSlaHorasFromMetadata(input.metadata)
+  }
+  if (input.fase === "cualificado") {
+    return getCualificadoSlaHorasFromMetadata(input.metadata)
+  }
+  const config = getFaseConfig(input.fase)
+  return config.slaHorasMax
+}
+
 export function getSlaUrgencia(input: SlaInput, referenceDate: Date = new Date()): SlaUrgencia {
   const config = getFaseConfig(input.fase)
+  const horasMax = resolveSlaHorasMax(input)
 
-  if (config.slaHorasMax != null) {
+  if (horasMax != null) {
     const hours =
       (referenceDate.getTime() - new Date(input.faseChangedAt).getTime()) / 3_600_000
-    if (hours >= config.slaHorasMax) return "breach"
-    if (hours >= config.slaHorasMax * WARNING_RATIO) return "warning"
+    if (hours >= horasMax) return "breach"
+    if (hours >= horasMax * WARNING_RATIO) return "warning"
     return "ok"
   }
 
@@ -311,6 +352,8 @@ export interface TransitionContext {
   motivoConDudas?: string
   motivoRecontacto?: string
   fechaRecontactar?: string
+  /** Solo true cuando el webhook ERP confirma contrato activado. */
+  erpSync?: boolean
 }
 
 export type TransitionValidationResult =
@@ -338,6 +381,15 @@ export function validateTransition(
     }
   }
 
+  if (to === "activado" && !context?.erpSync) {
+    return {
+      ok: false,
+      code: "erp_sync_required",
+      message:
+        "Activado solo se actualiza automáticamente cuando el ERP marca el contrato como Activado.",
+    }
+  }
+
   switch (to) {
     case "prospecto_nuevo":
       if (!context?.subtipoProspecto) {
@@ -349,13 +401,6 @@ export function validateTransition(
       }
       break
     case "contactado":
-      if (!context?.fechaProximoContacto) {
-        return {
-          ok: false,
-          code: "fecha_contacto_required",
-          message: "Indica la fecha del próximo contacto.",
-        }
-      }
       break
     case "tramitacion":
       if (!context?.subEstado) {

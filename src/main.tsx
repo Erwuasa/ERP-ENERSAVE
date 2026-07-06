@@ -13,7 +13,7 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <SafeThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <App />
-        <Toaster position="bottom-right" richColors />
+        <Toaster position="bottom-right" richColors theme="system" />
       </SafeThemeProvider>
     </ErrorBoundary>
   </StrictMode>,

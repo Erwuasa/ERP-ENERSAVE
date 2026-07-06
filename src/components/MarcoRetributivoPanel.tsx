@@ -88,7 +88,7 @@ export function MarcoRetributivoPanel({
                 className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all ${
                   tipoFilter === tipo
                     ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white dark:bg-slate-950 border-brand-border text-brand-text hover:border-slate-300"
+                    : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
                 }`}
               >
                 {tipo === "todos" ? "Todos" : tipo}
@@ -108,7 +108,7 @@ export function MarcoRetributivoPanel({
                 className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg transition-all cursor-pointer border ${
                   companiaFilter === tab
                     ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                    : "bg-slate-50 dark:bg-slate-950 border-brand-border text-brand-text hover:border-slate-300 dark:hover:border-white/15"
+                    : "bg-brand-surface border-brand-border text-brand-text hover:border-slate-300 dark:hover:border-white/15"
                 }`}
               >
                 {tab}
@@ -153,7 +153,7 @@ export function MarcoRetributivoPanel({
         <div className="overflow-x-auto rounded-2xl border border-brand-border">
           <table className="w-full min-w-[880px] text-left text-xs">
             <thead>
-              <tr className="bg-slate-100 dark:bg-slate-950/80 border-b border-brand-border">
+              <tr className="bg-slate-100 dark:bg-brand-surface/80 border-b border-brand-border">
                 <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
                   Compañía
                 </th>
@@ -188,7 +188,7 @@ export function MarcoRetributivoPanel({
                 filteredRows.map((entry) => (
                   <tr
                     key={entry.id}
-                    className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors"
+                    className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 hover:bg-brand-elevated/50 transition-colors"
                   >
                     <td className="px-4 py-3 align-top">
                       {renderCompaniaLogo(entry.compania)}

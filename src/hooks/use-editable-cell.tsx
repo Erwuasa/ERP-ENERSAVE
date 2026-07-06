@@ -74,7 +74,7 @@ export function useEditableCell<T extends { id: string }>(
             if (e.key === "Escape") setEditingCell(null)
           }}
           autoFocus
-          className="p-1 text-xs bg-white dark:bg-slate-900 border border-cyan-500 rounded text-brand-text font-mono w-full min-w-[60px] outline-none"
+          className="p-1 text-xs bg-brand-panel border border-cyan-500 rounded text-brand-text font-mono w-full min-w-[60px] outline-none"
         />
       )
     }

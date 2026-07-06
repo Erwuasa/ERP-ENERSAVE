@@ -1,281 +1,273 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { useId, useMemo, useState } from "react"
+import { motion, useReducedMotion } from "motion/react"
+import { Receipt } from "lucide-react"
+import {
+  buildFacturadoChartPoints,
+  collectBillingEvents,
+  countContractsInPeriod,
+  sumFacturadoInPeriod,
+  type ContractBillingRow,
+} from "../lib/contract-billing"
 
-interface ChartPoint {
-  label: string;
-  value: number;
-}
+export const COMMISSION_PERIOD_OPTIONS = [
+  { label: "1 Día", value: "1d" },
+  { label: "1 Sem.", value: "1w" },
+  { label: "1 Mes", value: "1m" },
+  { label: "3 Mes.", value: "3m" },
+  { label: "6 Mes.", value: "6m" },
+  { label: "1 Año", value: "1y" },
+  { label: "Total", value: "Total" },
+] as const
 
 interface ComercialCommissionsChartProps {
-  contracts: any[];
-  settlements: any[];
-  activeUserId: string;
-  selectedPeriod: string;
+  contracts: ContractBillingRow[]
+  activeUserId: string
+  selectedPeriod: string
+  onPeriodChange: (period: string) => void
+  formatCurrency: (value: number) => string
 }
 
-export const ComercialCommissionsChart: React.FC<ComercialCommissionsChartProps> = ({
+export function ComercialCommissionsChart({
   contracts,
-  settlements,
   activeUserId,
   selectedPeriod,
-}) => {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  onPeriodChange,
+  formatCurrency,
+}: ComercialCommissionsChartProps) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const reduceMotion = useReducedMotion()
+  const gradientId = useId().replace(/:/g, "")
+  const lineGradientId = `billing-line-${gradientId}`
+  const areaGradientId = `billing-area-${gradientId}`
 
-  // Helper to format currency
-  const formatValue = (val: number) => {
-    return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val);
-  };
+  const billingEvents = useMemo(
+    () => collectBillingEvents(contracts, activeUserId),
+    [contracts, activeUserId]
+  )
 
-  // Extract / mock data based on selectedPeriod to have a beautiful graph curve
-  const getPoints = (): ChartPoint[] => {
-    // We compute actual completed and pending commissions in the selected period as points
-    const userSettlements = settlements.filter(s => s.comercialId === activeUserId);
-    
-    const now = new Date();
-    
-    const getLimitDate = () => {
-      const d = new Date();
-      if (selectedPeriod === '1d') d.setDate(now.getDate() - 1);
-      else if (selectedPeriod === '1w') d.setDate(now.getDate() - 7);
-      else if (selectedPeriod === '1m') d.setMonth(now.getMonth() - 1);
-      else if (selectedPeriod === '3m') d.setMonth(now.getMonth() - 3);
-      else if (selectedPeriod === '6m') d.setMonth(now.getMonth() - 6);
-      else if (selectedPeriod === '1y') d.setFullYear(now.getFullYear() - 1);
-      return d;
-    };
-    
-    const limitDate = getLimitDate();
-    const periodSettlements = selectedPeriod === 'all' 
-      ? userSettlements 
-      : userSettlements.filter(s => new Date(s.createdAt) >= limitDate);
-      
-    const totalInPeriod = periodSettlements.reduce((sum, s) => sum + s.montoExterno, 0);
+  const totalFacturado = useMemo(
+    () => sumFacturadoInPeriod(billingEvents, selectedPeriod),
+    [billingEvents, selectedPeriod]
+  )
 
-    // If total in period is absolutely 0, return flat zero points
-    if (totalInPeriod === 0) {
-      if (selectedPeriod === '1d') {
-        return [
-          { label: '08:00', value: 0 },
-          { label: '11:00', value: 0 },
-          { label: '14:00', value: 0 },
-          { label: '17:00', value: 0 },
-          { label: '20:00', value: 0 },
-          { label: 'Ahora', value: 0 },
-        ];
-      }
-      if (selectedPeriod === '1w') {
-        return [
-          { label: 'Lun', value: 0 },
-          { label: 'Mar', value: 0 },
-          { label: 'Mié', value: 0 },
-          { label: 'Jue', value: 0 },
-          { label: 'Vie', value: 0 },
-          { label: 'Sáb', value: 0 },
-          { label: 'Dom', value: 0 },
-        ];
-      }
-      if (selectedPeriod === '1m') {
-        return [
-          { label: 'Sem 1', value: 0 },
-          { label: 'Sem 2', value: 0 },
-          { label: 'Sem 3', value: 0 },
-          { label: 'Sem 4', value: 0 },
-        ];
-      }
-      return [
-        { label: 'Ene', value: 0 },
-        { label: 'Feb', value: 0 },
-        { label: 'Mar', value: 0 },
-        { label: 'Abr', value: 0 },
-        { label: 'May', value: 0 },
-        { label: 'Jun', value: 0 },
-      ];
-    }
+  const salesCount = useMemo(
+    () => countContractsInPeriod(contracts, activeUserId, selectedPeriod),
+    [contracts, activeUserId, selectedPeriod]
+  )
 
-    // If they have positive values, we distribute them beautifully and logically
-    if (selectedPeriod === '1d') {
-      const steps = [0.10, 0.25, 0.45, 0.70, 0.90, 1.0];
-      const hours = ['08:00', '11:00', '14:00', '17:00', '20:00', 'Ahora'];
-      return hours.map((h, i) => ({
-        label: h,
-        value: Number((totalInPeriod * steps[i]).toFixed(2)),
-      }));
-    }
+  const points = useMemo(
+    () => buildFacturadoChartPoints(selectedPeriod, billingEvents),
+    [selectedPeriod, billingEvents]
+  )
 
-    if (selectedPeriod === '1w') {
-      const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-      const steps = [0.1, 0.25, 0.40, 0.45, 0.70, 0.90, 1.0];
-      return days.map((d, i) => ({
-        label: d,
-        value: Number((totalInPeriod * steps[i]).toFixed(2)),
-      }));
-    }
+  const chartValues = points.map((p) => p.cumulative)
+  const maxVal = Math.max(...chartValues, totalFacturado, 1) * 1.08
+  const height = 220
+  const width = 800
+  const paddingX = 8
+  const paddingTop = 28
+  const paddingBottom = 28
+  const chartHeight = height - paddingTop - paddingBottom
+  const chartWidth = width - paddingX * 2
 
-    if (selectedPeriod === '1m') {
-      const weeks = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'];
-      const steps = [0.2, 0.45, 0.75, 1.0];
-      return weeks.map((w, i) => ({
-        label: w,
-        value: Number((totalInPeriod * steps[i]).toFixed(2)),
-      }));
-    }
-
-    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-    const steps = [0.15, 0.30, 0.50, 0.70, 0.85, 1.0];
-    return months.map((m, i) => ({
-      label: m,
-      value: Number((totalInPeriod * steps[i]).toFixed(2)),
-    }));
-  };
-
-  const points = getPoints();
-  const maxVal = Math.max(...points.map(p => p.value), 100) * 1.15; // 15% padding on top
-
-  // SVG parameters
-  const height = 180;
-  const width = 500;
-  const paddingX = 40;
-  const paddingY = 20;
-
-  const chartHeight = height - paddingY * 2;
-  const chartWidth = width - paddingX * 2;
-
-  // Convert points to SVG coordinates
   const svgPoints = points.map((p, i) => {
-    const x = paddingX + (i / (points.length - 1)) * chartWidth;
-    const y = height - paddingY - (p.value / maxVal) * chartHeight;
-    return { x, y, label: p.label, value: p.value };
-  });
+    const x = paddingX + (i / Math.max(points.length - 1, 1)) * chartWidth
+    const y = paddingTop + chartHeight - (p.cumulative / maxVal) * chartHeight
+    return { x, y, label: p.label, value: p.value, cumulative: p.cumulative }
+  })
 
-  // Calculate curve line path (Catmull-Rom or Simple cubic bezier)
   const linePath = svgPoints.reduce((acc, p, i, arr) => {
-    if (i === 0) return `M ${p.x} ${p.y}`;
-    // Draw smooth curve using control points
-    const prev = arr[i - 1];
-    const cp1x = prev.x + (p.x - prev.x) / 3;
-    const cp1y = prev.y;
-    const cp2x = prev.x + (2 * (p.x - prev.x)) / 3;
-    const cp2y = p.y;
-    return `${acc} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p.x} ${p.y}`;
-  }, '');
+    if (i === 0) return `M ${p.x} ${p.y}`
+    const prev = arr[i - 1]
+    const cp1x = prev.x + (p.x - prev.x) / 3
+    const cp1y = prev.y
+    const cp2x = prev.x + (2 * (p.x - prev.x)) / 3
+    const cp2y = p.y
+    return `${acc} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p.x} ${p.y}`
+  }, "")
 
-  // For the glowing filled area beneath the curve
-  const areaPath = svgPoints.length > 0 
-    ? `${linePath} L ${svgPoints[svgPoints.length - 1].x} ${height - paddingY} L ${svgPoints[0].x} ${height - paddingY} Z` 
-    : '';
+  const baselineY = paddingTop + chartHeight
+  const areaPath =
+    svgPoints.length > 0
+      ? `${linePath} L ${svgPoints[svgPoints.length - 1].x} ${baselineY} L ${svgPoints[0].x} ${baselineY} Z`
+      : ""
+
+  const activePoint = hoveredIndex !== null ? svgPoints[hoveredIndex] : null
+  const hasData = billingEvents.length > 0
 
   return (
-    <div className="w-full bg-slate-50 dark:bg-slate-950/20 p-5 rounded-2xl border border-brand-border space-y-4">
-      <div className="flex justify-between items-center">
-        <div>
-          <h4 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
-            Curva de Facturación Trimestral
-          </h4>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Dinámica de ingresos liquidados</span>
-        </div>
-        {hoveredIndex !== null && (
-          <div className="text-right">
-            <span className="text-[9px] text-slate-400 block font-mono">VALOR EN PUNTO:</span>
-            <span className="text-xs font-mono font-black text-emerald-500">
-              {formatValue(svgPoints[hoveredIndex].value)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="relative">
-        <svg 
-          viewBox={`0 0 ${width} ${height}`} 
-          className="w-full overflow-visible"
-          style={{ maxHeight: '180px' }}
+    <div className="relative overflow-hidden rounded-xl border border-brand-border bg-brand-panel shadow-sm">
+      {/* Chart layer — full-bleed background */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden>
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="none"
+          className="h-full w-full"
         >
-          {/* Grid lines */}
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
-            const y = paddingY + ratio * chartHeight;
+          <defs>
+            <linearGradient id={lineGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
+              <stop offset="55%" stopColor="#10b981" stopOpacity="1" />
+              <stop offset="100%" stopColor="#34d399" stopOpacity="0.85" />
+            </linearGradient>
+            <linearGradient id={areaGradientId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.28" />
+              <stop offset="45%" stopColor="#06b6d4" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+
+          {[0.25, 0.5, 0.75].map((ratio) => {
+            const y = paddingTop + ratio * chartHeight
             return (
               <line
-                key={index}
+                key={ratio}
                 x1={paddingX}
                 y1={y}
                 x2={width - paddingX}
                 y2={y}
                 stroke="currentColor"
-                className="text-slate-200 dark:text-slate-800/40"
+                className="text-brand-border/70"
                 strokeWidth={1}
-                strokeDasharray="4 4"
+                strokeDasharray="4 6"
               />
-            );
+            )
           })}
-
-          {/* Area under line with elegant gradient */}
-          <defs>
-            <linearGradient id="chartGlow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
-            </linearGradient>
-          </defs>
 
           {areaPath && (
             <motion.path
               d={areaPath}
-              fill="url(#chartGlow)"
-              initial={{ opacity: 0 }}
+              fill={`url(#${areaGradientId})`}
+              initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
             />
           )}
 
-          {/* Animated Line drawing itself */}
-          <motion.path
-            d={linePath}
-            fill="none"
-            stroke="#10b981"
-            strokeWidth={3}
-            strokeLinecap="round"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 1.4, ease: 'easeInOut' }}
-          />
-
-          {/* Interactive dots and layout hover elements */}
-          {svgPoints.map((p, index) => (
-            <g key={index}>
-              {/* Invisible touch and hover target */}
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={16}
-                fill="transparent"
-                className="cursor-pointer"
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
-              />
-
-              {/* Glowing anchor ring on hover */}
-              <motion.circle
-                cx={p.x}
-                cy={p.y}
-                r={index === hoveredIndex ? 6 : 4}
-                fill={index === hoveredIndex ? '#059669' : '#10b981'}
-                stroke="#ffffff"
-                strokeWidth={index === hoveredIndex ? 2 : 1.5}
-                className="transition-all pointer-events-none"
-                animate={{ scale: index === hoveredIndex ? 1.4 : 1 }}
-              />
-
-              {/* Simple axis label */}
-              <text
-                x={p.x}
-                y={height - 2}
-                textAnchor="middle"
-                className="fill-slate-400 font-mono text-[9px] tracking-tight font-bold"
-              >
-                {p.label}
-              </text>
-            </g>
-          ))}
+          {linePath && (
+            <motion.path
+              d={linePath}
+              fill="none"
+              stroke={`url(#${lineGradientId})`}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={reduceMotion ? false : { pathLength: 0, opacity: 0.6 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={{ duration: 1, ease: "easeInOut" }}
+            />
+          )}
         </svg>
       </div>
+
+      {/* Content overlay */}
+      <div className="relative z-10 flex flex-col gap-3 p-4 min-h-[220px]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Receipt className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden />
+              <h3 className="text-[11px] font-bold text-brand-text uppercase tracking-wide">
+                Comisiones facturadas
+              </h3>
+            </div>
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
+              <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums leading-none drop-shadow-sm">
+                {formatCurrency(totalFacturado)}
+              </p>
+              <p className="text-[10px] font-mono text-brand-subtext tabular-nums">
+                {salesCount} contratos
+              </p>
+              {activePoint && (
+                <p className="text-[10px] font-mono text-cyan-700 dark:text-cyan-300 tabular-nums bg-brand-panel/80 backdrop-blur-sm px-1.5 py-0.5 rounded border border-brand-border/60">
+                  {activePoint.label}: {formatCurrency(activePoint.cumulative)}
+                  {activePoint.value !== 0 && (
+                    <span className="text-brand-subtext">
+                      {" "}
+                      ({activePoint.value > 0 ? "+" : ""}
+                      {formatCurrency(activePoint.value)})
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+            <p className="text-[9px] text-brand-subtext max-w-md leading-snug">
+              Incluye todos los contratos registrados; bajas y cancelaciones restan del total.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-1 shrink-0 bg-brand-panel/70 backdrop-blur-sm rounded-lg p-1 border border-brand-border/60">
+            {COMMISSION_PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => onPeriodChange(opt.value)}
+                className={`px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase rounded border transition-colors duration-200 cursor-pointer ${
+                  selectedPeriod === opt.value
+                    ? "bg-cyan-600 text-white border-cyan-600 shadow-sm"
+                    : "bg-brand-surface/80 border-transparent text-brand-subtext hover:border-cyan-500/40 hover:text-brand-text"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Interactive chart zone — aligns with background curve */}
+        <div className="relative flex-1 min-h-[100px] -mx-1 mt-1">
+          <svg
+            viewBox={`0 0 ${width} ${height}`}
+            preserveAspectRatio="none"
+            className="w-full h-[120px] sm:h-[140px] overflow-visible"
+            role="img"
+            aria-label="Curva de comisiones facturadas por periodo"
+          >
+            {svgPoints.map((p, index) => (
+              <g key={index}>
+                <rect
+                  x={p.x - chartWidth / (points.length * 2)}
+                  y={paddingTop}
+                  width={chartWidth / points.length}
+                  height={chartHeight}
+                  fill="transparent"
+                  className="cursor-pointer"
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={index === hoveredIndex ? 6 : 4}
+                  fill={index === hoveredIndex ? "#059669" : "#10b981"}
+                  stroke="var(--color-brand-panel, #fff)"
+                  strokeWidth={2}
+                  className="pointer-events-none transition-all duration-200"
+                />
+                <text
+                  x={p.x}
+                  y={height - 6}
+                  textAnchor="middle"
+                  className={`font-mono text-[9px] ${
+                    index === hoveredIndex
+                      ? "fill-cyan-700 dark:fill-cyan-300 font-bold"
+                      : "fill-brand-subtext"
+                  }`}
+                >
+                  {p.label}
+                </text>
+              </g>
+            ))}
+          </svg>
+
+          {!hasData && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-[10px] font-mono text-brand-subtext bg-brand-panel/90 px-3 py-1 rounded border border-dashed border-brand-border">
+                Sin movimientos de facturación en este periodo
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
-  );
-};
+  )
+}

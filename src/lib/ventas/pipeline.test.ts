@@ -149,8 +149,9 @@ describe("PIPE-05 validateTransition", () => {
     expectFailure(validateTransition("contactado", "con_dudas"), "motivo_dudas_required")
   })
 
-  it("requires fechaProximoContacto for contactado", () => {
-    expectFailure(validateTransition("prospecto_nuevo", "contactado"), "fecha_contacto_required")
+  it("allows transition to contactado without fechaProximoContacto", () => {
+    const result = validateTransition("prospecto_nuevo", "contactado", {})
+    expect(result.ok).toBe(true)
   })
 
   it("requires subtipo for prospecto_nuevo target", () => {
@@ -199,12 +200,13 @@ describe("subtipo", () => {
 describe("getSlaUrgencia", () => {
   const ref = new Date("2026-06-17T14:00:00Z")
 
-  it("uses faseChangedAt hours for prospecto_nuevo 4h SLA", () => {
+  it("uses faseChangedAt hours for prospecto_nuevo 24h SLA (calle)", () => {
     const warning = getSlaUrgencia(
       {
         fase: "prospecto_nuevo",
-        faseChangedAt: "2026-06-17T10:30:00Z",
+        faseChangedAt: "2026-06-16T18:00:00Z",
         diasEnFase: 0,
+        metadata: { canal_origen: "calle" },
       },
       ref
     )
@@ -213,33 +215,46 @@ describe("getSlaUrgencia", () => {
     const breach = getSlaUrgencia(
       {
         fase: "prospecto_nuevo",
-        faseChangedAt: "2026-06-17T09:00:00Z",
+        faseChangedAt: "2026-06-16T13:00:00Z",
         diasEnFase: 0,
+        metadata: { canal_origen: "calle" },
       },
       ref
     )
     expect(breach).toBe("breach")
   })
 
-  it("uses fechaProximoContacto for contactado", () => {
+  it("uses 2h SLA for digital prospecto_nuevo", () => {
+    const breach = getSlaUrgencia(
+      {
+        fase: "prospecto_nuevo",
+        faseChangedAt: "2026-06-17T11:00:00Z",
+        diasEnFase: 0,
+        metadata: { lead_digital: true },
+      },
+      ref
+    )
+    expect(breach).toBe("breach")
+  })
+
+  it("uses 48h hours SLA for contactado", () => {
     const breach = getSlaUrgencia(
       {
         fase: "contactado",
         faseChangedAt: "2026-06-15T10:00:00Z",
         diasEnFase: 2,
-        fechaProximoContacto: "2026-06-17T12:00:00Z",
       },
       ref
     )
     expect(breach).toBe("breach")
   })
 
-  it("compares diasEnFase for day-based fases", () => {
+  it("compares hours for cualificado (48h default)", () => {
     const breach = getSlaUrgencia(
       {
         fase: "cualificado",
-        faseChangedAt: "2026-06-10T10:00:00Z",
-        diasEnFase: 3,
+        faseChangedAt: "2026-06-15T10:00:00Z",
+        diasEnFase: 2,
       },
       ref
     )

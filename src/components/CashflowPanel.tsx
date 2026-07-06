@@ -49,7 +49,7 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
           <button 
             type="button"
             onClick={() => toast.success('Proyecciones de tesorería exportadas a formato Excel (.xlsx)')}
-            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 text-brand-text border border-brand-border rounded-xl text-xs font-semibold font-mono tracking-tight cursor-pointer transition-all shadow-xs"
+            className="flex items-center space-x-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-brand-surface dark:hover:bg-slate-850 text-brand-text border border-brand-border rounded-xl text-xs font-semibold font-mono tracking-tight cursor-pointer transition-all shadow-xs"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Exportar Reporte</span>
@@ -58,10 +58,10 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
       </div>
 
       {/* Scenario Selector & Core Simulation Parameters */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-5 bg-slate-100 dark:bg-slate-900/60 border border-brand-border rounded-2xl">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-5 bg-slate-100 dark:bg-brand-surface/60 border border-brand-border rounded-2xl">
         <div className="space-y-1">
           <span className="block text-[10px] font-mono tracking-wider uppercase text-slate-400 font-bold">Modulador de Proyección Temporal</span>
-          <div className="flex items-center gap-1.5 p-1 bg-slate-200 dark:bg-slate-950 rounded-xl border border-brand-border">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-200 dark:bg-brand-surface rounded-xl border border-brand-border">
             {(['optimista', 'realista', 'pesimista'] as const).map((scen) => (
               <button
                 key={scen}
@@ -87,15 +87,15 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
         </div>
 
         <div className="flex flex-wrap gap-4 text-xs font-mono">
-          <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-brand-border px-4 py-2 flex flex-col justify-center min-w-[140px]">
+          <div className="p-3 bg-brand-panel rounded-xl border border-brand-border px-4 py-2 flex flex-col justify-center min-w-[140px]">
             <span className="text-[9px] text-slate-400 uppercase tracking-widest block font-semibold">Tasa Descuento</span>
             <strong className="text-slate-800 dark:text-slate-150 text-sm mt-0.5">3.5% (WACC anual)</strong>
           </div>
-          <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-brand-border px-4 py-2 flex flex-col justify-center min-w-[140px]">
+          <div className="p-3 bg-brand-panel rounded-xl border border-brand-border px-4 py-2 flex flex-col justify-center min-w-[140px]">
             <span className="text-[9px] text-slate-400 uppercase tracking-widest block font-semibold">Cierre Período</span>
             <strong className="text-slate-800 dark:text-slate-150 text-sm mt-0.5">30-abr-2026</strong>
           </div>
-          <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-brand-border px-4 py-2 justify-center flex flex-col min-w-[140px]">
+          <div className="p-3 bg-brand-panel rounded-xl border border-brand-border px-4 py-2 justify-center flex flex-col min-w-[140px]">
             <span className="text-[9px] text-slate-400 uppercase tracking-widest block font-semibold">Auditoría</span>
             <strong className="text-emerald-500 text-sm mt-0.5 flex items-center gap-1">Conforme <CheckCircle className="w-3.5 h-3.5" /></strong>
           </div>
@@ -187,7 +187,7 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
                 Muestra los movimientos de capital de las últimas semanas y cobros estimados venideros.
               </p>
             </div>
-            <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-900 border border-brand-border rounded text-[10px] font-mono text-slate-400">
+            <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-brand-surface border border-brand-border rounded text-[10px] font-mono text-slate-400">
               Caja Operativa
             </span>
           </div>
@@ -205,7 +205,7 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
             ].map((item, idx) => (
               <div 
                 key={idx}
-                className="p-3.5 bg-slate-50 dark:bg-slate-950/40 border border-brand-border rounded-xl flex items-center justify-between gap-3 hover:bg-slate-200/40 dark:hover:bg-white/5 transition-all"
+                className="p-3.5 bg-brand-surface/40 border border-brand-border rounded-xl flex items-center justify-between gap-3 hover:bg-slate-200/40 dark:hover:bg-white/5 transition-all"
               >
                 <div className="flex items-center space-x-3.5 min-w-0">
                   <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center font-bold ${
@@ -256,7 +256,7 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
           </div>
 
           {/* Custom Pure SVG Line Chart */}
-          <div className="relative w-full h-[220px] bg-slate-100 dark:bg-slate-950/80 border border-brand-border rounded-xl p-3 flex flex-col justify-between">
+          <div className="relative w-full h-[220px] bg-slate-100 dark:bg-brand-surface/80 border border-brand-border rounded-xl p-3 flex flex-col justify-between">
             <div className="absolute top-2 left-2 flex items-center space-x-3 text-[8px] font-mono shrink-0 select-none">
               <div className="flex items-center space-x-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
@@ -335,7 +335,7 @@ export const CashflowPanel: React.FC<CashflowPanelProps> = ({
             </svg>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-brand-border space-y-3 font-mono text-[11px]">
+          <div className="p-4 rounded-xl bg-brand-surface/40 border border-brand-border space-y-3 font-mono text-[11px]">
             <span className="font-extrabold uppercase text-[9px] tracking-wider text-indigo-500 font-mono block">
               Estadísticas Agregadas Mensual
             </span>

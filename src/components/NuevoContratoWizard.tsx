@@ -1,22 +1,17 @@
-import React, { useMemo, useState, type ReactNode } from "react"
+import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ArrowLeft,
   ArrowRight,
   Coins,
   FileText,
-  Filter,
   Flame,
   Lightbulb,
   Loader2,
   MessageSquare,
-  Upload,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
-import {
-  formatMarcoComisionBase,
-  marcoRetributivoCatalog,
-} from "../data/marco-retributivo-catalog"
+import { marcoRetributivoCatalog } from "../data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "../lib/marco-commission"
 import {
   filterMarcoTariffs,
@@ -25,10 +20,20 @@ import {
 } from "../lib/contract-tariff-filter"
 import type { NewContractFormState, TipoClienteContrato } from "../lib/contract-registration"
 import { inferTipoPrecioFromTarifa } from "../lib/contract-registration"
-import type { ContractWizardSegment } from "../lib/contract-tariff-filter"
+import { getTariffPeajeType, inferPeajeTypeFromSegment, spreadPotenciaFromP1 } from "../lib/contract-potencia"
+import { lookupSpainPostalCode } from "../lib/spain-postal-code"
+import {
+  CONTRACT_ESTADO_INICIAL,
+  getContractEstadoBadgeClass,
+} from "../lib/contract-estado"
+import { FileDropZone } from "./ui/FileDropZone"
+import {
+  newContractFormToRegistrationInput,
+  validateContractRegistration,
+} from "../lib/contract-registration"
 
 const inputClass =
-  "w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-lg text-xs focus:ring-1 focus:ring-cyan-500 text-brand-text"
+  "w-full px-3 py-2 bg-brand-surface border border-brand-border rounded-lg text-xs focus:ring-1 focus:ring-cyan-500 text-brand-text"
 const labelClass = "block text-[10px] font-mono text-brand-subtext uppercase mb-1"
 
 const FORMA_PAGO_LABELS: Record<NewContractFormState["formaPago"], string> = {
@@ -49,6 +54,7 @@ interface ProfileOption {
   id: string
   fullName: string
   role: string
+  managerId?: string | null
 }
 
 interface NuevoContratoWizardProps {
@@ -56,12 +62,13 @@ interface NuevoContratoWizardProps {
   onClose: () => void
   form: NewContractFormState
   onChange: (patch: Partial<NewContractFormState>) => void
-  onSubmit: (e: React.FormEvent) => void
+  onSubmit: (e: React.FormEvent, options?: { incomplete?: boolean }) => void
   isSubmitting: boolean
   commissionPercentage: number
   formatCurrency: (val: number) => string
   renderCompaniaLogo: (brandName: string) => ReactNode
   profiles: ProfileOption[]
+  activeUserId: string
   activeUserName: string
   activeUserRole: string
 }
@@ -77,17 +84,22 @@ export function NuevoContratoWizard({
   formatCurrency,
   renderCompaniaLogo,
   profiles,
+  activeUserId,
   activeUserName,
   activeUserRole,
 }: NuevoContratoWizardProps) {
   const step = form.wizardStep
   const segment = form.wizardSegment
   const [tariffSearch, setTariffSearch] = useState("")
-  const [showTariffFilter, setShowTariffFilter] = useState(false)
   const [docsOpen, setDocsOpen] = useState(false)
-  const [commissionOpen, setCommissionOpen] = useState(false)
-  const [isDragging, setIsDragging] = useState(false)
   const [newComment, setNewComment] = useState("")
+  const [cpLookupLoading, setCpLookupLoading] = useState(false)
+  const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
+  const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
+  const cpLookupRequestId = useRef(0)
+
+  const readOnlyFieldClass =
+    "w-full px-3 py-2 bg-slate-100 dark:bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text font-medium cursor-default"
 
   function goToStep(next: 1 | 2) {
     onChange({ wizardStep: next })
@@ -131,6 +143,7 @@ export function NuevoContratoWizard({
     if (!selectedMarcoEntry) return null
     const consumo =
       form.consumoAnual === "" ? 0 : Number(form.consumoAnual)
+    if (!consumo || consumo <= 0) return null
     return estimateMarcoCommissionEur(
       selectedMarcoEntry,
       commissionPercentage,
@@ -139,18 +152,74 @@ export function NuevoContratoWizard({
     )
   }, [selectedMarcoEntry, commissionPercentage, form.consumoAnual, formatCurrency])
 
-  const jefesEquipo = profiles.filter(
-    (p) => p.role === "jefe_comercial" || p.role === "superadmin"
-  )
-  const comerciales = profiles.filter(
-    (p) => p.role === "comercial" || p.role === "jefe_comercial"
-  )
+  const peajeType = getTariffPeajeType(selectedMarcoEntry?.peaje)
+  const effectivePeajeType = peajeType ?? inferPeajeTypeFromSegment(form.wizardSegment)
+
+  useEffect(() => {
+    if (!open) return
+    const user = profiles.find((p) => p.id === activeUserId)
+    if (!user) return
+    const manager = user.managerId
+      ? profiles.find((p) => p.id === user.managerId)
+      : undefined
+    onChange({
+      nombreComercial: user.fullName,
+      jefeEquipo: manager?.fullName ?? "",
+    })
+  }, [open, activeUserId, profiles])
+
+  useEffect(() => {
+    const cp = form.codigoPostal.replace(/\s/g, "").trim()
+    if (!/^\d{5}$/.test(cp)) return
+
+    const requestId = ++cpLookupRequestId.current
+    setCpLookupLoading(true)
+
+    lookupSpainPostalCode(cp)
+      .then((result) => {
+        if (requestId !== cpLookupRequestId.current || !result) return
+        onChange({
+          poblacion: result.poblacion || form.poblacion,
+          provincia: result.provincia || form.provincia,
+        })
+      })
+      .finally(() => {
+        if (requestId === cpLookupRequestId.current) setCpLookupLoading(false)
+      })
+  }, [form.codigoPostal])
+
+  function handleCodigoPostalChange(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 5)
+    onChange({ codigoPostal: digits })
+  }
+
+  function handlePotenciaP1Change(value: string) {
+    onChange(spreadPotenciaFromP1(value, effectivePeajeType))
+  }
+
+  function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const validation = validateContractRegistration(
+      newContractFormToRegistrationInput(form)
+    )
+    if (!validation.valid) {
+      setIncompleteMissing(validation.missingLabels)
+      setIncompleteConfirmOpen(true)
+      return
+    }
+    onSubmit(e, { incomplete: false })
+  }
+
+  function confirmIncompleteSave() {
+    setIncompleteConfirmOpen(false)
+    onSubmit({ preventDefault: () => {} } as React.FormEvent, { incomplete: true })
+  }
 
   function handleClose() {
     setTariffSearch("")
-    setShowTariffFilter(false)
     setDocsOpen(false)
-    setCommissionOpen(false)
+    setIncompleteConfirmOpen(false)
+    setIncompleteMissing([])
     setNewComment("")
     onClose()
   }
@@ -175,12 +244,16 @@ export function NuevoContratoWizard({
       tipoPrecio: inferTipoPrecioFromTarifa(tarifa),
       tipo: entry?.tipo ?? form.tipo,
     })
-    setShowTariffFilter(false)
   }
 
-  function addFiles(fileList: FileList | null) {
-    if (!fileList?.length) return
-    const added = Array.from(fileList).map((f) => ({
+  function addFiles(fileList: FileList | File[] | null) {
+    const files = fileList
+      ? Array.isArray(fileList)
+        ? fileList
+        : Array.from(fileList)
+      : []
+    if (files.length === 0) return
+    const added = files.map((f) => ({
       name: f.name,
       size: `${(f.size / 1024).toFixed(1)} KB`,
     }))
@@ -263,7 +336,7 @@ export function NuevoContratoWizard({
                     className={`px-4 py-2 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all ${
                       segment === s
                         ? "bg-cyan-600 text-white border-cyan-600"
-                        : "bg-slate-50 dark:bg-slate-950 border-brand-border text-brand-text"
+                        : "bg-brand-surface border-brand-border text-brand-text"
                     }`}
                   >
                     {s === "residencial" ? "Residencial" : "PYME"}
@@ -271,8 +344,7 @@ export function NuevoContratoWizard({
                 ))}
               </div>
               <p className="text-xs text-brand-subtext">
-                Selecciona segmento y comercializadora. Los datos que introduzcas se conservan al
-                cambiar de paso. Solo se guardan en base de datos al pulsar «Guardar contrato».
+                Selecciona segmento y comercializadora.
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {companies.map((compania) => {
@@ -285,7 +357,7 @@ export function NuevoContratoWizard({
                     className={`flex flex-col items-center justify-center gap-3 p-5 rounded-2xl border transition-all min-h-[120px] group ${
                       isSelected
                         ? "border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-500/30"
-                        : "border-brand-border bg-slate-50 dark:bg-slate-950 hover:border-cyan-500/50 hover:bg-cyan-500/5"
+                        : "border-brand-border bg-brand-surface hover:border-cyan-500/50 hover:bg-cyan-500/5"
                     }`}
                   >
                     <div className="scale-125 group-hover:scale-110 transition-transform">
@@ -318,7 +390,7 @@ export function NuevoContratoWizard({
               </div>
             </div>
           ) : (
-            <form onSubmit={onSubmit} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={handleFormSubmit} className="flex flex-col flex-1 min-h-0">
               <div className="px-6 py-3 border-b border-brand-border flex items-center gap-3 shrink-0">
                 <button
                   type="button"
@@ -337,6 +409,15 @@ export function NuevoContratoWizard({
               </div>
 
               <div className="p-6 overflow-y-auto flex-1 space-y-5">
+                <div className="sm:col-span-2">
+                  <label className={labelClass}>Estado del contrato</label>
+                  <span
+                    className={`inline-flex px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase ${getContractEstadoBadgeClass(CONTRACT_ESTADO_INICIAL)}`}
+                  >
+                    {CONTRACT_ESTADO_INICIAL}
+                  </span>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>Tipo de cliente</label>
@@ -388,12 +469,20 @@ export function NuevoContratoWizard({
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>C.P.</label>
+                    <label className={labelClass}>
+                      C.P.
+                      {cpLookupLoading && (
+                        <span className="text-cyan-500 normal-case ml-1">detectando…</span>
+                      )}
+                    </label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      maxLength={5}
                       value={form.codigoPostal}
-                      onChange={(e) => onChange({ codigoPostal: e.target.value })}
+                      onChange={(e) => handleCodigoPostalChange(e.target.value)}
                       className={inputClass}
+                      placeholder="28013"
                     />
                   </div>
                   <div>
@@ -461,33 +550,23 @@ export function NuevoContratoWizard({
                   </div>
                   <div>
                     <label className={labelClass}>Nombre del comercial</label>
-                    <select
-                      value={form.nombreComercial}
-                      onChange={(e) => onChange({ nombreComercial: e.target.value })}
-                      className={inputClass}
-                    >
-                      <option value="">Seleccionar…</option>
-                      {comerciales.map((p) => (
-                        <option key={p.id} value={p.fullName}>
-                          {p.fullName}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      readOnly
+                      value={form.nombreComercial || activeUserName}
+                      className={readOnlyFieldClass}
+                      title="Asignado automáticamente al usuario que registra el contrato"
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Jefe de equipo</label>
-                    <select
-                      value={form.jefeEquipo}
-                      onChange={(e) => onChange({ jefeEquipo: e.target.value })}
-                      className={inputClass}
-                    >
-                      <option value="">Seleccionar…</option>
-                      {jefesEquipo.map((p) => (
-                        <option key={p.id} value={p.fullName}>
-                          {p.fullName}
-                        </option>
-                      ))}
-                    </select>
+                    <input
+                      type="text"
+                      readOnly
+                      value={form.jefeEquipo || "Sin jefe asignado"}
+                      className={readOnlyFieldClass}
+                      title="Asignado automáticamente según la jerarquía del equipo"
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Tipo de contrato</label>
@@ -502,9 +581,9 @@ export function NuevoContratoWizard({
                           className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase border transition-all ${
                             form.tipo === t
                               ? t === "luz"
-                                ? "bg-amber-500/15 border-amber-500/40 text-amber-600"
-                                : "bg-orange-500/15 border-orange-500/40 text-orange-600"
-                              : "border-brand-border text-brand-subtext"
+                                ? "bg-amber-300/25 border-amber-400/55 text-amber-800 dark:text-amber-200"
+                                : "bg-orange-400/20 border-orange-400/50 text-orange-800 dark:text-orange-200"
+                              : "border-brand-border text-brand-subtext hover:border-brand-border/80"
                           }`}
                         >
                           {t === "luz" ? (
@@ -518,26 +597,14 @@ export function NuevoContratoWizard({
                     </div>
                   </div>
                   <div className="sm:col-span-2">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <label className={labelClass}>Tipo de tarifa</label>
-                      <button
-                        type="button"
-                        onClick={() => setShowTariffFilter((v) => !v)}
-                        className="inline-flex items-center gap-1 text-[10px] font-mono text-cyan-600 dark:text-cyan-400"
-                      >
-                        <Filter className="w-3 h-3" />
-                        Filtrar
-                      </button>
-                    </div>
-                    {showTariffFilter && (
-                      <input
-                        type="search"
-                        placeholder="Buscar tarifa por nombre…"
-                        value={tariffSearch}
-                        onChange={(e) => setTariffSearch(e.target.value)}
-                        className={`${inputClass} mb-2`}
-                      />
-                    )}
+                    <label className={labelClass}>Tipo de tarifa</label>
+                    <input
+                      type="search"
+                      placeholder="Buscar tarifa…"
+                      value={tariffSearch}
+                      onChange={(e) => setTariffSearch(e.target.value)}
+                      className={`${inputClass} mb-2`}
+                    />
                     <select
                       value={form.marcoEntryId || ""}
                       onChange={(e) => {
@@ -614,7 +681,13 @@ export function NuevoContratoWizard({
                                 step="0.001"
                                 min={0}
                                 value={String(form[key])}
-                                onChange={(e) => onChange({ [key]: e.target.value })}
+                                onChange={(e) => {
+                                  if (label === "P1") {
+                                    handlePotenciaP1Change(e.target.value)
+                                  } else {
+                                    onChange({ [key]: e.target.value })
+                                  }
+                                }}
                                 className={`${inputClass} text-center font-mono py-1.5`}
                               />
                             </div>
@@ -631,20 +704,12 @@ export function NuevoContratoWizard({
                     <span className="text-[10px] font-mono font-bold uppercase text-brand-text">
                       Comentarios internos
                     </span>
-                    <span className="text-[9px] text-brand-subtext">
-                      Comercial · Tramitación · Superadmin
-                    </span>
                   </div>
                   <div className="max-h-28 overflow-y-auto space-y-2">
-                    {form.comentariosInternos.length === 0 && (
-                      <p className="text-[10px] text-brand-subtext font-mono">
-                        Sin comentarios todavía.
-                      </p>
-                    )}
                     {form.comentariosInternos.map((c) => (
                       <div
                         key={c.id}
-                        className="text-xs bg-slate-50 dark:bg-slate-950 rounded-lg p-2 border border-brand-border/60"
+                        className="text-xs bg-brand-surface rounded-lg p-2 border border-brand-border/60"
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[9px] font-mono font-bold text-cyan-600">
@@ -683,31 +748,29 @@ export function NuevoContratoWizard({
                   <button
                     type="button"
                     onClick={() => setDocsOpen(true)}
-                    className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-brand-border hover:border-cyan-500/50 bg-slate-50 dark:bg-slate-950 transition-all min-h-[140px]"
+                    className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border-2 border-dashed border-brand-border hover:border-cyan-500/50 bg-brand-surface transition-all min-h-[140px]"
                   >
                     <FileText className="w-10 h-10 text-cyan-500" />
                     <span className="text-xs font-extrabold uppercase tracking-wide text-brand-text">
                       Documentación
                     </span>
                     <span className="text-[10px] text-brand-subtext font-mono">
-                      {form.documentos.length} archivo(s) adjunto(s)
+                      {form.documentos.length} archivo(s)
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setCommissionOpen(true)}
-                    className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border border-brand-border hover:border-amber-500/50 bg-amber-500/5 transition-all min-h-[140px]"
-                  >
-                    <Coins className="w-10 h-10 text-amber-500" />
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-brand-text">
-                      Comisión
-                    </span>
-                    <span className="text-[10px] text-brand-subtext font-mono">
-                      {commissionEstimate
-                        ? formatCurrency(commissionEstimate.amountEur)
-                        : "Selecciona tarifa y consumo"}
-                    </span>
-                  </button>
+                  {commissionEstimate && (
+                    <div
+                      className="flex flex-col items-center justify-center gap-2 p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 min-h-[140px]"
+                    >
+                      <Coins className="w-10 h-10 text-amber-500" />
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-brand-text">
+                        Comisión
+                      </span>
+                      <span className="text-sm font-black font-mono text-amber-600 dark:text-amber-400">
+                        {formatCurrency(commissionEstimate.amountEur)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -767,43 +830,18 @@ export function NuevoContratoWizard({
                 <X className="w-5 h-5 text-brand-subtext" />
               </button>
             </div>
-            <div
-              className={`p-8 border-b border-brand-border transition-colors ${
-                isDragging ? "bg-cyan-500/10" : ""
-              }`}
-              onDragOver={(e) => {
-                e.preventDefault()
-                setIsDragging(true)
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setIsDragging(false)
-                addFiles(e.dataTransfer.files)
-              }}
-            >
-              <label className="flex flex-col items-center gap-3 cursor-pointer">
-                <Upload className="w-12 h-12 text-cyan-500" />
-                <span className="text-xs font-bold text-brand-text">
-                  Arrastra archivos o haz clic para adjuntar
-                </span>
-                <span className="text-[10px] text-brand-subtext font-mono">
-                  Imágenes, PDF, DOCX y otros formatos
-                </span>
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                  onChange={(e) => addFiles(e.target.files)}
-                />
-              </label>
-            </div>
+            <FileDropZone
+              className="border-b border-brand-border rounded-none border-x-0 border-t-0"
+              label="Arrastra archivos o haz clic para adjuntar"
+              hint="Imágenes, PDF, DOCX · Ctrl+V · Shift+V"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              onFiles={(files) => addFiles(files)}
+            />
             <ul className="p-4 max-h-48 overflow-y-auto space-y-2">
               {form.documentos.map((doc, i) => (
                 <li
                   key={`${doc.name}-${i}`}
-                  className="flex items-center justify-between text-xs font-mono bg-slate-50 dark:bg-slate-950 px-3 py-2 rounded-lg"
+                  className="flex items-center justify-between text-xs font-mono bg-brand-surface px-3 py-2 rounded-lg"
                 >
                   <span className="truncate">{doc.name}</span>
                   <span className="text-brand-subtext shrink-0">{doc.size}</span>
@@ -814,72 +852,44 @@ export function NuevoContratoWizard({
         </div>
       )}
 
-      {commissionOpen && (
+      {incompleteConfirmOpen && (
         <div
           className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
-          onClick={() => setCommissionOpen(false)}
+          onClick={() => setIncompleteConfirmOpen(false)}
         >
           <div
-            className="bg-brand-panel border border-brand-border rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4"
+            className="bg-brand-panel border border-brand-border rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-extrabold uppercase text-brand-text flex items-center gap-2">
-                <Coins className="w-5 h-5 text-amber-500" />
-                Comisión estimada
-              </h3>
-              <button type="button" onClick={() => setCommissionOpen(false)}>
-                <X className="w-5 h-5 text-brand-subtext" />
+            <h3 className="text-sm font-extrabold text-brand-text">
+              Faltan datos
+            </h3>
+            <p className="text-xs text-brand-subtext">
+              ¿Guardar como pendiente de información?
+            </p>
+            {incompleteMissing.length > 0 && (
+              <ul className="text-[10px] font-mono text-brand-subtext space-y-1 max-h-32 overflow-y-auto">
+                {incompleteMissing.map((label) => (
+                  <li key={label}>· {label}</li>
+                ))}
+              </ul>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setIncompleteConfirmOpen(false)}
+                className="px-4 py-2 text-xs font-bold text-brand-subtext"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmIncompleteSave}
+                className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold rounded-lg"
+              >
+                Guardar pendiente
               </button>
             </div>
-            {!selectedMarcoEntry ? (
-              <p className="text-xs text-brand-subtext">
-                Selecciona una tarifa y el consumo anual para calcular la comisión según el marco
-                retributivo.
-              </p>
-            ) : (
-              <>
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
-                  <p className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
-                    {commissionEstimate
-                      ? formatCurrency(commissionEstimate.amountEur)
-                      : "—"}
-                  </p>
-                  <p className="text-[10px] font-mono text-brand-subtext mt-1">
-                    Tu tramo: {commissionPercentage}% sobre comisión base
-                  </p>
-                </div>
-                <dl className="space-y-2 text-xs">
-                  <div>
-                    <dt className="text-[9px] uppercase text-brand-subtext font-mono">
-                      Tarifa
-                    </dt>
-                    <dd className="font-medium">{selectedMarcoEntry.tarifa}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[9px] uppercase text-brand-subtext font-mono">
-                      Comisión base compañía
-                    </dt>
-                    <dd className="font-mono">
-                      {formatMarcoComisionBase(selectedMarcoEntry)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-[9px] uppercase text-brand-subtext font-mono">
-                      Tu comisión
-                    </dt>
-                    <dd className="font-mono text-cyan-600 dark:text-cyan-400">
-                      {commissionEstimate?.label}
-                    </dd>
-                  </div>
-                  {commissionEstimate && (
-                    <p className="text-[10px] text-brand-subtext leading-relaxed">
-                      {commissionEstimate.detail}
-                    </p>
-                  )}
-                </dl>
-              </>
-            )}
           </div>
         </div>
       )}

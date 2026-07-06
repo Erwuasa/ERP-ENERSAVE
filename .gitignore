@@ -55,8 +55,7 @@ coverage/
 # Supabase local
 .supabase/
 
-# Cursor (opcional — mantener reglas si quieres versionarlas)
-# .cursor/
+.cursor/
 
 # Certificados y claves
 *.pem
@@ -71,3 +70,6 @@ temp/
 
 # Bun (si se usa junto a npm)
 .bun/
+
+# Documentación de planificación local
+.planning/

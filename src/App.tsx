@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { ComercialCommissionsChart } from './components/ComercialCommissionsChart';
+import { ComercialCompaniaChart } from './components/ComercialCompaniaChart';
+import { ComercialRenovacionesCard } from './components/ComercialRenovacionesCard';
+import { ComercialContratosEstadoKpis } from './components/ComercialContratosEstadoKpis';
+import type { ContractEstadoKpiFilter } from './lib/contract-estado-kpis';
+import { LiquidacionesInternasPanel } from './components/LiquidacionesInternasPanel';
+import type { Settlement } from './types/settlement';
 import { 
   Flame, 
   Lightbulb, 
@@ -47,15 +53,32 @@ import {
   Sun,
   Moon,
   Download,
-  Upload,
   FileText,
   File,
   Award,
-  ShieldAlert
+  ShieldAlert,
+  CalendarDays,
+  LayoutGrid,
+  BarChart3,
 } from 'lucide-react';
-import { CashflowPanel } from './components/CashflowPanel';
+import { UserControlSheet } from './components/admin/UserControlSheet';
+import {
+  deleteErpComercial,
+  insertErpComercial,
+  listErpComerciales,
+  updateErpComercial,
+  type ErpComercialRole,
+} from './lib/supabase/erp-comerciales';
 import { MarcoRetributivoPanel } from './components/MarcoRetributivoPanel';
 import { IncidenciasKanban } from './components/IncidenciasKanban';
+import { PipelinePage } from './components/ventas/PipelinePage';
+import { MiDiaPage } from './components/ventas/MiDiaPage';
+import { FichaProspecto } from './components/ventas/FichaProspecto';
+import { ReportingPage } from './components/ventas/ReportingPage';
+import { SlaAvisosPage } from './components/ventas/SlaAvisosPage';
+import { EnersaveLeadDatabasePage } from './components/ventas/EnersaveLeadDatabasePage';
+import { NuevoContratoWizard } from './components/NuevoContratoWizard';
+import { FileDropZone } from './components/ui/FileDropZone';
 import { ContratosPanel } from './components/ContratosPanel';
 import { MisClientesPanel } from './components/MisClientesPanel';
 import type { Contract } from './types/contract';
@@ -77,7 +100,32 @@ import {
 import { marcoRetributivoCatalog } from './data/marco-retributivo-catalog';
 import { estimateMarcoCommissionEur } from './lib/marco-commission';
 import { saveTeamContractToSupabase } from './lib/supabase/contracts';
-import { getContractEstadoBadgeClass, isContractActivado } from './lib/contract-estado';
+import {
+  createContratoCreadoActividad,
+  updateProspecto,
+} from './lib/supabase/ventas';
+import { buildDemoSyncedContracts } from './lib/demo/synced-ventas-erp-seed';
+import { buildProspectoImportSources } from './lib/ventas/prospecto-import-sources';
+import { buildNewContractFormFromProspecto } from './lib/ventas/prospecto-to-contract';
+import {
+  clearSupabaseSession,
+  DEFAULT_DEV_PASSWORD,
+  getAuthSessionStatus,
+  syncSupabaseSession,
+} from './lib/supabase/auth-session';
+import { isSupabaseConfigured } from './lib/supabase/client';
+import type { Prospecto } from './lib/ventas/types';
+import {
+  CONTRACT_ESTADO_INCOMPLETO,
+  CONTRACT_ESTADO_INICIAL,
+  getContractEstadoBadgeClass,
+  isContractActivado,
+} from './lib/contract-estado';
+import type { ContractsListFilter } from './lib/contract-renewal';
+import {
+  aplicaRenovacionAnual,
+  computeRenewalSchedule,
+} from './lib/contract-segment-rules';
 import type { IncidenciaTicket } from './lib/incidencias';
 import { isIncidenciaKanbanVisible, withIncidenciaEstado } from './lib/incidencias';
 
@@ -91,6 +139,7 @@ const SEED_CONTRACTS: Contract[] = [
   { id: 'con-7', clientName: 'GEA FOOD COOPERATIVA', cups: 'ES0031105542292008XG', tipo: 'gas', compania: 'Endesa', tarifa: 'Indexado', atr: '3.0TD', consumoAnual: 37270, tipoPrecio: 'mercado', precioFijoConsumo: 0.062, potenciaContratada: 0, consumoAnualManual: null, estado: 'KO', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-26', fechaFin: '2026-04-26', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-26', diasRenovacion: 88, montoInterno: 300, montoExterno: 150 },
   { id: 'con-8', clientName: 'Hotel Continental', cups: 'ES0021000000987654ZX', tipo: 'gas', compania: 'Endesa', tarifa: 'Fija Confort', atr: '3.0TD', consumoAnual: 120000, tipoPrecio: 'fijo', precioFijoConsumo: 0.071, potenciaContratada: 0, consumoAnualManual: 120000, estado: 'Activado', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-15', fechaFin: '2027-05-15', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-15', diasRenovacion: 350, montoInterno: 960.00, montoExterno: 480.00 },
   { id: 'con-9', clientName: 'Residencia Geriátrica Verde', cups: 'ES0021000000452391KL', tipo: 'luz', compania: 'Naturgy', tarifa: 'Indexada Pool', atr: '2.0TD', consumoAnual: 85000, tipoPrecio: 'mercado', precioFijoConsumo: 0.088, potenciaContratada: 25, consumoAnualManual: null, estado: 'Pendiente de firma', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-22', fechaFin: '2027-05-22', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-22', diasRenovacion: 360, montoInterno: 850.00, montoExterno: 510.00 },
+  ...buildDemoSyncedContracts(),
 ];
 
 function createInitialCrmState() {
@@ -170,7 +219,14 @@ const EnersaveLogo = ({ className = "w-12 h-12", withText = false }: { className
 // ==========================================
 // TYPES AND INTERFACES (DEFINED EARLY)
 // ==========================================
-type UserRole = 'superadmin' | 'jefe_comercial' | 'comercial';
+type UserRole = 'superadmin' | 'jefe_comercial' | 'comercial' | 'tramitacion';
+
+function mapVentasRole(role: UserRole): 'comercial' | 'jefe_comercial' | 'superadmin' | 'tramitacion' {
+  if (role === 'tramitacion') return 'tramitacion';
+  if (role === 'jefe_comercial') return 'jefe_comercial';
+  if (role === 'superadmin') return 'superadmin';
+  return 'comercial';
+}
 
 interface Profile {
   id: string;
@@ -187,6 +243,59 @@ interface Profile {
   email: string;
   status: 'activo' | 'suspendido' | 'pendiente';
   commissionPercentage: number;
+}
+
+function defaultPermissionsForRole(role: UserRole): Profile['permissions'] {
+  if (role === 'tramitacion') {
+    return {
+      contractsView: true,
+      comparatorAccess: false,
+      quickSettlement: false,
+      exportDatabase: true,
+      viewRetrocommissions: false,
+    };
+  }
+  return {
+    contractsView: true,
+    comparatorAccess: true,
+    quickSettlement: role !== 'comercial',
+    exportDatabase: role === 'superadmin',
+    viewRetrocommissions: role !== 'comercial',
+  };
+}
+
+function defaultCommissionForRole(role: UserRole): number {
+  if (role === 'superadmin') return 100;
+  if (role === 'jefe_comercial') return 85;
+  return 60;
+}
+
+function mergeErpRowsIntoProfiles(
+  rows: Array<{
+    id: string;
+    full_name: string;
+    role: ErpComercialRole;
+    manager_id: string | null;
+    email: string | null;
+  }>,
+  current: Profile[]
+): Profile[] {
+  const byId = new Map(current.map((p) => [p.id, p]));
+  return rows.map((row) => {
+    const existing = byId.get(row.id);
+    const role = row.role as UserRole;
+    return {
+      id: row.id,
+      fullName: row.full_name,
+      role,
+      managerId: row.manager_id,
+      email: row.email ?? existing?.email ?? '',
+      status: existing?.status ?? 'activo',
+      commissionPercentage:
+        existing?.commissionPercentage ?? defaultCommissionForRole(role),
+      permissions: existing?.permissions ?? defaultPermissionsForRole(role),
+    };
+  });
 }
 
 const companiesTariffsCatalog: Record<string, Record<string, string[]>> = {
@@ -207,18 +316,6 @@ const companiesTariffsCatalog: Record<string, Record<string, string[]>> = {
     "Naturgy": ["Naturgy Gas & Luz Industrial Alianza"]
   }
 };
-
-interface Settlement {
-  id: string;
-  comercialId: string;
-  comercialName: string;
-  montoInterno: number;
-  montoExterno: number;
-  estado: 'pendiente' | 'pagado';
-  tipo: 'luz' | 'gas';
-  descripcion: string;
-  createdAt: string;
-}
 
 interface Ticket extends IncidenciaTicket {}
 
@@ -338,27 +435,6 @@ export default function App() {
     setMounted(true);
   }, []);
 
-  // Helper function to calculate commercial commissions by selected period
-  const getComercialCommissionForPeriod = (period: string) => {
-    const now = new Date();
-    let limitDate = new Date();
-    if (period === '1d') limitDate.setDate(now.getDate() - 1);
-    else if (period === '1w') limitDate.setDate(now.getDate() - 7);
-    else if (period === '1m') limitDate.setMonth(now.getMonth() - 1);
-    else if (period === '3m') limitDate.setMonth(now.getMonth() - 3);
-    else if (period === '6m') limitDate.setMonth(now.getMonth() - 6);
-    else if (period === '1y') limitDate.setFullYear(now.getFullYear() - 1);
-    else {
-      return settlements
-        .filter(s => s.comercialId === activeUserId)
-        .reduce((sum, s) => sum + s.montoExterno, 0);
-    }
-
-    return settlements
-      .filter(s => s.comercialId === activeUserId && new Date(s.createdAt) >= limitDate)
-      .reduce((sum, s) => sum + s.montoExterno, 0);
-  };
-
   // Helper function to calculate retrocommission status and potential clawbacks
   const getRetrocommissionInfo = (c: Contract) => {
     const brand = c.compania.toLowerCase();
@@ -400,6 +476,29 @@ export default function App() {
   const [liqLoading, setLiqLoading] = useState<boolean>(false);
   const [activeUserId, setActiveUserId] = useState<string>('usr-1');
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [activeModule, setActiveModule] = useState<'erp' | 'ventas'>('erp');
+  // NAV-07 deep-link state keys (v1): activeModule, currentMenuTab, ventasFichaProspectoId,
+  // highlightContractId, contractWizardProspectoId — react-router deferred (NAV-06).
+  const [ventasFichaProspectoId, setVentasFichaProspectoId] = useState<string | null>(null);
+  const [ventasFichaSnapshot, setVentasFichaSnapshot] = useState<Prospecto | null>(null);
+  const [ventasPipelineCentroMandoId, setVentasPipelineCentroMandoId] = useState<string | null>(null);
+
+  function openVentasFicha(prospecto: Prospecto) {
+    setVentasFichaProspectoId(prospecto.id);
+    setVentasFichaSnapshot(prospecto);
+  }
+
+  function openVentasPipelineCentroMando(prospectoId: string) {
+    setVentasPipelineCentroMandoId(prospectoId);
+    setCurrentMenuTab('Pipeline');
+  }
+
+  function closeVentasFicha() {
+    setVentasFichaProspectoId(null);
+    setVentasFichaSnapshot(null);
+  }
+  const [contractWizardProspectoId, setContractWizardProspectoId] = useState<string | null>(null);
+  const [contractWizardOpen, setContractWizardOpen] = useState(false);
   const [currentMenuTab, setCurrentMenuTab] = useState<string>('Dashboard');
   const [cashflowScenario, setCashflowScenario] = useState<'optimista' | 'realista' | 'pesimista'>('realista');
 
@@ -421,6 +520,7 @@ export default function App() {
     { id: 'usr-3', fullName: 'Ignacio Ortiz', role: 'comercial', managerId: 'usr-2', permissions: { contractsView: true, comparatorAccess: true, quickSettlement: false, exportDatabase: false, viewRetrocommissions: false }, email: 'ignacio@enersave.com', status: 'activo', commissionPercentage: 60 },
     { id: 'usr-4', fullName: 'Marta Rivas', role: 'comercial', managerId: 'usr-2', permissions: { contractsView: true, comparatorAccess: true, quickSettlement: false, exportDatabase: false, viewRetrocommissions: false }, email: 'marta@enersave.com', status: 'activo', commissionPercentage: 70 },
     { id: 'usr-5', fullName: 'Santiago Cano', role: 'comercial', managerId: null, permissions: { contractsView: true, comparatorAccess: true, quickSettlement: false, exportDatabase: false, viewRetrocommissions: false }, email: 'santiago@enersave.com', status: 'suspendido', commissionPercentage: 65 },
+    { id: 'usr-6', fullName: 'Laura Tramitación', role: 'tramitacion', managerId: 'usr-1', permissions: { contractsView: true, comparatorAccess: false, quickSettlement: false, exportDatabase: true, viewRetrocommissions: false }, email: 'tramitacion@enersave.com', status: 'activo', commissionPercentage: 0 },
   ]);
 
   const [clients, setClients] = useState<Client[]>(INITIAL_CRM.clients);
@@ -432,6 +532,7 @@ export default function App() {
   // Interactive filters for Clients database views
   const [clientesSearchQuery, setClientesSearchQuery] = useState('');
   const [contractsSearchQuery, setContractsSearchQuery] = useState('');
+  const [contractsListFilter, setContractsListFilter] = useState<ContractsListFilter>('all');
   const [highlightContractId, setHighlightContractId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -457,9 +558,14 @@ export default function App() {
   const [editValue, setEditValue] = useState<string>('');
 
   const [settlements, setSettlements] = useState<Settlement[]>([
-    { id: 'liq-1', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: 350.00, montoExterno: 210.00, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión Liquidada - Panadería San José SL', createdAt: '2026-05-12' },
-    { id: 'liq-2', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: 960.00, montoExterno: 480.00, estado: 'pendiente', tipo: 'gas', descripcion: 'Comisión Pendiente de Verificación - Hotel Continental', createdAt: '2026-05-15' },
-    { id: 'liq-3', comercialId: 'usr-5', comercialName: 'Santiago Cano', montoInterno: 180.00, montoExterno: 108.00, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión Regularizada - Talleres Pérez', createdAt: '2026-05-05' }
+    { id: 'liq-1', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: 240, montoExterno: 120, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión liquidada - ANA MARIA PINEDA BARRAGA', createdAt: '2026-06-02', contractId: 'con-1' },
+    { id: 'liq-2', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: 380, montoExterno: 190, estado: 'pendiente', tipo: 'luz', descripcion: 'Comisión pendiente - GEA CATERING, S.L.', createdAt: '2026-06-04', contractId: 'con-2' },
+    { id: 'liq-3', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: -450, montoExterno: -225, estado: 'pendiente', tipo: 'luz', descripcion: 'Retrocomisión proporcional - MARIAN DOREL CHERBZAN (Naturgy)', createdAt: '2026-06-08', contractId: 'con-3' },
+    { id: 'liq-4', comercialId: 'usr-4', comercialName: 'Marta Rivas', montoInterno: 960, montoExterno: 480, estado: 'pendiente', tipo: 'gas', descripcion: 'Comisión pendiente - Hotel Continental', createdAt: '2026-06-05', contractId: 'con-8' },
+    { id: 'liq-5', comercialId: 'usr-4', comercialName: 'Marta Rivas', montoInterno: 850, montoExterno: 510, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión liquidada - Residencia Geriátrica Verde', createdAt: '2026-06-01', contractId: 'con-9' },
+    { id: 'liq-6', comercialId: 'usr-5', comercialName: 'Santiago Cano', montoInterno: 400, montoExterno: 200, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión regularizada - MARIAN DOREL CHERBZAN (Ignis)', createdAt: '2026-06-03', contractId: 'con-5' },
+    { id: 'liq-7', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', montoInterno: 500, montoExterno: 250, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión liquidada - Siderúrgica del Norte SL', createdAt: '2026-06-06', contractId: 'con-6' },
+    { id: 'liq-8', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', montoInterno: -300, montoExterno: -150, estado: 'pendiente', tipo: 'gas', descripcion: 'Retrocomisión - GEA FOOD COOPERATIVA (Endesa)', createdAt: '2026-06-10', contractId: 'con-7' },
   ]);
 
   const [incidencias, setIncidencias] = useState<Ticket[]>([
@@ -561,7 +667,6 @@ export default function App() {
   const [modalSegment, setModalSegment] = useState<'residencial' | 'pyme'>('residencial');
   const [modalAccessTariff, setModalAccessTariff] = useState<'2.0TD' | '3.0TD' | '6.0TD'>('2.0TD');
   const [modalFiles, setModalFiles] = useState<{ name: string; size: string }[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
   const [expandedContractId, setExpandedContractId] = useState<string | null>(null);
 
   // New User trigger workflow simulation
@@ -588,6 +693,8 @@ export default function App() {
   // Custom new states for simulated loader actions
   const [isCreatingContract, setIsCreatingContract] = useState<boolean>(false);
   const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
+  const [isSavingUserSheet, setIsSavingUserSheet] = useState<boolean>(false);
+  const [isSyncingErpUsers, setIsSyncingErpUsers] = useState<boolean>(false);
   const [isBajaLoading, setIsBajaLoading] = useState<boolean>(false);
   const [isActivatingContractLoading, setIsActivatingContractLoading] = useState<boolean>(false);
   const [isConsolidating, setIsConsolidating] = useState<boolean>(false);
@@ -622,47 +729,115 @@ export default function App() {
     { id: 'cliq-2', brand: 'Factorenergia', operator: 'Desconocida', dateConsolidated: '15-ene-2026 | 04:30 PM', contractsCount: 2, amount: 380.00, code: '028F91CC' }
   ]);
 
-  // Trigger login simulation based on credentials
-  const triggerLogin = (e: React.FormEvent) => {
+  // Trigger login: app profile + Supabase Auth session for ventas RLS
+  function applyLoginProfile(matches: Profile) {
+    setActiveUserId(matches.id);
+    const role = matches.role;
+    setActiveModule('erp');
+    if (role === 'superadmin') {
+      setCurrentMenuTab('Dashboard');
+    } else if (role === 'jefe_comercial') {
+      setCurrentMenuTab('Mi Equipo');
+    } else if (role === 'comercial') {
+      setCurrentMenuTab('Dashboard');
+    } else if (role === 'tramitacion') {
+      setCurrentMenuTab('Liquidaciones');
+    }
+    setIsLoggedIn(true);
+  }
+
+  async function ensureSupabaseForProfile(
+    profile: Profile,
+    password: string
+  ): Promise<boolean> {
+    if (!isSupabaseConfigured()) return true;
+    const sessionResult = await syncSupabaseSession(profile.email, password, {
+      comercialId: profile.id,
+      role: profile.role,
+      fullName: profile.fullName,
+    });
+    if (!sessionResult.ok) {
+      setLoginError(
+        `No se pudo conectar con Supabase: ${sessionResult.message}. Crea el usuario en Auth con el mismo email y contraseña, o desactiva «Confirm email» en Supabase.`
+      );
+      return false;
+    }
+    return true;
+  }
+
+  async function quickLoginAs(profileId: string) {
+    setLoginLoading(true);
+    setLoginError(null);
+    const matches = profiles.find((p) => p.id === profileId);
+    if (!matches) {
+      setLoginLoading(false);
+      setLoginError('Perfil demo no encontrado.');
+      return;
+    }
+    setLoginEmail(matches.email);
+    if (!await ensureSupabaseForProfile(matches, DEFAULT_DEV_PASSWORD)) {
+      setLoginLoading(false);
+      return;
+    }
+    applyLoginProfile(matches);
+    setLoginLoading(false);
+  }
+
+  const triggerLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError(null);
 
-    // Simulate login based on real profiles database match
-    setTimeout(() => {
-      setLoginLoading(false);
-      let searchEmail = loginEmail.toLowerCase().trim();
-      
-      // Map aliases for convenient support
-      if (searchEmail === 'superadmin@enersave.com' || searchEmail === 'superadmin@ener-erp.com') {
-        searchEmail = 'carlos@enersave.com';
-      } else if (searchEmail === 'jefecomercial@enersave.com' || searchEmail === 'jefecomercial@ener-erp.com') {
-        searchEmail = 'elena@enersave.com';
-      } else if (searchEmail === 'comercial@enersave.com' || searchEmail === 'comercial@ener-erp.com') {
-        searchEmail = 'ignacio@enersave.com';
-      }
+    let searchEmail = loginEmail.toLowerCase().trim();
 
-      const matches = profiles.find(p => p.email.toLowerCase() === searchEmail);
-      if (matches) {
-        if (matches.status === 'suspendido') {
-          setLoginError('La cuenta de este agente se encuentra suspendida temporalmente por administración.');
-          return;
-        }
-        setActiveUserId(matches.id);
-        const role = matches.role;
-        if (role === 'superadmin') {
-          setCurrentMenuTab('Dashboard');
-        } else if (role === 'jefe_comercial') {
-          setCurrentMenuTab('Mi Equipo');
-        } else {
-          setCurrentMenuTab('Comparador');
-        }
-        setIsLoggedIn(true);
-      } else {
-        setLoginError('Credenciales incorrectas: Correo no registrado en el servidor corporativo de ENERSAVE.');
+    if (searchEmail === 'superadmin@enersave.com' || searchEmail === 'superadmin@ener-erp.com') {
+      searchEmail = 'carlos@enersave.com';
+    } else if (searchEmail === 'jefecomercial@enersave.com' || searchEmail === 'jefecomercial@ener-erp.com') {
+      searchEmail = 'elena@enersave.com';
+    } else if (searchEmail === 'comercial@enersave.com' || searchEmail === 'comercial@ener-erp.com') {
+      searchEmail = 'ignacio@enersave.com';
+    }
+
+    const matches = profiles.find((p) => p.email.toLowerCase() === searchEmail);
+    if (!matches) {
+      setLoginLoading(false);
+      setLoginError('Credenciales incorrectas: Correo no registrado en el servidor corporativo de ENERSAVE.');
+      return;
+    }
+
+    if (matches.status === 'suspendido') {
+      setLoginLoading(false);
+      setLoginError('La cuenta de este agente se encuentra suspendida temporalmente por administración.');
+      return;
+    }
+
+    if (isSupabaseConfigured()) {
+      if (!await ensureSupabaseForProfile(matches, loginPassword)) {
+        setLoginLoading(false);
+        return;
       }
-    }, 600);
+    }
+
+    applyLoginProfile(matches);
+    setLoginLoading(false);
   };
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let cancelled = false;
+    (async () => {
+      const status = await getAuthSessionStatus();
+      if (cancelled || !status.ok) return;
+      const matches = profiles.find(
+        (p) => p.email.toLowerCase() === status.email.toLowerCase()
+      );
+      if (!matches || matches.status === 'suspendido') return;
+      applyLoginProfile(matches);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Perform Tariff Comparison logic
   // Perform Tariff Comparison logic (Synchronous for smooth real-time autocalculation)
@@ -900,39 +1075,16 @@ export default function App() {
     }
   }, [modalCompany, modalAccessTariff, isContractModalOpen]);
 
-  // Drag and drop handlers for documents
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const filesArray = Array.from(e.dataTransfer.files).map((file: any) => ({
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-      }));
-      setModalFiles(prev => [...prev, ...filesArray]);
-      toast.success(`${filesArray.length} archivo(s) acoplado(s).`);
-    }
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const filesArray = Array.from(e.target.files).map((file: any) => ({
-        name: file.name,
-        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-      }));
-      setModalFiles(prev => [...prev, ...filesArray]);
-      toast.success(`${filesArray.length} archivo(s) acoplado(s).`);
-    }
-  };
+  // File attachment helpers for contract modal expediente
+  function appendModalFiles(files: File[]) {
+    if (files.length === 0) return;
+    const filesArray = files.map((file) => ({
+      name: file.name,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+    }));
+    setModalFiles((prev) => [...prev, ...filesArray]);
+    toast.success(`${filesArray.length} archivo(s) acoplado(s).`);
+  }
 
   const handleCreateContractFromModal = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1030,7 +1182,8 @@ export default function App() {
       estado: 'pendiente',
       tipo: 'luz',
       descripcion: `Comisión generada para contrato nuevo: ${modalClientName}`,
-      createdAt: new Date().toISOString().split('T')[0]
+      createdAt: new Date().toISOString().split('T')[0],
+      contractId: newContractObj.id,
     };
 
     setContracts(contractsWithNew);
@@ -1050,9 +1203,26 @@ export default function App() {
     setComparisonsHistory(prev => [newHistoryEntry, ...prev]);
 
     setIsContractModalOpen(false);
-    setCurrentMenuTab('Contratos');
+    setCurrentMenuTab(activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos');
     toast.success(`¡Contrato registrado con éxito para ${modalClientName}! Se ha redirigido al gestor de contrataciones.`);
   };
+
+  function switchAppModule(module: 'erp' | 'ventas') {
+    setActiveModule(module);
+    if (module === 'ventas') {
+      setCurrentMenuTab(activeRole === 'tramitacion' ? 'Base EnerSave' : 'Mi Día');
+      return;
+    }
+    if (activeRole === 'superadmin') {
+      setCurrentMenuTab('Dashboard');
+    } else if (activeRole === 'jefe_comercial') {
+      setCurrentMenuTab('Mi Equipo');
+    } else if (activeRole === 'comercial') {
+      setCurrentMenuTab('Mis Clientes');
+    } else if (activeRole === 'tramitacion') {
+      setCurrentMenuTab('Liquidaciones');
+    }
+  }
 
   const handleToggleSuperadminMode = () => {
     const nextMode = superadminViewMode === 'tramitacion' ? 'comercial' : 'tramitacion';
@@ -1067,22 +1237,27 @@ export default function App() {
 
   // Simulate creation of a new client contract
   // This triggers a contract entry AND instantly adds an automated row in Settlements (liquidaciones)!
-  const handleCreateContract = async (e: React.FormEvent, onSuccess?: () => void) => {
+  const handleCreateContract = async (
+    e: React.FormEvent,
+    onSuccess?: () => void,
+    options?: { incomplete?: boolean; prospectoId?: string }
+  ) => {
     e.preventDefault();
 
-    const validation = validateContractRegistration(
-      newContractFormToRegistrationInput(newContractForm)
-    );
-    if (!validation.valid) {
+    const form = newContractForm;
+    const input = newContractFormToRegistrationInput(form);
+    const validation = validateContractRegistration(input);
+    const isIncomplete = options?.incomplete === true || !validation.valid;
+
+    if (!isIncomplete && !validation.valid) {
       toast.error(contractRegistrationErrorMessage(validation.missingLabels));
       return;
     }
 
     setIsCreatingContract(true);
 
-    const form = newContractForm;
-    const consumo = Number(form.consumoAnual);
-    const precioFijo = parseFloat(String(form.precioFijoConsumo).replace(',', '.'));
+    const consumo = form.consumoAnual === "" ? 0 : Number(form.consumoAnual);
+    const precioFijo = parseFloat(String(form.precioFijoConsumo).replace(",", "."));
 
     try {
       const marcoEntry = form.marcoEntryId
@@ -1096,6 +1271,7 @@ export default function App() {
 
       const comercial_obj = profiles.find(p => p.role === 'comercial' || p.role === 'jefe_comercial') || profiles[2];
       const sellerProfile =
+        profiles.find((p) => p.id === activeUserId) ||
         profiles.find((p) => p.fullName === form.nombreComercial) ||
         profiles.find(p => p.role === activeRole) ||
         comercial_obj;
@@ -1117,17 +1293,25 @@ export default function App() {
       }
 
       const activationDate = form.fechaInicio || new Date().toISOString().split('T')[0];
-      const fechaRenovacion = new Date(activationDate);
-      fechaRenovacion.setFullYear(fechaRenovacion.getFullYear() + 1);
-      const fechaRenovacionStr = fechaRenovacion.toISOString().split('T')[0];
-      const diasRenovacion = Math.max(0, Math.ceil((fechaRenovacion.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+      const segmentContext = {
+        tipoCliente: form.tipoCliente,
+        compania: form.compania,
+        clientName: form.clientName.trim(),
+        nif: form.nif,
+      };
+      const renewalSchedule = aplicaRenovacionAnual(segmentContext)
+        ? computeRenewalSchedule(activationDate)
+        : { estadoRenovacion: 'No aplica' as const };
+      const fechaRenovacionStr = renewalSchedule.fechaRenovacion;
+      const diasRenovacion = renewalSchedule.diasRenovacion;
+      const estadoRenovacion = renewalSchedule.estadoRenovacion;
 
       const direccionCliente = form.direccionFiscal
         ? `${form.direccionFiscal}${form.codigoPostal ? `, ${form.codigoPostal}` : ''}${form.poblacion ? ` ${form.poblacion}` : ''}`
         : form.direccionSuministro;
 
       const { clients: clientsAfterUpsert, client: linkedClient } = upsertClient(clients, {
-        nombre: form.clientName,
+        nombre: form.clientName.trim() || 'Pendiente de información',
         comercialId: userAsSeller.id,
         documento: form.nif,
         telefono: form.telefono,
@@ -1156,31 +1340,38 @@ export default function App() {
 
       const tipoPrecio =
         form.tipoPrecio ||
+        (form.tarifa &&
         (form.tarifa.toLowerCase().includes('index') ||
-        form.tarifa.toLowerCase().includes('variable') ||
-        form.tarifa.toLowerCase().includes('pool')
+          form.tarifa.toLowerCase().includes('variable') ||
+          form.tarifa.toLowerCase().includes('pool'))
           ? 'mercado'
-          : 'fijo');
+          : form.tarifa
+            ? 'fijo'
+            : '');
+
+      const contractEstado = isIncomplete
+        ? CONTRACT_ESTADO_INCOMPLETO
+        : CONTRACT_ESTADO_INICIAL;
 
       const newContractObj: Contract = {
         id: `con-${contracts.length + 1}`,
         clientId: linkedClient.id,
-        clientName: form.clientName,
-        cups: form.cups.toUpperCase().trim(),
+        clientName: form.clientName.trim() || 'Pendiente de información',
+        cups: form.cups ? form.cups.toUpperCase().trim() : 'PENDIENTE',
         tipo: form.tipo,
         compania: form.compania,
         tarifa: form.tarifa,
         consumoAnual: consumo,
         montoInterno: Math.round(internalMargin * 100) / 100,
         montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
-        estado: 'Pendiente de firma',
+        estado: contractEstado,
         comercialId: userAsSeller.id,
         comercialName: userAsSeller.fullName,
         createdAt: activationDate,
         fechaFin: fechaRenovacionStr,
         fechaRenovacion: fechaRenovacionStr,
         diasRenovacion,
-        estadoRenovacion: 'Al día',
+        estadoRenovacion,
         nif: form.nif,
         telefono: form.telefono,
         email: form.email,
@@ -1191,7 +1382,8 @@ export default function App() {
           : undefined,
         potenciaContratada: potenciaStr,
         precioFijoConsumo: Number.isFinite(precioFijo) ? precioFijo : undefined,
-        tipoPrecio,
+        tipoPrecio:
+          tipoPrecio === "fijo" || tipoPrecio === "mercado" ? tipoPrecio : undefined,
         documentos: form.documentos.length > 0 ? form.documentos : undefined,
         tipoCliente: form.tipoCliente,
         formaPago: form.formaPago,
@@ -1211,6 +1403,26 @@ export default function App() {
 
       if (supabaseResult.ok) {
         newContractObj.id = supabaseResult.id;
+
+        if (options?.prospectoId) {
+          const linkResult = await updateProspecto(options.prospectoId, {
+            contratoEquipoId: supabaseResult.id,
+          });
+          if (linkResult.ok === false) {
+            toast.warning('Contrato guardado pero no se pudo vincular al prospecto.');
+          } else {
+            const actResult = await createContratoCreadoActividad({
+              prospectoId: options.prospectoId,
+              comercialId: activeUserId,
+              comercialName: activeUser.fullName,
+              contratoEquipoId: supabaseResult.id,
+              clientName: form.clientName.trim() || undefined,
+            });
+            if (actResult.ok === false) {
+              toast.warning('Contrato vinculado pero no se registró la actividad en timeline.');
+            }
+          }
+        }
       } else if (supabaseResult.reason === 'not_configured') {
         toast.message('Borrador guardado en la app. Supabase pendiente de configurar.');
       } else if (supabaseResult.reason === 'table_missing') {
@@ -1224,26 +1436,31 @@ export default function App() {
       const contractsWithNew = [newContractObj, ...contracts];
       setClients(syncClientEstados(clientsAfterUpsert, contractsWithNew));
 
-      const newSettlementObj: Settlement = {
-        id: `liq-${settlements.length + 1}`,
-        comercialId: userAsSeller.id,
-        comercialName: userAsSeller.fullName,
-        montoInterno: Math.round(internalMargin * 100) / 100,
-        montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
-        estado: 'pendiente',
-        tipo: form.tipo,
-        descripcion: `Comisión generada para contrato nuevo: ${form.clientName}`,
-        createdAt: new Date().toISOString().split('T')[0]
-      };
+      if (!isIncomplete && internalMargin > 0) {
+        const newSettlementObj: Settlement = {
+          id: `liq-${settlements.length + 1}`,
+          comercialId: userAsSeller.id,
+          comercialName: userAsSeller.fullName,
+          montoInterno: Math.round(internalMargin * 100) / 100,
+          montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
+          estado: 'pendiente',
+          tipo: form.tipo,
+          descripcion: `Comisión generada para contrato nuevo: ${form.clientName || 'Sin nombre'}`,
+          createdAt: new Date().toISOString().split('T')[0],
+          contractId: newContractObj.id,
+        };
+        setSettlements([newSettlementObj, ...settlements]);
+      }
 
       setContracts(contractsWithNew);
-      setSettlements([newSettlementObj, ...settlements]);
 
       resetNewContractForm();
       onSuccess?.();
 
       toast.success(
-        `¡Contrato y cliente registrados! Liquidación de ${formatCurrency(newContractObj.montoExterno)} para ${userAsSeller.fullName}.`
+        isIncomplete
+          ? 'Contrato guardado como pendiente de información.'
+          : `¡Contrato registrado! Liquidación de ${formatCurrency(newContractObj.montoExterno)} para ${userAsSeller.fullName}.`
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar el contrato';
@@ -1253,38 +1470,106 @@ export default function App() {
     }
   };
 
-  // Simulate SQL trigger adding a commercial profile with default values upon registering user
-  const handleAddNewUser = (e: React.FormEvent) => {
+  const handleAddNewUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUserName) return;
     setIsCreatingUser(true);
 
-    setTimeout(() => {
-      const randomID = `usr-${profiles.length + 1}`;
-      const newProfile: Profile = {
-        id: randomID,
-        fullName: newUserName,
-        role: newUserRole,
-        managerId: newUserRole === 'comercial' ? newUserManager : null,
-        commissionPercentage: newUserRole === 'superadmin' ? 100 : newUserRole === 'jefe_comercial' ? 85 : 60,
-        permissions: {
-          contractsView: true,
-          comparatorAccess: true,
-          quickSettlement: newUserRole !== 'comercial',
-          exportDatabase: newUserRole === 'superadmin',
-          viewRetrocommissions: newUserRole !== 'comercial'
-        },
-        email: `${newUserName.toLowerCase().replace(/\s+/g, '')}@ener-erp.com`,
-        status: 'activo'
-      };
+    const randomID = `usr-${profiles.length + 1}`;
+    const email = `${newUserName.toLowerCase().replace(/\s+/g, '')}@ener-erp.com`;
+    const managerId = newUserRole === 'comercial' ? newUserManager : null;
 
-      setProfiles([...profiles, newProfile]);
-      setNewUserName('');
+    const insertResult = await insertErpComercial({
+      id: randomID,
+      full_name: newUserName,
+      role: newUserRole,
+      manager_id: managerId,
+      email,
+    });
+
+    if (!insertResult.ok) {
       setIsCreatingUser(false);
-      setIsCreateOpen(false);
-      toast.success(`Usuario ${newProfile.fullName} registrado con éxito. Rol: ${newProfile.role}. Configurado por trigger handle_new_user_signup()`);
-    }, 600);
+      toast.error(insertResult.message);
+      return;
+    }
+
+    const newProfile: Profile = {
+      id: randomID,
+      fullName: newUserName,
+      role: newUserRole,
+      managerId,
+      commissionPercentage: defaultCommissionForRole(newUserRole),
+      permissions: defaultPermissionsForRole(newUserRole),
+      email,
+      status: 'activo',
+    };
+
+    setProfiles([...profiles, newProfile]);
+    setNewUserName('');
+    setIsCreatingUser(false);
+    setIsCreateOpen(false);
+    toast.success(`Asesor ${newUserName} registrado en Supabase.`);
   };
+
+  async function handleSaveUserRoleToSupabase(
+    userId: string,
+    role: UserRole,
+    managerId: string | null
+  ) {
+    setIsSavingUserSheet(true);
+    const result = await updateErpComercial(userId, {
+      role,
+      manager_id: managerId,
+    });
+    setIsSavingUserSheet(false);
+
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+
+    const permissions = defaultPermissionsForRole(role);
+    setProfiles((prev) =>
+      prev.map((p) =>
+        p.id === userId
+          ? {
+              ...p,
+              role,
+              managerId,
+              permissions,
+              commissionPercentage: defaultCommissionForRole(role),
+            }
+          : p
+      )
+    );
+    setActiveUserForSheet((prev) =>
+      prev && prev.id === userId
+        ? {
+            ...prev,
+            role,
+            managerId,
+            permissions,
+            commissionPercentage: defaultCommissionForRole(role),
+          }
+        : prev
+    );
+    toast.success('Rol actualizado en Supabase');
+  }
+
+  async function handleDeleteUserFromSupabase(userId: string) {
+    const user = profiles.find((p) => p.id === userId);
+    if (!user) return;
+    if (!confirm(`¿Eliminar ${user.fullName} de erp_comerciales?`)) return;
+
+    const result = await deleteErpComercial(userId);
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    setProfiles((prev) => prev.filter((p) => p.id !== userId));
+    setActiveUserForSheet(null);
+    toast.success('Usuario eliminado de Supabase');
+  }
 
   // Toggle Settlement payout state (simulating admin action)
   const toggleSettlementState = (id: string) => {
@@ -1366,12 +1651,21 @@ export default function App() {
       // 4. Update state variables of contracts
       setContracts(contracts.map(c => {
         if (c.id === contractId) {
+          const activationDate = today;
+          const renewalSchedule = aplicaRenovacionAnual(c)
+            ? computeRenewalSchedule(activationDate)
+            : { estadoRenovacion: 'No aplica' as const };
           return {
             ...c,
             estado: 'Activado',
+            createdAt: activationDate,
             consumoAnual: consumoKwh,
             montoInterno: Math.round(totalCom * 100) / 100,
-            montoExterno: comercialShare + jefeShare
+            montoExterno: comercialShare + jefeShare,
+            fechaFin: renewalSchedule.fechaRenovacion,
+            fechaRenovacion: renewalSchedule.fechaRenovacion,
+            diasRenovacion: renewalSchedule.diasRenovacion,
+            estadoRenovacion: renewalSchedule.estadoRenovacion,
           };
         }
         return c;
@@ -1451,7 +1745,8 @@ export default function App() {
         estado: 'pendiente',
         tipo: c.tipo,
         descripcion: `Retrocomisión Proporcional - Baja de ${c.clientName} (${c.compania}) tras ${(diffMonths).toFixed(1)}/${limitMonths} meses (${(clawbackPercent * 100).toFixed(0)}% de penalización)`,
-        createdAt: bajaDate
+        createdAt: bajaDate,
+        contractId: c.id,
       };
       setSettlements([negativeSettlement, ...settlements]);
 
@@ -1503,10 +1798,14 @@ export default function App() {
 
   // Auto execute comparison on screen tab changes
   useEffect(() => {
-    if (currentMenuTab === 'Comparador' && !compResults && !compLoading) {
+    if (
+      (currentMenuTab === 'Comparador' || currentMenuTab === 'Comparador de Facturas') &&
+      !compResults &&
+      !compLoading
+    ) {
       handleCompareRates();
     }
-    if (currentMenuTab === 'Liquidaciones') {
+    if (currentMenuTab === 'Liquidaciones' || currentMenuTab === 'Liquidaciones internas') {
       setLiqLoading(true);
       const timer = setTimeout(() => {
         setLiqLoading(false);
@@ -1528,17 +1827,105 @@ export default function App() {
   const paidExternal = settlements.filter(s => s.estado === 'pagado').reduce((sum, s) => sum + s.montoExterno, 0);
 
   // Filter items matching the active users reporting hierarchy
+  const prospectoImportSources = useMemo(
+    () => buildProspectoImportSources(contracts, clients),
+    [contracts, clients]
+  );
+
   const activeUser = profiles.find(p => p.id === activeUserId) || profiles[0];
   const activeRole = activeUser.role;
+  const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
+
+  useEffect(() => {
+    if (currentMenuTab !== 'Usuarios' || !isErpOpsAdmin) return;
+
+    let cancelled = false;
+    async function loadErpUsers() {
+      setIsSyncingErpUsers(true);
+      const result = await listErpComerciales();
+      if (!cancelled && result.ok) {
+        setProfiles((prev) => mergeErpRowsIntoProfiles(result.data, prev));
+      } else if (!cancelled && result.ok === false) {
+        toast.error(`No se pudo cargar usuarios: ${result.message}`);
+      }
+      if (!cancelled) setIsSyncingErpUsers(false);
+    }
+
+    loadErpUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentMenuTab, activeRole]);
 
   function navigateToContract(contract: Contract) {
-    if (activeRole === 'superadmin' && superadminViewMode === 'comercial') {
+    if (activeRole === 'superadmin' && superadminViewMode === 'comercial' && activeModule === 'erp') {
       setSuperadminViewMode('tramitacion');
     }
     setHighlightContractId(contract.id);
     setContractsSearchQuery(contract.cups);
-    setCurrentMenuTab('Contratos');
+    setContractsListFilter('all');
+    setCurrentMenuTab(activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos');
     toast.info(`Contrato ${contract.cups} — pantalla Contratos`);
+  }
+
+  function navigateToRenovacionProxima() {
+    if (activeRole === 'superadmin' && superadminViewMode === 'comercial' && activeModule === 'erp') {
+      setSuperadminViewMode('tramitacion');
+    }
+    setHighlightContractId(null);
+    setContractsSearchQuery('');
+    setContractsListFilter('renovacion_proxima');
+    setActiveModule('erp');
+    setCurrentMenuTab('Contratos');
+    toast.info('Contratos con renovación próxima');
+  }
+
+  function navigateToContratosEstadoKpi(filter: ContractEstadoKpiFilter) {
+    setHighlightContractId(null);
+    setContractsSearchQuery('');
+    setContractsListFilter(filter);
+    setActiveModule('erp');
+    setCurrentMenuTab('Contratos');
+    toast.info('Contratos filtrados por estado');
+  }
+
+  function openContractWizardBlank() {
+    resetNewContractForm();
+    setContractWizardProspectoId(null);
+    setContractWizardOpen(true);
+  }
+
+  function openContractWizardForProspecto(prospecto: Prospecto) {
+    const user = profiles.find((p) => p.id === activeUserId) || profiles[0];
+    const jefe = profiles.find((p) => p.id === user.managerId);
+    patchNewContractForm({
+      ...EMPTY_NEW_CONTRACT_FORM,
+      fechaInicio: new Date().toISOString().split('T')[0],
+      ...buildNewContractFormFromProspecto(prospecto, {
+        nombreComercial: user.fullName,
+        jefeEquipo: jefe?.fullName ?? '',
+      }),
+    });
+    setContractWizardProspectoId(prospecto.id);
+    closeVentasFicha();
+    setContractWizardOpen(true);
+  }
+
+  function navigateToContratoFromFicha(contratoEquipoId: string) {
+    setHighlightContractId(contratoEquipoId);
+    closeVentasFicha();
+    if (activeRole === 'comercial') {
+      setActiveModule('ventas');
+      setCurrentMenuTab('Mis Contratos');
+    } else {
+      setActiveModule('erp');
+      setCurrentMenuTab('Contratos');
+    }
+    toast.info('Contrato resaltado en la lista');
+  }
+
+  function getContractEstadoForProspecto(contratoEquipoId: string): string | undefined {
+    return contracts.find((c) => c.id === contratoEquipoId)?.estado;
   }
 
   const myTeamMembers = profiles.filter(p => p.managerId === activeUser.id);
@@ -1551,7 +1938,7 @@ export default function App() {
   const mySettlements = settlements.filter(s => s.comercialId === activeUser.id);
 
   const roleFilteredIncidencias = (() => {
-    if (activeRole === 'superadmin') return incidencias;
+    if (activeRole === 'superadmin' || activeRole === 'tramitacion') return incidencias;
     if (activeRole === 'jefe_comercial') {
       const teamIds = new Set([activeUserId, ...teamMemberIds]);
       return incidencias.filter(i => teamIds.has(i.comercialId));
@@ -1563,7 +1950,7 @@ export default function App() {
 
   const canCreateIncidencia = activeRole === 'comercial' || activeRole === 'jefe_comercial';
   const canEditIncidencia = activeRole === 'comercial';
-  const canDragIncidencias = activeRole === 'superadmin';
+  const canDragIncidencias = isErpOpsAdmin;
 
   const handleCreateIncidencia = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1599,7 +1986,7 @@ export default function App() {
   };
 
   const handleMoveIncidencia = (id: string, newEstado: IncidenciaTicket['estado']) => {
-    if (activeRole !== 'superadmin') return;
+    if (!isErpOpsAdmin) return;
     setIncidencias(prev =>
       prev.map(i => (i.id === id ? withIncidenciaEstado(i, newEstado) : i))
     );
@@ -1607,36 +1994,88 @@ export default function App() {
 
   // New clean, unified Menu items lists based on allowed roles in the exact ordered sequence
   const sidebarItemsConfig = [
-    { name: 'Dashboard', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: LayoutDashboard },
-    { name: 'Liquidaciones', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: WalletCards },
-    { name: 'Usuarios', allowedRoles: ['superadmin'], icon: Users },
-    { name: 'Cashflow', allowedRoles: ['superadmin'], icon: DollarSign },
+    { name: 'Dashboard', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: LayoutDashboard },
+    { name: 'Liquidaciones internas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: WalletCards },
+    { name: 'Liquidaciones', allowedRoles: ['superadmin', 'tramitacion'], icon: WalletCards },
+    { name: 'Usuarios', allowedRoles: ['superadmin', 'tramitacion'], icon: Users },
+    { name: 'Cashflow', allowedRoles: ['superadmin', 'tramitacion'], icon: DollarSign },
     { name: 'Mi Equipo', allowedRoles: ['jefe_comercial'], icon: Users },
     { name: 'Mis Clientes', allowedRoles: ['comercial'], icon: UserSquare2 },
-    { name: 'Contratos', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: FileSpreadsheet },
-    { name: 'Comparador', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: Calculator },
-    { name: 'Historial de Comparativas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: FileClock },
-    { name: 'Tarifas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: TrendingUp },
+    { name: 'Contratos', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: FileSpreadsheet },
+    { name: 'Comparador', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Calculator },
+    { name: 'Historial de Comparativas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: FileClock },
+    { name: 'Tarifas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: TrendingUp },
     { name: 'Marco Retributivo', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: Coins },
-    { name: 'Incidencias', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: AlertTriangle }
+    { name: 'Incidencias', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: AlertTriangle },
+  ];
+
+  const ventasSidebarItemsConfig = [
+    { name: 'Mi Día', icon: CalendarDays, allowedRoles: ['comercial', 'jefe_comercial', 'superadmin'] },
+    { name: 'Pipeline', icon: LayoutGrid, allowedRoles: ['comercial', 'jefe_comercial', 'superadmin'] },
+    { name: 'Base EnerSave', icon: Database, allowedRoles: ['superadmin', 'tramitacion'] },
+    { name: 'Avisos SLA', icon: ShieldAlert, allowedRoles: ['comercial', 'jefe_comercial', 'superadmin'] },
+    { name: 'Reporting', icon: BarChart3, allowedRoles: ['jefe_comercial', 'superadmin'] },
   ];
 
   const canViewMarcoRetributivo =
-    activeRole !== 'superadmin' || superadminViewMode === 'comercial';
+    activeRole !== 'superadmin' && activeRole !== 'tramitacion'
+      ? true
+      : activeRole === 'superadmin' && superadminViewMode === 'comercial';
 
-  const currentMenuOptions = sidebarItemsConfig.filter(item => {
-    if (item.name === 'Marco Retributivo' && !canViewMarcoRetributivo) {
-      return false;
-    }
-    if (activeRole === 'superadmin') {
-      if (superadminViewMode === 'comercial') {
-        const comercialTabs = ['Dashboard', 'Liquidaciones', 'Mis Clientes', 'Comparador', 'Historial de Comparativas', 'Tarifas', 'Marco Retributivo', 'Incidencias'];
-        return comercialTabs.includes(item.name);
-      }
-      return item.allowedRoles.includes('superadmin');
-    }
-    return item.allowedRoles.includes(activeRole);
-  });
+  const canViewConsolidatedLiquidaciones =
+    activeRole === 'tramitacion' ||
+    (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
+
+  const canViewInternalLiquidaciones =
+    activeRole === 'comercial' ||
+    activeRole === 'jefe_comercial' ||
+    activeRole === 'superadmin';
+
+  const currentMenuOptions =
+    activeModule === 'ventas'
+      ? ventasSidebarItemsConfig.filter((item) => item.allowedRoles.includes(activeRole))
+      : sidebarItemsConfig.filter((item) => {
+          if (item.name === 'Marco Retributivo' && !canViewMarcoRetributivo) {
+            return false;
+          }
+          if (item.name === 'Liquidaciones' && !canViewConsolidatedLiquidaciones) {
+            return false;
+          }
+          if (item.name === 'Liquidaciones internas' && !canViewInternalLiquidaciones) {
+            return false;
+          }
+          if (activeRole === 'superadmin') {
+            if (superadminViewMode === 'comercial') {
+              const comercialTabs = [
+                'Dashboard',
+                'Liquidaciones internas',
+                'Mis Clientes',
+                'Comparador',
+                'Historial de Comparativas',
+                'Tarifas',
+                'Marco Retributivo',
+                'Incidencias',
+              ];
+              return comercialTabs.includes(item.name);
+            }
+            return item.allowedRoles.includes('superadmin');
+          }
+          if (activeRole === 'tramitacion') {
+            const tramitacionTabs = [
+              'Dashboard',
+              'Liquidaciones',
+              'Usuarios',
+              'Cashflow',
+              'Contratos',
+              'Comparador',
+              'Historial de Comparativas',
+              'Tarifas',
+              'Incidencias',
+            ];
+            return tramitacionTabs.includes(item.name);
+          }
+          return item.allowedRoles.includes(activeRole);
+        });
 
   // RAW CODES FOR THE TABS
   const sqlCode = "";
@@ -1700,7 +2139,7 @@ export default function App() {
           onBlur={handleSave}
           onKeyDown={handleKeyDown}
           autoFocus
-          className="p-1 text-xs bg-white dark:bg-slate-900 border border-cyan-500 rounded text-brand-text font-mono w-full outline-none"
+          className="p-1 text-xs bg-brand-panel border border-cyan-500 rounded text-brand-text font-mono w-full outline-none"
         />
       );
     }
@@ -1722,20 +2161,20 @@ export default function App() {
       
       {/* SIMULATE SPLIT LOGIN SCREEN IF LOGGED OUT */}
       {!isLoggedIn ? (
-        <div className="flex-1 min-h-screen flex items-center justify-center p-4 bg-[#f8fafc] dark:bg-[#090d16] relative overflow-hidden transition-colors duration-300">
+        <div className="flex-1 min-h-screen flex items-center justify-center p-4 bg-brand-bg relative overflow-hidden transition-colors duration-300">
           {/* Subtle background decoration with yellow and blue mesh glows */}
           <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-3xl p-8 sm:p-10 shadow-xl dark:shadow-none space-y-8 z-10">
+          <div className="relative w-full max-w-md bg-brand-panel border border-slate-200 dark:border-white/5 rounded-3xl p-8 sm:p-10 shadow-xl dark:shadow-none space-y-8 z-10">
             {/* Logo and Titles */}
             <div className="text-center space-y-4">
               <EnersaveLogo className="h-20 w-20 mx-auto" />
               <div className="space-y-1">
-                <h1 className="text-2xl font-black tracking-tight text-[#0f172a] dark:text-[#f8fafc] font-sans">
+                <h1 className="text-2xl font-black tracking-tight text-brand-text font-sans">
                   ERP ENERSAVE
                 </h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase font-mono tracking-widest">
+                <p className="text-xs text-brand-subtext font-medium uppercase font-mono tracking-widest">
                   PLATFORM CORE
                 </p>
               </div>
@@ -1762,7 +2201,7 @@ export default function App() {
                     required
                     value={loginEmail}
                     onChange={(e) => setLoginEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-cyan-400 focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-[#0f172a] dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm font-medium"
+                    className="w-full pl-10 pr-4 py-3 bg-brand-surface border border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-cyan-400 focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-[#0f172a] dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm font-medium"
                     placeholder="ejemplo@enersave.com"
                   />
                 </div>
@@ -1781,7 +2220,7 @@ export default function App() {
                     required
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-cyan-400 focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-[#0f172a] dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm font-medium"
+                    className="w-full pl-10 pr-4 py-3 bg-brand-surface border border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-cyan-400 focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-[#0f172a] dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 transition-all text-sm font-medium"
                     placeholder="••••••••"
                   />
                 </div>
@@ -1810,35 +2249,26 @@ export default function App() {
               </span>
               <div className="grid grid-cols-3 gap-2">
                 <button
-                  onClick={() => {
-                    setLoginEmail('carlos@enersave.com');
-                    setActiveUserId('usr-1');
-                    setIsLoggedIn(true);
-                    setCurrentMenuTab('Dashboard');
-                  }}
-                  className="px-2 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-cyan-500/30 text-[10px] font-semibold text-blue-600 dark:text-cyan-400 rounded-lg cursor-pointer transition-all text-center animate-none"
+                  type="button"
+                  disabled={loginLoading}
+                  onClick={() => quickLoginAs('usr-1')}
+                  className="px-2 py-1.5 bg-brand-surface hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-cyan-500/30 text-[10px] font-semibold text-blue-600 dark:text-cyan-400 rounded-lg cursor-pointer transition-all text-center animate-none"
                 >
                   Superadmin
                 </button>
                 <button
-                  onClick={() => {
-                    setLoginEmail('elena@enersave.com');
-                    setActiveUserId('usr-2');
-                    setIsLoggedIn(true);
-                    setCurrentMenuTab('Mi Equipo');
-                  }}
-                  className="px-2 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/30 text-[10px] font-semibold text-amber-600 dark:text-amber-400 rounded-lg cursor-pointer transition-all text-center animate-none"
+                  type="button"
+                  disabled={loginLoading}
+                  onClick={() => quickLoginAs('usr-2')}
+                  className="px-2 py-1.5 bg-brand-surface hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/30 text-[10px] font-semibold text-amber-600 dark:text-amber-400 rounded-lg cursor-pointer transition-all text-center animate-none"
                 >
                   Jefe Comer.
                 </button>
                 <button
-                  onClick={() => {
-                    setLoginEmail('ignacio@enersave.com');
-                    setActiveUserId('usr-3');
-                    setIsLoggedIn(true);
-                    setCurrentMenuTab('Comparador');
-                  }}
-                  className="px-2 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-500/30 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 rounded-lg cursor-pointer transition-all text-center"
+                  type="button"
+                  disabled={loginLoading}
+                  onClick={() => quickLoginAs('usr-3')}
+                  className="px-2 py-1.5 bg-brand-surface hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-500/30 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 rounded-lg cursor-pointer transition-all text-center"
                 >
                   Comercial
                 </button>
@@ -1883,7 +2313,7 @@ export default function App() {
                     {sidebarCollapsed ? (
                       <button
                         onClick={() => setSidebarCollapsed(false)}
-                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-950/40 border border-brand-border text-brand-subtext hover:text-brand-text cursor-pointer transition-colors"
+                        className="p-1 rounded bg-brand-surface hover:bg-brand-elevated border border-brand-border text-brand-subtext hover:text-brand-text cursor-pointer transition-colors"
                         title="Expandir"
                       >
                         <ChevronRight className="w-3.5 h-3.5" />
@@ -1891,7 +2321,7 @@ export default function App() {
                     ) : (
                       <button
                         onClick={() => setSidebarCollapsed(true)}
-                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-950/40 border border-brand-border text-brand-subtext hover:text-brand-text cursor-pointer transition-colors"
+                        className="p-1 rounded bg-brand-surface hover:bg-brand-elevated border border-brand-border text-brand-subtext hover:text-brand-text cursor-pointer transition-colors"
                         title="Contraer"
                       >
                         <ChevronLeft className="w-3.5 h-3.5" />
@@ -1902,7 +2332,7 @@ export default function App() {
                   {/* Profile Summary Card with dynamic role details */}
                   <div className="p-4 border-b border-brand-border bg-brand-bg/10">
                     <div className="flex items-center space-x-3">
-                      <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-950 border border-brand-border flex items-center justify-center font-bold text-cyan-500 dark:text-cyan-400 shrink-0 text-xs text-center font-mono shadow-sm">
+                      <div className="w-9 h-9 rounded-full bg-brand-surface border border-brand-border flex items-center justify-center font-bold text-cyan-600 dark:text-cyan-400 shrink-0 text-xs text-center font-mono shadow-sm">
                         {activeUser.fullName.split(' ').map(n => n[0]).join('')}
                       </div>
                       {!sidebarCollapsed && (
@@ -1911,10 +2341,12 @@ export default function App() {
                           <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-mono font-bold mt-0.5 uppercase tracking-wide ${
                             activeRole === 'superadmin' ? 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20' :
                             activeRole === 'jefe_comercial' ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20' :
+                            activeRole === 'tramitacion' ? 'bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20' :
                             'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
                           }`}>
                             {activeRole === 'superadmin' ? 'Superadmin' :
                              activeRole === 'jefe_comercial' ? 'Jefe Comercial' :
+                             activeRole === 'tramitacion' ? 'Tramitación' :
                              'Comercial'}
                           </span>
                         </div>
@@ -1922,8 +2354,44 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Superadmin Mode Switcher Option in Left Sidebar */}
-                  {activeRole === 'superadmin' && (
+                  {/* Module selector: ERP ↔ Ventas (all roles) */}
+                  <div className="p-3 border-b border-brand-border">
+                    <div
+                      className={`grid grid-cols-2 gap-1 p-1 bg-brand-panel border border-brand-border rounded-xl ${
+                        sidebarCollapsed ? 'grid-cols-1 gap-0.5' : ''
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => switchAppModule('erp')}
+                        title="Módulo ERP"
+                        className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-mono font-bold transition-colors duration-200 cursor-pointer ${
+                          activeModule === 'erp'
+                            ? 'bg-cyan-600 text-white shadow-sm'
+                            : 'text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                        {!sidebarCollapsed && <span>ERP</span>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => switchAppModule('ventas')}
+                        title="Módulo Ventas"
+                        className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-mono font-bold transition-colors duration-200 cursor-pointer ${
+                          activeModule === 'ventas'
+                            ? 'bg-cyan-600 text-white shadow-sm'
+                            : 'text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <Zap className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                        {!sidebarCollapsed && <span>Ventas</span>}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Superadmin ERP view switcher (tramitación vs comercial agent) */}
+                  {activeRole === 'superadmin' && activeModule === 'erp' && (
                     <div className="p-3 border-b border-brand-border bg-slate-500/5 space-y-2">
                       {!sidebarCollapsed && (
                         <div className="flex justify-between items-center px-1">
@@ -1937,7 +2405,7 @@ export default function App() {
                       )}
                       <button
                         onClick={handleToggleSuperadminMode}
-                        className="w-full flex items-center justify-between px-3 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-brand-text border border-brand-border rounded-xl cursor-pointer text-xs font-bold transition-all shadow-sm"
+                        className="w-full flex items-center justify-between px-3 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-brand-surface hover:bg-brand-elevated text-brand-text border border-brand-border rounded-xl cursor-pointer text-xs font-bold transition-all shadow-sm"
                         title={superadminViewMode === 'tramitacion' ? 'Cambiar a Mis Clientes (Comercial)' : 'Cambiar a Tramitación (Operativo)'}
                       >
                         <div className="flex items-center space-x-2 truncate">
@@ -1957,10 +2425,6 @@ export default function App() {
 
                   {/* Side menu paths dynamically rendered according to role schema */}
                   <div className="p-3 space-y-1">
-                    <span className="block text-[9px] font-mono uppercase tracking-widest text-brand-subtext/80 px-2.5 pb-2">
-                      {sidebarCollapsed ? 'MOD' : 'Módulos Permitidos'}
-                    </span>
-                    
                     {currentMenuOptions.map((opt, id) => {
                       const Icon = opt.icon;
                       const isSelected = currentMenuTab === opt.name;
@@ -1970,11 +2434,11 @@ export default function App() {
                           onClick={() => setCurrentMenuTab(opt.name)}
                           className={`w-full flex items-center shrink-0 space-x-3 px-3 py-2.5 rounded-xl cursor-pointer text-left transition-all ${
                             isSelected 
-                              ? 'bg-blue-600 dark:bg-gradient-to-r dark:from-slate-800 dark:to-slate-900 border-l-2 border-amber-500 dark:border-cyan-450 text-white shadow-md shadow-blue-500/10' 
-                              : 'text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-white/5'
+                              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/10 dark:bg-cyan-500/12 dark:text-cyan-200 dark:border dark:border-cyan-500/25 dark:shadow-none' 
+                              : 'text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-brand-elevated/40'
                           }`}
                         >
-                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-slate-500'}`} />
+                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white dark:text-cyan-300' : 'text-brand-subtext'}`} />
                           {!sidebarCollapsed && (
                             <span className="text-xs font-semibold truncate tracking-tight">
                               {opt.name}
@@ -2044,7 +2508,10 @@ export default function App() {
                   )}
 
                   <button
-                    onClick={() => setIsLoggedIn(false)}
+                    onClick={async () => {
+                      await clearSupabaseSession();
+                      setIsLoggedIn(false);
+                    }}
                     className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer text-left"
                   >
                     <LogOut className="w-4 h-4" />
@@ -2055,25 +2522,25 @@ export default function App() {
               </motion.aside>
 
               {/* CENTRAL MAIN VIEWPORT (Self-Scrollable container) */}
-              <div className="flex-1 min-w-0 p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-[#f8fafc] dark:bg-[#090d16] text-[#0f172a] dark:text-[#f8fafc]">
+              <div className="flex-1 min-w-0 p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-brand-bg text-brand-text">
                 
                 {/* Floating energy grid graphics */}
-                <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-400/5 rounded-full blur-3xl pointer-events-none" />
-                <div className="absolute bottom-10 left-10 w-80 h-80 bg-amber-400/5 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
+                <div className="absolute bottom-10 left-10 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-amber)]" />
 
                 {/* ==================================================
                     DASHBOARD CONTENIDO SEGÚN EL ROL DE ACCESO
                     ================================================== */}
 
-                {currentMenuTab === 'Dashboard' && (
+                {currentMenuTab === 'Dashboard' && activeModule === 'erp' && (
                   <div className="space-y-8">
                     
                     {/* PROFILE: SUPERADMIN (EXECUTIVE CONTROL BOARD) */}
-                    {activeRole === 'superadmin' && (
+                    {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
                       <div className="space-y-8 animate-fade-in">
                         {/* STATS ROW */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden group shadow-sm dark:shadow-none bg-white dark:bg-slate-900">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden group shadow-sm dark:shadow-none">
                             <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Monto Interno Empresa
@@ -2086,7 +2553,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-slate-900">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none">
                             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Liquidaciones Red Ventas
@@ -2099,7 +2566,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-slate-900">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none">
                             <div className="absolute top-0 left-0 w-1 h-full bg-rose-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Comisión Pendiente
@@ -2112,7 +2579,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none bg-white dark:bg-slate-900">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none">
                             <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Comisión Pagada
@@ -2129,7 +2596,7 @@ export default function App() {
                         {/* TWO COLUMN SUMMARY GRAPH AND INFO CARD */}
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                           {/* Left: General business highlights */}
-                          <div className="lg:col-span-2 bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-5 bg-white dark:bg-slate-900">
+                          <div className="lg:col-span-2 bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-5">
                             <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
                               Distribución de Contrataciones Activas (Volumen de Energía)
                             </h3>
@@ -2169,7 +2636,7 @@ export default function App() {
                           </div>
 
                           {/* Right: Quick actions */}
-                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 bg-white dark:bg-slate-900">
+                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4">
                             <h3 className="text-xs font-extrabold text-brand-text tracking-wide uppercase font-mono">
                               Simulaciones de Sistema
                             </h3>
@@ -2198,7 +2665,7 @@ export default function App() {
                         </div>
 
                         {/* TABLE: LAST COMMISSIONS GENERATED */}
-                        <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 bg-white dark:bg-slate-900">
+                        <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4">
                           <div className="flex justify-between items-center">
                             <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
                               Contratos de Energía y Liquidaciones del Equipo General
@@ -2262,7 +2729,7 @@ export default function App() {
                                         </td>
                                       </tr>
                                       {isExpanded && (
-                                        <tr className="bg-slate-50/60 dark:bg-slate-900/40 border-b border-brand-border select-none">
+                                        <tr className="bg-slate-50/60 dark:bg-brand-surface/50 border-b border-brand-border select-none">
                                           <td colSpan={7} className="p-4">
                                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs text-left">
                                               <div className="space-y-1">
@@ -2332,7 +2799,7 @@ export default function App() {
                       <div className="space-y-8 animate-fade-in">
                         {/* STATS ROW */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm">
                             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Ventas del Nodo
@@ -2352,7 +2819,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm">
                             <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Override Earned (Honorarios)
@@ -2374,7 +2841,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm">
                             <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Comisiones Personales
@@ -2391,7 +2858,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm">
                             <div className="absolute top-0 left-0 w-1 h-full bg-rose-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                               Miembros en Red
@@ -2408,7 +2875,7 @@ export default function App() {
                         {/* LIST ROW */}
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           {/* Left: list of team members */}
-                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-slate-900 shadow-sm space-y-4">
+                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border shadow-sm space-y-4">
                             <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
                               Eficiencia de la Red de Asesores
                             </h3>
@@ -2417,7 +2884,7 @@ export default function App() {
                                 const subContracts = contracts.filter(c => c.comercialId === sub.id);
                                 const totalSum = subContracts.reduce((sum, c) => sum + c.montoInterno, 0);
                                 return (
-                                  <div key={sub.id} className="p-4 rounded-xl border border-brand-border bg-slate-50 dark:bg-slate-950/40 flex justify-between items-center text-xs">
+                                  <div key={sub.id} className="p-4 rounded-xl border border-brand-border bg-brand-surface dark:bg-brand-surface/50 flex justify-between items-center text-xs">
                                     <div className="space-y-1">
                                       <strong className="text-sm text-brand-text block">{sub.fullName}</strong>
                                       <span className="text-[9px] font-mono uppercase bg-slate-200 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">
@@ -2435,7 +2902,7 @@ export default function App() {
                           </div>
 
                           {/* Right: Team contracts monitoring */}
-                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-slate-900 shadow-sm space-y-4">
+                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border shadow-sm space-y-4">
                             <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
                               Últimos Contratos Auditados del Nodo
                             </h3>
@@ -2471,277 +2938,81 @@ export default function App() {
 
                     {/* PROFILE: COMERCIAL (PERSONAL COMMISSION HUD) */}
                     {activeRole === 'comercial' && (
-                      <div className="space-y-8 animate-fade-in">
-                        
-                        {/* 1. KEY COMPREHENSIVE KPIs ROW (DAY, WEEK, MONTH, TOTAL PERIOD SELECTOR) */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          
-                          {/* KPI 1: COMISIONES RECALCULADAS */}
-                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-[#0f172a] shadow-sm flex flex-col justify-between space-y-4 font-sans">
-                            <div className="space-y-4">
-                              <div className="flex justify-between items-start">
-                                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight block">Comisiones Recalculadas</span>
-                              </div>
+                      <div className="space-y-4 animate-fade-in">
+                        <ComercialCommissionsChart
+                          contracts={contracts}
+                          activeUserId={activeUserId}
+                          selectedPeriod={selectedPeriod}
+                          onPeriodChange={setSelectedPeriod}
+                          formatCurrency={formatCurrency}
+                        />
 
-                              {/* Interactive Period Selector Buttons EXACTLY AS SCREENSHOT (Fast-Actions) */}
-                              <div className="flex flex-wrap items-center gap-1">
-                                {[
-                                  { label: '1 Día', value: '1d' },
-                                  { label: '1 Sem.', value: '1w' },
-                                  { label: '1 Mes', value: '1m' },
-                                  { label: '3 Mes.', value: '3m' },
-                                  { label: '6 Mes.', value: '6m' },
-                                  { label: '1 Año', value: '1y' },
-                                  { label: 'Historial', value: 'Total' }
-                                ].map((pBtn) => (
-                                  <button
-                                    key={pBtn.value}
-                                    type="button"
-                                    onClick={() => setSelectedPeriod(pBtn.value)}
-                                    className={`px-2 py-1 text-[8px] font-mono font-bold uppercase rounded transition-all cursor-pointer border ${
-                                      selectedPeriod === pBtn.value
-                                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm font-black'
-                                        : 'bg-slate-50 dark:bg-slate-950 border-brand-border text-brand-text hover:border-slate-350 dark:hover:border-white/10'
-                                    }`}
-                                  >
-                                    {pBtn.label}
-                                  </button>
-                                ))}
-                              </div>
-
-                              <div className="flex items-baseline justify-between pt-1">
-                                <strong className="text-3xl font-black text-emerald-500 tracking-tight block font-mono">
-                                  {formatCurrency(getComercialCommissionForPeriod(selectedPeriod))}
-                                </strong>
-                                <span className="text-[10px] font-bold text-slate-400 font-mono text-right">
-                                  {
-                                    (() => {
-                                      const now = new Date();
-                                      let limitDate = new Date();
-                                      if (selectedPeriod === '1d') limitDate.setDate(now.getDate() - 1);
-                                      else if (selectedPeriod === '1w') limitDate.setDate(now.getDate() - 7);
-                                      else if (selectedPeriod === '1m') limitDate.setMonth(now.getMonth() - 1);
-                                      else if (selectedPeriod === '3m') limitDate.setMonth(now.getMonth() - 3);
-                                      else if (selectedPeriod === '6m') limitDate.setMonth(now.getMonth() - 6);
-                                      else if (selectedPeriod === '1y') limitDate.setFullYear(now.getFullYear() - 1);
-                                      else return contracts.filter(c => c.comercialId === activeUserId).length;
-
-                                      return contracts.filter(c => c.comercialId === activeUserId && new Date(c.createdAt) >= limitDate).length;
-                                    })()
-                                  } VENTAS COMP.
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* COL 2: PENDING REVENUE & CLAIMS */}
-                          <div 
+                        <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-[minmax(0,1fr)_minmax(72px,0.38fr)_minmax(0,2.5fr)_minmax(0,1fr)]">
+                          <div
                             onClick={() => {
                               setLiquidacionesSearchQuery('');
-                              setCurrentMenuTab('Liquidaciones');
-                              toast.info('Redirigiendo a liquidaciones pendientes...');
+                              setCurrentMenuTab('Liquidaciones internas');
                             }}
-                            className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-[#0f172a] shadow-sm flex flex-col justify-between font-sans cursor-pointer hover:border-blue-500/50 hover:shadow-md transition-all group"
+                            className="bg-brand-panel p-3 rounded-xl border border-brand-border shadow-sm flex flex-col justify-between gap-2 font-sans cursor-pointer hover:border-cyan-500/40 transition-colors group min-h-[132px] min-w-0"
                           >
                             <div className="space-y-1">
-                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight block group-hover:text-blue-500 transition-colors">Comisión Pendiente</span>
-                              {/* Visual Sub-indicator bar instead of wordy texts */}
-                              <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-                                <div className="bg-amber-500 h-full rounded-full" style={{ width: '65%' }} />
+                              <span className="text-[10px] font-semibold text-brand-text uppercase tracking-tight block group-hover:text-cyan-500 transition-colors leading-tight">Comisión pendiente</span>
+                              <div className="w-full bg-brand-surface h-1 rounded-full overflow-hidden">
+                                <div className="bg-amber-500 h-full rounded-full w-[65%]" />
                               </div>
                             </div>
-
-                            <div className="pt-4 border-t border-dashed border-brand-border space-y-1">
-                              <span className="text-[9px] uppercase font-mono text-slate-400 block font-bold">Importe Pendiente de Pago:</span>
-                              <strong className="text-3xl font-black text-amber-500 tracking-tight block font-mono">
+                            <div className="pt-1.5 border-t border-dashed border-brand-border">
+                              <strong className="text-xl font-black text-amber-500 tabular-nums font-mono leading-none">
                                 {formatCurrency(
                                   settlements
                                     .filter(s => s.comercialId === activeUserId && s.estado === 'pendiente')
                                     .reduce((sum, s) => sum + s.montoExterno, 0)
                                 )}
                               </strong>
-                              <span className="text-[9px] text-blue-500 font-bold block mt-1 uppercase tracking-tight group-hover:underline">Haga clic para ver contratos →</span>
+                              <span className="text-[9px] text-brand-subtext block mt-0.5">Ver liquidaciones →</span>
                             </div>
                           </div>
 
-                          {/* COL 3: PENDING INCIDENTS */}
                           <div 
-                            onClick={() => {
-                              setCurrentMenuTab('Incidencias');
-                              toast.info('Redirigiendo al buzón de incidencias...');
-                            }}
-                            className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-[#0f172a] shadow-sm flex flex-col justify-between font-sans cursor-pointer hover:border-rose-500/50 hover:shadow-md transition-all group"
+                            onClick={() => setCurrentMenuTab('Incidencias')}
+                            className="bg-brand-panel px-2 py-3 rounded-xl border border-brand-border shadow-sm flex flex-col items-center justify-between gap-1 font-sans cursor-pointer hover:border-rose-500/40 transition-colors group min-h-[132px] min-w-0"
                           >
-                            <div className="space-y-1">
-                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight block group-hover:text-rose-500 transition-colors">Incidencias de Contratos</span>
-                              {/* Visual Notification icon pulse instead of wordy texts */}
-                              <div className="flex items-center gap-1.5 mt-2">
-                                <span className="w-2 h-2 rounded-full bg-rose-500 mt-0.5 animate-pulse" />
-                                <span className="text-[10px] text-slate-500 font-medium">Requieren acción del comercial</span>
-                              </div>
+                            <div className="flex items-center gap-1 w-full justify-center">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                              <span className="text-[9px] font-semibold text-brand-text uppercase tracking-tight group-hover:text-rose-500 transition-colors leading-none truncate">
+                                Incidencias
+                              </span>
                             </div>
-
-                            <div className="pt-4 border-t border-dashed border-brand-border space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="text-[9px] uppercase font-mono text-slate-400 block font-bold font-mono">Gestiones por Corregir:</span>
-                                {visibleIncidencias.filter(i => i.estado === 'pendiente').length > 0 && (
-                                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping font-sans" />
-                                )}
-                              </div>
-                              <strong className={`${
-                                visibleIncidencias.filter(i => i.estado === 'pendiente').length > 0
-                                  ? 'text-rose-500'
-                                  : 'text-emerald-500'
-                                } text-3xl font-black tracking-tight block font-mono`}>
-                                {visibleIncidencias.filter(i => i.estado === 'pendiente').length} Incidentes
+                            <div className="pt-1 border-t border-dashed border-brand-border w-full text-center">
+                              <strong className={`text-2xl font-black tabular-nums font-mono leading-none ${
+                                visibleIncidencias.filter(i => i.estado === 'pendiente').length > 0 ? 'text-rose-500' : 'text-emerald-500'
+                              }`}>
+                                {visibleIncidencias.filter(i => i.estado === 'pendiente').length}
                               </strong>
-                              <span className="text-[9px] text-rose-500 font-bold block mt-1 uppercase tracking-tight group-hover:underline">Haga clic para ver buzón →</span>
                             </div>
                           </div>
 
-                        </div>
+                          <div className="col-span-2 xl:col-span-1 min-w-0">
+                            <ComercialCompaniaChart
+                              contracts={contracts}
+                              activeUserId={activeUserId}
+                            />
+                          </div>
 
-                        {/* LINE GRAPH SEGMENT */}
-                        <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-brand-border p-6 shadow-sm">
-                          <ComercialCommissionsChart
+                          <div className="min-w-0">
+                          <ComercialRenovacionesCard
                             contracts={contracts}
-                            settlements={settlements}
                             activeUserId={activeUserId}
-                            selectedPeriod={selectedPeriod}
+                            onNavigate={navigateToRenovacionProxima}
                           />
-                        </div>
-
-                        {/* 2. CHRONO ALARMS: RETROCOMMISSION COUNTDOWNS/CLAIMS SHEDDING LIGHT ON THE CONSTRAINTS */}
-                        <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-[#0f172a] shadow-sm space-y-4 font-sans">
-                          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-brand-border pb-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <ShieldAlert className="w-4 h-4 text-amber-500" />
-                                <h3 className="text-sm font-extrabold text-brand-text uppercase">Monitor de Cobertura de Retrocomisiones</h3>
-                              </div>
-                            </div>
-                            <div className="text-[9px] font-mono text-slate-400 p-2 rounded bg-slate-50 dark:bg-slate-950/40 border border-brand-border space-y-0.5 leading-snug shrink-0">
-                              <p>• Repsol/Naturgy: 4 meses | Endesa: 2 meses</p>
-                              <p>• Iberdrola/Niba/Gana Energía: 12 meses</p>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {(() => {
-                              const myActiveContracts = contracts.filter(c => c.comercialId === activeUserId && isContractActivado(c.estado));
-                              if (myActiveContracts.length === 0) {
-                                return (
-                                  <div className="md:col-span-2 xl:col-span-3 h-28 flex flex-col justify-center items-center rounded-xl border border-dashed border-brand-border text-center text-xs font-mono text-brand-subtext space-y-1.5 p-6">
-                                    <span>🛡️ No tienes contratos activos computados en periodo de retrocomisión todavía.</span>
-                                    <span className="text-[9px] text-slate-500 font-sans">Los contratos liquidados aparecerán aquí una vez que el superadministrador autorice su activación.</span>
-                                  </div>
-                                );
-                              }
-
-                              return myActiveContracts.map((c) => {
-                                const info = getRetrocommissionInfo(c);
-                                return (
-                                  <div 
-                                    key={c.id} 
-                                    onClick={() => {
-                                      setContractsSearchQuery(c.cups);
-                                      setCurrentMenuTab('Contratos');
-                                      toast.info(`Filtrando contrato de cliente: ${c.clientName}`);
-                                    }}
-                                    className="p-4 rounded-xl border border-brand-border bg-slate-50 dark:bg-slate-950/40 space-y-4 cursor-pointer hover:border-amber-500/50 hover:shadow-xs transition-all duration-300"
-                                  >
-                                    <div className="flex justify-between items-start gap-2">
-                                      <div>
-                                        <h4 className="font-extrabold text-brand-text text-xs tracking-tight">{c.clientName}</h4>
-                                        <span className="text-[9px] font-mono text-slate-400 block mt-0.5">{c.cups}</span>
-                                      </div>
-                                      <span className={`px-1.5 py-0.5 text-[8px] font-bold font-mono rounded shrink-0 ${
-                                        info.isSecure 
-                                          ? 'bg-emerald-500/10 text-emerald-500 text-emerald-400' 
-                                          : info.riskStatus === 'high' 
-                                          ? 'bg-rose-500/10 text-rose-500' 
-                                          : 'bg-amber-500/10 text-amber-500'
-                                      }`}>
-                                        {info.isSecure ? '✓ SEGURO' : `RESTAN ${info.remainingDays} DÍAS`}
-                                      </span>
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <div className="flex justify-between text-[9px] font-mono text-slate-400">
-                                        <span>Consolidación Cobertura:</span>
-                                        <span>{info.diffDays} / {info.limitDays} días ({info.percentElapsed}%)</span>
-                                      </div>
-                                      <div className="h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden border border-brand-border max-w-full">
-                                        <div 
-                                          className={`h-full rounded-full transition-all duration-500 ${
-                                            info.isSecure ? 'bg-emerald-500' : info.riskStatus === 'high' ? 'bg-rose-500 animate-pulse' : 'bg-amber-500'
-                                          }`} 
-                                          style={{ width: `${info.percentElapsed}%` }} 
-                                        />
-                                      </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-2 text-[9px] font-mono border-t border-slate-100 dark:border-white/[0.04] pt-2 whitespace-nowrap overflow-hidden">
-                                      <div className="text-slate-500 uppercase tracking-tight">VÍA:</div>
-                                      <div className="text-right text-slate-350">{c.compania}</div>
-                                      
-                                      <div className="text-slate-500 uppercase tracking-tight">FECHA ACT:</div>
-                                      <div className="text-right text-slate-350">{c.createdAt}</div>
-
-                                      <div className="text-slate-500 uppercase tracking-tight font-sans">LIQ CLAWBACK:</div>
-                                      <div className="text-right text-rose-400 font-bold">
-                                        {info.isSecure ? '0,00 € (0%)' : `-${formatCurrency(c.montoExterno * (1 - (info.diffMonths / info.limitMonths)))} (~${( (1 - (info.diffMonths / info.limitMonths))*100 ).toFixed(0)}%)`}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              });
-                            })()}
                           </div>
                         </div>
 
-                        {/* Recent contracts portfolio list */}
-                        <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border bg-white dark:bg-[#0f172a] shadow-sm space-y-4">
-                          <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">Tus Últimos Contratos Cargados</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs font-sans">
-                              <thead>
-                                <tr className="border-b border-brand-border text-brand-subtext font-mono text-[10px]">
-                                  <th className="pb-3 uppercase tracking-wider">Suministro / CUPS</th>
-                                  <th className="pb-3 uppercase tracking-wider">Tipo/Compañía</th>
-                                  <th className="pb-3 uppercase tracking-wider">Volumen Consumo</th>
-                                  <th className="pb-3 uppercase tracking-wider text-right">Tu Neto Comisión</th>
-                                  <th className="pb-3 uppercase tracking-wider text-right">Estado Seguro</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {contracts.filter(c => c.comercialId === activeUserId).map((c, idx) => (
-                                  <tr key={idx} className="border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.01]">
-                                    <td className="py-3">
-                                      <span className="font-bold text-brand-text block">{c.clientName}</span>
-                                      <span className="text-[9px] font-mono text-slate-450 block mt-0.5">{c.cups}</span>
-                                    </td>
-                                    <td className="py-3">
-                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.25 font-mono font-bold text-[9px] rounded uppercase ${
-                                        c.tipo === 'luz' ? 'bg-cyan-500/10 text-cyan-500' : 'bg-amber-500/10 text-amber-500 animate-pulse'
-                                      }`}>
-                                        {c.tipo}
-                                      </span>
-                                      <span className="text-[10px] text-slate-400 pl-2 font-mono">{c.compania}</span>
-                                    </td>
-                                    <td className="py-3 font-mono text-slate-350">{c.consumoAnual.toLocaleString('es-ES')} kWh/año</td>
-                                    <td className="py-3 text-right font-black font-mono text-emerald-500">{formatCurrency(c.montoExterno)}</td>
-                                    <td className="py-3 text-right">
-                                      <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${getContractEstadoBadgeClass(c.estado)}`}>
-                                        {c.estado}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                        <ComercialContratosEstadoKpis
+                          contracts={contracts}
+                          activeUserId={activeUserId}
+                          onNavigate={navigateToContratosEstadoKpi}
+                        />
 
                       </div>
                     )}
@@ -2750,9 +3021,9 @@ export default function App() {
                 )}
 
                 {/* VIEW: USUARIOS (Jerarquía de Perfiles) */}
-                {currentMenuTab === 'Usuarios' && (
+                {currentMenuTab === 'Usuarios' && activeModule === 'erp' && (
                   <div className="space-y-6">
-                    {activeRole !== 'superadmin' ? (
+                    {activeRole !== 'superadmin' && activeRole !== 'tramitacion' ? (
                       <div className="bg-rose-500/5 border border-rose-500/15 rounded-3xl p-8 text-center space-y-4 max-w-xl mx-auto my-12 animate-fade-in">
                         <div className="w-14 h-14 bg-rose-500/10 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
                           <Lock className="w-6 h-6" />
@@ -2805,7 +3076,6 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* Search & filters control bar */}
                         <div className="bg-brand-panel p-4 rounded-2xl border border-brand-border flex flex-col md:flex-row gap-4 justify-between items-center shadow-sm dark:shadow-none">
                           <div className="w-full md:w-auto flex flex-1 flex-col sm:flex-row gap-3">
                             <div className="relative flex-1 max-w-sm">
@@ -2853,8 +3123,11 @@ export default function App() {
                             className="w-full md:w-auto px-4 py-2.5 bg-gradient-to-r from-blue-700 via-blue-500 to-amber-500 hover:from-blue-800 hover:to-amber-600 text-white rounded-xl text-xs font-extrabold cursor-pointer hover:opacity-95 flex items-center justify-center gap-2 shadow-md"
                           >
                             <UserPlus className="w-4 h-4 text-white" />
-                            <span>Registrar Nuevo Asesor (Simulado)</span>
+                            <span>Registrar Nuevo Asesor</span>
                           </button>
+                          {isSyncingErpUsers && (
+                            <span className="text-[10px] font-mono text-brand-subtext">Sincronizando Supabase…</span>
+                          )}
                         </div>
 
                         {/* Interactive Data Table Grid */}
@@ -2862,7 +3135,7 @@ export default function App() {
                           <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse text-xs">
                               <thead>
-                                <tr className="border-b border-brand-border bg-slate-50 dark:bg-slate-950/40 text-brand-subtext font-mono text-[10px]">
+                                <tr className="border-b border-brand-border bg-brand-surface dark:bg-brand-surface/50 text-brand-subtext font-mono text-[10px]">
                                   <th className="py-4 px-5 uppercase font-bold tracking-wider">Asesor (Nombre / ID)</th>
                                   <th className="py-4 px-5 uppercase font-bold tracking-wider">Rol de Energía</th>
                                   <th className="py-4 px-5 uppercase font-bold tracking-wider">Email de Acceso</th>
@@ -2965,7 +3238,7 @@ export default function App() {
                 )}
 
                 {/* VIEW: CASHFLOW */}
-                {currentMenuTab === 'Cashflow' && (
+                {currentMenuTab === 'Cashflow' && activeModule === 'erp' && (
                   <CashflowPanel
                     activeRole={activeRole}
                     formatCurrency={formatCurrency}
@@ -2974,12 +3247,18 @@ export default function App() {
                   />
                 )}
                  {/* VIEW: CONTRATOS */}
-                 {currentMenuTab === 'Contratos' && (
+                 {(currentMenuTab === 'Contratos' || currentMenuTab === 'Mis Contratos') && activeModule === 'erp' && (
                   <ContratosPanel
                     activeRole={activeRole}
+                    activeUserId={activeUserId}
                     activeUserName={activeUser.fullName}
+                    canEditContractEstado={
+                      activeModule === 'erp' &&
+                      (isErpOpsAdmin &&
+                        (activeRole === 'tramitacion' || superadminViewMode === 'tramitacion'))
+                    }
                     visibleContracts={
-                      activeRole === 'comercial'
+                      currentMenuTab === 'Mis Contratos' || activeRole === 'comercial'
                         ? myContracts
                         : activeRole === 'jefe_comercial'
                           ? teamContracts
@@ -2988,6 +3267,8 @@ export default function App() {
                     setContracts={setContracts}
                     contractsSearchQuery={contractsSearchQuery}
                     setContractsSearchQuery={setContractsSearchQuery}
+                    contractsListFilter={contractsListFilter}
+                    setContractsListFilter={setContractsListFilter}
                     onActivateContract={(c) => {
                       setSelectedContractForActivation(c);
                       setActivateConsumoKwh(c.consumoAnual);
@@ -3005,6 +3286,7 @@ export default function App() {
                     onNewContractFormChange={patchNewContractForm}
                     onResetNewContractForm={resetNewContractForm}
                     applyOcrToNewContractForm={applyOcrToNewContractForm}
+                    onOpenNewContract={openContractWizardBlank}
                     highlightContractId={highlightContractId}
                     profiles={profiles}
                     commissionPercentage={activeUser.commissionPercentage}
@@ -3014,7 +3296,7 @@ export default function App() {
                 )}
 
                 {/* VIEW: TARIFAS */}
-                {currentMenuTab === 'Tarifas' && (
+                {currentMenuTab === 'Tarifas' && activeModule === 'erp' && (
                   <div className="space-y-8 animate-fade-in">
                     <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-6 shadow-sm dark:shadow-none">
                       <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
@@ -3077,13 +3359,32 @@ export default function App() {
                   </div>
                 )}
 
-                {/* VIEW: LIQUIDACIONES (All list and trigger controls) */}
-                {currentMenuTab === 'Liquidaciones' && (
+                {/* VIEW: LIQUIDACIONES INTERNAS (comercial / jefe / superadmin comercial) */}
+                {currentMenuTab === 'Liquidaciones internas' && activeModule === 'erp' && canViewInternalLiquidaciones && (
+                  <LiquidacionesInternasPanel
+                    activeRole={
+                      activeRole === 'superadmin'
+                        ? superadminViewMode === 'comercial'
+                          ? 'comercial'
+                          : 'superadmin'
+                        : (activeRole as 'jefe_comercial' | 'comercial')
+                    }
+                    activeUserId={activeUserId}
+                    activeUserName={activeUser.fullName}
+                    settlements={settlements}
+                    contracts={contracts}
+                    profiles={profiles}
+                    formatCurrency={formatCurrency}
+                  />
+                )}
+
+                {/* VIEW: LIQUIDACIONES CONSOLIDADAS (tramitación / superadmin operativo) */}
+                {currentMenuTab === 'Liquidaciones' && activeModule === 'erp' && canViewConsolidatedLiquidaciones && (
                   <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
                     
                     {/* 1. SECCIÓN SUPERADMINISTRADOR: Métricas Consolidadas del Negocio (Internas vs Externas) */}
-                    {activeRole === 'superadmin' && (
-                      <div className="p-6 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-3xl space-y-4 shadow-sm animate-fade-in">
+                    {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
+                      <div className="p-6 bg-slate-100 dark:bg-brand-surface border border-slate-200 dark:border-white/5 rounded-3xl space-y-4 shadow-sm animate-fade-in">
                         <div className="flex items-center space-x-2.5">
                           <span className="p-1.5 rounded-lg bg-blue-600/10 text-blue-600">
                             <TrendingUp className="w-4 h-4" />
@@ -3094,7 +3395,7 @@ export default function App() {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="p-4 bg-white dark:bg-slate-950 border border-brand-border rounded-xl">
+                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
                             <span className="text-[9px] text-slate-400 uppercase font-mono block font-semibold">100% Facturación Proveedores</span>
                             <strong className="text-xl font-bold text-blue-600 dark:text-cyan-400 font-mono tracking-tight block mt-0.5">34.800 €</strong>
                             <p className="text-[9px] text-slate-400 leading-normal mt-1 font-mono">
@@ -3102,7 +3403,7 @@ export default function App() {
                             </p>
                           </div>
                           
-                          <div className="p-4 bg-white dark:bg-slate-950 border border-brand-border rounded-xl">
+                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
                             <span className="text-[9px] text-amber-500 uppercase font-mono block font-semibold">Liquidación Comerciales</span>
                             <strong className="text-xl font-bold text-amber-500 font-mono tracking-tight block mt-0.5">18.540 euro</strong>
                             <p className="text-[9px] text-slate-400 leading-normal mt-1 font-mono">
@@ -3110,7 +3411,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="p-4 bg-white dark:bg-slate-950 border border-brand-border rounded-xl">
+                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
                             <span className="text-[9px] text-emerald-500 uppercase font-mono block font-semibold">Liquidación Jefes de Nodo</span>
                             <strong className="text-xl font-bold text-emerald-500 font-mono tracking-tight block mt-0.5">5.820 €</strong>
                             <p className="text-[9px] text-slate-400 leading-normal mt-1 font-mono">
@@ -3131,7 +3432,7 @@ export default function App() {
 
                     {/* 2. SECCIÓN JEFE COMERCIAL: Su equipo + Retrocomisiones directas por override de rango */}
                     {activeRole === 'jefe_comercial' && (
-                      <div className="p-6 bg-slate-150 dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-3xl space-y-6 shadow-sm">
+                      <div className="p-6 bg-slate-150 dark:bg-brand-surface border border-slate-200 dark:border-white/5 rounded-3xl space-y-6 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-brand-border">
                           <div className="flex items-center space-x-2">
                             <Award className="w-5 h-5 text-amber-500" />
@@ -3146,7 +3447,7 @@ export default function App() {
 
                         {/* Summary of Internal vs External for the Nodo */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                          <div className="p-4 bg-white dark:bg-slate-950 border border-brand-border rounded-xl">
+                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
                             <span className="text-[10px] text-slate-400 uppercase font-mono block font-bold">Facturación Externa (Comisiones Base 100%)</span>
                             <strong className="text-2xl font-black text-blue-600 dark:text-cyan-400 font-mono tracking-tight block mt-1">
                               {formatCurrency(
@@ -3161,7 +3462,7 @@ export default function App() {
                             </p>
                           </div>
 
-                          <div className="p-4 bg-white dark:bg-slate-950 border border-brand-border rounded-xl">
+                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
                             <span className="text-[10px] text-slate-400 uppercase font-mono block font-bold">Liquidado Interno (A tus Comerciales)</span>
                             <strong className="text-2xl font-black text-amber-500 font-mono tracking-tight block mt-1">
                               {formatCurrency(
@@ -3210,7 +3511,7 @@ export default function App() {
                                 const agentSales = pendingContracts.filter(c => c.agentId === agent.id).reduce((sum, c) => sum + c.price, 0);
                                 const myOverrideEarned = agentSales * (difference / 100);
                                 return (
-                                  <div key={agent.id} className="p-3.5 rounded-xl bg-white dark:bg-slate-950 border border-brand-border space-y-2">
+                                  <div key={agent.id} className="p-3.5 rounded-xl bg-brand-panel border border-brand-border space-y-2">
                                     <div className="flex justify-between items-start">
                                       <div>
                                         <span className="font-bold text-sm text-brand-text block">{agent.fullName}</span>
@@ -3252,7 +3553,7 @@ export default function App() {
                           placeholder="Buscar liquidación por cliente o cups..."
                           value={liquidacionesSearchQuery}
                           onChange={(e) => setLiquidacionesSearchQuery(e.target.value)}
-                          className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-[#090d16] border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
+                          className="w-full pl-9 pr-8 py-2 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
                         />
                         {liquidacionesSearchQuery && (
                           <button
@@ -3286,7 +3587,7 @@ export default function App() {
                             className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg transition-all cursor-pointer border ${
                               selectedCompaniaTab === tab
                                 ? 'bg-blue-600 text-white border-blue-600 shadow-sm font-black'
-                                : 'bg-white dark:bg-slate-950 border-brand-border text-brand-text hover:border-slate-300 dark:hover:border-white/15'
+                                : 'bg-brand-panel border-brand-border text-brand-text hover:border-slate-300 dark:hover:border-white/15'
                             }`}
                           >
                             {tab} {count > 0 && <span className="ml-1 px-1 bg-amber-500/20 text-amber-500 text-[8px] font-bold rounded-full">{count}</span>}
@@ -3407,7 +3708,7 @@ export default function App() {
                                   className={`p-4 rounded-xl border transition-all flex items-start space-x-3.5 relative ${
                                     c.checked
                                       ? 'bg-blue-500/5 border-blue-500/35 shadow-xs'
-                                      : 'bg-slate-50 dark:bg-slate-950/50 border-brand-border hover:border-slate-350 dark:hover:border-white/10'
+                                      : 'bg-brand-surface dark:bg-brand-surface/50 border-brand-border hover:border-slate-350 dark:hover:border-white/10'
                                   }`}
                                 >
                                   {/* Checkbox input exactly like mockup */}
@@ -3464,7 +3765,7 @@ export default function App() {
                                               </>
                                             )}
                                           </span>
-                                          <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-900 border border-brand-border text-brand-subtext rounded text-[9px] font-mono">
+                                          <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-brand-surface border border-brand-border text-brand-subtext rounded text-[9px] font-mono">
                                             {c.tariff || 'Tarifa Fija'}
                                           </span>
                                         </div>
@@ -3547,7 +3848,7 @@ export default function App() {
                               }
 
                               return keys.map((k) => (
-                                <div key={k} className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-brand-border flex items-center justify-between text-xs">
+                                <div key={k} className="p-3 rounded-xl bg-brand-surface/60 border border-brand-border flex items-center justify-between text-xs">
                                   <div>
                                     <span className="font-extrabold text-blue-500 block font-mono uppercase tracking-wide">{k}</span>
                                     <span className="text-[9px] text-slate-400 font-mono block mt-1">
@@ -3577,7 +3878,7 @@ export default function App() {
 
                           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                             {consolidatedLiquidations.map((cliq) => (
-                              <div key={cliq.id} className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/30 border border-brand-border hover:border-blue-400/20 transition-all text-xs">
+                              <div key={cliq.id} className="p-3.5 rounded-xl bg-brand-surface/30 border border-brand-border hover:border-blue-400/20 transition-all text-xs">
                                 <div className="flex justify-between items-start pb-2 border-b border-brand-border">
                                   <div>
                                     <strong className="text-slate-200 font-bold block">{cliq.brand} - {cliq.operator}</strong>
@@ -3614,7 +3915,7 @@ export default function App() {
                 )}
 
                 {/* VIEW: INCIDENCIAS */}
-                {currentMenuTab === 'Incidencias' && (
+                {currentMenuTab === 'Incidencias' && activeModule === 'erp' && (
                   <div className="space-y-4 animate-fade-in">
                     <div className="flex items-center justify-end text-xs">
                       <span className="font-mono text-brand-subtext">
@@ -3633,7 +3934,7 @@ export default function App() {
                               value={newIncClientName}
                               onChange={(e) => setNewIncClientName(e.target.value)}
                               placeholder="Nombre del cliente"
-                              className="w-full h-8 px-3 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-lg text-xs text-brand-text"
+                              className="w-full h-8 px-3 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
                             />
                           </div>
                           <div className="space-y-1">
@@ -3641,7 +3942,7 @@ export default function App() {
                             <select
                               value={newIncTipo}
                               onChange={(e) => setNewIncTipo(e.target.value as Ticket['tipo'])}
-                              className="w-full h-8 px-2 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-lg text-xs text-brand-text"
+                              className="w-full h-8 px-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
                             >
                               <option value="Incidencia Cartera">Incidencia Cartera</option>
                               <option value="Tarifa Incorrecta">Tarifa Incorrecta</option>
@@ -3655,7 +3956,7 @@ export default function App() {
                             <select
                               value={newIncPrioridad}
                               onChange={(e) => setNewIncPrioridad(e.target.value as Ticket['prioridad'])}
-                              className="w-full h-8 px-2 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-lg text-xs text-brand-text"
+                              className="w-full h-8 px-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
                             >
                               <option value="alta">Alta</option>
                               <option value="media">Media</option>
@@ -3670,7 +3971,7 @@ export default function App() {
                               onChange={(e) => setNewIncDescripcion(e.target.value)}
                               placeholder="Detalle de la incidencia"
                               rows={2}
-                              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-lg text-xs text-brand-text resize-none"
+                              className="w-full px-3 py-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text resize-none"
                             />
                           </div>
                           <div className="sm:col-span-2 lg:col-span-4">
@@ -3700,7 +4001,7 @@ export default function App() {
                 )}
 
                 {/* VIEW: MI EQUIPO */}
-                {currentMenuTab === 'Mi Equipo' && (
+                {currentMenuTab === 'Mi Equipo' && activeModule === 'erp' && (
                   <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100">
                     <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 shadow-sm dark:shadow-none">
                       <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
@@ -3760,8 +4061,100 @@ export default function App() {
                   </div>
                 )}
 
+                {/* VENTAS: Mi Día */}
+                {currentMenuTab === 'Mi Día' && activeModule === 'ventas' && (
+                  <MiDiaPage
+                    actor={{
+                      comercialId: activeUserId,
+                      comercialName: activeUser.fullName,
+                      role: mapVentasRole(activeRole),
+                    }}
+                    contracts={contracts}
+                    importSources={prospectoImportSources}
+                    onOpenFicha={openVentasFicha}
+                    onNavigateTab={(tab) => setCurrentMenuTab(tab)}
+                    onOpenPipelineProspecto={openVentasPipelineCentroMando}
+                  />
+                )}
+
+                {/* VENTAS: Pipeline */}
+                {currentMenuTab === 'Pipeline' && activeModule === 'ventas' && (
+                  <PipelinePage
+                    actor={{
+                      comercialId: activeUserId,
+                      comercialName: activeUser.fullName,
+                      role: mapVentasRole(activeRole),
+                    }}
+                    profiles={profiles.map((p) => ({
+                      id: p.id,
+                      fullName: p.fullName,
+                      role: p.role,
+                    }))}
+                    importSources={prospectoImportSources}
+                    contracts={contracts}
+                    onOpenFicha={openVentasFicha}
+                    onNavigateToContratos={navigateToContratoFromFicha}
+                    getContractCups={(id) => contracts.find((c) => c.id === id)?.cups}
+                    openCentroMandoProspectoId={ventasPipelineCentroMandoId}
+                    onCentroMandoClosed={() => setVentasPipelineCentroMandoId(null)}
+                  />
+                )}
+
+                {currentMenuTab === 'Base EnerSave' && activeModule === 'ventas' && (
+                  <EnersaveLeadDatabasePage />
+                )}
+
+                {currentMenuTab === 'Reporting' && activeModule === 'ventas' && (
+                  <ReportingPage
+                    actor={{
+                      comercialId: activeUserId,
+                      comercialName: activeUser.fullName,
+                      role: mapVentasRole(activeRole),
+                    }}
+                    profiles={profiles.map((p) => ({
+                      id: p.id,
+                      fullName: p.fullName,
+                      role: p.role,
+                      managerId: p.managerId,
+                    }))}
+                  />
+                )}
+
+                {currentMenuTab === 'Avisos SLA' && activeModule === 'ventas' && (
+                  <SlaAvisosPage
+                    actor={{
+                      comercialId: activeUserId,
+                      comercialName: activeUser.fullName,
+                      role: mapVentasRole(activeRole),
+                    }}
+                    profiles={profiles.map((p) => ({
+                      id: p.id,
+                      fullName: p.fullName,
+                      managerId: p.managerId,
+                    }))}
+                    onOpenFicha={openVentasFicha}
+                  />
+                )}
+
+                {ventasFichaProspectoId && activeModule === 'ventas' && (
+                  <FichaProspecto
+                    prospectoId={ventasFichaProspectoId}
+                    initialProspecto={ventasFichaSnapshot}
+                    actor={{
+                      comercialId: activeUserId,
+                      comercialName: activeUser.fullName,
+                      role: mapVentasRole(activeRole),
+                    }}
+                    onClose={closeVentasFicha}
+                    onDeleted={closeVentasFicha}
+                    onOpenContractWizard={openContractWizardForProspecto}
+                    onNavigateToContratos={navigateToContratoFromFicha}
+                    getContractEstado={getContractEstadoForProspecto}
+                  />
+                )}
+
                 {/* VIEW: MIS CLIENTES */}
-                {currentMenuTab === 'Mis Clientes' && (
+                {currentMenuTab === 'Mis Clientes' && activeModule === 'erp' && (
                   <MisClientesPanel
                     clients={clients}
                     setClients={setClients}
@@ -3776,7 +4169,7 @@ export default function App() {
 
 
                 {/* VIEW: COMPARADOR (Electricity/Gas Interactive Calculator) */}
-                {currentMenuTab === 'Comparador' && (
+                {(currentMenuTab === 'Comparador' || currentMenuTab === 'Comparador de Facturas') && activeModule === 'erp' && (
                   <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
                     
                     {/* Comparative Input screen */}
@@ -3801,7 +4194,7 @@ export default function App() {
                               value={compClient}
                               onChange={(e) => setCompClient(e.target.value)}
                               placeholder="Ferretería García S.L."
-                              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-brand-border rounded-xl focus:border-blue-505 focus:outline-none text-xs text-brand-text font-medium"
+                              className="w-full px-3.5 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-505 focus:outline-none text-xs text-brand-text font-medium"
                             />
                           </div>
 
@@ -3817,7 +4210,7 @@ export default function App() {
                                 className={`py-3 px-2 rounded-xl text-xs font-bold cursor-pointer transition-all border flex flex-col items-center gap-1.5 ${
                                   compSegment === 'residencial' 
                                     ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 shadow-sm' 
-                                    : 'bg-slate-50 dark:bg-[#090d16] text-brand-subtext border-brand-border hover:bg-slate-100 dark:hover:bg-[#141b2d]'
+                                    : 'bg-brand-surface text-brand-subtext border-brand-border hover:bg-slate-100 hover:bg-brand-elevated'
                                 }`}
                               >
                                 <User className="w-4 h-4" />
@@ -3830,7 +4223,7 @@ export default function App() {
                                 className={`py-3 px-2 rounded-xl text-xs font-bold cursor-pointer transition-all border flex flex-col items-center gap-1.5 ${
                                   compSegment === 'pyme' 
                                     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-500 border-amber-500/30 shadow-sm' 
-                                    : 'bg-slate-50 dark:bg-[#090d16] text-brand-subtext border-brand-border hover:bg-slate-100 dark:hover:bg-[#141b2d]'
+                                    : 'bg-brand-surface text-brand-subtext border-brand-border hover:bg-slate-100 hover:bg-brand-elevated'
                                 }`}
                               >
                                 <Building2 className="w-4 h-4" />
@@ -3845,7 +4238,7 @@ export default function App() {
                             <select
                               value={compAccessTariff}
                               onChange={(e) => setCompAccessTariff(e.target.value as any)}
-                              className="w-full px-3 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs font-mono font-bold text-brand-text cursor-pointer"
+                              className="w-full px-3 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs font-mono font-bold text-brand-text cursor-pointer"
                             >
                               <option value="2.0TD">2.0TD (≤ 15 kW - Hogar & Pequeño Comercio)</option>
                               <option value="3.0TD">3.0TD (&gt; 15 kW - Comercios / PYME)</option>
@@ -3854,7 +4247,7 @@ export default function App() {
                           </div>
 
                           {/* Potencias contratas con toggle dinámico */}
-                          <div className="p-4 bg-slate-50/50 dark:bg-slate-900/40 border border-brand-border rounded-2xl space-y-3">
+                          <div className="p-4 bg-slate-50/50 dark:bg-brand-surface/50 border border-brand-border rounded-2xl space-y-3">
                             <span className="text-[10px] font-bold font-mono text-blue-600 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
                               <Zap className="w-3 h-3" /> Potencia Contratada (kW)
                             </span>
@@ -3867,7 +4260,7 @@ export default function App() {
                                   step="0.01"
                                   value={compPotencias.p1}
                                   onChange={(e) => setCompPotencias({ ...compPotencias, p1: Number(e.target.value) })}
-                                  className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded-lg text-xs font-mono focus:border-blue-500 text-brand-text"
+                                  className="w-full px-2.5 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs font-mono focus:border-blue-500 text-brand-text"
                                 />
                               </div>
                               <div className="space-y-1">
@@ -3877,7 +4270,7 @@ export default function App() {
                                   step="0.01"
                                   value={compPotencias.p2}
                                   onChange={(e) => setCompPotencias({ ...compPotencias, p2: Number(e.target.value) })}
-                                  className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded-lg text-xs font-mono focus:border-blue-500 text-brand-text"
+                                  className="w-full px-2.5 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs font-mono focus:border-blue-500 text-brand-text"
                                 />
                               </div>
                             </div>
@@ -3902,7 +4295,7 @@ export default function App() {
                                           step="0.1"
                                           value={(compPotencias as any)[p] || 0}
                                           onChange={(e) => setCompPotencias({ ...compPotencias, [p]: Number(e.target.value) })}
-                                          className="w-full p-1 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded text-[11px] font-mono text-center text-brand-text"
+                                          className="w-full p-1 bg-brand-surface border border-brand-border rounded text-[11px] font-mono text-center text-brand-text"
                                         />
                                       </div>
                                     ))}
@@ -3913,7 +4306,7 @@ export default function App() {
                           </div>
 
                           {/* Consumo histórico P1-P6 */}
-                          <div className="p-4 bg-slate-50/50 dark:bg-slate-900/40 border border-brand-border rounded-2xl space-y-3">
+                          <div className="p-4 bg-slate-50/50 dark:bg-brand-surface/50 border border-brand-border rounded-2xl space-y-3">
                             <span className="text-[10px] font-bold font-mono text-blue-600 dark:text-blue-400 uppercase tracking-wide flex items-center gap-1">
                               <Coins className="w-3 h-3" /> Energía Consumida (kWh/año)
                             </span>
@@ -3925,7 +4318,7 @@ export default function App() {
                                   type="number"
                                   value={compConsumos.p1}
                                   onChange={(e) => setCompConsumos({ ...compConsumos, p1: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded text-xs font-mono focus:border-blue-500 text-brand-text"
+                                  className="w-full px-2 py-1 bg-brand-surface border border-brand-border rounded text-xs font-mono focus:border-blue-500 text-brand-text"
                                 />
                               </div>
                               <div className="space-y-1">
@@ -3934,7 +4327,7 @@ export default function App() {
                                   type="number"
                                   value={compConsumos.p2}
                                   onChange={(e) => setCompConsumos({ ...compConsumos, p2: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded text-xs font-mono focus:border-blue-500 text-brand-text"
+                                  className="w-full px-2 py-1 bg-brand-surface border border-brand-border rounded text-xs font-mono focus:border-blue-500 text-brand-text"
                                 />
                               </div>
                               <div className="space-y-1">
@@ -3943,7 +4336,7 @@ export default function App() {
                                   type="number"
                                   value={compConsumos.p3}
                                   onChange={(e) => setCompConsumos({ ...compConsumos, p3: Number(e.target.value) })}
-                                  className="w-full px-2 py-1 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded text-xs font-mono focus:border-blue-500 text-brand-text"
+                                  className="w-full px-2 py-1 bg-brand-surface border border-brand-border rounded text-xs font-mono focus:border-blue-500 text-brand-text"
                                 />
                               </div>
                             </div>
@@ -3967,7 +4360,7 @@ export default function App() {
                                           type="number"
                                           value={(compConsumos as any)[p] || 0}
                                           onChange={(e) => setCompConsumos({ ...compConsumos, [p]: Number(e.target.value) })}
-                                          className="w-full p-1 bg-slate-100 dark:bg-[#090d16] border border-brand-border rounded text-[11px] font-mono text-center text-brand-text"
+                                          className="w-full p-1 bg-brand-surface border border-brand-border rounded text-[11px] font-mono text-center text-brand-text"
                                         />
                                       </div>
                                     ))}
@@ -3986,7 +4379,7 @@ export default function App() {
                                 step="0.01"
                                 value={compRentMeter}
                                 onChange={(e) => setCompRentMeter(Number(e.target.value))}
-                                className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-brand-border rounded-lg text-xs font-mono text-brand-text"
+                                className="w-full px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs font-mono text-brand-text"
                               />
                             </div>
                             <div className="space-y-1">
@@ -3995,7 +4388,7 @@ export default function App() {
                                 type="number"
                                 value={compCurrentBill}
                                 onChange={(e) => setCompCurrentBill(Number(e.target.value))}
-                                className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-brand-border rounded-lg text-xs font-mono text-brand-text"
+                                className="w-full px-3 py-1.5 bg-brand-surface border border-brand-border rounded-lg text-xs font-mono text-brand-text"
                               />
                             </div>
                           </div>
@@ -4028,15 +4421,15 @@ export default function App() {
                                   <Skeleton className="h-8 w-16 rounded-full" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-brand-border animate-pulse">
+                                  <div className="p-4 bg-slate-50 dark:bg-brand-surface rounded-xl border border-brand-border animate-pulse">
                                     <div className="h-4 w-24 mb-2 bg-slate-200 dark:bg-slate-700" />
                                     <div className="h-7 w-20 bg-slate-300 dark:bg-slate-600" />
                                   </div>
-                                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-brand-border animate-pulse">
+                                  <div className="p-4 bg-slate-50 dark:bg-brand-surface rounded-xl border border-brand-border animate-pulse">
                                     <div className="h-4 w-24 mb-2 bg-slate-200 dark:bg-slate-700" />
                                     <div className="h-7 w-20 bg-slate-300 dark:bg-slate-600" />
                                   </div>
-                                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-brand-border animate-pulse">
+                                  <div className="p-4 bg-slate-50 dark:bg-brand-surface rounded-xl border border-brand-border animate-pulse">
                                     <div className="h-4 w-24 mb-2 bg-slate-200 dark:bg-slate-700" />
                                     <div className="h-7 w-20 bg-slate-300 dark:bg-slate-600" />
                                   </div>
@@ -4089,7 +4482,7 @@ export default function App() {
                                         <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase font-mono ${
                                           opt.companyName === "EnerLuz" ? "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20" :
                                           opt.companyName === "Iberdrola" ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20" :
-                                          "bg-slate-100 dark:bg-slate-900 text-slate-500"
+                                          "bg-slate-100 dark:bg-brand-surface text-slate-500"
                                         }`}>
                                           {opt.companyName}
                                         </span>
@@ -4107,7 +4500,7 @@ export default function App() {
                                       </div>
                                     </div>
 
-                                    <div className="bg-slate-50 dark:bg-slate-950 p-2 rounded-xl text-left sm:text-right border border-brand-border font-mono text-xs">
+                                    <div className="bg-brand-surface p-2 rounded-xl text-left sm:text-right border border-brand-border font-mono text-xs">
                                       <span className="text-[9px] text-brand-subtext block font-bold leading-none mb-1">AHORRO NETO</span>
                                       <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">-{opt.savingsAnnual} €/año</span>
                                       <span className="text-[9px] text-emerald-650 dark:text-emerald-300 font-bold block bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 mt-1">
@@ -4133,7 +4526,7 @@ export default function App() {
                                   </div>
 
                                   {/* Action button */}
-                                  <div className="mt-4 flex justify-between items-center bg-slate-50 dark:bg-[#090d16] p-2 rounded-xl border border-brand-border">
+                                  <div className="mt-4 flex justify-between items-center bg-brand-surface p-2 rounded-xl border border-brand-border">
                                     <span className="text-[10px] text-brand-subtext font-mono">¿Es conforme este ahorro?</span>
                                     <button
                                       type="button"
@@ -4158,7 +4551,7 @@ export default function App() {
                               animate={{ opacity: 1 }}
                               className="bg-brand-panel border border-dashed border-brand-border rounded-3xl p-12 text-center text-brand-subtext flex flex-col items-center justify-center space-y-4 shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]"
                             >
-                              <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-brand-border rounded-2xl text-blue-600 dark:text-blue-400 animate-pulse">
+                              <div className="p-4 bg-slate-50 dark:bg-brand-surface border border-brand-border rounded-2xl text-blue-600 dark:text-blue-400 animate-pulse">
                                 <Calculator className="w-8 h-8" />
                               </div>
                               <div className="space-y-1">
@@ -4180,7 +4573,7 @@ export default function App() {
                 )}
 
                 {/* VIEW: HISTORIAL DE COMPARATIVAS */}
-                {currentMenuTab === 'Historial de Comparativas' && (
+                {currentMenuTab === 'Historial de Comparativas' && activeModule === 'erp' && (
                   <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
                     <div className="bg-brand-panel p-6 sm:p-8 rounded-3xl border border-brand-border space-y-6 relative shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border pb-5">
@@ -4203,7 +4596,7 @@ export default function App() {
                             placeholder="Buscar cliente o CUPS..."
                             value={compHistorySearch}
                             onChange={(e) => setCompHistorySearch(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
+                            className="w-full pl-9 pr-3 py-2 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
                           />
                         </div>
                       </div>
@@ -4284,7 +4677,7 @@ export default function App() {
                 )}
 
                 {/* VIEW: MARCO RETRIBUTIVO (comercial, jefe_comercial, superadmin modo comercial) */}
-                {currentMenuTab === 'Marco Retributivo' && canViewMarcoRetributivo && (
+                {currentMenuTab === 'Marco Retributivo' && activeModule === 'erp' && canViewMarcoRetributivo && (
                   <MarcoRetributivoPanel
                     commissionPercentage={activeUser.commissionPercentage}
                     formatCurrency={formatCurrency}
@@ -4292,7 +4685,7 @@ export default function App() {
                   />
                 )}
 
-                {currentMenuTab === 'Marco Retributivo' && !canViewMarcoRetributivo && (
+                {currentMenuTab === 'Marco Retributivo' && activeModule === 'erp' && !canViewMarcoRetributivo && (
                   <div className="p-8 rounded-3xl border border-brand-border bg-brand-panel text-center space-y-3">
                     <ShieldAlert className="w-10 h-10 text-amber-500 mx-auto" />
                     <h3 className="text-sm font-bold text-brand-text uppercase tracking-wide">
@@ -4656,36 +5049,32 @@ export default function App() {
                   )}
                 </AnimatePresence>
 
-                {/* INLINE SIMULATED CREATE USER DIALOG MODAL */}
+                {/* CREATE USER MODAL */}
                 <AnimatePresence>
                   {isCreateOpen && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                      {/* Backdrop */}
                       <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setIsCreateOpen(false)}
-                        className="absolute inset-0 bg-slate-950/75 backdrop-blur-xs"
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                       />
-                      {/* Modal Panel Container */}
                       <motion.div
                         initial={{ scale: 0.95, opacity: 0, y: 15 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 15 }}
-                        className="bg-slate-900 border border-white/10 w-full max-w-md rounded-3xl p-6 relative overflow-hidden z-10 space-y-4"
+                        className="bg-brand-panel border border-brand-border w-full max-w-md rounded-2xl p-6 relative z-10 space-y-4 shadow-xl"
                       >
-                        <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-cyan-400 to-indigo-600" />
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <div className="p-1.5 bg-gradient-to-tr from-cyan-500 to-indigo-500 rounded-lg">
-                              <UserPlus className="w-4 h-4 text-slate-950" />
-                            </div>
-                            <h3 className="text-sm font-extrabold uppercase font-mono text-white">Alta Asesor (Simulado)</h3>
+                          <div className="flex items-center gap-2">
+                            <UserPlus className="w-4 h-4 text-cyan-600" />
+                            <h3 className="text-sm font-bold text-brand-text">Nuevo asesor</h3>
                           </div>
                           <button
+                            type="button"
                             onClick={() => setIsCreateOpen(false)}
-                            className="p-1 rounded-lg border border-white/5 bg-slate-950 text-slate-400 hover:text-white"
+                            className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-brand-text"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -4693,25 +5082,25 @@ export default function App() {
 
                          <form
                            onSubmit={handleAddNewUser}
-                           className="space-y-4 text-xs font-sans text-slate-300"
+                           className="space-y-4 text-xs"
                          >
                            <div className="space-y-1">
-                             <label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest font-bold">Nombre Completo</label>
+                             <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">Nombre completo</label>
                              <input
                                type="text"
                                required
                                value={newUserName}
                                onChange={(e) => setNewUserName(e.target.value)}
                                placeholder="p. ej. Miguel Ángel Soler"
-                               className="w-full px-3.5 py-2.5 bg-slate-950 border border-white/10 rounded-xl focus:outline-none focus:border-cyan-400 text-white font-medium"
+                               className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500 text-brand-text"
                              />
                            </div>
                            <div className="space-y-1">
-                             <label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest font-bold">Rol de Energía</label>
+                             <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">Rol</label>
                              <select
                                value={newUserRole}
-                               onChange={(e) => setNewUserRole(e.target.value as any)}
-                               className="w-full px-3 py-2.5 bg-slate-950 border border-white/10 rounded-xl focus:outline-none text-white font-mono font-bold"
+                               onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                               className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none text-brand-text font-mono font-semibold"
                              >
                                <option value="comercial">comercial</option>
                                <option value="jefe_comercial">jefe_comercial</option>
@@ -4720,11 +5109,11 @@ export default function App() {
                            </div>
                            {newUserRole === 'comercial' && (
                              <div className="space-y-1">
-                               <label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest font-bold">Jefe de Red Asignado</label>
+                               <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">Jefe de red</label>
                                <select
                                  value={newUserManager}
                                  onChange={(e) => setNewUserManager(e.target.value)}
-                                 className="w-full px-3 py-2.5 bg-slate-950 border border-white/10 rounded-xl focus:outline-none text-white font-mono"
+                                 className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none text-brand-text font-mono"
                                >
                                  {profiles.filter(p => p.role === 'jefe_comercial' || p.role === 'superadmin').map((m) => (
                                    <option key={m.id} value={m.id}>{m.fullName}</option>
@@ -4732,30 +5121,20 @@ export default function App() {
                                </select>
                              </div>
                            )}
-                           <div className="pt-2 flex justify-end space-x-2.5">
+                           <div className="pt-2 flex justify-end gap-2">
                              <button
                                type="button"
                                onClick={() => setIsCreateOpen(false)}
-                               className="px-4 py-2.5 bg-slate-950 border border-white/5 rounded-xl hover:bg-slate-900 text-slate-400 hover:text-white"
+                               className="px-4 py-2 border border-brand-border rounded-lg text-brand-subtext hover:text-brand-text"
                              >
                                Cancelar
                              </button>
                              <button
                                type="submit"
                                disabled={isCreatingUser}
-                               className="px-5 py-2.5 bg-gradient-to-r from-cyan-400 to-indigo-600 text-slate-950 rounded-xl font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                               className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold disabled:opacity-50"
                              >
-                               {isCreatingUser ? (
-                                 <>
-                                   <svg className="animate-spin h-3.5 w-3.5 text-slate-950" fill="none" viewBox="0 0 24 24">
-                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                   </svg>
-                                   <span>Alta...</span>
-                                 </>
-                               ) : (
-                                 <span>Registrar Asesor</span>
-                               )}
+                               {isCreatingUser ? 'Registrando…' : 'Registrar en Supabase'}
                              </button>
                            </div>
                         </form>
@@ -4764,168 +5143,37 @@ export default function App() {
                   )}
                 </AnimatePresence>
 
-                {/* INLINE SIMULATED SLIDEOUT REGISTER SHEET (PANEL LATERAL) */}
                 <AnimatePresence>
                   {activeUserForSheet && (
-                    <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
-                      {/* Backdrop */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.5 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setActiveUserForSheet(null)}
-                        className="absolute inset-0 bg-slate-950"
-                      />
-                      {/* Sheet Frame */}
-                      <motion.div
-                        initial={{ x: "100%" }}
-                        animate={{ x: 0 }}
-                        exit={{ x: "100%" }}
-                        transition={{ type: "spring", damping: 25, stiffness: 220 }}
-                        className="bg-slate-900 border-l border-white/10 w-full max-w-sm h-screen relative flex flex-col justify-between overflow-y-auto p-6 z-10 space-y-6 shadow-2xl"
-                      >
-                        <div className="space-y-6">
-                          <div className="flex items-center justify-between pb-4 border-b border-white/5">
-                            <div className="flex items-center space-x-2">
-                              <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
-                              <div>
-                                <h3 className="text-xs font-black uppercase text-white font-mono">Permisos JSONB</h3>
-                                <p className="text-[8px] uppercase font-mono text-slate-500">Profiles.permissions</p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => setActiveUserForSheet(null)}
-                              className="p-1 rounded-lg border border-white/5 bg-slate-950 text-slate-400 hover:text-white"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-3 text-xs text-slate-300">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-8 h-8 rounded bg-slate-800 text-white font-black flex items-center justify-center uppercase">
-                                {activeUserForSheet.fullName.substring(0, 2)}
-                              </div>
-                              <div>
-                                <h4 className="font-bold text-white">{activeUserForSheet.fullName}</h4>
-                                <p className="text-[10px] font-mono text-slate-500">{activeUserForSheet.id}</p>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2 text-[10px] font-mono pt-2 border-t border-white/5">
-                              <div>
-                                <span className="text-slate-500 block uppercase text-[8px] font-bold">Email:</span>
-                                <span className="text-slate-300 truncate block">{activeUserForSheet.email}</span>
-                              </div>
-                              <div>
-                                <span className="text-slate-500 block uppercase text-[8px] font-bold">Estado RLS:</span>
-                                <select
-                                  value={activeUserForSheet.status}
-                                  onChange={(e) => {
-                                    const newStatus = e.target.value as any;
-                                    setProfiles(profiles.map(p => p.id === activeUserForSheet.id ? { ...p, status: newStatus } : p));
-                                    setActiveUserForSheet({ ...activeUserForSheet, status: newStatus });
-                                  }}
-                                  className="bg-transparent text-slate-300 text-[10px] border border-white/10 hover:border-white/25 rounded px-1.5 focus:outline-none cursor-pointer"
-                                >
-                                  <option value="activo">activo</option>
-                                  <option value="suspendido">suspendidos</option>
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Tipo de Comisionado */}
-                          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-2.5">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-mono tracking-wider font-bold text-amber-500 uppercase">Tipo de comisionado (%)</span>
-                              <span className="text-white font-mono font-black text-xs bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/20">{activeUserForSheet.commissionPercentage}%</span>
-                            </div>
-                            <p className="text-[9px] text-slate-400 leading-normal">
-                              Determina las comisiones que este asesor observa en las tarifas o en el calculador: se cargan al {activeUserForSheet.commissionPercentage}% sobre la comisión base de las compañías.
-                            </p>
-                            <div className="space-y-1">
-                              <input
-                                type="range"
-                                min="10"
-                                max="100"
-                                step="5"
-                                value={activeUserForSheet.commissionPercentage}
-                                onChange={(e) => {
-                                  const newPercent = Number(e.target.value);
-                                  setProfiles(profiles.map(p => p.id === activeUserForSheet.id ? { ...p, commissionPercentage: newPercent } : p));
-                                  setActiveUserForSheet({ ...activeUserForSheet, commissionPercentage: newPercent });
-                                }}
-                                className="w-full accent-amber-500 bg-slate-800 rounded-lg cursor-pointer h-1"
-                              />
-                              <div className="flex justify-between text-[8px] font-mono text-slate-500">
-                                <span>10% (Asistente)</span>
-                                <span>60% (Comercial)</span>
-                                <span>100% (Directo/Empresa)</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Toggles List */}
-                          <div className="space-y-4">
-                            <span className="text-[9px] font-mono tracking-widest block uppercase text-slate-500 border-b border-white/5 pb-2">Matriz de Permisos</span>
-
-                            <div className="space-y-2.5">
-                              {[
-                                { key: 'exportDatabase', name: 'Exportar base de datos', desc: 'Permite exportar listado general en formato CSV/Excel.' },
-                                { key: 'viewRetrocommissions', name: 'Ver retrocomisiones', desc: 'Inspección de comisiones diferidas e indirectas del equipo.' },
-                                { key: 'contractsView', name: 'Lectura de contratos', desc: 'Acceso de lectura a contratos generales del canal.' },
-                                { key: 'comparatorAccess', name: 'Acceso al Comparador', desc: 'Permite simular y cotizar ofertas de energía.' },
-                                { key: 'quickSettlement', name: 'Gestión rápida de comisiones', desc: 'Aprobación instantánea sobre comisiones de la red de ventas.' }
-                              ].map((item) => {
-                                const isChecked = !!(activeUserForSheet.permissions as any)[item.key];
-                                return (
-                                  <div key={item.key} className="flex items-center justify-between p-3 bg-slate-950/40 rounded-xl border border-white/5">
-                                    <div className="space-y-0.5 max-w-[210px]">
-                                      <span className="text-[11px] font-bold text-white block">{item.name}</span>
-                                      <span className="text-[9px] text-slate-500 block leading-tight">{item.desc}</span>
-                                    </div>
-                                    <button
-                                      onClick={() => {
-                                        togglePermission(activeUserForSheet.id, item.key as any);
-                                        setActiveUserForSheet({
-                                          ...activeUserForSheet,
-                                          permissions: {
-                                            ...activeUserForSheet.permissions,
-                                            [item.key]: !isChecked
-                                          }
-                                        });
-                                      }}
-                                      className={`w-9 h-5 rounded-full p-0.5 cursor-pointer transition-colors duration-200 outline-none flex items-center ${
-                                        isChecked ? 'bg-cyan-400 justify-end' : 'bg-slate-800 justify-start'
-                                      }`}
-                                    >
-                                      <motion.div layout className="w-4 h-4 rounded-full bg-slate-950" />
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Revoke button */}
-                        <div className="pt-4 border-t border-white/5">
-                          <button
-                            onClick={() => {
-                              if (confirm(`¿Estás seguro de que deseas eliminar permanentemente al usuario ${activeUserForSheet.fullName}?`)) {
-                                setProfiles(profiles.filter(p => p.id !== activeUserForSheet.id));
-                                setActiveUserForSheet(null);
-                              }
-                            }}
-                            className="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white text-xs font-bold border border-rose-500/25 rounded-xl cursor-pointer transition-all flex items-center justify-center space-x-2"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span>Eliminar Perfil en Supabase</span>
-                          </button>
-                        </div>
-                      </motion.div>
-                    </div>
+                    <UserControlSheet
+                      user={activeUserForSheet}
+                      managers={profiles
+                        .filter((p) => p.role === 'jefe_comercial' || p.role === 'superadmin')
+                        .map((p) => ({ id: p.id, fullName: p.fullName }))}
+                      open
+                      saving={isSavingUserSheet}
+                      onClose={() => setActiveUserForSheet(null)}
+                      onChange={(updated) => {
+                        setProfiles((prev) =>
+                          prev.map((p) => (p.id === updated.id ? { ...p, ...updated } : p))
+                        );
+                        setActiveUserForSheet(updated);
+                      }}
+                      onSaveRole={(role, managerId) =>
+                        handleSaveUserRoleToSupabase(activeUserForSheet.id, role, managerId)
+                      }
+                      onTogglePermission={(key) => {
+                        togglePermission(activeUserForSheet.id, key);
+                        setActiveUserForSheet({
+                          ...activeUserForSheet,
+                          permissions: {
+                            ...activeUserForSheet.permissions,
+                            [key]: !activeUserForSheet.permissions[key],
+                          },
+                        });
+                      }}
+                      onDelete={() => handleDeleteUserFromSupabase(activeUserForSheet.id)}
+                    />
                   )}
                 </AnimatePresence>
 
@@ -4982,7 +5230,7 @@ export default function App() {
 
                               {/* Client name (editable) */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   Nombre o Razón Social <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -4991,13 +5239,13 @@ export default function App() {
                                   value={modalClientName}
                                   onChange={(e) => setModalClientName(e.target.value)}
                                   placeholder="Ej: Pinturas Ramírez S.L."
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                 />
                               </div>
 
                               {/* NIF/NIE/CIF */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   NIF / NIE / CIF <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5006,14 +5254,14 @@ export default function App() {
                                   value={modalNif}
                                   onChange={(e) => setModalNif(e.target.value.toUpperCase())}
                                   placeholder="Ej: B12345678"
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono uppercase"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono uppercase"
                                 />
                               </div>
 
                               {/* Teléfono and Email row */}
                               <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                     Teléfono Móvil <span className="text-rose-500">*</span>
                                   </label>
                                   <input
@@ -5022,11 +5270,11 @@ export default function App() {
                                     value={modalTelefono}
                                     onChange={(e) => setModalTelefono(e.target.value)}
                                     placeholder="Ej: 612345678"
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                    className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                   />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                     Email Contacto <span className="text-rose-500">*</span>
                                   </label>
                                   <input
@@ -5035,14 +5283,14 @@ export default function App() {
                                     value={modalEmail}
                                     onChange={(e) => setModalEmail(e.target.value)}
                                     placeholder="Ej: comercial@empresa.com"
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                    className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                   />
                                 </div>
                               </div>
 
                               {/* Bank account IBAN */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   IBAN Cuenta de Pago <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5051,12 +5299,12 @@ export default function App() {
                                   value={modalIban}
                                   onChange={(e) => setModalIban(e.target.value.toUpperCase())}
                                   placeholder="ES21 0000 0000 0000..."
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono uppercase"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono uppercase"
                                 />
                               </div>
 
                               {/* Segment / Access tariff state displays */}
-                              <div className="grid grid-cols-2 gap-3 text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-[#090d16] p-3 rounded-2xl border border-slate-100 dark:border-white/5">
+                              <div className="grid grid-cols-2 gap-3 text-[10px] font-mono text-brand-subtext bg-brand-surface p-3 rounded-2xl border border-slate-100 dark:border-white/5">
                                 <div>
                                   <span className="block text-[8px] text-slate-400 dark:text-slate-500 uppercase">Segmento</span>
                                   <span className="font-extrabold text-blue-600 dark:text-blue-400 uppercase">{modalSegment}</span>
@@ -5077,7 +5325,7 @@ export default function App() {
 
                               {/* Dirección completa */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   Dirección Completa de Facturación <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5086,13 +5334,13 @@ export default function App() {
                                   value={modalDireccionCompleta}
                                   onChange={(e) => setModalDireccionCompleta(e.target.value)}
                                   placeholder="Calle de la Energía 44, 2ºB, Madrid"
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                 />
                               </div>
 
                               {/* Dirección suministro */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   Dirección Punto de Suministro <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5101,13 +5349,13 @@ export default function App() {
                                   value={modalDireccionSuministro}
                                   onChange={(e) => setModalDireccionSuministro(e.target.value)}
                                   placeholder="Calle Suministro Industrial s/n, Nave 3, Sevilla"
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                 />
                               </div>
 
                               {/* CUPS input (placed strictly on modal) */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   CUPS Oficial de Suministro <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5116,13 +5364,13 @@ export default function App() {
                                   value={modalCups}
                                   onChange={(e) => setModalCups(e.target.value.toUpperCase())}
                                   placeholder="ES0021000000000000XX"
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono font-bold uppercase tracking-wider"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono font-bold uppercase tracking-wider"
                                 />
                               </div>
 
                               {/* Potencia contratada */}
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   Potencia Contratada <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5131,20 +5379,20 @@ export default function App() {
                                   value={modalPotencia}
                                   onChange={(e) => setModalPotencia(e.target.value)}
                                   placeholder="Ej: P1: 15kW, P2: 15kW"
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                 />
                               </div>
 
                               <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                     Tipo de precio <span className="text-rose-500">*</span>
                                   </label>
                                   <select
                                     required
                                     value={modalTipoPrecio}
                                     onChange={(e) => setModalTipoPrecio(e.target.value as 'fijo' | 'mercado')}
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
+                                    className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
                                   >
                                     <option value="">Seleccionar…</option>
                                     <option value="fijo">Precio fijo</option>
@@ -5152,7 +5400,7 @@ export default function App() {
                                   </select>
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                     Precio consumo (€/kWh) <span className="text-rose-500">*</span>
                                   </label>
                                   <input
@@ -5162,13 +5410,13 @@ export default function App() {
                                     value={modalPrecioFijoConsumo}
                                     onChange={(e) => setModalPrecioFijoConsumo(e.target.value)}
                                     placeholder="Ej: 0,118"
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono"
+                                    className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono"
                                   />
                                 </div>
                               </div>
 
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   Fecha inicio contrato <span className="text-rose-500">*</span>
                                 </label>
                                 <input
@@ -5176,19 +5424,19 @@ export default function App() {
                                   required
                                   value={modalFechaInicio}
                                   onChange={(e) => setModalFechaInicio(e.target.value)}
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                 />
                               </div>
 
                               <div className="space-y-1">
-                                <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                   Tipo suministro <span className="text-rose-500">*</span>
                                 </label>
                                 <select
                                   required
                                   value={compTipo}
                                   onChange={(e) => setCompTipo(e.target.value as 'luz' | 'gas')}
-                                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
                                 >
                                   <option value="luz">Luz</option>
                                   <option value="gas">Gas</option>
@@ -5198,14 +5446,14 @@ export default function App() {
                               {/* Dynamic Company Selection */}
                               <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                     Compañía <span className="text-rose-500">*</span>
                                   </label>
                                   <select
                                     required
                                     value={modalCompany}
                                     onChange={(e) => setModalCompany(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
+                                    className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
                                   >
                                     {Object.keys(companiesTariffsCatalog[modalAccessTariff] || {}).map(c => (
                                       <option key={c} value={c}>{c}</option>
@@ -5214,14 +5462,14 @@ export default function App() {
                                 </div>
 
                                 <div className="space-y-1">
-                                  <label className="block text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
                                     Tarifa <span className="text-rose-500">*</span>
                                   </label>
                                   <select
                                     required
                                     value={modalTariff}
                                     onChange={(e) => setModalTariff(e.target.value)}
-                                    className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
+                                    className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl text-xs text-slate-800 dark:text-white font-medium focus:outline-none"
                                   >
                                     {((companiesTariffsCatalog[modalAccessTariff] || {})[modalCompany] || []).map(t => (
                                       <option key={t} value={t}>{t}</option>
@@ -5239,37 +5487,17 @@ export default function App() {
                               Adjuntos del Expediente (CIF, Facturas, Certificados)
                             </label>
 
-                            <div 
-                              onDragOver={handleDragOver}
-                              onDragLeave={handleDragLeave}
-                              onDrop={handleDrop}
-                              className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-2 ${
-                                isDragging 
-                                  ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400' 
-                                  : 'border-slate-200 dark:border-white/10 hover:border-blue-500/50 bg-slate-50 dark:bg-[#090d16] text-slate-400 dark:text-slate-300'
-                              }`}
-                            >
-                              <input 
-                                type="file" 
-                                id="modal-file-input" 
-                                multiple 
-                                onChange={handleFileChange}
-                                className="hidden" 
-                              />
-                              <label htmlFor="modal-file-input" className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
-                                <Upload className="w-8 h-8 text-blue-500 mb-2 hover:scale-110 transition-transform" />
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                  Arrastra y suelta documentos o haz clic aquí
-                                </span>
-                                <span className="text-[10px] text-slate-500 dark:text-slate-500 mt-1 font-mono uppercase">
-                                  Admite PDFs, DOCX, imágenes (Tamaño max 25MB)
-                                </span>
-                              </label>
-                            </div>
+                            <FileDropZone
+                              className="rounded-2xl border-slate-200 dark:border-white/10 bg-brand-surface text-slate-400 dark:text-slate-300"
+                              label="Arrastra y suelta documentos o haz clic aquí"
+                              hint="PDF, DOCX, imágenes (max 25MB) · Ctrl+V · Shift+V"
+                              accept="image/*,.pdf,.doc,.docx,.png,.jpg,.jpeg,.webp"
+                              onFiles={appendModalFiles}
+                            />
 
                             {/* Dropped files list */}
                             {modalFiles.length > 0 && (
-                              <div className="p-3 bg-slate-50 dark:bg-slate-950/60 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2">
+                              <div className="p-3 bg-brand-surface/60 rounded-2xl border border-slate-100 dark:border-white/5 space-y-2">
                                 <span className="text-[9px] uppercase font-bold text-slate-400 dark:text-slate-550 block">Expediente adjunto ({modalFiles.length})</span>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   {modalFiles.map((f, i) => (
@@ -5299,7 +5527,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => setIsContractModalOpen(false)}
-                              className="px-5 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+                              className="px-5 py-2.5 bg-brand-surface border border-slate-200 dark:border-white/5 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-xl cursor-pointer hover:bg-slate-100 hover:bg-brand-elevated transition-colors"
                             >
                               Cancelar
                             </button>
@@ -5323,9 +5551,40 @@ export default function App() {
           )}
 
       {/* FOOTER INFORMACIÓN GESTIÓN INTEGRADA */}
-      <footer className="py-4 bg-slate-900/40 border-t border-white/5 text-center text-[11px] font-mono text-slate-500 mt-auto">
-        Sistema de Simulación ERP Energética Luz-Gas v2.4 • Desarrollado según especificaciones de Red de Distribución Comercializadora.
-      </footer>
+      <NuevoContratoWizard
+        open={contractWizardOpen}
+        onClose={() => {
+          setContractWizardOpen(false);
+          setContractWizardProspectoId(null);
+          resetNewContractForm();
+        }}
+        form={newContractForm}
+        onChange={patchNewContractForm}
+        onSubmit={(e, opts) =>
+          handleCreateContract(
+            e,
+            () => {
+              setContractWizardOpen(false);
+              setContractWizardProspectoId(null);
+              if (contractWizardProspectoId) {
+                toast.success('Contrato vinculado al prospecto');
+              }
+            },
+            {
+              incomplete: opts?.incomplete,
+              prospectoId: contractWizardProspectoId ?? undefined,
+            }
+          )
+        }
+        isSubmitting={isCreatingContract}
+        commissionPercentage={activeUser.commissionPercentage}
+        formatCurrency={formatCurrency}
+        renderCompaniaLogo={renderCompaniaLogo}
+        profiles={profiles}
+        activeUserId={activeUserId}
+        activeUserName={activeUser.fullName}
+        activeUserRole={activeRole}
+      />
     </div>
   );
 }

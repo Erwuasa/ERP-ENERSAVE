@@ -3,9 +3,15 @@ import { getSupabaseClient, isSupabaseConfigured } from "../../supabase/client"
 
 type VentasRealtimeTable = "prospectos" | "tareas_ventas" | "actividades_ventas"
 
+export interface VentasRealtimePayload {
+  eventType: string
+  old: Record<string, unknown>
+  new: Record<string, unknown>
+}
+
 export function useRealtimeRefresh(
   table: VentasRealtimeTable,
-  onRefresh: () => void,
+  onRefresh: (payload?: VentasRealtimePayload) => void,
   enabled: boolean,
   filter?: string
 ) {
@@ -30,7 +36,15 @@ export function useRealtimeRefresh(
 
     if (filter) changeConfig.filter = filter
 
-    channel.on("postgres_changes", changeConfig, () => onRefresh()).subscribe()
+    channel
+      .on("postgres_changes", changeConfig, (payload) => {
+        onRefresh({
+          eventType: payload.eventType,
+          old: (payload.old ?? {}) as Record<string, unknown>,
+          new: (payload.new ?? {}) as Record<string, unknown>,
+        })
+      })
+      .subscribe()
 
     return () => {
       supabase.removeChannel(channel)

@@ -6,7 +6,7 @@ interface NewContractFormFieldsProps {
 }
 
 const inputClass =
-  "w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-lg text-xs focus:ring-1 focus:ring-cyan-500 text-brand-text"
+  "w-full px-3 py-2 bg-brand-surface border border-brand-border rounded-lg text-xs focus:ring-1 focus:ring-cyan-500 text-brand-text"
 const labelClass = "block text-[10px] font-mono text-brand-subtext uppercase"
 
 export function NewContractFormFields({ form, onChange }: NewContractFormFieldsProps) {

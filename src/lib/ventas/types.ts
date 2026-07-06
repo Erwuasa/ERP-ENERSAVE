@@ -184,6 +184,8 @@ export interface UpdateProspectoFaseInput {
   motivoConDudas?: string
   motivoRecontacto?: string
   fechaRecontactar?: string
+  /** Solo true vía sincronización ERP → CRM. */
+  erpSync?: boolean
 }
 
 export interface CreateActividadInput {
@@ -194,6 +196,14 @@ export interface CreateActividadInput {
   titulo?: string
   descripcion?: string
   metadata?: Record<string, unknown>
+}
+
+export interface ContratoCreadoActividadInput {
+  prospectoId: string
+  comercialId: string
+  comercialName?: string
+  contratoEquipoId: string
+  clientName?: string
 }
 
 export interface CreateTareaInput {

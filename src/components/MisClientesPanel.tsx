@@ -336,7 +336,7 @@ export function MisClientesPanel({
                 folderClient.archivos.map((archivo) => (
                   <div
                     key={archivo.id}
-                    className="flex items-center justify-between gap-2 p-2 rounded-lg border border-brand-border bg-slate-50/50 dark:bg-slate-950/50"
+                    className="flex items-center justify-between gap-2 p-2 rounded-lg border border-brand-border bg-slate-50/50 dark:bg-brand-surface/50"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-brand-text truncate">{archivo.name}</p>

@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState, type ReactNode } from "react"
 import {
+  ChevronLeft,
+  ChevronRight,
   FileUp,
   Flame,
   Lightbulb,
   Loader2,
-  PlusCircle,
   Search,
   Trash2,
+  X,
   Zap,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -17,6 +19,21 @@ import {
   formatPenalizacionFormula,
 } from "../lib/contract-penalty"
 import {
+  aplicaRenovacionAnual,
+  aplicaPenalizacionCincoPorCiento,
+  getNibaRenovacionComisionPct,
+  getRenewalSchedule,
+} from "../lib/contract-segment-rules"
+import {
+  isRenovacionProxima,
+  type ContractsListFilter,
+} from "../lib/contract-renewal"
+import {
+  contractsListFilterLabel,
+  isContractEstadoKpiFilter,
+  matchesContractEstadoKpiFilter,
+} from "../lib/contract-estado-kpis"
+import {
   extractContractDataFromDocument,
   type ContractOcrResult,
 } from "../lib/contract-ocr"
@@ -25,12 +42,12 @@ import { hasContractWizardDraft } from "../lib/contract-wizard-draft"
 import {
   canActivateContract,
   canBajaContract,
+  CONTRACT_ESTADO_INCOMPLETO,
   CONTRACT_ESTADOS,
   getContractEstadoBadgeClass,
   normalizeContractEstado,
   type ContractEstado,
 } from "../lib/contract-estado"
-import { NuevoContratoWizard } from "./NuevoContratoWizard"
 
 function formatActivationDate(iso: string): string {
   const [y, m, d] = iso.split("-")
@@ -43,27 +60,41 @@ function mesesFraccionRenovacion(dias: number): string {
   return `${meses}/12`
 }
 
+const CONTRACTS_TH =
+  "px-3 py-3 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-normal leading-snug"
+const CONTRACTS_TD = "px-3 py-4 align-top border-b border-brand-border/70"
+
 interface ProfileOption {
   id: string
   fullName: string
   role: string
+  managerId?: string | null
 }
 
 interface ContratosPanelProps {
   activeRole: "superadmin" | "jefe_comercial" | "comercial"
+  activeUserId: string
   activeUserName: string
+  canEditContractEstado: boolean
   visibleContracts: Contract[]
   setContracts: React.Dispatch<React.SetStateAction<Contract[]>>
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
+  contractsListFilter: ContractsListFilter
+  setContractsListFilter: (value: ContractsListFilter) => void
   onActivateContract: (contract: Contract) => void
   onBajaContract: (contract: Contract) => void
-  handleCreateContract: (e: React.FormEvent, onSuccess?: () => void) => void | Promise<void>
+  handleCreateContract: (
+    e: React.FormEvent,
+    onSuccess?: () => void,
+    options?: { incomplete?: boolean }
+  ) => void | Promise<void>
   isCreatingContract: boolean
   newContractForm: NewContractFormState
   onNewContractFormChange: (patch: Partial<NewContractFormState>) => void
   onResetNewContractForm: () => void
   applyOcrToNewContractForm: (data: ContractOcrResult) => void
+  onOpenNewContract?: () => void
   highlightContractId?: string | null
   profiles: ProfileOption[]
   commissionPercentage: number
@@ -73,11 +104,15 @@ interface ContratosPanelProps {
 
 export function ContratosPanel({
   activeRole,
+  activeUserId,
   activeUserName,
+  canEditContractEstado,
   visibleContracts,
   setContracts,
   contractsSearchQuery,
   setContractsSearchQuery,
+  contractsListFilter,
+  setContractsListFilter,
   onActivateContract,
   onBajaContract,
   handleCreateContract,
@@ -86,6 +121,7 @@ export function ContratosPanel({
   onNewContractFormChange,
   onResetNewContractForm,
   applyOcrToNewContractForm,
+  onOpenNewContract,
   highlightContractId,
   profiles,
   commissionPercentage,
@@ -99,9 +135,10 @@ export function ContratosPanel({
   const [ocrResult, setOcrResult] = useState<ContractOcrResult | null>(null)
   const [ocrModalOpen, setOcrModalOpen] = useState(false)
   const [editingEstadoId, setEditingEstadoId] = useState<string | null>(null)
-  const [wizardOpen, setWizardOpen] = useState(false)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 10
 
-  const canEditEstado = activeRole === "superadmin"
+  const canEditEstado = canEditContractEstado
 
   const updateContract = (id: string, field: keyof Contract & string, value: unknown) => {
     if (field === "estado" && !canEditEstado) return
@@ -128,7 +165,7 @@ export function ContratosPanel({
             setEditingEstadoId(null)
           }}
           onBlur={() => setEditingEstadoId(null)}
-          className="p-1 text-[10px] bg-white dark:bg-slate-900 border border-cyan-500 rounded text-brand-text font-mono max-w-[140px] outline-none"
+          className="p-1.5 text-[10px] bg-brand-panel border border-cyan-500 rounded-md text-brand-text font-mono w-full max-w-[160px] outline-none mx-auto block"
         >
           {CONTRACT_ESTADOS.map((opt) => (
             <option key={opt} value={opt}>
@@ -151,7 +188,7 @@ export function ContratosPanel({
           if (!canEditEstado) return
           setEditingEstadoId(c.id)
         }}
-        className={`inline-flex px-2 py-0.5 rounded text-[9px] font-mono font-bold ${
+        className={`inline-flex items-center justify-center px-3 py-1.5 rounded-md text-[10px] leading-snug font-mono font-bold text-center min-w-[7.5rem] max-w-[11rem] ${
           canEditEstado ? "cursor-pointer hover:opacity-90" : "cursor-default"
         } ${getContractEstadoBadgeClass(estado)}`}
         title={
@@ -206,7 +243,7 @@ export function ContratosPanel({
     applyOcrToNewContractForm(ocrResult)
     setOcrModalOpen(false)
     setOcrResult(null)
-    setWizardOpen(true)
+    onOpenNewContract?.()
     toast.success("Datos aplicados al formulario de alta")
   }
 
@@ -214,14 +251,18 @@ export function ContratosPanel({
     if (!hasContractWizardDraft(newContractForm)) {
       onResetNewContractForm()
     }
-    setWizardOpen(true)
-  }
-
-  function closeWizard() {
-    setWizardOpen(false)
+    onOpenNewContract?.()
   }
 
   const filtered = visibleContracts.filter((c) => {
+    if (contractsListFilter === "renovacion_proxima" && !isRenovacionProxima(c)) {
+      return false
+    }
+    if (isContractEstadoKpiFilter(contractsListFilter)) {
+      if (!matchesContractEstadoKpiFilter(c.estado, contractsListFilter)) {
+        return false
+      }
+    }
     if (!contractsSearchQuery.trim()) return true
     const q = contractsSearchQuery.toLowerCase().trim()
     return (
@@ -233,61 +274,76 @@ export function ContratosPanel({
       c.id.toLowerCase().includes(q) ||
       c.tipo.toLowerCase().includes(q) ||
       c.estado.toLowerCase().includes(q) ||
-      (c.nif?.toLowerCase().includes(q) ?? false)
+      (c.nif?.toLowerCase().includes(q) ?? false) ||
+      (c.estadoRenovacion?.toLowerCase().includes(q) ?? false)
     )
   })
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  useEffect(() => {
+    setPage(1)
+  }, [contractsSearchQuery, contractsListFilter])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
   return (
     <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="flex justify-start">
-        <button
-          type="button"
-          onClick={openWizard}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 dark:bg-gradient-to-r dark:from-cyan-500 dark:to-blue-600 hover:opacity-95 text-white font-extrabold rounded-xl text-xs uppercase tracking-wider shadow-sm transition-all"
-        >
-          <PlusCircle className="w-4 h-4" />
-          Registrar nuevo contrato
-        </button>
-      </div>
+      <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 shadow-sm dark:shadow-none">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
+            <div className="relative w-full max-w-[220px] shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="search"
+                placeholder="Buscar cliente, CUPS, NIF…"
+                value={contractsSearchQuery}
+                onChange={(e) => setContractsSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-brand-surface border border-brand-border rounded-lg focus:border-cyan-500 focus:outline-none text-xs text-brand-text font-medium"
+              />
+              {contractsSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setContractsSearchQuery("")}
+                  className="absolute top-1/2 -translate-y-1/2 right-2 text-slate-400 hover:text-brand-text p-0.5 cursor-pointer transition-colors"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-      <NuevoContratoWizard
-        open={wizardOpen}
-        onClose={closeWizard}
-        form={newContractForm}
-        onChange={onNewContractFormChange}
-        onSubmit={(e) => handleCreateContract(e, () => setWizardOpen(false))}
-        isSubmitting={isCreatingContract}
-        commissionPercentage={commissionPercentage}
-        formatCurrency={formatCurrency}
-        renderCompaniaLogo={renderCompaniaLogo}
-        profiles={profiles}
-        activeUserName={activeUserName}
-        activeUserRole={activeRole}
-      />
-
-      <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-6 shadow-sm dark:shadow-none">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="relative w-full sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input
-              type="search"
-              placeholder="Buscar por cliente, CUPS, NIF, comercializadora…"
-              value={contractsSearchQuery}
-              onChange={(e) => setContractsSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 bg-slate-50 dark:bg-slate-950 border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
-            />
-            {contractsSearchQuery && (
+            <div className="flex rounded-lg border border-brand-border overflow-hidden shrink-0">
               <button
                 type="button"
-                onClick={() => setContractsSearchQuery("")}
-                className="absolute top-1/2 -translate-y-1/2 right-2 text-slate-400 hover:text-brand-text text-xs p-0.5"
+                onClick={() => setContractsListFilter("all")}
+                className={`px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase transition-colors duration-200 cursor-pointer ${
+                  contractsListFilter === "all"
+                    ? "bg-cyan-600 text-white"
+                    : "bg-brand-surface text-brand-subtext hover:text-brand-text"
+                }`}
               >
-                ✕
+                Todos
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => setContractsListFilter("renovacion_proxima")}
+                className={`px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase border-l border-brand-border transition-colors duration-200 cursor-pointer whitespace-nowrap ${
+                  contractsListFilter === "renovacion_proxima"
+                    ? "bg-violet-600 text-white"
+                    : "bg-brand-surface text-brand-subtext hover:text-brand-text"
+                }`}
+              >
+                Renovación próxima
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 lg:ml-4">
             <input
               ref={fileInputRef}
               type="file"
@@ -299,68 +355,103 @@ export function ContratosPanel({
               type="button"
               disabled={ocrLoading}
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition-colors shadow-sm"
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#217346] hover:bg-[#1a6339] disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors duration-200 cursor-pointer"
             >
               {ocrLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <FileUp className="w-4 h-4" />
               )}
-              <span>Importar documento (OCR)</span>
+              <span>Importar</span>
+            </button>
+            <button
+              type="button"
+              onClick={openWizard}
+              className="inline-flex items-center px-3 py-2 bg-blue-600 dark:bg-gradient-to-r dark:from-cyan-500 dark:to-blue-600 hover:opacity-95 text-white font-extrabold rounded-lg text-xs uppercase tracking-wider transition-colors duration-200 cursor-pointer whitespace-nowrap"
+            >
+              + NUEVO CONTRATO
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs min-w-[1100px]">
-            <thead>
-              <tr className="border-b border-brand-border text-brand-subtext font-mono">
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  Cliente / CUPS / NIF
+        <div className="overflow-x-auto rounded-xl border border-brand-border/60 bg-brand-surface/30">
+          <table className="w-full min-w-[1240px] table-fixed text-left text-xs">
+            <colgroup>
+              <col className="w-[118px]" />
+              <col className="w-[17%]" />
+              <col className="w-[82px]" />
+              <col className="w-[14%]" />
+              <col className="w-[108px]" />
+              <col className="w-[12%]" />
+              <col className="w-[14%]" />
+              <col className="w-[96px]" />
+              <col className="w-[13%]" />
+              {activeRole === "superadmin" && (
+                <>
+                  <col className="w-[11%]" />
+                  <col className="w-[118px]" />
+                </>
+              )}
+            </colgroup>
+            <thead className="bg-brand-panel/80">
+              <tr>
+                <th className={`${CONTRACTS_TH} text-center`}>Estado</th>
+                <th className={CONTRACTS_TH}>
+                  Cliente
+                  <span className="block text-[9px] font-normal normal-case text-brand-subtext/90 mt-0.5">
+                    CUPS · NIF
+                  </span>
                 </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  Segmento
+                <th className={`${CONTRACTS_TH} text-center`}>Segmento</th>
+                <th className={CONTRACTS_TH}>
+                  Compañía
+                  <span className="block text-[9px] font-normal normal-case text-brand-subtext/90 mt-0.5">
+                    Tarifa
+                  </span>
                 </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  Comercializadora / Tarifa
-                </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
+                <th className={CONTRACTS_TH}>
                   Activación
+                  <span className="block text-[9px] font-normal normal-case text-brand-subtext/90 mt-0.5">
+                    Renovación
+                  </span>
                 </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  Potencia / Precio energía
+                <th className={CONTRACTS_TH}>
+                  Potencia
+                  <span className="block text-[9px] font-normal normal-case text-brand-subtext/90 mt-0.5">
+                    Precio kWh
+                  </span>
                 </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  IBAN / Dirección suministro
+                <th className={CONTRACTS_TH}>
+                  IBAN
+                  <span className="block text-[9px] font-normal normal-case text-brand-subtext/90 mt-0.5">
+                    Dirección
+                  </span>
                 </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  Consumo anual
-                </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                  Cálculo de penalización
-                </th>
-                <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-right">
-                  Estado
-                </th>
+                <th className={`${CONTRACTS_TH} text-right`}>Consumo</th>
+                <th className={CONTRACTS_TH}>Penalización</th>
                 {activeRole === "superadmin" && (
                   <>
-                    <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">
-                      Comercial
-                    </th>
-                    <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-right">
-                      Acciones
-                    </th>
+                    <th className={CONTRACTS_TH}>Comercial</th>
+                    <th className={`${CONTRACTS_TH} text-right`}>Acciones</th>
                   </>
                 )}
               </tr>
             </thead>
-            <tbody>
-              {filtered.map((c) => {
-                const dias = c.diasRenovacion ?? 0
+            <tbody className="min-h-[520px] divide-y divide-brand-border/50">
+              {paginated.map((c) => {
+                const renewal = getRenewalSchedule(c)
+                const dias = renewal.diasRenovacion ?? 0
+                const aplicaRenovacion = aplicaRenovacionAnual(c)
+                const aplicaPenalizacion = aplicaPenalizacionCincoPorCiento(c)
+                const nibaRenovPct = getNibaRenovacionComisionPct(c)
                 const penalizacion = calcularPenalizacion({
+                  tipoCliente: c.tipoCliente,
+                  compania: c.compania,
+                  clientName: c.clientName,
+                  nif: c.nif,
                   precioFijoConsumo: c.precioFijoConsumo,
                   consumoAnual: c.consumoAnualManual ?? undefined,
-                  diasHastaRenovacion: dias,
+                  diasHastaRenovacion: aplicaPenalizacion ? dias : undefined,
                 })
                 const tipoPrecioLabel =
                   c.tipoPrecio === "mercado"
@@ -372,6 +463,8 @@ export function ContratosPanel({
                         : "Precio fijo"
 
                 const isHighlighted = highlightContractId === c.id
+                const isIncompleteRow =
+                  normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO
 
                 return (
                   <tr
@@ -379,26 +472,35 @@ export function ContratosPanel({
                     ref={(el) => {
                       rowRefs.current[c.id] = el
                     }}
-                    className={`border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.01] align-top transition-colors ${
-                      isHighlighted ? "ring-2 ring-cyan-500/60 bg-cyan-500/5" : ""
+                    className={`hover:bg-brand-surface/60 transition-colors duration-200 ${
+                      isHighlighted
+                        ? "ring-2 ring-inset ring-cyan-500/50 bg-cyan-500/5"
+                        : isIncompleteRow
+                          ? "bg-slate-300/20 dark:bg-slate-700/30"
+                          : ""
                     }`}
                   >
-                    <td className="py-3.5 pr-2">
-                      <p className="font-bold text-brand-text">
+                    <td className={`${CONTRACTS_TD} text-center`}>
+                      <div className="flex justify-center items-start">
+                        {renderEstadoCell(c)}
+                      </div>
+                    </td>
+                    <td className={CONTRACTS_TD}>
+                      <p className="font-semibold text-brand-text leading-snug break-words">
                         {renderEditableCell(c, "clientName", { placeholder: "Cliente" })}
                       </p>
-                      <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 mt-0.5">
+                      <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 mt-1 break-all">
                         {renderEditableCell(c, "cups", { placeholder: "CUPS", className: "font-mono" })}
                       </p>
-                      <p className="text-[9px] font-mono text-brand-subtext mt-0.5">
+                      <p className="text-[9px] font-mono text-brand-subtext mt-1">
                         {renderEditableCell(c, "nif", { placeholder: "NIF/CIF" })}
                       </p>
                     </td>
-                    <td className="py-3.5">
+                    <td className={`${CONTRACTS_TD} text-center`}>
                       {renderEditableCell(c, "tipo", {
                         display: (v) => (
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${
                               v === "luz"
                                 ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
                                 : "bg-amber-500/10 text-amber-600 dark:text-amber-500"
@@ -410,47 +512,60 @@ export function ContratosPanel({
                         ),
                       })}
                     </td>
-                    <td className="py-3.5">
-                      <p className="font-medium text-brand-text">
+                    <td className={CONTRACTS_TD}>
+                      <p className="font-medium text-brand-text leading-snug break-words">
                         {renderEditableCell(c, "compania")}
                       </p>
-                      <p className="text-[10px] font-mono text-brand-subtext mt-0.5">
+                      <p className="text-[10px] font-mono text-brand-subtext mt-1 break-words">
                         {renderEditableCell(c, "tarifa")}
                       </p>
-                      <p className="text-[9px] text-slate-500 mt-0.5">
+                      <p className="text-[9px] text-brand-subtext/90 mt-1">
                         {renderEditableCell(c, "tipoPrecio", {
                           placeholder: tipoPrecioLabel,
                           display: (v) =>
                             v === "mercado"
-                              ? "Precio de mercado"
+                              ? "Mercado"
                               : v === "fijo"
-                                ? "Precio fijo"
-                                : tipoPrecioLabel,
+                                ? "Fijo"
+                                : tipoPrecioLabel === "Precio de mercado"
+                                  ? "Mercado"
+                                  : "Fijo",
                         })}
                       </p>
                     </td>
-                    <td className="py-3.5">
-                      <p className="font-mono text-brand-text font-semibold">
+                    <td className={CONTRACTS_TD}>
+                      <p className="font-mono text-brand-text font-semibold tabular-nums">
                         {renderEditableCell(c, "createdAt", {
                           display: (v) => formatActivationDate(String(v || "")),
                         })}
                       </p>
-                      <p className="text-[9px] font-mono text-brand-subtext mt-0.5">
-                        (
-                        {renderEditableCell(c, "diasRenovacion", {
-                          placeholder: String(dias),
-                          className: "inline font-mono",
-                        })}{" "}
-                        días hasta renovación)
-                      </p>
+                      {aplicaRenovacion ? (
+                        <div className="mt-1.5 space-y-1">
+                          <p className="text-[10px] font-mono text-brand-subtext tabular-nums">
+                            {dias} d restantes
+                          </p>
+                          {renewal.estadoRenovacion === "Renovacion proxima" && (
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-violet-500/10 text-violet-700 dark:text-violet-300">
+                              Próxima
+                            </span>
+                          )}
+                          {nibaRenovPct != null && (
+                            <p className="text-[8px] font-mono text-cyan-700 dark:text-cyan-300">
+                              Renov. {nibaRenovPct}%
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[9px] font-mono text-brand-subtext mt-1.5">—</p>
+                      )}
                     </td>
-                    <td className="py-3.5 font-mono text-brand-text">
-                      <p>
+                    <td className={`${CONTRACTS_TD} font-mono text-brand-text`}>
+                      <p className="tabular-nums">
                         {renderEditableCell(c, "potenciaContratada", {
                           display: (v) => (v != null && v !== "" ? `${v} kW` : "—"),
                         })}
                       </p>
-                      <p className="text-[10px] text-brand-subtext mt-0.5">
+                      <p className="text-[10px] text-brand-subtext mt-1 tabular-nums">
                         {renderEditableCell(c, "precioFijoConsumo", {
                           display: (v) =>
                             v != null && Number(v) > 0
@@ -459,15 +574,15 @@ export function ContratosPanel({
                         })}
                       </p>
                     </td>
-                    <td className="py-3.5 max-w-[140px]">
+                    <td className={CONTRACTS_TD}>
                       <p className="font-mono text-[10px] text-brand-text truncate">
                         {renderEditableCell(c, "iban", { placeholder: "—" })}
                       </p>
-                      <p className="text-[9px] text-brand-subtext mt-1 line-clamp-2">
+                      <p className="text-[9px] text-brand-subtext mt-1 line-clamp-2 leading-snug">
                         {renderEditableCell(c, "direccionSuministro", { placeholder: "—" })}
                       </p>
                     </td>
-                    <td className="py-3.5">
+                    <td className={`${CONTRACTS_TD} text-right font-mono tabular-nums`}>
                       {renderEditableCell(c, "consumoAnualManual", {
                         display: (v) =>
                           v != null && Number(v) > 0
@@ -475,18 +590,20 @@ export function ContratosPanel({
                             : "—",
                       })}
                     </td>
-                    <td className="py-3.5">
-                      {penalizacion != null &&
-                      c.precioFijoConsumo != null &&
-                      c.consumoAnualManual != null &&
-                      c.consumoAnualManual > 0 ? (
+                    <td className={CONTRACTS_TD}>
+                      {!aplicaPenalizacion ? (
+                        <span className="text-[9px] font-mono text-brand-subtext">No aplica</span>
+                      ) : penalizacion != null &&
+                        c.precioFijoConsumo != null &&
+                        c.consumoAnualManual != null &&
+                        c.consumoAnualManual > 0 ? (
                         <div>
                           <p className="font-mono font-bold text-rose-600 dark:text-rose-400">
                             {formatPenalizacionDisplay(penalizacion)}
                           </p>
                           <p
                             className="text-[8px] font-mono text-brand-subtext mt-0.5 leading-tight"
-                            title="Fórmula aplicada"
+                            title="Penalización 5% · PYME/autónomo"
                           >
                             {formatPenalizacionFormula(
                               c.precioFijoConsumo,
@@ -500,13 +617,12 @@ export function ContratosPanel({
                         <span className="text-brand-subtext font-mono">—</span>
                       )}
                     </td>
-                    <td className="py-3.5 text-right">{renderEstadoCell(c)}</td>
                     {activeRole === "superadmin" && (
                       <>
-                        <td className="py-3.5 font-medium text-brand-text">
+                        <td className={`${CONTRACTS_TD} font-medium text-brand-text`}>
                           {renderEditableCell(c, "comercialName")}
                         </td>
-                        <td className="py-3.5 text-right">
+                        <td className={`${CONTRACTS_TD} text-right`}>
                           {canActivateContract(c.estado) ? (
                             <button
                               type="button"
@@ -536,14 +652,56 @@ export function ContratosPanel({
                   </tr>
                 )
               })}
+              {paginated.length < PAGE_SIZE &&
+                Array.from({ length: PAGE_SIZE - paginated.length }).map((_, i) => (
+                  <tr key={`pad-${i}`} className="h-[68px]" aria-hidden>
+                    <td colSpan={activeRole === "superadmin" ? 11 : 9} className={CONTRACTS_TD} />
+                  </tr>
+                ))}
             </tbody>
           </table>
           {filtered.length === 0 && (
             <p className="text-center text-xs text-brand-subtext py-8 font-mono">
-              No hay contratos que coincidan con la búsqueda.
+              {contractsListFilter === "renovacion_proxima"
+                ? "No hay contratos con renovación próxima."
+                : isContractEstadoKpiFilter(contractsListFilter)
+                  ? `No hay contratos en estado «${contractsListFilterLabel(contractsListFilter).replace(/^ · /, "")}».`
+                  : "No hay contratos que coincidan con la búsqueda."}
             </p>
           )}
         </div>
+
+        {filtered.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
+            <p className="text-[10px] font-mono text-brand-subtext">
+              {filtered.length} contrato{filtered.length !== 1 ? "s" : ""}
+              {contractsListFilterLabel(contractsListFilter)}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={safePage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-brand-text disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                aria-label="Página anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-[10px] font-mono text-brand-text tabular-nums px-2">
+                {safePage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={safePage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-brand-text disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                aria-label="Página siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {ocrModalOpen && (

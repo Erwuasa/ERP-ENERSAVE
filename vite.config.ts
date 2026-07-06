@@ -10,6 +10,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        sonner: path.resolve(__dirname, 'src/lib/sonner-silent.ts'),
+        'sonner-original': 'sonner',
       },
     },
     test: {

@@ -18,7 +18,9 @@ export function deriveClienteEstadoFromContracts(contractEstados: Contract["esta
   if (contractEstados.some((e) => isContractActivado(e))) return "activo"
   if (
     contractEstados.some((e) =>
-      ["Pendiente de firma", "Temporal", "Incidencia"].includes(e)
+      ["PTE DE FIRMA", "PTE DE TRAMITACIÓN", "TRAMITANDO", "INCIDENCIA ADMINISTRATIVA", "Pendiente de info."].includes(
+        e
+      )
     )
   ) {
     return "pendiente"

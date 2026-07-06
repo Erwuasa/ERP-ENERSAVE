@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-[#090d16] text-white">
+        <div className="min-h-screen flex items-center justify-center p-6 bg-brand-bg text-white">
           <div className="max-w-md w-full space-y-4 text-center">
             <h1 className="text-lg font-bold text-rose-400">Error al cargar la aplicación</h1>
             <p className="text-sm text-slate-400 font-mono break-words">{this.state.message}</p>
