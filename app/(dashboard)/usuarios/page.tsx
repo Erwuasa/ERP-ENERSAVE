@@ -517,10 +517,13 @@ export default function UsuariosPage() {
 
                             {/* Right action indicator */}
                             <td className="py-4 px-6 text-right">
-                              <button className="p-1 px-3 bg-slate-950/80 hover:bg-slate-800 rounded-xl text-[10px] font-mono text-slate-400 hover:text-white border border-white/5 flex items-center justify-end space-x-1.5 float-right">
-                                <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-surface hover:bg-brand-panel border border-brand-border rounded-lg text-[10px] font-mono font-bold text-brand-subtext hover:text-brand-text group-hover:border-blue-500/30 dark:group-hover:border-cyan-400/30 transition-colors duration-200 cursor-pointer float-right"
+                              >
+                                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
                                 <span>Ver Permisos</span>
-                                <ChevronRight className="w-3 h-3 text-slate-500 transition-transform group-hover:translate-x-0.5" />
+                                <ChevronRight className="w-3 h-3 text-brand-subtext transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600 dark:group-hover:text-cyan-400" />
                               </button>
                             </td>
 

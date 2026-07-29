@@ -2,17 +2,51 @@ import { useState, type FormEvent } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { AlertTriangle, GripVertical, X } from "lucide-react"
 import {
+  INCIDENCIA_ESTADOS,
   type IncidenciaEstado,
+  type IncidenciaOrigen,
   type IncidenciaTicket,
   type IncidenciaTipo,
 } from "../lib/incidencias"
 
 export type { IncidenciaEstado, IncidenciaTicket, IncidenciaTipo }
 
-const KANBAN_COLUMNS: { id: IncidenciaEstado; label: string; accent: string }[] = [
-  { id: "pendiente", label: "Pendiente", accent: "border-rose-500/30 bg-rose-500/5" },
-  { id: "resuelta", label: "Resuelta", accent: "border-emerald-500/30 bg-emerald-500/5" },
-  { id: "cancelada", label: "Cancelada", accent: "border-slate-500/30 bg-slate-500/5" },
+const KANBAN_COLUMNS: {
+  id: IncidenciaEstado
+  label: string
+  borderTop: string
+  headerBg: string
+}[] = [
+  {
+    id: "sin_categorizar",
+    label: "Sin categorizar",
+    borderTop: "border-t-slate-400",
+    headerBg: "bg-slate-500/5",
+  },
+  {
+    id: "abierto",
+    label: "Abierto",
+    borderTop: "border-t-blue-500",
+    headerBg: "bg-blue-500/5",
+  },
+  {
+    id: "en_progreso",
+    label: "En progreso",
+    borderTop: "border-t-violet-500",
+    headerBg: "bg-violet-500/5",
+  },
+  {
+    id: "resuelto",
+    label: "Resuelto",
+    borderTop: "border-t-emerald-500",
+    headerBg: "bg-emerald-500/5",
+  },
+  {
+    id: "cerrado",
+    label: "Cerrado",
+    borderTop: "border-t-slate-600",
+    headerBg: "bg-slate-600/5",
+  },
 ]
 
 const TIPO_OPTIONS: IncidenciaTipo[] = [
@@ -22,6 +56,16 @@ const TIPO_OPTIONS: IncidenciaTipo[] = [
   "Error de CUPS",
   "Reclamación Distribuidora",
 ]
+
+const ORIGEN_OPTIONS: IncidenciaOrigen[] = ["manual", "comercial", "sistema", "cliente"]
+
+const ESTADO_LABELS: Record<IncidenciaEstado, string> = {
+  sin_categorizar: "Sin categorizar",
+  abierto: "Abierto",
+  en_progreso: "En progreso",
+  resuelto: "Resuelto",
+  cerrado: "Cerrado",
+}
 
 interface IncidenciasKanbanProps {
   incidencias: IncidenciaTicket[]
@@ -33,9 +77,17 @@ interface IncidenciasKanbanProps {
 }
 
 function prioridadBadgeClass(prioridad: IncidenciaTicket["prioridad"]) {
-  if (prioridad === "alta") return "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-  if (prioridad === "media") return "bg-amber-500/10 text-amber-600 dark:text-amber-500"
+  if (prioridad === "critica") return "bg-rose-600/15 text-rose-600 dark:text-rose-400"
+  if (prioridad === "alta") return "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+  if (prioridad === "media") return "bg-amber-500/15 text-amber-600 dark:text-amber-500"
+  if (prioridad === "baja") return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
   return "bg-slate-500/10 text-slate-500"
+}
+
+function prioridadLabel(prioridad: IncidenciaTicket["prioridad"]) {
+  if (!prioridad) return "Sin cat."
+  if (prioridad === "critica") return "Crítica"
+  return prioridad.charAt(0).toUpperCase() + prioridad.slice(1)
 }
 
 function IncidenciaCardContent({
@@ -58,14 +110,19 @@ function IncidenciaCardContent({
           {canDrag && (
             <GripVertical className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
           )}
-          <h4 className="text-xs font-semibold text-brand-text leading-snug">
-            {inc.clientName}
-          </h4>
+          <div className="min-w-0">
+            <p className="text-[9px] font-mono font-bold text-brand-subtext uppercase tracking-wide">
+              {inc.codigo}
+            </p>
+            <h4 className="text-xs font-semibold text-brand-text leading-snug truncate">
+              {inc.clientName}
+            </h4>
+          </div>
         </div>
         <span
           className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${prioridadBadgeClass(inc.prioridad)}`}
         >
-          {inc.prioridad}
+          {prioridadLabel(inc.prioridad)}
         </span>
       </div>
       <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 uppercase">
@@ -126,7 +183,7 @@ export function IncidenciasKanban({
 
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 overflow-x-auto">
         {KANBAN_COLUMNS.map((column) => {
           const columnItems = incidencias.filter((i) => i.estado === column.id)
           const isDropTarget = dragOverColumn === column.id
@@ -134,7 +191,7 @@ export function IncidenciasKanban({
           return (
             <div
               key={column.id}
-              className={`rounded-xl border ${column.accent} min-h-[280px] flex flex-col transition-all ${
+              className={`rounded-xl border border-brand-border border-t-4 ${column.borderTop} ${column.headerBg} min-h-[280px] flex flex-col transition-all ${
                 isDropTarget ? "ring-2 ring-cyan-500/50 ring-offset-1 ring-offset-transparent" : ""
               }`}
               onDragOver={(e) => {
@@ -157,14 +214,16 @@ export function IncidenciasKanban({
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-text">
                   {column.label}
                 </span>
-                <span className="text-[10px] font-mono text-brand-subtext bg-brand-panel px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-mono text-brand-subtext bg-brand-panel px-1.5 py-0.5 rounded tabular-nums">
                   {columnItems.length}
                 </span>
               </div>
 
               <div className="p-2 space-y-2 flex-1">
                 {columnItems.length === 0 ? (
-                  <p className="text-[10px] text-brand-subtext text-center py-6 font-mono">—</p>
+                  <p className="text-[10px] text-brand-subtext text-center py-6 font-mono">
+                    Sin tareas
+                  </p>
                 ) : (
                   columnItems.map((inc) => {
                     const isDragging = draggedId === inc.id
@@ -298,15 +357,17 @@ export function IncidenciasKanban({
                   <div className="space-y-1">
                     <label className="block text-[10px] font-mono text-slate-400 uppercase">Prioridad</label>
                     <select
-                      value={editingIncidencia.prioridad}
+                      value={editingIncidencia.prioridad ?? ""}
                       onChange={(e) =>
                         setEditingIncidencia({
                           ...editingIncidencia,
-                          prioridad: e.target.value as IncidenciaTicket["prioridad"],
+                          prioridad: (e.target.value || undefined) as IncidenciaTicket["prioridad"],
                         })
                       }
                       className="w-full h-8 px-2 bg-slate-950 border border-white/15 rounded-lg text-xs text-white"
                     >
+                      <option value="">Sin categorizar</option>
+                      <option value="critica">Crítica</option>
                       <option value="alta">Alta</option>
                       <option value="media">Media</option>
                       <option value="baja">Baja</option>
@@ -314,22 +375,45 @@ export function IncidenciasKanban({
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-mono text-slate-400 uppercase">Estado</label>
-                  <select
-                    value={editingIncidencia.estado}
-                    onChange={(e) =>
-                      setEditingIncidencia({
-                        ...editingIncidencia,
-                        estado: e.target.value as IncidenciaEstado,
-                      })
-                    }
-                    className="w-full h-8 px-2 bg-slate-950 border border-white/15 rounded-lg text-xs text-white"
-                  >
-                    <option value="pendiente">Pendiente</option>
-                    <option value="resuelta">Resuelta</option>
-                    <option value="cancelada">Cancelada</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase">Estado</label>
+                    <select
+                      value={editingIncidencia.estado}
+                      onChange={(e) =>
+                        setEditingIncidencia({
+                          ...editingIncidencia,
+                          estado: e.target.value as IncidenciaEstado,
+                        })
+                      }
+                      className="w-full h-8 px-2 bg-slate-950 border border-white/15 rounded-lg text-xs text-white"
+                    >
+                      {INCIDENCIA_ESTADOS.map((estado) => (
+                        <option key={estado} value={estado}>
+                          {ESTADO_LABELS[estado]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-mono text-slate-400 uppercase">Origen</label>
+                    <select
+                      value={editingIncidencia.origen}
+                      onChange={(e) =>
+                        setEditingIncidencia({
+                          ...editingIncidencia,
+                          origen: e.target.value as IncidenciaOrigen,
+                        })
+                      }
+                      className="w-full h-8 px-2 bg-slate-950 border border-white/15 rounded-lg text-xs text-white"
+                    >
+                      {ORIGEN_OPTIONS.map((origen) => (
+                        <option key={origen} value={origen}>
+                          {origen.charAt(0).toUpperCase() + origen.slice(1)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-1">

@@ -1,4 +1,5 @@
 import type { Contract } from "../../types/contract"
+import { flattenDocumentosPorTipo } from "../contrato-documentos"
 import type { NewContractFormState } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
@@ -76,7 +77,7 @@ export function buildTeamContractRow(
     monto_interno: contract.montoInterno,
     monto_externo: contract.montoExterno,
     comentarios_internos: form.comentariosInternos,
-    documentos: form.documentos,
+    documentos: flattenDocumentosPorTipo(form.documentosPorTipo),
     metadata: {
       client_id: contract.clientId,
       atr: contract.atr,

@@ -1,0 +1,5 @@
+# Proyecto remoto EnerSave (debe coincidir con VITE_SUPABASE_URL en .env)
+project_id = "migmnfvmaqkhpukmthyl"
+
+[db]
+major_version = 15

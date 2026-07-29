@@ -1,18 +1,32 @@
-import React, { useEffect, useRef, useState, type ReactNode } from "react"
+import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   FileUp,
   Flame,
+  Info,
   Lightbulb,
   Loader2,
   Search,
   Trash2,
+  Upload,
   X,
   Zap,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { Contract } from "../types/contract"
+import { computeComisionBreakdown } from "../lib/marco-commission"
+import { resolveMarcoCatalogEntry } from "../lib/supabase/marco-retributivo"
+import { exportContractsToExcel } from "../lib/contracts-excel-export"
+import { dateRangeToIsoStrings, type DateRangePickerValue } from "../lib/date-range"
+import { DateRangePicker } from "./ui/DateRangePicker"
+import { SelectFilterDropdown } from "./ui/SelectFilterDropdown"
+import { ContractsExcelImportModal } from "./contratos/ContractsExcelImportModal"
+import { EstadoFilterDropdown } from "./contratos/EstadoFilterDropdown"
+import { CompaniaFilterDropdown } from "./contratos/CompaniaFilterDropdown"
+import { UserFilterDropdown } from "./contratos/UserFilterDropdown"
+import type { NewContractFormState } from "../lib/contract-registration"
 import {
   calcularPenalizacion,
   formatPenalizacionDisplay,
@@ -30,8 +44,12 @@ import {
 } from "../lib/contract-renewal"
 import {
   contractsListFilterLabel,
+  CONTRACT_ESTADO_KPI_META,
+  countContractsByEstadoUi,
   isContractEstadoKpiFilter,
   matchesContractEstadoKpiFilter,
+  matchesContractEstadoUiFilter,
+  type ContractEstadoUiFilter,
 } from "../lib/contract-estado-kpis"
 import {
   extractContractDataFromDocument,
@@ -60,19 +78,87 @@ function mesesFraccionRenovacion(dias: number): string {
   return `${meses}/12`
 }
 
+function matchesCreatedAtRange(createdAt: string, desde: string, hasta: string): boolean {
+  if (desde && createdAt < desde) return false
+  if (hasta && createdAt > hasta) return false
+  return true
+}
+
+function ContractComisionDesglose({
+  contract,
+  profiles,
+  formatCurrency,
+}: {
+  contract: Contract
+  profiles: ProfileOption[]
+  formatCurrency: (val: number) => string
+}) {
+  const comercial = profiles.find((p) => p.id === contract.comercialId)
+  const commissionPercentage = comercial?.commissionPercentage ?? 70
+  const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
+
+  const breakdown = useMemo(() => {
+    const entry = resolveMarcoCatalogEntry(
+      contract.marcoEntryId,
+      contract.compania,
+      contract.tarifa,
+      contract.tipo
+    )
+    if (!entry || !consumo || consumo <= 0) return null
+    return computeComisionBreakdown(entry, commissionPercentage, consumo, formatCurrency)
+  }, [contract, commissionPercentage, consumo, formatCurrency])
+
+  if (!breakdown) {
+    return (
+      <p className="text-xs text-brand-subtext italic">
+        No hay marco retributivo vinculado o consumo insuficiente para calcular la comisión.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-2 text-xs">
+      <p className="text-brand-text">
+        <span className="font-semibold">{contract.compania}</span> paga a ENerSave:{" "}
+        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+          {formatCurrency(breakdown.comisionEmpresa)}
+        </span>
+      </p>
+      <p className="text-brand-text">
+        Comercial{" "}
+        <span className="font-semibold">{contract.comercialName}</span> cobra (
+        {commissionPercentage}%):{" "}
+        <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+          {formatCurrency(breakdown.comisionComercial)}
+        </span>
+      </p>
+      <p className="text-[10px] text-brand-subtext leading-relaxed">{breakdown.detalle}</p>
+    </div>
+  )
+}
+
 const CONTRACTS_TH =
   "px-3 py-3 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-normal leading-snug"
 const CONTRACTS_TD = "px-3 py-4 align-top border-b border-brand-border/70"
+
+function profileRoleLabel(role: string): string {
+  if (role === "jefe_comercial") return "Director Comercial / Jefe de Equipo"
+  if (role === "comercial") return "Comercial"
+  if (role === "tramitacion") return "Tramitación"
+  if (role === "superadmin") return "Superadmin"
+  return role
+}
 
 interface ProfileOption {
   id: string
   fullName: string
   role: string
   managerId?: string | null
+  commissionPercentage?: number
 }
 
 interface ContratosPanelProps {
-  activeRole: "superadmin" | "jefe_comercial" | "comercial"
+  activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
   activeUserId: string
   activeUserName: string
   canEditContractEstado: boolean
@@ -100,6 +186,9 @@ interface ContratosPanelProps {
   commissionPercentage: number
   formatCurrency: (val: number) => string
   renderCompaniaLogo: (brandName: string) => ReactNode
+  showUserFilter?: boolean
+  userFilterId?: string
+  onUserFilterChange?: (userId: string) => void
 }
 
 export function ContratosPanel({
@@ -127,6 +216,9 @@ export function ContratosPanel({
   commissionPercentage,
   formatCurrency,
   renderCompaniaLogo,
+  showUserFilter = false,
+  userFilterId = "all",
+  onUserFilterChange,
 }: ContratosPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
@@ -135,10 +227,28 @@ export function ContratosPanel({
   const [ocrResult, setOcrResult] = useState<ContractOcrResult | null>(null)
   const [ocrModalOpen, setOcrModalOpen] = useState(false)
   const [editingEstadoId, setEditingEstadoId] = useState<string | null>(null)
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null)
+  const [estadoFilterUI, setEstadoFilterUI] = useState<ContractEstadoUiFilter>("todos")
+  const [companiaFilterUI, setCompaniaFilterUI] = useState("todas")
+  const [contractDateRange, setContractDateRange] = useState<DateRangePickerValue>({
+    from: null,
+    to: null,
+  })
+  const contractDateIso = useMemo(
+    () => dateRangeToIsoStrings(contractDateRange),
+    [contractDateRange]
+  )
+  const fechaDesde = contractDateIso?.from ?? ""
+  const fechaHasta = contractDateIso?.to ?? ""
+  const [excelImportOpen, setExcelImportOpen] = useState(false)
   const [page, setPage] = useState(1)
   const PAGE_SIZE = 10
 
   const canEditEstado = canEditContractEstado
+  const canViewComisionDesglose = activeRole === "superadmin" || activeRole === "tramitacion"
+  const selectedContract = selectedContractId
+    ? visibleContracts.find((c) => c.id === selectedContractId) ?? null
+    : null
 
   const updateContract = (id: string, field: keyof Contract & string, value: unknown) => {
     if (field === "estado" && !canEditEstado) return
@@ -254,15 +364,7 @@ export function ContratosPanel({
     onOpenNewContract?.()
   }
 
-  const filtered = visibleContracts.filter((c) => {
-    if (contractsListFilter === "renovacion_proxima" && !isRenovacionProxima(c)) {
-      return false
-    }
-    if (isContractEstadoKpiFilter(contractsListFilter)) {
-      if (!matchesContractEstadoKpiFilter(c.estado, contractsListFilter)) {
-        return false
-      }
-    }
+  function matchesSearch(c: Contract): boolean {
     if (!contractsSearchQuery.trim()) return true
     const q = contractsSearchQuery.toLowerCase().trim()
     return (
@@ -277,7 +379,111 @@ export function ContratosPanel({
       (c.nif?.toLowerCase().includes(q) ?? false) ||
       (c.estadoRenovacion?.toLowerCase().includes(q) ?? false)
     )
-  })
+  }
+
+  function matchesListFilter(c: Contract): boolean {
+    if (contractsListFilter === "renovacion_proxima" && !isRenovacionProxima(c)) {
+      return false
+    }
+    if (
+      isContractEstadoKpiFilter(contractsListFilter) &&
+      !matchesContractEstadoKpiFilter(c.estado, contractsListFilter)
+    ) {
+      return false
+    }
+    return true
+  }
+
+  function applyPanelFilters(
+    contracts: Contract[],
+    opts: { skipEstado?: boolean; skipCompania?: boolean; skipDate?: boolean } = {}
+  ): Contract[] {
+    return contracts.filter((c) => {
+      if (!matchesListFilter(c)) return false
+      if (!matchesSearch(c)) return false
+      if (
+        !opts.skipEstado &&
+        !matchesContractEstadoUiFilter(c.estado, estadoFilterUI)
+      ) {
+        return false
+      }
+      if (
+        !opts.skipCompania &&
+        companiaFilterUI !== "todas" &&
+        c.compania !== companiaFilterUI
+      ) {
+        return false
+      }
+      if (
+        !opts.skipDate &&
+        !matchesCreatedAtRange(c.createdAt, fechaDesde, fechaHasta)
+      ) {
+        return false
+      }
+      return true
+    })
+  }
+
+  const poolForEstadoCounts = useMemo(
+    () => applyPanelFilters(visibleContracts, { skipEstado: true }),
+    [
+      visibleContracts,
+      contractsSearchQuery,
+      contractsListFilter,
+      companiaFilterUI,
+      fechaDesde,
+      fechaHasta,
+    ]
+  )
+
+  const poolForCompaniaCounts = useMemo(
+    () => applyPanelFilters(visibleContracts, { skipCompania: true }),
+    [
+      visibleContracts,
+      contractsSearchQuery,
+      contractsListFilter,
+      estadoFilterUI,
+      fechaDesde,
+      fechaHasta,
+    ]
+  )
+
+  const estadoCounts = useMemo(
+    () => countContractsByEstadoUi(poolForEstadoCounts),
+    [poolForEstadoCounts]
+  )
+
+  const companiaOptions = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const c of poolForCompaniaCounts) {
+      map.set(c.compania, (map.get(c.compania) ?? 0) + 1)
+    }
+    return Array.from(map.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name, "es"))
+  }, [poolForCompaniaCounts])
+
+  const filtered = useMemo(
+    () => applyPanelFilters(visibleContracts),
+    [
+      visibleContracts,
+      contractsSearchQuery,
+      contractsListFilter,
+      estadoFilterUI,
+      companiaFilterUI,
+      fechaDesde,
+      fechaHasta,
+    ]
+  )
+
+  function handleExportExcel() {
+    const count = exportContractsToExcel(filtered)
+    toast.success(`Exportados ${count} contratos a Excel`)
+  }
+
+  function handleExcelImport(imported: Contract[]) {
+    setContracts((prev) => [...imported, ...prev])
+  }
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
@@ -285,7 +491,14 @@ export function ContratosPanel({
 
   useEffect(() => {
     setPage(1)
-  }, [contractsSearchQuery, contractsListFilter])
+  }, [
+    contractsSearchQuery,
+    contractsListFilter,
+    estadoFilterUI,
+    companiaFilterUI,
+    contractDateRange,
+    userFilterId,
+  ])
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages)
@@ -294,75 +507,58 @@ export function ContratosPanel({
   return (
     <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100">
       <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 shadow-sm dark:shadow-none">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
-            <div className="relative w-full max-w-[220px] shrink-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input
-                type="search"
-                placeholder="Buscar cliente, CUPS, NIF…"
-                value={contractsSearchQuery}
-                onChange={(e) => setContractsSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 bg-brand-surface border border-brand-border rounded-lg focus:border-cyan-500 focus:outline-none text-xs text-brand-text font-medium"
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+            {showUserFilter && onUserFilterChange && (
+              <UserFilterDropdown
+                value={userFilterId}
+                onChange={onUserFilterChange}
+                users={profiles}
+                roleLabel={profileRoleLabel}
               />
-              {contractsSearchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setContractsSearchQuery("")}
-                  className="absolute top-1/2 -translate-y-1/2 right-2 text-slate-400 hover:text-brand-text p-0.5 cursor-pointer transition-colors"
-                  aria-label="Limpiar búsqueda"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+            )}
+            <EstadoFilterDropdown
+              value={estadoFilterUI}
+              onChange={setEstadoFilterUI}
+              counts={estadoCounts}
+            />
+            <CompaniaFilterDropdown
+              value={companiaFilterUI}
+              onChange={setCompaniaFilterUI}
+              companies={companiaOptions}
+              totalCount={poolForCompaniaCounts.length}
+              renderCompaniaLogo={renderCompaniaLogo}
+            />
 
-            <div className="flex rounded-lg border border-brand-border overflow-hidden shrink-0">
-              <button
-                type="button"
-                onClick={() => setContractsListFilter("all")}
-                className={`px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase transition-colors duration-200 cursor-pointer ${
-                  contractsListFilter === "all"
-                    ? "bg-cyan-600 text-white"
-                    : "bg-brand-surface text-brand-subtext hover:text-brand-text"
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                type="button"
-                onClick={() => setContractsListFilter("renovacion_proxima")}
-                className={`px-2.5 py-1.5 text-[10px] font-mono font-bold uppercase border-l border-brand-border transition-colors duration-200 cursor-pointer whitespace-nowrap ${
-                  contractsListFilter === "renovacion_proxima"
-                    ? "bg-violet-600 text-white"
-                    : "bg-brand-surface text-brand-subtext hover:text-brand-text"
-                }`}
-              >
-                Renovación próxima
-              </button>
-            </div>
+            <DateRangePicker
+              value={contractDateRange}
+              onChange={(next) =>
+                setContractDateRange({
+                  from: next.from,
+                  to: next.to,
+                  presetId: next.presetId,
+                })
+              }
+              align="right"
+            />
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 lg:ml-4">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,image/*"
-              className="hidden"
-              onChange={handleImportDocument}
-            />
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
-              disabled={ocrLoading}
-              onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#217346] hover:bg-[#1a6339] disabled:opacity-50 text-white font-bold rounded-lg text-xs transition-colors duration-200 cursor-pointer"
+              onClick={handleExportExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-surface hover:bg-brand-panel border border-brand-border text-brand-text font-bold rounded-lg text-xs transition-colors duration-200 cursor-pointer"
             >
-              {ocrLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FileUp className="w-4 h-4" />
-              )}
-              <span>Importar</span>
+              <Download className="w-4 h-4" />
+              <span>Exportar Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setExcelImportOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#217346] hover:bg-[#1a6339] text-white font-bold rounded-lg text-xs transition-colors duration-200 cursor-pointer"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Importar Excel</span>
             </button>
             <button
               type="button"
@@ -372,6 +568,42 @@ export function ContratosPanel({
               + NUEVO CONTRATO
             </button>
           </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input
+              type="search"
+              placeholder="Buscar cliente, CUPS, NIF…"
+              value={contractsSearchQuery}
+              onChange={(e) => setContractsSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 bg-brand-surface border border-brand-border rounded-lg focus:border-cyan-500 focus:outline-none text-xs text-brand-text font-medium"
+            />
+            {contractsSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setContractsSearchQuery("")}
+                className="absolute top-1/2 -translate-y-1/2 right-2 text-slate-400 hover:text-brand-text p-0.5 cursor-pointer transition-colors"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <SelectFilterDropdown
+            label="Vista"
+            value={contractsListFilter}
+            defaultValue="all"
+            options={[
+              { id: "all", label: "Todos" },
+              { id: "renovacion_proxima", label: "Renovación próxima" },
+              ...CONTRACT_ESTADO_KPI_META.map((m) => ({ id: m.id, label: m.label })),
+            ]}
+            onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
+            minWidthClass="min-w-[140px]"
+          />
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-brand-border/60 bg-brand-surface/30">
@@ -434,6 +666,9 @@ export function ContratosPanel({
                     <th className={CONTRACTS_TH}>Comercial</th>
                     <th className={`${CONTRACTS_TH} text-right`}>Acciones</th>
                   </>
+                )}
+                {canViewComisionDesglose && activeRole !== "superadmin" && (
+                  <th className={`${CONTRACTS_TH} text-right`}>Ficha</th>
                 )}
               </tr>
             </thead>
@@ -623,31 +858,67 @@ export function ContratosPanel({
                           {renderEditableCell(c, "comercialName")}
                         </td>
                         <td className={`${CONTRACTS_TD} text-right`}>
-                          {canActivateContract(c.estado) ? (
-                            <button
-                              type="button"
-                              onClick={() => onActivateContract(c)}
-                              className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-95 text-slate-950 font-black rounded-lg text-[10px] cursor-pointer transition-all flex items-center gap-1 ml-auto shadow-sm"
-                            >
-                              <Zap className="w-3" />
-                              <span>Activar & Repartir</span>
-                            </button>
-                          ) : canBajaContract(c.estado) ? (
-                            <button
-                              type="button"
-                              onClick={() => onBajaContract(c)}
-                              className="px-3 py-1 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/25 font-bold rounded-lg text-[10px] cursor-pointer transition-all flex items-center gap-1 ml-auto shadow-sm whitespace-nowrap"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              <span>Dar de Baja</span>
-                            </button>
-                          ) : (
-                            <span className="text-slate-500 bg-slate-500/5 border border-slate-500/15 px-2 py-0.5 rounded text-[9px] font-mono font-medium shrink-0">
-                              {normalizeContractEstado(c.estado)}
-                            </span>
-                          )}
+                          <div className="flex flex-col items-end gap-1.5">
+                            {canViewComisionDesglose && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedContractId((prev) => (prev === c.id ? null : c.id))
+                                }
+                                className={`px-2 py-1 rounded-lg text-[9px] font-mono font-bold border transition-colors cursor-pointer ${
+                                  selectedContractId === c.id
+                                    ? "border-cyan-500 bg-cyan-500/10 text-cyan-600"
+                                    : "border-brand-border text-brand-subtext hover:text-brand-text"
+                                }`}
+                              >
+                                <Info className="w-3 h-3 inline mr-1" />
+                                Ficha
+                              </button>
+                            )}
+                            {canActivateContract(c.estado) ? (
+                              <button
+                                type="button"
+                                onClick={() => onActivateContract(c)}
+                                className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-95 text-slate-950 font-black rounded-lg text-[10px] cursor-pointer transition-all flex items-center gap-1 shadow-sm"
+                              >
+                                <Zap className="w-3" />
+                                <span>Activar & Repartir</span>
+                              </button>
+                            ) : canBajaContract(c.estado) ? (
+                              <button
+                                type="button"
+                                onClick={() => onBajaContract(c)}
+                                className="px-3 py-1 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/25 font-bold rounded-lg text-[10px] cursor-pointer transition-all flex items-center gap-1 shadow-sm whitespace-nowrap"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                <span>Dar de Baja</span>
+                              </button>
+                            ) : (
+                              <span className="text-slate-500 bg-slate-500/5 border border-slate-500/15 px-2 py-0.5 rounded text-[9px] font-mono font-medium shrink-0">
+                                {normalizeContractEstado(c.estado)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </>
+                    )}
+                    {canViewComisionDesglose && activeRole !== "superadmin" && (
+                      <td className={`${CONTRACTS_TD} text-right`}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedContractId((prev) => (prev === c.id ? null : c.id))
+                          }
+                          className={`px-2 py-1 rounded-lg text-[9px] font-mono font-bold border transition-colors cursor-pointer ${
+                            selectedContractId === c.id
+                              ? "border-cyan-500 bg-cyan-500/10 text-cyan-600"
+                              : "border-brand-border text-brand-subtext hover:text-brand-text"
+                          }`}
+                        >
+                          <Info className="w-3 h-3 inline mr-1" />
+                          Ficha
+                        </button>
+                      </td>
                     )}
                   </tr>
                 )
@@ -655,7 +926,16 @@ export function ContratosPanel({
               {paginated.length < PAGE_SIZE &&
                 Array.from({ length: PAGE_SIZE - paginated.length }).map((_, i) => (
                   <tr key={`pad-${i}`} className="h-[68px]" aria-hidden>
-                    <td colSpan={activeRole === "superadmin" ? 11 : 9} className={CONTRACTS_TD} />
+                    <td
+                      colSpan={
+                        activeRole === "superadmin"
+                          ? 11
+                          : canViewComisionDesglose
+                            ? 10
+                            : 9
+                      }
+                      className={CONTRACTS_TD}
+                    />
                   </tr>
                 ))}
             </tbody>
@@ -703,6 +983,49 @@ export function ContratosPanel({
           </div>
         )}
       </div>
+
+      {selectedContract && canViewComisionDesglose && (
+        <section className="bg-brand-panel border border-brand-border rounded-2xl p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-brand-text">
+                Ficha de contrato · {selectedContract.clientName}
+              </h3>
+              <p className="text-[10px] font-mono text-brand-subtext mt-1">
+                {selectedContract.cups} · {selectedContract.compania} · {selectedContract.tarifa}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedContractId(null)}
+              className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-brand-text cursor-pointer"
+              aria-label="Cerrar ficha"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="border-t border-brand-border pt-4">
+            <h4 className="text-[10px] font-mono uppercase tracking-wider text-brand-subtext font-bold mb-3">
+              Desglose de comisión
+            </h4>
+            <ContractComisionDesglose
+              contract={selectedContract}
+              profiles={profiles}
+              formatCurrency={formatCurrency}
+            />
+          </div>
+        </section>
+      )}
+
+      <ContractsExcelImportModal
+        open={excelImportOpen}
+        onClose={() => setExcelImportOpen(false)}
+        onImport={handleExcelImport}
+        comercialId={activeUserId}
+        comercialName={activeUserName}
+        existingContractCount={visibleContracts.length}
+      />
 
       {ocrModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">

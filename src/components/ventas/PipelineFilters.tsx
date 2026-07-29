@@ -1,9 +1,11 @@
-import { Filter, X } from "lucide-react"
+import { AlertTriangle, Filter, GitBranch, Layers, UserRound } from "lucide-react"
 import {
   PIPELINE_FASE_CONFIG,
   SUBTIPOS_PROSPECTO,
 } from "../../lib/ventas/pipeline"
 import type { PipelineFilterState } from "./ventas-ui"
+import { SelectFilterDropdown } from "../ui/SelectFilterDropdown"
+import { FilterTriggerButton } from "../ui/FilterTriggerButton"
 
 interface PipelineProfile {
   id: string
@@ -24,6 +26,11 @@ const PRIORIDAD_OPTIONS = [
   { id: "baja", label: "Baja" },
 ] as const
 
+const FASE_DEFAULT = ""
+const SUBTIPO_DEFAULT = ""
+const COMERCIAL_DEFAULT = ""
+const PRIORIDAD_DEFAULT = ""
+
 export function PipelineFilters({
   filters,
   onChange,
@@ -34,101 +41,111 @@ export function PipelineFilters({
     (p) => p.role === "comercial" || p.role === "jefe_comercial"
   )
 
-  const hasActiveFilters =
-    filters.fase ||
-    filters.subtipo ||
-    filters.comercialId ||
-    filters.prioridad ||
-    filters.slaBreach
+  const faseOptions = [
+    { id: FASE_DEFAULT, label: "Todas las fases" },
+    ...PIPELINE_FASE_CONFIG.map((f) => ({ id: f.id, label: f.label })),
+  ]
 
-  function clearFilters() {
-    onChange({})
-  }
+  const subtipoOptions = [
+    { id: SUBTIPO_DEFAULT, label: "Todos los subtipos" },
+    ...SUBTIPOS_PROSPECTO.map((s) => ({ id: s.id, label: s.label })),
+  ]
+
+  const comercialOptions = [
+    { id: COMERCIAL_DEFAULT, label: "Todos los comerciales" },
+    ...comerciales.map((c) => ({ id: c.id, label: c.fullName })),
+  ]
+
+  const prioridadOptions = [
+    { id: PRIORIDAD_DEFAULT, label: "Todas las prioridades" },
+    ...PRIORIDAD_OPTIONS.map((p) => ({ id: p.id, label: p.label })),
+  ]
 
   return (
     <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-brand-border bg-brand-panel/50">
       <Filter className="w-3.5 h-3.5 text-brand-subtext shrink-0" />
 
-      <select
-        value={filters.fase ?? ""}
-        onChange={(e) =>
-          onChange({ ...filters, fase: e.target.value ? (e.target.value as PipelineFilterState["fase"]) : undefined })
+      <SelectFilterDropdown
+        label="Fase"
+        value={filters.fase ?? FASE_DEFAULT}
+        defaultValue={FASE_DEFAULT}
+        options={faseOptions}
+        onChange={(fase) =>
+          onChange({ ...filters, fase: fase ? (fase as PipelineFilterState["fase"]) : undefined })
         }
-        className="h-8 px-2 bg-brand-bg border border-brand-border rounded-lg text-[11px] text-brand-text focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-      >
-        <option value="">Todas las fases</option>
-        {PIPELINE_FASE_CONFIG.map((f) => (
-          <option key={f.id} value={f.id}>{f.label}</option>
-        ))}
-      </select>
+        icon={<GitBranch className="w-3.5 h-3.5 text-brand-subtext shrink-0" />}
+      />
 
-      <select
-        value={filters.subtipo ?? ""}
-        onChange={(e) =>
+      <SelectFilterDropdown
+        label="Subtipo"
+        value={filters.subtipo ?? SUBTIPO_DEFAULT}
+        defaultValue={SUBTIPO_DEFAULT}
+        options={subtipoOptions}
+        onChange={(subtipo) =>
           onChange({
             ...filters,
-            subtipo: e.target.value ? (e.target.value as PipelineFilterState["subtipo"]) : undefined,
+            subtipo: subtipo ? (subtipo as PipelineFilterState["subtipo"]) : undefined,
           })
         }
-        className="h-8 px-2 bg-brand-bg border border-brand-border rounded-lg text-[11px] text-brand-text focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-      >
-        <option value="">Todos los subtipos</option>
-        {SUBTIPOS_PROSPECTO.map((s) => (
-          <option key={s.id} value={s.id}>{s.label}</option>
-        ))}
-      </select>
+        icon={<Layers className="w-3.5 h-3.5 text-brand-subtext shrink-0" />}
+      />
 
       {showComercialFilter && (
-        <select
-          value={filters.comercialId ?? ""}
-          onChange={(e) =>
-            onChange({ ...filters, comercialId: e.target.value || undefined })
+        <SelectFilterDropdown
+          label="Comercial"
+          value={filters.comercialId ?? COMERCIAL_DEFAULT}
+          defaultValue={COMERCIAL_DEFAULT}
+          options={comercialOptions}
+          onChange={(comercialId) =>
+            onChange({ ...filters, comercialId: comercialId || undefined })
           }
-          className="h-8 px-2 bg-brand-bg border border-brand-border rounded-lg text-[11px] text-brand-text focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-        >
-          <option value="">Todos los comerciales</option>
-          {comerciales.map((c) => (
-            <option key={c.id} value={c.id}>{c.fullName}</option>
-          ))}
-        </select>
+          icon={<UserRound className="w-3.5 h-3.5 text-brand-subtext shrink-0" />}
+          minWidthClass="min-w-[180px]"
+          panelWidthClass="w-[min(100vw-1rem,300px)]"
+          maxWidth={300}
+        />
       )}
 
-      <select
-        value={filters.prioridad ?? ""}
-        onChange={(e) =>
+      <SelectFilterDropdown
+        label="Prioridad"
+        value={filters.prioridad ?? PRIORIDAD_DEFAULT}
+        defaultValue={PRIORIDAD_DEFAULT}
+        options={prioridadOptions}
+        onChange={(prioridad) =>
           onChange({
             ...filters,
-            prioridad: e.target.value ? (e.target.value as PipelineFilterState["prioridad"]) : undefined,
+            prioridad: prioridad ? (prioridad as PipelineFilterState["prioridad"]) : undefined,
           })
         }
-        className="h-8 px-2 bg-brand-bg border border-brand-border rounded-lg text-[11px] text-brand-text focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
-      >
-        <option value="">Todas las prioridades</option>
-        {PRIORIDAD_OPTIONS.map((p) => (
-          <option key={p.id} value={p.id}>{p.label}</option>
-        ))}
-      </select>
+        icon={<AlertTriangle className="w-3.5 h-3.5 text-brand-subtext shrink-0" />}
+      />
 
-      <label className="flex items-center gap-1.5 h-8 px-2 border border-brand-border rounded-lg bg-brand-bg text-[11px] text-brand-text cursor-pointer">
-        <input
-          type="checkbox"
-          checked={filters.slaBreach ?? false}
-          onChange={(e) => onChange({ ...filters, slaBreach: e.target.checked || undefined })}
-          className="rounded border-brand-border"
-        />
-        <span className="font-mono uppercase text-[10px]">SLA vencido</span>
-      </label>
-
-      {hasActiveFilters && (
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="h-8 px-2 flex items-center gap-1 text-[10px] font-mono uppercase text-brand-subtext hover:text-brand-text transition-colors"
-        >
-          <X className="w-3 h-3" />
-          Limpiar
-        </button>
-      )}
+      <SlaBreachFilter
+        active={Boolean(filters.slaBreach)}
+        onChange={(slaBreach) => onChange({ ...filters, slaBreach: slaBreach || undefined })}
+      />
     </div>
+  )
+}
+
+function SlaBreachFilter({
+  active,
+  onChange,
+}: {
+  active: boolean
+  onChange: (active: boolean) => void
+}) {
+  return (
+    <FilterTriggerButton
+      label="SLA vencido"
+      valueLabel="Activo"
+      isActive={active}
+      open={false}
+      onToggle={() => {
+        if (!active) onChange(true)
+      }}
+      onClear={() => onChange(false)}
+      minWidthClass="min-w-[130px]"
+    />
   )
 }

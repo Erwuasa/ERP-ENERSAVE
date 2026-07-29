@@ -2,6 +2,8 @@ import { useMemo, useState } from "react"
 import { Search, WalletCards, X } from "lucide-react"
 import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
+import { isoDateToDate, toIsoDate, type DateRangePickerValue } from "../lib/date-range"
+import { DateRangePicker } from "./ui/DateRangePicker"
 import {
   defaultLiquidacionesDateRange,
   enrichSettlementRow,
@@ -131,15 +133,24 @@ export function LiquidacionesInternasPanel({
   formatCurrency,
 }: LiquidacionesInternasPanelProps) {
   const defaults = defaultLiquidacionesDateRange()
-  const [dateFrom, setDateFrom] = useState(defaults.dateFrom)
-  const [dateTo, setDateTo] = useState(defaults.dateTo)
+  const defaultDateRangeValue = useMemo(
+    () => ({
+      from: isoDateToDate(defaults.dateFrom),
+      to: isoDateToDate(defaults.dateTo),
+      presetId: "este_mes" as const,
+    }),
+    [defaults.dateFrom, defaults.dateTo]
+  )
+  const [dateRange, setDateRange] = useState<DateRangePickerValue>(() => defaultDateRangeValue)
+  const dateFrom = dateRange.from ? toIsoDate(dateRange.from) : defaults.dateFrom
+  const dateTo = dateRange.to ? toIsoDate(dateRange.to) : defaults.dateTo
   const [activeTab, setActiveTab] = useState<LiquidacionesTab>("totales")
   const [compania, setCompania] = useState<string>("Todos")
   const [search, setSearch] = useState("")
 
   const baseRows = useMemo(() => {
     const scoped = filterSettlementsForRole(settlements, activeRole, activeUserId, profiles)
-    return scoped.map((s) => enrichSettlementRow(s, contracts, profiles))
+    return scoped.map((s) => enrichSettlementRow(s, contracts, profiles, formatCurrency))
   }, [settlements, contracts, profiles, activeRole, activeUserId])
 
   const filterOpts = { tab: activeTab, dateFrom, dateTo, compania, search }
@@ -205,28 +216,14 @@ export function LiquidacionesInternasPanel({
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1 text-[10px] font-mono text-brand-subtext">
-            Desde
-            <input
-              type="date"
-              value={dateFrom}
-              max={dateTo}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="px-2 py-1 rounded-lg border border-brand-border bg-brand-surface text-brand-text text-[10px] cursor-pointer"
-            />
-          </label>
-          <label className="flex items-center gap-1 text-[10px] font-mono text-brand-subtext">
-            Hasta
-            <input
-              type="date"
-              value={dateTo}
-              min={dateFrom}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="px-2 py-1 rounded-lg border border-brand-border bg-brand-surface text-brand-text text-[10px] cursor-pointer"
-            />
-          </label>
-        </div>
+        <DateRangePicker
+          value={dateRange}
+          onChange={(next) =>
+            setDateRange({ from: next.from, to: next.to, presetId: next.presetId })
+          }
+          defaultValue={defaultDateRangeValue}
+          align="right"
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

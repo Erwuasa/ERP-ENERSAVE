@@ -4,6 +4,8 @@ import {
   countContractsByCompaniaInRange,
   defaultCompaniaDateRange,
 } from "../lib/contract-compania-stats"
+import { isoDateToDate, toIsoDate, type DateRangePickerValue } from "../lib/date-range"
+import { DateRangePicker } from "./ui/DateRangePicker"
 
 interface CompaniaContractRow {
   comercialId: string
@@ -26,8 +28,18 @@ export function ComercialCompaniaChart({
   activeUserId,
 }: ComercialCompaniaChartProps) {
   const defaults = defaultCompaniaDateRange()
-  const [dateFrom, setDateFrom] = useState(defaults.dateFrom)
-  const [dateTo, setDateTo] = useState(defaults.dateTo)
+  const defaultDateRangeValue = useMemo(
+    () => ({
+      from: isoDateToDate(defaults.dateFrom),
+      to: isoDateToDate(defaults.dateTo),
+      presetId: "este_mes" as const,
+    }),
+    [defaults.dateFrom, defaults.dateTo]
+  )
+  const [dateRange, setDateRange] = useState<DateRangePickerValue>(() => defaultDateRangeValue)
+
+  const dateFrom = dateRange.from ? toIsoDate(dateRange.from) : defaults.dateFrom
+  const dateTo = dateRange.to ? toIsoDate(dateRange.to) : defaults.dateTo
 
   const bars = useMemo(
     () => countContractsByCompaniaInRange(contracts, activeUserId, dateFrom, dateTo),
@@ -52,28 +64,15 @@ export function ComercialCompaniaChart({
             Contratos por compañía
           </span>
         </div>
-        <div className="flex flex-col gap-0.5 shrink-0">
-          <label className="flex items-center gap-0.5 text-[7px] font-mono text-brand-subtext">
-            <span className="w-7">Desde</span>
-            <input
-              type="date"
-              value={dateFrom}
-              max={dateTo}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-[92px] px-0.5 py-0 rounded border border-brand-border bg-brand-surface text-brand-text text-[8px] cursor-pointer"
-            />
-          </label>
-          <label className="flex items-center gap-0.5 text-[7px] font-mono text-brand-subtext">
-            <span className="w-7">Hasta</span>
-            <input
-              type="date"
-              value={dateTo}
-              min={dateFrom}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="w-[92px] px-0.5 py-0 rounded border border-brand-border bg-brand-surface text-brand-text text-[8px] cursor-pointer"
-            />
-          </label>
-        </div>
+        <DateRangePicker
+          value={dateRange}
+          onChange={(next) =>
+            setDateRange({ from: next.from, to: next.to, presetId: next.presetId })
+          }
+          defaultValue={defaultDateRangeValue}
+          align="right"
+          className="scale-90 origin-top-right -mr-1"
+        />
       </div>
 
       <div className="flex-1 min-h-[68px] overflow-x-auto -mx-0.5 px-0.5">

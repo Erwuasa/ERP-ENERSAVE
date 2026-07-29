@@ -1,19 +1,46 @@
-import React, { useRef, useState } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Building2,
+  CheckCircle,
   Download,
   FileSpreadsheet,
   FilePenLine,
   FolderOpen,
   Search,
   Trash2,
+  User,
+  Users,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
 import type { Client, ClienteArchivo } from "../types/client"
 import type { Contract } from "../types/contract"
 import { getContractsForClient } from "../lib/clients"
-import { isContractActivado } from "../lib/contract-estado"
-import { useEditableCell } from "../hooks/use-editable-cell"
+import {
+  applyClientesPanelFilters,
+  countClientesByAceptacion,
+  countClientesByTipo,
+  countContratosActivosForClients,
+  formatClientContact,
+  getClientProvincia,
+  getClientTerminos,
+  getVisibleClientsForRole,
+  sortClients,
+  type ClienteAceptacionFilter,
+  type ClienteSortField,
+  type ClienteTipoFilter,
+  type SortDirection,
+} from "../lib/clientes-panel-filters"
+
+interface ProfileOption {
+  id: string
+  fullName: string
+  role: string
+  managerId?: string | null
+}
 
 interface MisClientesPanelProps {
   clients: Client[]
@@ -21,9 +48,71 @@ interface MisClientesPanelProps {
   contracts: Contract[]
   activeUserId: string
   activeUserName: string
+  activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+  profiles: ProfileOption[]
   clientesSearchQuery: string
   setClientesSearchQuery: (v: string) => void
   onNavigateToContract: (contract: Contract) => void
+}
+
+const TH =
+  "px-3 py-3 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-nowrap"
+const TD = "px-3 py-4 align-top border-b border-brand-border/70"
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold transition-colors cursor-pointer ${
+        active
+          ? "bg-emerald-600 text-white border border-emerald-600"
+          : "bg-brand-surface text-brand-subtext border border-brand-border hover:text-brand-text hover:border-cyan-500/30"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function SortableHeader({
+  label,
+  field,
+  sortField,
+  sortDirection,
+  onSort,
+}: {
+  label: string
+  field: ClienteSortField
+  sortField: ClienteSortField
+  sortDirection: SortDirection
+  onSort: (field: ClienteSortField) => void
+}) {
+  const active = sortField === field
+  const Icon = active
+    ? sortDirection === "asc"
+      ? ArrowUp
+      : ArrowDown
+    : ArrowUpDown
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(field)}
+      className="inline-flex items-center gap-1 hover:text-brand-text transition-colors cursor-pointer uppercase"
+    >
+      {label}
+      <Icon className={`w-3 h-3 ${active ? "text-cyan-500" : "opacity-40"}`} />
+    </button>
+  )
 }
 
 export function MisClientesPanel({
@@ -32,6 +121,8 @@ export function MisClientesPanel({
   contracts,
   activeUserId,
   activeUserName,
+  activeRole,
+  profiles,
   clientesSearchQuery,
   setClientesSearchQuery,
   onNavigateToContract,
@@ -39,29 +130,77 @@ export function MisClientesPanel({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [folderClientId, setFolderClientId] = useState<string | null>(null)
   const [contractsClientId, setContractsClientId] = useState<string | null>(null)
+  const [tipoFilter, setTipoFilter] = useState<ClienteTipoFilter>("todos")
+  const [aceptacionFilter, setAceptacionFilter] =
+    useState<ClienteAceptacionFilter>("todos")
+  const [sortField, setSortField] = useState<ClienteSortField>("alta")
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
 
-  const myClients = clients.filter((c) => c.comercialId === activeUserId)
+  const teamMemberIds = useMemo(
+    () => profiles.filter((p) => p.managerId === activeUserId).map((p) => p.id),
+    [profiles, activeUserId]
+  )
 
-  const updateClient = (id: string, field: keyof Client, value: unknown) => {
-    setClients((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, [field]: value } : c))
-    )
-  }
+  const visibleClients = useMemo(
+    () =>
+      getVisibleClientsForRole(clients, activeRole, activeUserId, teamMemberIds),
+    [clients, activeRole, activeUserId, teamMemberIds]
+  )
 
-  const { renderEditableCell } = useEditableCell<Client>(updateClient)
+  const filterOpts = useMemo(
+    () => ({
+      searchQuery: clientesSearchQuery,
+      tipoFilter,
+      aceptacionFilter,
+    }),
+    [clientesSearchQuery, tipoFilter, aceptacionFilter]
+  )
 
-  const filtered = myClients.filter((client) => {
-    if (!clientesSearchQuery.trim()) return true
-    const q = clientesSearchQuery.toLowerCase()
-    return (
-      client.nombre.toLowerCase().includes(q) ||
-      (client.documento?.toLowerCase().includes(q) ?? false) ||
-      (client.email?.toLowerCase().includes(q) ?? false) ||
-      (client.telefono?.toLowerCase().includes(q) ?? false) ||
-      (client.ciudad?.toLowerCase().includes(q) ?? false) ||
-      (client.codigoPostal?.includes(q) ?? false)
-    )
-  })
+  const poolForTipoCounts = useMemo(
+    () => applyClientesPanelFilters(visibleClients, { ...filterOpts, skipTipo: true }),
+    [visibleClients, filterOpts]
+  )
+
+  const poolForAceptacionCounts = useMemo(
+    () =>
+      applyClientesPanelFilters(visibleClients, { ...filterOpts, skipAceptacion: true }),
+    [visibleClients, filterOpts]
+  )
+
+  const filtered = useMemo(
+    () => applyClientesPanelFilters(visibleClients, filterOpts),
+    [visibleClients, filterOpts]
+  )
+
+  const sorted = useMemo(
+    () => sortClients(filtered, sortField, sortDirection),
+    [filtered, sortField, sortDirection]
+  )
+
+  const tipoCounts = useMemo(
+    () => countClientesByTipo(poolForTipoCounts),
+    [poolForTipoCounts]
+  )
+
+  const aceptacionCounts = useMemo(
+    () => countClientesByAceptacion(poolForAceptacionCounts),
+    [poolForAceptacionCounts]
+  )
+
+  const kpiParticulares = useMemo(
+    () => poolForTipoCounts.filter((c) => c.tipoCliente === "particular").length,
+    [poolForTipoCounts]
+  )
+
+  const kpiPymes = useMemo(
+    () => poolForTipoCounts.filter((c) => c.tipoCliente === "empresa").length,
+    [poolForTipoCounts]
+  )
+
+  const kpiContratosActivos = useMemo(
+    () => countContratosActivosForClients(filtered, contracts),
+    [filtered, contracts]
+  )
 
   const folderClient = folderClientId
     ? clients.find((c) => c.id === folderClientId)
@@ -72,6 +211,15 @@ export function MisClientesPanel({
   const linkedContracts = contractsClient
     ? getContractsForClient(contractsClient, contracts)
     : []
+
+  function handleSort(field: ClienteSortField) {
+    if (sortField === field) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"))
+      return
+    }
+    setSortField(field)
+    setSortDirection(field === "alta" ? "desc" : "asc")
+  }
 
   async function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
@@ -122,178 +270,290 @@ export function MisClientesPanel({
     document.body.removeChild(link)
   }
 
+  function exportCsv() {
+    const headers = [
+      "Cliente",
+      "Alta",
+      "DNI/CIF",
+      "Tipo",
+      "Términos",
+      "Contacto",
+      "Provincia",
+      "Contratos",
+    ]
+    const rows = sorted.map((c) => {
+      const linked = getContractsForClient(c, contracts)
+      return [
+        c.nombre,
+        c.createdAt,
+        c.documento || "",
+        c.tipoCliente === "empresa" ? "PYME" : "Particular",
+        getClientTerminos(c, contracts),
+        formatClientContact(c),
+        getClientProvincia(c, contracts),
+        String(linked.length),
+      ]
+    })
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) =>
+        r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(",")
+      ),
+    ].join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `Mis_Clientes_${activeUserName.replace(/\s+/g, "_")}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success("Exportación CSV descargada")
+  }
+
   return (
-    <div className="space-y-4 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="p-3.5 bg-brand-panel rounded-xl border border-brand-border space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-wider text-brand-subtext font-bold">
-            Total clientes en cartera
-          </span>
-          <h4 className="text-lg font-mono font-bold text-cyan-600 dark:text-cyan-400">
-            {myClients.length}
-          </h4>
+    <div className="space-y-5 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+                Clientes
+              </p>
+              <p className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400 mt-1">
+                {filtered.length}
+              </p>
+            </div>
+            <Users className="w-8 h-8 text-blue-500/80 shrink-0" />
+          </div>
         </div>
-        <div className="p-3.5 bg-brand-panel rounded-xl border border-brand-border space-y-1">
-          <span className="text-[9px] font-mono uppercase tracking-wider text-brand-subtext font-bold">
-            Contratos activos vinculados
-          </span>
-          <h4 className="text-lg font-mono font-bold text-emerald-500">
-            {contracts.filter((c) => c.comercialId === activeUserId && isContractActivado(c.estado)).length}
-          </h4>
+
+        <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-sky-400" />
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+                Particulares
+              </p>
+              <p className="text-2xl font-black font-mono text-sky-500 mt-1">
+                {kpiParticulares}
+              </p>
+            </div>
+            <User className="w-8 h-8 text-sky-400/80 shrink-0" />
+          </div>
+        </div>
+
+        <div className="bg-brand-panel p-5 rounded-2xl border border-amber-400/50 shadow-sm relative overflow-hidden ring-1 ring-amber-400/20">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400" />
+          <div className="absolute top-0 right-0 w-full h-1 bg-amber-400/70" />
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+                PYMEs
+              </p>
+              <p className="text-2xl font-black font-mono text-orange-500 mt-1">
+                {kpiPymes}
+              </p>
+            </div>
+            <Building2 className="w-8 h-8 text-orange-500/80 shrink-0" />
+          </div>
+        </div>
+
+        <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+                Contratos activos
+              </p>
+              <p className="text-2xl font-black font-mono text-emerald-500 mt-1">
+                {kpiContratosActivos}
+              </p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-emerald-500/80 shrink-0" />
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-full sm:w-[220px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="search"
             value={clientesSearchQuery}
             onChange={(e) => setClientesSearchQuery(e.target.value)}
-            placeholder="Buscar cliente, NIF, email…"
-            className="w-full h-8 pl-8 pr-7 bg-transparent border border-brand-border rounded-lg focus:border-cyan-500/60 focus:outline-none text-[11px] text-brand-text placeholder-slate-400"
+            placeholder="Buscar por nombre, DNI/CIF, teléfono o email..."
+            className="w-full pl-9 pr-8 py-2.5 bg-brand-surface border border-brand-border rounded-lg focus:border-cyan-500 focus:outline-none text-xs text-brand-text font-medium"
           />
           {clientesSearchQuery && (
             <button
               type="button"
               onClick={() => setClientesSearchQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-text text-[10px]"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-brand-text"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
         <button
           type="button"
-          onClick={() => {
-            const headers = [
-              "Nombre",
-              "Estado",
-              "Documento",
-              "Teléfono",
-              "Email",
-              "CP",
-              "Ciudad",
-              "Tipo",
-            ]
-            const rows = myClients.map((c) => [
-              c.nombre,
-              c.estado,
-              c.documento || "",
-              c.telefono || "",
-              c.email || "",
-              c.codigoPostal || "",
-              c.ciudad || "",
-              c.tipoCliente,
-            ])
-            const csv = [headers.join(","), ...rows.map((r) => r.map((x) => `"${String(x).replace(/"/g, '""')}"`).join(","))].join("\n")
-            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-            const url = URL.createObjectURL(blob)
-            const link = document.createElement("a")
-            link.href = url
-            link.download = `Mis_Clientes_${activeUserName.replace(/\s+/g, "_")}.csv`
-            link.click()
-            URL.revokeObjectURL(url)
-            toast.success("Exportación CSV descargada")
-          }}
-          className="h-8 px-2.5 text-[10px] font-medium text-brand-subtext hover:text-cyan-600 border border-brand-border rounded-lg flex items-center gap-1"
+          onClick={exportCsv}
+          className="h-9 px-3 text-[10px] font-medium text-brand-subtext hover:text-cyan-600 border border-brand-border rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer"
         >
-          <FileSpreadsheet className="w-3 h-3" />
+          <FileSpreadsheet className="w-3.5 h-3.5" />
           Excel
         </button>
       </div>
 
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterPill active={tipoFilter === "todos"} onClick={() => setTipoFilter("todos")}>
+            Todos [{tipoCounts.todos}]
+          </FilterPill>
+          <FilterPill
+            active={tipoFilter === "particular"}
+            onClick={() => setTipoFilter("particular")}
+          >
+            Particulares [{tipoCounts.particular}]
+          </FilterPill>
+          <FilterPill active={tipoFilter === "empresa"} onClick={() => setTipoFilter("empresa")}>
+            PYMEs [{tipoCounts.empresa}]
+          </FilterPill>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterPill
+            active={aceptacionFilter === "todos"}
+            onClick={() => setAceptacionFilter("todos")}
+          >
+            Todos [{aceptacionCounts.todos}]
+          </FilterPill>
+          <FilterPill
+            active={aceptacionFilter === "aceptado"}
+            onClick={() => setAceptacionFilter("aceptado")}
+          >
+            Aceptados [{aceptacionCounts.aceptado}]
+          </FilterPill>
+          <FilterPill
+            active={aceptacionFilter === "pendiente"}
+            onClick={() => setAceptacionFilter("pendiente")}
+          >
+            Pendientes [{aceptacionCounts.pendiente}]
+          </FilterPill>
+        </div>
+      </div>
+
       <div className="bg-brand-panel rounded-2xl border border-brand-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs min-w-[900px]">
+          <table className="w-full text-left border-collapse text-xs min-w-[980px]">
             <thead>
               <tr className="border-b border-brand-border text-brand-subtext bg-brand-bg/40 font-mono">
-                <th className="p-3 w-20" />
-                <th className="p-3 text-[10px] uppercase font-bold">Nombre</th>
-                <th className="p-3 text-[10px] uppercase font-bold">Estado</th>
-                <th className="p-3 text-[10px] uppercase font-bold">DNI/NIE/NIF/CIF</th>
-                <th className="p-3 text-[10px] uppercase font-bold">Teléfono</th>
-                <th className="p-3 text-[10px] uppercase font-bold">Email</th>
-                <th className="p-3 text-[10px] uppercase font-bold">CP</th>
-                <th className="p-3 text-[10px] uppercase font-bold">Ciudad</th>
-                <th className="p-3 text-[10px] uppercase font-bold">Tipo</th>
+                <th className={TH}>
+                  <SortableHeader
+                    label="Cliente"
+                    field="nombre"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className={TH}>
+                  <SortableHeader
+                    label="Alta"
+                    field="alta"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className={TH}>
+                  <SortableHeader
+                    label="DNI/CIF"
+                    field="documento"
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                  />
+                </th>
+                <th className={TH}>Tipo</th>
+                <th className={TH}>Términos</th>
+                <th className={TH}>Contacto</th>
+                <th className={TH}>Provincia</th>
+                <th className={TH}>Contratos</th>
+                <th className={TH}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((client) => (
-                <tr
-                  key={client.id}
-                  className="border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.02]"
-                >
-                  <td className="p-3">
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setFolderClientId(client.id)}
-                        className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors"
-                        title="Carpeta de documentos"
+              {sorted.map((client) => {
+                const linked = getContractsForClient(client, contracts)
+                const provincia = getClientProvincia(client, contracts)
+                const terminos = getClientTerminos(client, contracts)
+                return (
+                  <tr
+                    key={client.id}
+                    className="border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.02]"
+                  >
+                    <td className={`${TD} font-bold text-brand-text`}>{client.nombre}</td>
+                    <td className={`${TD} font-mono text-brand-subtext`}>
+                      {client.createdAt.split("-").reverse().join("/")}
+                    </td>
+                    <td className={`${TD} font-mono uppercase`}>
+                      {client.documento || "—"}
+                    </td>
+                    <td className={TD}>
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
+                          client.tipoCliente === "empresa"
+                            ? "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+                            : "bg-sky-500/15 text-sky-600 dark:text-sky-400"
+                        }`}
                       >
-                        <FolderOpen className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setContractsClientId(client.id)}
-                        className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-cyan-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
-                        title="Contratos del cliente"
-                      >
-                        <FilePenLine className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                  <td className="p-3 font-bold text-brand-text">
-                    {renderEditableCell(client, "nombre", { placeholder: "Sin nombre" })}
-                  </td>
-                  <td className="p-3">
-                    {renderEditableCell(client, "estado", {
-                      display: (v) => (
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded text-[9px] font-mono uppercase font-bold ${
-                            v === "activo"
-                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                              : v === "pendiente"
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                                : "bg-slate-500/15 text-slate-500"
-                          }`}
+                        {client.tipoCliente === "empresa" ? "PYME" : "Particular"}
+                      </span>
+                    </td>
+                    <td className={`${TD} text-brand-subtext max-w-[140px]`}>
+                      <span className="line-clamp-2" title={terminos}>
+                        {terminos}
+                      </span>
+                    </td>
+                    <td className={`${TD} text-brand-text max-w-[180px]`}>
+                      <span className="line-clamp-2" title={formatClientContact(client)}>
+                        {formatClientContact(client)}
+                      </span>
+                    </td>
+                    <td className={`${TD} text-brand-subtext`}>{provincia}</td>
+                    <td className={`${TD} font-mono font-bold text-brand-text`}>
+                      {linked.length}
+                    </td>
+                    <td className={TD}>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setFolderClientId(client.id)}
+                          className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors cursor-pointer"
+                          title="Carpeta de documentos"
                         >
-                          {String(v || "—")}
-                        </span>
-                      ),
-                    })}
-                  </td>
-                  <td className="p-3 font-mono">
-                    {renderEditableCell(client, "documento")}
-                  </td>
-                  <td className="p-3 font-mono">
-                    {renderEditableCell(client, "telefono")}
-                  </td>
-                  <td className="p-3">
-                    {renderEditableCell(client, "email")}
-                  </td>
-                  <td className="p-3 font-mono">
-                    {renderEditableCell(client, "codigoPostal")}
-                  </td>
-                  <td className="p-3">
-                    {renderEditableCell(client, "ciudad")}
-                  </td>
-                  <td className="p-3 capitalize">
-                    {renderEditableCell(client, "tipoCliente", {
-                      display: (v) =>
-                        v === "empresa" ? "Empresa" : v === "particular" ? "Particular" : "—",
-                    })}
-                  </td>
-                </tr>
-              ))}
+                          <FolderOpen className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setContractsClientId(client.id)}
+                          className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-cyan-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors cursor-pointer"
+                          title="Contratos del cliente"
+                        >
+                          <FilePenLine className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-          {filtered.length === 0 && (
+          {sorted.length === 0 && (
             <p className="text-center text-xs text-brand-subtext py-10 font-mono">
-              No hay clientes en tu cartera.
+              No hay clientes que coincidan con los filtros.
             </p>
           )}
         </div>
@@ -322,7 +582,7 @@ export function MisClientesPanel({
               <button
                 type="button"
                 onClick={() => setFolderClientId(null)}
-                className="text-slate-400 hover:text-brand-text"
+                className="text-slate-400 hover:text-brand-text cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -348,7 +608,7 @@ export function MisClientesPanel({
                       <button
                         type="button"
                         onClick={() => downloadArchivo(archivo)}
-                        className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20"
+                        className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20 cursor-pointer"
                         title="Descargar"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -356,7 +616,7 @@ export function MisClientesPanel({
                       <button
                         type="button"
                         onClick={() => removeArchivo(folderClient.id, archivo.id)}
-                        className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
+                        className="p-1.5 rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 cursor-pointer"
                         title="Eliminar"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -370,7 +630,7 @@ export function MisClientesPanel({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg"
+                className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg cursor-pointer"
               >
                 Subir archivos o imágenes
               </button>
@@ -393,7 +653,7 @@ export function MisClientesPanel({
               <button
                 type="button"
                 onClick={() => setContractsClientId(null)}
-                className="text-slate-400 hover:text-brand-text"
+                className="text-slate-400 hover:text-brand-text cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -412,7 +672,7 @@ export function MisClientesPanel({
                       setContractsClientId(null)
                       onNavigateToContract(contract)
                     }}
-                    className="w-full text-left p-3 rounded-xl border border-brand-border hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-colors"
+                    className="w-full text-left p-3 rounded-xl border border-brand-border hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-colors cursor-pointer"
                   >
                     <div className="flex justify-between items-start gap-2">
                       <span
@@ -431,7 +691,9 @@ export function MisClientesPanel({
                     <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 mt-1.5">
                       {contract.cups}
                     </p>
-                    <p className="text-xs text-brand-text mt-0.5">{contract.compania} · {contract.tarifa}</p>
+                    <p className="text-xs text-brand-text mt-0.5">
+                      {contract.compania} · {contract.tarifa}
+                    </p>
                   </button>
                 ))
               )}

@@ -18,8 +18,22 @@ export interface ContractComentarioInterno {
   createdAt: string
 }
 
+export type WizardStep = 1 | "cliente" | "suministro" | "documentos"
+
+export interface ContratoDocumentoArchivo {
+  name: string
+  size: string
+  dataUrl?: string
+  uploadedAt: string
+}
+
+export type DocumentosPorTipo = Record<string, ContratoDocumentoArchivo[]>
+
 export interface NewContractFormState {
   clientName: string
+  clientNombre: string
+  clientApellidos: string
+  razonSocial: string
   cups: string
   tipo: "luz" | "gas"
   compania: string
@@ -36,7 +50,8 @@ export interface NewContractFormState {
   fechaInicio: string
   /** Segmento elegido al seleccionar comercializadora (paso 1) */
   wizardSegment: "residencial" | "pyme"
-  wizardStep: 1 | 2
+  /** Fase comercializadora = 1; tabs = cliente | suministro | documentos */
+  wizardStep: WizardStep
   tipoCliente: TipoClienteContrato
   direccionFiscal: string
   codigoPostal: string
@@ -53,11 +68,14 @@ export interface NewContractFormState {
   potenciaP6: string
   marcoEntryId: string
   comentariosInternos: ContractComentarioInterno[]
-  documentos: { name: string; size: string }[]
+  documentosPorTipo: DocumentosPorTipo
 }
 
 export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   clientName: "",
+  clientNombre: "",
+  clientApellidos: "",
+  razonSocial: "",
   cups: "",
   tipo: "luz",
   compania: "",
@@ -90,7 +108,35 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   potenciaP6: "",
   marcoEntryId: "",
   comentariosInternos: [],
-  documentos: [],
+  documentosPorTipo: {},
+}
+
+export function buildClientNameFromForm(form: NewContractFormState): string {
+  if (
+    (form.tipoCliente === "pyme" || form.tipoCliente === "comunidad_vecinos") &&
+    form.razonSocial.trim()
+  ) {
+    return form.razonSocial.trim()
+  }
+  const fromParts = [form.clientNombre.trim(), form.clientApellidos.trim()]
+    .filter(Boolean)
+    .join(" ")
+  if (fromParts) return fromParts
+  return form.clientName.trim()
+}
+
+export function splitClientNameToParts(fullName: string): {
+  clientNombre: string
+  clientApellidos: string
+} {
+  const trimmed = fullName.trim()
+  if (!trimmed) return { clientNombre: "", clientApellidos: "" }
+  const space = trimmed.indexOf(" ")
+  if (space === -1) return { clientNombre: trimmed, clientApellidos: "" }
+  return {
+    clientNombre: trimmed.slice(0, space),
+    clientApellidos: trimmed.slice(space + 1).trim(),
+  }
 }
 
 export function buildPotenciaContratadaFromPeriods(form: NewContractFormState): string {
@@ -136,7 +182,7 @@ export function newContractFormToRegistrationInput(
     (tipoPrecio === "mercado" ? "0" : "0.12")
 
   return {
-    clientName: form.clientName,
+    clientName: buildClientNameFromForm(form),
     cups: form.cups,
     tipo: form.tipo,
     compania: form.compania,

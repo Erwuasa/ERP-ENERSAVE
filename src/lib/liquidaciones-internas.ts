@@ -1,5 +1,7 @@
 import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
+import { computeComisionBreakdown } from "./marco-commission"
+import { resolveMarcoCatalogEntry } from "./supabase/marco-retributivo"
 import { normalizeTipoClienteSegment } from "./contract-segment-rules"
 
 export interface ProfileRow {
@@ -7,6 +9,7 @@ export interface ProfileRow {
   fullName: string
   role: string
   managerId?: string | null
+  commissionPercentage?: number
 }
 
 export interface LiquidacionInternaRow {
@@ -62,10 +65,34 @@ function findContractForSettlement(settlement: Settlement, contracts: Contract[]
   )
 }
 
+function resolveComisionComercialFromContract(
+  contract: Contract,
+  profiles: ProfileRow[],
+  formatCurrency: (val: number) => string
+): number | null {
+  const entry = resolveMarcoCatalogEntry(
+    contract.marcoEntryId,
+    contract.compania,
+    contract.tarifa,
+    contract.tipo
+  )
+  if (!entry) return null
+
+  const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
+  if (!consumo || consumo <= 0) return null
+
+  const profile = profiles.find((p) => p.id === contract.comercialId)
+  const commissionPercentage = profile?.commissionPercentage ?? 70
+
+  return computeComisionBreakdown(entry, commissionPercentage, consumo, formatCurrency)
+    .comisionComercial
+}
+
 export function enrichSettlementRow(
   settlement: Settlement,
   contracts: Contract[],
-  profiles: ProfileRow[]
+  profiles: ProfileRow[],
+  formatCurrency: (val: number) => string
 ): LiquidacionInternaRow {
   const contract = findContractForSettlement(settlement, contracts)
   const manager = contract
@@ -94,7 +121,11 @@ export function enrichSettlementRow(
     compania: contract?.compania ?? "—",
     tarifa: contract?.tarifa ?? "—",
     fechaActivacion: contract?.createdAt ?? settlement.createdAt,
-    comision: settlement.montoExterno,
+    comision:
+      contract != null
+        ? resolveComisionComercialFromContract(contract, profiles, formatCurrency) ??
+          settlement.montoExterno
+        : settlement.montoExterno,
     comercialId: settlement.comercialId,
     comercialName: settlement.comercialName,
     jefeEquipoId: jefe?.id ?? null,

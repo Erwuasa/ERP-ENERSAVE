@@ -1,4 +1,4 @@
-import { normalizeContractEstado } from "./contract-estado"
+import { normalizeContractEstado, type ContractEstado } from "./contract-estado"
 
 export const CONTRACT_ESTADO_KPI_FILTERS = [
   "pte_firma",
@@ -113,4 +113,90 @@ export function contractsListFilterLabel(filter: ContractsListFilter): string {
   if (filter === "renovacion_proxima") return " · renovación próxima"
   const meta = CONTRACT_ESTADO_KPI_META.find((m) => m.id === filter)
   return meta ? ` · ${meta.label.toLowerCase()}` : ""
+}
+
+/** Etiquetas visuales del filtro de contratos (referencia UI — 11 categorías) */
+export const CONTRACT_ESTADO_UI_FILTERS = [
+  "todos",
+  "borrador",
+  "solicitado",
+  "pendiente_firma",
+  "firmado",
+  "en_tramitacion",
+  "scoring",
+  "activo",
+  "finalizado",
+  "baja",
+  "baja_decomisionable",
+  "incidencia",
+] as const
+
+export type ContractEstadoUiFilter = (typeof CONTRACT_ESTADO_UI_FILTERS)[number]
+
+export interface ContractEstadoUiMeta {
+  id: ContractEstadoUiFilter
+  label: string
+  /** Estado interno representativo para badge de color */
+  sampleEstado: ContractEstado
+}
+
+export const CONTRACT_ESTADO_UI_META: ContractEstadoUiMeta[] = [
+  { id: "todos", label: "Todos", sampleEstado: "ACTIVADO" },
+  { id: "borrador", label: "Borrador", sampleEstado: "Pendiente de info." },
+  { id: "solicitado", label: "Solicitado", sampleEstado: "PTE DE TRAMITACIÓN" },
+  { id: "pendiente_firma", label: "Pendiente de firma", sampleEstado: "PTE DE FIRMA" },
+  { id: "firmado", label: "Firmado", sampleEstado: "PTE DE FIRMA" },
+  { id: "en_tramitacion", label: "En tramitación", sampleEstado: "TRAMITANDO" },
+  { id: "scoring", label: "Scoring", sampleEstado: "TRAMITANDO" },
+  { id: "activo", label: "Activo", sampleEstado: "ACTIVADO" },
+  { id: "finalizado", label: "Finalizado", sampleEstado: "ACTIVADO" },
+  { id: "baja", label: "Baja", sampleEstado: "Dado de Baja" },
+  { id: "baja_decomisionable", label: "Baja Decomisionable", sampleEstado: "Dado de Baja" },
+  { id: "incidencia", label: "Incidencia", sampleEstado: "INCIDENCIA ADMINISTRATIVA" },
+]
+
+const ESTADO_INTERNO_TO_UI: Record<ContractEstado, Exclude<ContractEstadoUiFilter, "todos">> = {
+  "Pendiente de info.": "borrador",
+  "PTE DE TRAMITACIÓN": "solicitado",
+  "PTE DE FIRMA": "pendiente_firma",
+  "FIRMA CADUCADA": "incidencia",
+  TRAMITANDO: "en_tramitacion",
+  ACTIVADO: "activo",
+  "INCIDENCIA ADMINISTRATIVA": "incidencia",
+  "Dado de Baja": "baja",
+}
+
+export function getContractEstadoUiBucket(
+  estado: string
+): Exclude<ContractEstadoUiFilter, "todos"> | null {
+  const normalized = normalizeContractEstado(estado)
+  return ESTADO_INTERNO_TO_UI[normalized] ?? null
+}
+
+export function matchesContractEstadoUiFilter(
+  estado: string,
+  filter: ContractEstadoUiFilter
+): boolean {
+  if (filter === "todos") return true
+  return getContractEstadoUiBucket(estado) === filter
+}
+
+export function countContractsByEstadoUi(
+  contracts: { estado: string }[]
+): Record<ContractEstadoUiFilter, number> {
+  const counts = Object.fromEntries(
+    CONTRACT_ESTADO_UI_FILTERS.map((id) => [id, 0])
+  ) as Record<ContractEstadoUiFilter, number>
+
+  counts.todos = contracts.length
+
+  for (const contract of contracts) {
+    const bucket = getContractEstadoUiBucket(contract.estado)
+    if (bucket) counts[bucket] += 1
+  }
+  return counts
+}
+
+export function contractEstadoUiFilterLabel(filter: ContractEstadoUiFilter): string {
+  return CONTRACT_ESTADO_UI_META.find((m) => m.id === filter)?.label ?? "Todos"
 }

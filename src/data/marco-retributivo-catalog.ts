@@ -15,6 +15,7 @@ export interface MarcoRetributivoEntry {
   comisionBase: number
   comisionUnidad: MarcoComisionUnidad
   vigenciaMeses: number
+  documentosObligatorios?: string[]
 }
 
 export const MARCO_COMPANIAS_LUZ = [

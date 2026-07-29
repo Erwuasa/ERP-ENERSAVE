@@ -11,6 +11,32 @@ export interface MarcoCommissionEstimate {
   detail: string
 }
 
+export interface ComisionBreakdown {
+  comisionEmpresa: number
+  comisionComercial: number
+  detalle: string
+}
+
+export function computeComisionBreakdown(
+  entry: MarcoRetributivoEntry,
+  commissionPercentage: number,
+  consumoAnual: number,
+  formatCurrency: (val: number) => string
+): ComisionBreakdown {
+  const empresa = estimateMarcoCommissionEur(entry, 100, consumoAnual, formatCurrency)
+  const comercial = estimateMarcoCommissionEur(
+    entry,
+    commissionPercentage,
+    consumoAnual,
+    formatCurrency
+  )
+  return {
+    comisionEmpresa: empresa.amountEur,
+    comisionComercial: comercial.amountEur,
+    detalle: comercial.detail,
+  }
+}
+
 export function estimateMarcoCommissionEur(
   entry: MarcoRetributivoEntry,
   commissionPercentage: number,

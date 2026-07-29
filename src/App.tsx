@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -8,6 +8,9 @@ import { ComercialRenovacionesCard } from './components/ComercialRenovacionesCar
 import { ComercialContratosEstadoKpis } from './components/ComercialContratosEstadoKpis';
 import type { ContractEstadoKpiFilter } from './lib/contract-estado-kpis';
 import { LiquidacionesInternasPanel } from './components/LiquidacionesInternasPanel';
+import { LiquidacionesConsolidadasSuperadminSection } from './components/LiquidacionesConsolidadasSuperadminSection';
+import type { LiquidacionesConsolidadasView } from './lib/liquidaciones-consolidadas';
+import { CashflowPanel } from './components/CashflowPanel';
 import type { Settlement } from './types/settlement';
 import { 
   Flame, 
@@ -60,6 +63,7 @@ import {
   CalendarDays,
   LayoutGrid,
   BarChart3,
+  Package,
 } from 'lucide-react';
 import { UserControlSheet } from './components/admin/UserControlSheet';
 import {
@@ -70,17 +74,21 @@ import {
   type ErpComercialRole,
 } from './lib/supabase/erp-comerciales';
 import { MarcoRetributivoPanel } from './components/MarcoRetributivoPanel';
-import { IncidenciasKanban } from './components/IncidenciasKanban';
+import { ProductosPanel } from './components/ProductosPanel';
+import { IncidenciasPanel } from './components/IncidenciasPanel';
 import { PipelinePage } from './components/ventas/PipelinePage';
 import { MiDiaPage } from './components/ventas/MiDiaPage';
 import { FichaProspecto } from './components/ventas/FichaProspecto';
 import { ReportingPage } from './components/ventas/ReportingPage';
 import { SlaAvisosPage } from './components/ventas/SlaAvisosPage';
 import { EnersaveLeadDatabasePage } from './components/ventas/EnersaveLeadDatabasePage';
-import { NuevoContratoWizard } from './components/NuevoContratoWizard';
+import { SuperadminDashboard, type DashboardNavigateTarget } from './components/dashboard/SuperadminDashboard';
 import { FileDropZone } from './components/ui/FileDropZone';
 import { ContratosPanel } from './components/ContratosPanel';
 import { MisClientesPanel } from './components/MisClientesPanel';
+const NuevoContratoWizard = lazy(() =>
+  import('./components/NuevoContratoWizard').then((m) => ({ default: m.NuevoContratoWizard }))
+);
 import type { Contract } from './types/contract';
 import type { Client } from './types/client';
 import type { ContractOcrResult } from './lib/contract-ocr';
@@ -90,15 +98,18 @@ import {
   syncClientEstados,
   upsertClient,
 } from './lib/clients';
+import { flattenDocumentosPorTipo } from './lib/contrato-documentos';
 import {
   contractRegistrationErrorMessage,
   EMPTY_NEW_CONTRACT_FORM,
+  inferTipoPrecioFromTarifa,
   newContractFormToRegistrationInput,
   validateContractRegistration,
   type NewContractFormState,
 } from './lib/contract-registration';
 import { marcoRetributivoCatalog } from './data/marco-retributivo-catalog';
-import { estimateMarcoCommissionEur } from './lib/marco-commission';
+import { companiesTariffsCatalog } from './data/tarifas-catalog';
+import { computeComisionBreakdown } from './lib/marco-commission';
 import { saveTeamContractToSupabase } from './lib/supabase/contracts';
 import {
   createContratoCreadoActividad,
@@ -121,13 +132,15 @@ import {
   getContractEstadoBadgeClass,
   isContractActivado,
 } from './lib/contract-estado';
+import type { ProductoTarifa } from './lib/productos-catalog';
+import { getTariffPeajeType, spreadPotenciaFromP1 } from './lib/contract-potencia';
 import type { ContractsListFilter } from './lib/contract-renewal';
 import {
   aplicaRenovacionAnual,
   computeRenewalSchedule,
 } from './lib/contract-segment-rules';
 import type { IncidenciaTicket } from './lib/incidencias';
-import { isIncidenciaKanbanVisible, withIncidenciaEstado } from './lib/incidencias';
+import { isIncidenciaKanbanVisible, withIncidenciaEstado, normalizeIncidenciaTicket, generateIncidenciaCodigo, isIncidenciaAbierta } from './lib/incidencias';
 
 const SEED_CONTRACTS: Contract[] = [
   { id: 'con-1', clientName: 'ANA MARIA PINEDA BARRAGA', cups: 'ES0031102370432011GL', tipo: 'luz', compania: 'Iberdrola', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 4200, tipoPrecio: 'fijo', precioFijoConsumo: 0.118, potenciaContratada: 4.6, nif: '12345678A', telefono: '600111222', email: 'ana.pineda@email.com', iban: 'ES91 2100 0418 4502 0005 1332', direccionSuministro: 'C/ Mayor 12, 28013 Madrid', consumoAnualManual: 4200, estado: 'Activado', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-07', fechaFin: '2026-04-07', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-07', diasRenovacion: 69, montoInterno: 240, montoExterno: 120 },
@@ -277,11 +290,14 @@ function mergeErpRowsIntoProfiles(
     role: ErpComercialRole;
     manager_id: string | null;
     email: string | null;
+    commission_percentage?: number;
   }>,
   current: Profile[]
 ): Profile[] {
   const byId = new Map(current.map((p) => [p.id, p]));
-  return rows.map((row) => {
+  const remoteIds = new Set(rows.map((r) => r.id));
+
+  const fromSupabase = rows.map((row) => {
     const existing = byId.get(row.id);
     const role = row.role as UserRole;
     return {
@@ -292,30 +308,16 @@ function mergeErpRowsIntoProfiles(
       email: row.email ?? existing?.email ?? '',
       status: existing?.status ?? 'activo',
       commissionPercentage:
-        existing?.commissionPercentage ?? defaultCommissionForRole(role),
+        row.commission_percentage ??
+        existing?.commissionPercentage ??
+        defaultCommissionForRole(role),
       permissions: existing?.permissions ?? defaultPermissionsForRole(role),
     };
   });
-}
 
-const companiesTariffsCatalog: Record<string, Record<string, string[]>> = {
-  "2.0TD": {
-    "EnerLuz": ["EnerLuz Inteligente Indexada"],
-    "Iberdrola": ["Iberdrola Plan Estable Luz"],
-    "Endesa": ["Endesa One Luz 3 Periodos"],
-    "Naturgy": ["Naturgy Tarifa Por Uso"]
-  },
-  "3.0TD": {
-    "EnerLuz": ["EnerLuz MultiPYME Indexada 6P"],
-    "Endesa": ["Endesa Negocio Fórmula Variable"],
-    "Iberdrola": ["Iberdrola Plan 3 Grabaciones PYME"]
-  },
-  "6.0TD": {
-    "EnerLuz": ["EnerLuz Industrial Pool Max 6.0"],
-    "Iberdrola": ["Iberdrola Alta Tensión a Medida"],
-    "Naturgy": ["Naturgy Gas & Luz Industrial Alianza"]
-  }
-};
+  const localOnly = current.filter((p) => !remoteIds.has(p.id));
+  return [...fromSupabase, ...localOnly];
+}
 
 interface Ticket extends IncidenciaTicket {}
 
@@ -533,6 +535,7 @@ export default function App() {
   const [clientesSearchQuery, setClientesSearchQuery] = useState('');
   const [contractsSearchQuery, setContractsSearchQuery] = useState('');
   const [contractsListFilter, setContractsListFilter] = useState<ContractsListFilter>('all');
+  const [contractsUserFilterId, setContractsUserFilterId] = useState<string>('all');
   const [highlightContractId, setHighlightContractId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -546,6 +549,8 @@ export default function App() {
   }, [highlightContractId]);
 
   const [liquidacionesSearchQuery, setLiquidacionesSearchQuery] = useState('');
+  const [liquidacionesConsolidadasView, setLiquidacionesConsolidadasView] =
+    useState<LiquidacionesConsolidadasView>('overview');
   const [cupsFilter, setCupsFilter] = useState('');
   const [clientFilter, setClientFilter] = useState('');
   const [atrFilter, setAtrFilter] = useState('');
@@ -568,14 +573,18 @@ export default function App() {
     { id: 'liq-8', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', montoInterno: -300, montoExterno: -150, estado: 'pendiente', tipo: 'gas', descripcion: 'Retrocomisión - GEA FOOD COOPERATIVA (Endesa)', createdAt: '2026-06-10', contractId: 'con-7' },
   ]);
 
-  const [incidencias, setIncidencias] = useState<Ticket[]>([
-    { id: 'inc-1', clientName: 'Residencia Geriátrica Verde', tipo: 'Retraso de Firma', prioridad: 'alta', estado: 'pendiente', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'Cliente renegociando penalización con comercializadora saliente', createdAt: '2026-05-20' },
-    { id: 'inc-2', clientName: 'Restaurante El Laurel', tipo: 'Error de CUPS', prioridad: 'media', estado: 'resuelta', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'El CUPS suministrado correspondía a la luz en lugar del gas. Subsanado.', createdAt: '2026-05-10', estadoAt: '2026-05-28T10:00:00.000Z' },
-    { id: 'inc-3', clientName: 'GEA CATERING, S.L.', tipo: 'Tarifa Incorrecta', prioridad: 'media', estado: 'pendiente', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Facturación con tarifa distinta a la contratada en alta.', createdAt: '2026-05-22' },
-    { id: 'inc-4', clientName: 'ANA MARIA PINEDA BARRAGA', tipo: 'Incidencia Cartera', prioridad: 'baja', estado: 'cancelada', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Cliente desistió del cambio de comercializadora.', createdAt: '2026-05-18', estadoAt: '2026-05-28T14:00:00.000Z' },
-    { id: 'inc-5', clientName: 'Hotel Continental', tipo: 'Reclamación Distribuidora', prioridad: 'baja', estado: 'resuelta', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'Corte de suministro revertido tras reclamación.', createdAt: '2026-04-01', estadoAt: '2026-05-15T08:00:00.000Z' },
-    { id: 'inc-6', clientName: 'Taller Mecánico Sur', tipo: 'Retraso de Firma', prioridad: 'media', estado: 'cancelada', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Alta anulada por falta de documentación.', createdAt: '2026-04-10', estadoAt: '2026-05-10T09:00:00.000Z' },
-  ]);
+  const [incidencias, setIncidencias] = useState<Ticket[]>(() =>
+    [
+      { id: 'inc-1', clientName: 'Residencia Geriátrica Verde', tipo: 'Retraso de Firma', prioridad: 'alta', estado: 'pendiente', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'Cliente renegociando penalización con comercializadora saliente', createdAt: '2026-05-20', origen: 'comercial', canal: 'Canal Norte' },
+      { id: 'inc-2', clientName: 'Restaurante El Laurel', tipo: 'Error de CUPS', prioridad: 'media', estado: 'resuelta', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'El CUPS suministrado correspondía a la luz en lugar del gas. Subsanado.', createdAt: '2026-05-10', estadoAt: '2026-05-28T10:00:00.000Z', origen: 'sistema', asignadoA: 'usr-1' },
+      { id: 'inc-3', clientName: 'GEA CATERING, S.L.', tipo: 'Tarifa Incorrecta', prioridad: 'critica', estado: 'pendiente', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Facturación con tarifa distinta a la contratada en alta.', createdAt: '2026-05-22', origen: 'cliente', canal: 'Web cliente' },
+      { id: 'inc-4', clientName: 'ANA MARIA PINEDA BARRAGA', tipo: 'Incidencia Cartera', prioridad: 'baja', estado: 'cancelada', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Cliente desistió del cambio de comercializadora.', createdAt: '2026-05-18', estadoAt: '2026-05-28T14:00:00.000Z', origen: 'manual', asignadoA: 'usr-3' },
+      { id: 'inc-5', clientName: 'Hotel Continental', tipo: 'Reclamación Distribuidora', prioridad: 'baja', estado: 'resuelta', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'Corte de suministro revertido tras reclamación.', createdAt: '2026-04-01', estadoAt: '2026-05-15T08:00:00.000Z', origen: 'comercial', asignadoA: 'usr-1' },
+      { id: 'inc-6', clientName: 'Taller Mecánico Sur', tipo: 'Retraso de Firma', prioridad: 'media', estado: 'cancelada', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Alta anulada por falta de documentación.', createdAt: '2026-04-10', estadoAt: '2026-05-10T09:00:00.000Z', origen: 'sistema' },
+      { id: 'inc-7', clientName: 'Panadería La Espiga', tipo: 'Incidencia Cartera', estado: 'sin_categorizar', comercialId: 'usr-4', comercialName: 'Marta Rivas', descripcion: 'Ticket recién creado sin clasificar.', createdAt: '2026-06-10', origen: 'manual', codigo: 'INC-0007' },
+      { id: 'inc-8', clientName: 'Clínica Dental Sol', tipo: 'Tarifa Incorrecta', prioridad: 'alta', estado: 'en_progreso', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', descripcion: 'Revisión de tarifa con comercializadora en curso.', createdAt: '2026-06-01', origen: 'comercial', asignadoA: 'usr-1', codigo: 'INC-0008' },
+    ].map((inc) => normalizeIncidenciaTicket(inc))
+  );
 
   const [newIncClientName, setNewIncClientName] = useState('');
   const [newIncTipo, setNewIncTipo] = useState<Ticket['tipo']>('Incidencia Cartera');
@@ -644,7 +653,7 @@ export default function App() {
     if (data.potenciaContratada) patch.potenciaContratada = String(data.potenciaContratada);
     if (data.precioFijoConsumo != null) patch.precioFijoConsumo = String(data.precioFijoConsumo);
     if (data.fechaInicio) patch.fechaInicio = data.fechaInicio;
-    if (data.compania) patch.wizardStep = 2;
+    if (data.compania) patch.wizardStep = 'cliente';
     patchNewContractForm(patch);
   }
 
@@ -741,7 +750,7 @@ export default function App() {
     } else if (role === 'comercial') {
       setCurrentMenuTab('Dashboard');
     } else if (role === 'tramitacion') {
-      setCurrentMenuTab('Liquidaciones');
+      setCurrentMenuTab('Liquidaciones externas');
     }
     setIsLoggedIn(true);
   }
@@ -1220,7 +1229,7 @@ export default function App() {
     } else if (activeRole === 'comercial') {
       setCurrentMenuTab('Mis Clientes');
     } else if (activeRole === 'tramitacion') {
-      setCurrentMenuTab('Liquidaciones');
+      setCurrentMenuTab('Liquidaciones externas');
     }
   }
 
@@ -1282,14 +1291,14 @@ export default function App() {
       let externalAdvisorMargin = internalMargin * (commissionPct / 100);
 
       if (marcoEntry) {
-        const estimate = estimateMarcoCommissionEur(
+        const breakdown = computeComisionBreakdown(
           marcoEntry,
           commissionPct,
           consumo,
           formatCurrency
         );
-        internalMargin = estimate.amountEur;
-        externalAdvisorMargin = estimate.amountEur;
+        internalMargin = breakdown.comisionEmpresa;
+        externalAdvisorMargin = breakdown.comisionComercial;
       }
 
       const activationDate = form.fechaInicio || new Date().toISOString().split('T')[0];
@@ -1384,7 +1393,10 @@ export default function App() {
         precioFijoConsumo: Number.isFinite(precioFijo) ? precioFijo : undefined,
         tipoPrecio:
           tipoPrecio === "fijo" || tipoPrecio === "mercado" ? tipoPrecio : undefined,
-        documentos: form.documentos.length > 0 ? form.documentos : undefined,
+        documentos: (() => {
+          const flat = flattenDocumentosPorTipo(form.documentosPorTipo);
+          return flat.length > 0 ? flat : undefined;
+        })(),
         tipoCliente: form.tipoCliente,
         formaPago: form.formaPago,
         direccionFiscal: form.direccionFiscal || undefined,
@@ -1805,13 +1817,14 @@ export default function App() {
     ) {
       handleCompareRates();
     }
-    if (currentMenuTab === 'Liquidaciones' || currentMenuTab === 'Liquidaciones internas') {
+    if (currentMenuTab === 'Liquidaciones externas' || currentMenuTab === 'Liquidaciones internas') {
       setLiqLoading(true);
       const timer = setTimeout(() => {
         setLiqLoading(false);
       }, 800);
       return () => clearTimeout(timer);
     }
+    setLiquidacionesConsolidadasView('overview');
   }, [currentMenuTab]);
 
   const copyToClipboard = (text: string) => {
@@ -1832,9 +1845,28 @@ export default function App() {
     [contracts, clients]
   );
 
-  const activeUser = profiles.find(p => p.id === activeUserId) || profiles[0];
+  const activeUser =
+    profiles.find((p) => p.id === activeUserId) ||
+    profiles[0] || {
+      id: 'usr-1',
+      fullName: 'Usuario',
+      role: 'superadmin' as UserRole,
+      managerId: null,
+      permissions: defaultPermissionsForRole('superadmin'),
+      email: '',
+      status: 'activo' as const,
+      commissionPercentage: 100,
+    };
   const activeRole = activeUser.role;
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
+
+  useEffect(() => {
+    if (activeRole !== 'superadmin' || superadminViewMode !== 'tramitacion') return;
+    const disallowedTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
+    if (disallowedTabs.includes(currentMenuTab)) {
+      setCurrentMenuTab('Dashboard');
+    }
+  }, [activeRole, superadminViewMode, currentMenuTab]);
 
   useEffect(() => {
     if (currentMenuTab !== 'Usuarios' || !isErpOpsAdmin) return;
@@ -1844,9 +1876,9 @@ export default function App() {
       setIsSyncingErpUsers(true);
       const result = await listErpComerciales();
       if (!cancelled && result.ok) {
-        setProfiles((prev) => mergeErpRowsIntoProfiles(result.data, prev));
+        setProfiles((prev) => mergeErpRowsIntoProfiles(result.data, prev))
       } else if (!cancelled && result.ok === false) {
-        toast.error(`No se pudo cargar usuarios: ${result.message}`);
+        console.warn('[Usuarios] Supabase sync:', result.message)
       }
       if (!cancelled) setIsSyncingErpUsers(false);
     }
@@ -1889,8 +1921,66 @@ export default function App() {
     toast.info('Contratos filtrados por estado');
   }
 
+  function handleDashboardNavigate(target: DashboardNavigateTarget) {
+    setActiveModule('erp');
+    switch (target) {
+      case 'contratos_activos':
+        setContractsListFilter('activado');
+        setCurrentMenuTab('Contratos');
+        break;
+      case 'contratos_nuevos':
+      case 'bajas':
+      case 'contratos':
+        setContractsListFilter('all');
+        setCurrentMenuTab('Contratos');
+        break;
+      case 'incidencias':
+        setCurrentMenuTab('Incidencias');
+        break;
+      case 'comparativas':
+        setCurrentMenuTab('Comparador');
+        break;
+      case 'comerciales':
+        setCurrentMenuTab('Usuarios');
+        break;
+      default:
+        break;
+    }
+  }
+
   function openContractWizardBlank() {
     resetNewContractForm();
+    setContractWizardProspectoId(null);
+    setContractWizardOpen(true);
+  }
+
+  function openContractWizardFromProducto(product: ProductoTarifa) {
+    const user = profiles.find((p) => p.id === activeUserId) || profiles[0];
+    const jefe = profiles.find((p) => p.id === user.managerId);
+    const peajeType = getTariffPeajeType(product.peaje);
+    const energiaP1 = product.precios.energia.p1;
+    const potenciaP1 = product.precios.potencia.p1;
+
+    resetNewContractForm();
+    patchNewContractForm({
+      compania: product.compania,
+      tarifa: product.tarifa,
+      tipo: product.tipo,
+      marcoEntryId: product.id,
+      wizardStep: 'cliente',
+      wizardSegment: product.wizardSegment,
+      tipoCliente: product.tipoCliente,
+      tipoPrecio: inferTipoPrecioFromTarifa(product.tarifa),
+      ...(energiaP1 != null ? { precioFijoConsumo: String(energiaP1) } : {}),
+      ...(potenciaP1 != null
+        ? {
+            potenciaContratada: String(potenciaP1),
+            ...spreadPotenciaFromP1(String(potenciaP1), peajeType),
+          }
+        : {}),
+      nombreComercial: user.fullName,
+      jefeEquipo: jefe?.fullName ?? '',
+    });
     setContractWizardProspectoId(null);
     setContractWizardOpen(true);
   }
@@ -1935,6 +2025,15 @@ export default function App() {
   const teamSettlements = settlements.filter(s => teamMemberIds.includes(s.comercialId) || s.comercialId === activeUser.id);
   
   const myContracts = contracts.filter(c => c.comercialId === activeUser.id);
+
+  const showContractsUserFilter =
+    activeRole === 'tramitacion' ||
+    (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
+
+  const opsAdminContracts = useMemo(() => {
+    if (!showContractsUserFilter || contractsUserFilterId === 'all') return contracts;
+    return contracts.filter(c => c.comercialId === contractsUserFilterId);
+  }, [contracts, contractsUserFilterId, showContractsUserFilter]);
   const mySettlements = settlements.filter(s => s.comercialId === activeUser.id);
 
   const roleFilteredIncidencias = (() => {
@@ -1956,17 +2055,19 @@ export default function App() {
     e.preventDefault();
     if (!newIncClientName.trim() || !newIncDescripcion.trim()) return;
 
-    const newTicket: Ticket = {
+    const newTicket: Ticket = normalizeIncidenciaTicket({
       id: `inc-${Date.now()}`,
       clientName: newIncClientName.trim(),
       tipo: newIncTipo,
       prioridad: newIncPrioridad,
-      estado: 'pendiente',
+      estado: 'abierto',
+      origen: 'comercial',
       comercialId: activeUserId,
       comercialName: activeUser.fullName,
       descripcion: newIncDescripcion.trim(),
       createdAt: new Date().toISOString().split('T')[0],
-    };
+      codigo: generateIncidenciaCodigo(incidencias),
+    });
 
     setIncidencias(prev => [newTicket, ...prev]);
     setNewIncClientName('');
@@ -1996,16 +2097,16 @@ export default function App() {
   const sidebarItemsConfig = [
     { name: 'Dashboard', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: LayoutDashboard },
     { name: 'Liquidaciones internas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: WalletCards },
-    { name: 'Liquidaciones', allowedRoles: ['superadmin', 'tramitacion'], icon: WalletCards },
+    { name: 'Liquidaciones externas', allowedRoles: ['superadmin', 'tramitacion'], icon: WalletCards },
     { name: 'Usuarios', allowedRoles: ['superadmin', 'tramitacion'], icon: Users },
-    { name: 'Cashflow', allowedRoles: ['superadmin', 'tramitacion'], icon: DollarSign },
+    { name: 'Cashflow', allowedRoles: ['superadmin'], icon: DollarSign },
     { name: 'Mi Equipo', allowedRoles: ['jefe_comercial'], icon: Users },
     { name: 'Mis Clientes', allowedRoles: ['comercial'], icon: UserSquare2 },
     { name: 'Contratos', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: FileSpreadsheet },
     { name: 'Comparador', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Calculator },
     { name: 'Historial de Comparativas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: FileClock },
-    { name: 'Tarifas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: TrendingUp },
-    { name: 'Marco Retributivo', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: Coins },
+    { name: 'Tarifas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Package },
+    { name: 'Marco Retributivo', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Coins },
     { name: 'Incidencias', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: AlertTriangle },
   ];
 
@@ -2018,9 +2119,10 @@ export default function App() {
   ];
 
   const canViewMarcoRetributivo =
-    activeRole !== 'superadmin' && activeRole !== 'tramitacion'
-      ? true
-      : activeRole === 'superadmin' && superadminViewMode === 'comercial';
+    activeRole === 'jefe_comercial' ||
+    activeRole === 'comercial' ||
+    activeRole === 'tramitacion' ||
+    (activeRole === 'superadmin' && superadminViewMode === 'comercial');
 
   const canViewConsolidatedLiquidaciones =
     activeRole === 'tramitacion' ||
@@ -2038,7 +2140,7 @@ export default function App() {
           if (item.name === 'Marco Retributivo' && !canViewMarcoRetributivo) {
             return false;
           }
-          if (item.name === 'Liquidaciones' && !canViewConsolidatedLiquidaciones) {
+          if (item.name === 'Liquidaciones externas' && !canViewConsolidatedLiquidaciones) {
             return false;
           }
           if (item.name === 'Liquidaciones internas' && !canViewInternalLiquidaciones) {
@@ -2058,18 +2160,27 @@ export default function App() {
               ];
               return comercialTabs.includes(item.name);
             }
-            return item.allowedRoles.includes('superadmin');
+            const superadminTramitacionTabs = [
+              'Dashboard',
+              'Liquidaciones externas',
+              'Usuarios',
+              'Cashflow',
+              'Contratos',
+              'Tarifas',
+              'Incidencias',
+            ];
+            return superadminTramitacionTabs.includes(item.name);
           }
           if (activeRole === 'tramitacion') {
             const tramitacionTabs = [
               'Dashboard',
-              'Liquidaciones',
+              'Liquidaciones externas',
               'Usuarios',
-              'Cashflow',
               'Contratos',
               'Comparador',
               'Historial de Comparativas',
               'Tarifas',
+              'Marco Retributivo',
               'Incidencias',
             ];
             return tramitacionTabs.includes(item.name);
@@ -2537,261 +2648,23 @@ export default function App() {
                     
                     {/* PROFILE: SUPERADMIN (EXECUTIVE CONTROL BOARD) */}
                     {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
-                      <div className="space-y-8 animate-fade-in">
-                        {/* STATS ROW */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden group shadow-sm dark:shadow-none">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-cyan-500" />
-                            <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
-                              Monto Interno Empresa
-                            </p>
-                            <h3 className="text-2xl font-black text-brand-text tracking-tight">
-                              {formatCurrency(totalInternal)}
-                            </h3>
-                            <p className="text-[11px] text-slate-500">
-                              Bruto Recibido de Comercializadoras
-                            </p>
-                          </div>
-
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
-                            <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
-                              Liquidaciones Red Ventas
-                            </p>
-                            <h3 className="text-2xl font-black text-brand-text tracking-tight">
-                              {formatCurrency(totalExternal)}
-                            </h3>
-                            <p className="text-[11px] text-slate-500">
-                              Comisiones Totales Asignadas
-                            </p>
-                          </div>
-
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-rose-500" />
-                            <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
-                              Comisión Pendiente
-                            </p>
-                            <h3 className="text-2xl font-black text-rose-600 dark:text-rose-450 tracking-tight">
-                              {formatCurrency(pendingExternal)}
-                            </h3>
-                            <p className="text-[11px] text-slate-500">
-                              Triggers de pago pendientes
-                            </p>
-                          </div>
-
-                          <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm dark:shadow-none">
-                            <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-                            <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
-                              Comisión Pagada
-                            </p>
-                            <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-                              {formatCurrency(paidExternal)}
-                            </h3>
-                            <p className="text-[11px] text-slate-500">
-                              Abonado a la red comercial
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* TWO COLUMN SUMMARY GRAPH AND INFO CARD */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          {/* Left: General business highlights */}
-                          <div className="lg:col-span-2 bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-5">
-                            <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
-                              Distribución de Contrataciones Activas (Volumen de Energía)
-                            </h3>
-                            
-                            {/* Simulated Bars representing Gas vs Light contracts */}
-                            <div className="space-y-4 pt-1">
-                              <div className="space-y-1.5">
-                                <div className="flex justify-between text-xs font-mono">
-                                  <span className="text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
-                                    <Lightbulb className="w-3.5 h-3.5" /> Luz Indexada Pool & PVPC
-                                  </span>
-                                  <span className="font-bold text-brand-text">
-                                    {contracts.filter(c => c.tipo === 'luz').length} CONTRATOS
-                                  </span>
-                                </div>
-                                <div className="h-3 bg-brand-bg rounded-full overflow-hidden border border-brand-border font-sans">
-                                  <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full" style={{ width: '60%' }} />
-                                </div>
-                              </div>
-
-                              <div className="space-y-1.5">
-                                <div className="flex justify-between text-xs font-mono">
-                                  <span className="text-amber-600 dark:text-amber-500 flex items-center gap-1">
-                                    <Flame className="w-3.5 h-3.5" /> Gas Fija Confort & Regulada
-                                  </span>
-                                  <span className="font-bold text-brand-text">
-                                    {contracts.filter(c => c.tipo === 'gas').length} CONTRATOS
-                                  </span>
-                                </div>
-                                <div className="h-3 bg-brand-bg rounded-full overflow-hidden border border-brand-border font-sans">
-                                  <div className="h-full bg-gradient-to-r from-amber-500 to-rose-500 rounded-full" style={{ width: '40%' }} />
-                                </div>
-                              </div>
-                            </div>
-
-
-                          </div>
-
-                          {/* Right: Quick actions */}
-                          <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4">
-                            <h3 className="text-xs font-extrabold text-brand-text tracking-wide uppercase font-mono">
-                              Simulaciones de Sistema
-                            </h3>
-                            <p className="text-brand-subtext text-xs">
-                              Como superadmin puedes simular la adición de nuevos contratos o simular el registro de un nuevo comercial desde el panel inferior para comprobar cómo fluyen las comisiones en tiempo real.
-                            </p>
-                            
-                            <div className="space-y-2 pt-2">
-                              <button 
-                                onClick={() => setCurrentMenuTab('Usuarios')}
-                                className="w-full text-left p-3 rounded-xl bg-brand-bg hover:bg-slate-100 dark:hover:bg-slate-800 border border-brand-border transition-all flex items-center justify-between group cursor-pointer"
-                              >
-                                <span className="text-xs font-bold text-brand-text">Registrar Agente Comercial</span>
-                                <ChevronRight className="w-4 h-4 text-blue-500 dark:text-cyan-400 group-hover:translate-x-1 transition-transform" />
-                              </button>
-                              
-                              <button 
-                                onClick={() => setCurrentMenuTab('Contratos')}
-                                className="w-full text-left p-3 rounded-xl bg-brand-bg hover:bg-slate-100 dark:hover:bg-slate-800 border border-brand-border transition-all flex items-center justify-between group cursor-pointer"
-                              >
-                                <span className="text-xs font-bold text-brand-text">Ver Todos los Contratos</span>
-                                <ChevronRight className="w-4 h-4 text-blue-500 dark:text-cyan-400 group-hover:translate-x-1 transition-transform" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* TABLE: LAST COMMISSIONS GENERATED */}
-                        <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4">
-                          <div className="flex justify-between items-center">
-                            <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
-                              Contratos de Energía y Liquidaciones del Equipo General
-                            </h3>
-                            <span className="text-xs font-mono text-brand-subtext">Total: {contracts.length} contratos</span>
-                          </div>
-                          
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-xs">
-                              <thead>
-                                <tr className="border-b border-brand-border text-brand-subtext font-mono">
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">Cliente / Cups</th>
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">Luz/Gas</th>
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">Consumo</th>
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider">Comercial</th>
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-right">Monto Interno</th>
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-right">Monto Comisión</th>
-                                  <th className="pb-3 text-[10px] uppercase font-bold tracking-wider text-right">Estado Contrato</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {contracts.map((c, i) => {
-                                  const isExpanded = expandedContractId === c.id;
-                                  return (
-                                    <React.Fragment key={c.id || i}>
-                                      <tr 
-                                        onClick={() => setExpandedContractId(isExpanded ? null : c.id)}
-                                        className="border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.01] cursor-pointer transition-colors"
-                                      >
-                                        <td className="py-3.5 pr-2">
-                                          <p className="font-bold text-brand-text flex items-center gap-1.5">
-                                            {c.clientName}
-                                          </p>
-                                          <p className="text-[10px] font-mono text-brand-subtext mt-0.5 font-semibold">{c.cups}</p>
-                                        </td>
-                                        <td className="py-3.5">
-                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                                            c.tipo === 'luz' ? 'bg-cyan-500/10 text-cyan-400' : 'bg-amber-500/10 text-amber-500'
-                                          }`}>
-                                            {c.tipo === 'luz' ? <Lightbulb className="w-3 h-3" /> : <Flame className="w-3 h-3" />}
-                                            {c.tipo.toUpperCase()}
-                                          </span>
-                                          <span className="block text-[10px] text-slate-400 mt-0.5">{c.compania}</span>
-                                        </td>
-                                        <td className="py-3.5 font-mono text-brand-text font-bold">
-                                          {c.consumoAnual.toLocaleString('es-ES')} kWh/año
-                                        </td>
-                                        <td className="py-3.5 font-sans font-medium text-brand-text">
-                                          {c.comercialName}
-                                        </td>
-                                        <td className="py-3.5 font-mono text-cyan-600 dark:text-cyan-400 font-bold text-right py-3.5">
-                                          {formatCurrency(c.montoInterno)}
-                                        </td>
-                                        <td className="py-3.5 font-mono text-amber-500 font-bold text-right font-black">
-                                          {formatCurrency(c.montoExterno)}
-                                        </td>
-                                        <td className="py-3.5 text-right">
-                                          <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${getContractEstadoBadgeClass(c.estado)}`}>
-                                            {c.estado}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                      {isExpanded && (
-                                        <tr className="bg-slate-50/60 dark:bg-brand-surface/50 border-b border-brand-border select-none">
-                                          <td colSpan={7} className="p-4">
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs text-left">
-                                              <div className="space-y-1">
-                                                <span className="text-[10px] uppercase font-bold font-mono text-slate-450">Datos Fiscales</span>
-                                                <p className="font-semibold text-brand-text">NIF/CIF: <span className="font-mono text-brand-subtext">{c.nif || 'B-99881122'}</span></p>
-                                                <p className="text-brand-subtext">Tel: {c.telefono || '654 321 098'}</p>
-                                                <p className="text-brand-subtext">Email: {c.email || 'titular@gestiongrup.es'}</p>
-                                              </div>
-
-                                              <div className="space-y-1">
-                                                <span className="text-[10px] uppercase font-bold font-mono text-slate-450">Ubicaciones Suministro</span>
-                                                <p className="text-brand-subtext font-semibold">Dirección Suministro:</p>
-                                                <p className="text-brand-subtext text-[11px] leading-normal">{c.direccionSuministro || c.direccionCompleta || 'Poligono Industrial Alcala, Sevilla'}</p>
-                                                <p className="text-brand-subtext text-[10px] mt-1 font-sans">Dirección Factura: {c.direccionCompleta || 'Av. Diagonal 455, Barcelona'}</p>
-                                              </div>
-
-                                              <div className="space-y-1">
-                                                <span className="text-[10px] uppercase font-bold font-mono text-slate-450">Condiciones Técnicas</span>
-                                                <p className="text-brand-subtext font-semibold">Tarifa: <span className="font-mono text-cyan-600 dark:text-cyan-400">{c.tarifa}</span></p>
-                                                <p className="text-brand-subtext">Potencia: {c.potenciaContratada || '15 kW'}</p>
-                                                <p className="text-brand-subtext mt-1 text-[10px] font-mono">IBAN: {c.iban || 'ES21 4400 **** **** ****'}</p>
-                                              </div>
-
-                                              <div className="space-y-2">
-                                                <span className="text-[10px] uppercase font-bold font-mono text-slate-450 font-extrabold block">Expediente & Documentos</span>
-                                                {c.documentos && c.documentos.length > 0 ? (
-                                                  <div className="space-y-1">
-                                                    {c.documentos.map((doc, idx) => (
-                                                      <div key={idx} className="flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold truncate bg-emerald-500/5 p-1 rounded border border-emerald-500/10">
-                                                        <FileText className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                                                        <span className="truncate">{doc.name}</span>
-                                                        <span className="text-[9px] font-mono text-slate-400 shrink-0">({doc.size})</span>
-                                                      </div>
-                                                    ))}
-                                                  </div>
-                                                ) : (
-                                                  <div className="space-y-1 text-slate-400">
-                                                    <div className="flex items-center gap-1.5 text-[11px] truncate bg-blue-500/5 p-1 rounded border border-blue-500/10">
-                                                      <FileText className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                                                      <span className="truncate">C2_Titular_CIF.pdf</span>
-                                                      <span className="text-[9px] font-mono shrink-0">(1.24 MB)</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 text-[11px] truncate bg-blue-500/5 p-1 rounded border border-blue-500/10">
-                                                      <FileText className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-                                                      <span className="truncate font-sans">Factura_Ultima_Luz.pdf</span>
-                                                      <span className="text-[9px] font-mono shrink-0">(2.12 MB)</span>
-                                                    </div>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </div>
+                      <SuperadminDashboard
+                        welcomeName={activeUser.fullName}
+                        activeRole={activeRole}
+                        contracts={contracts}
+                        incidencias={incidencias}
+                        comerciales={profiles.map((p) => ({
+                          id: p.id,
+                          fullName: p.fullName,
+                          role: p.role,
+                          status: p.status,
+                        }))}
+                        comparativas={comparisonsHistory.map((c) => ({
+                          id: c.id,
+                          date: c.date,
+                        }))}
+                        onNavigate={handleDashboardNavigate}
+                      />
                     )}
 
                     {/* PROFILE: JEFE_COMERCIAL (DELEGATED NODE LEADER PANEL) */}
@@ -2985,9 +2858,9 @@ export default function App() {
                             </div>
                             <div className="pt-1 border-t border-dashed border-brand-border w-full text-center">
                               <strong className={`text-2xl font-black tabular-nums font-mono leading-none ${
-                                visibleIncidencias.filter(i => i.estado === 'pendiente').length > 0 ? 'text-rose-500' : 'text-emerald-500'
+                                visibleIncidencias.filter(i => isIncidenciaAbierta(i.estado)).length > 0 ? 'text-rose-500' : 'text-emerald-500'
                               }`}>
-                                {visibleIncidencias.filter(i => i.estado === 'pendiente').length}
+                                {visibleIncidencias.filter(i => isIncidenciaAbierta(i.estado)).length}
                               </strong>
                             </div>
                           </div>
@@ -3159,7 +3032,7 @@ export default function App() {
                                       <tr
                                         key={p.id}
                                         onClick={() => setActiveUserForSheet(p)}
-                                        className="hover:bg-white/[0.02] cursor-pointer transition-colors group"
+                                        className="hover:bg-brand-bg/80 dark:hover:bg-white/[0.02] cursor-pointer transition-colors group"
                                       >
                                         <td className="py-4 px-5">
                                           <div className="flex items-center">
@@ -3179,14 +3052,14 @@ export default function App() {
                                             <div className="flex items-center space-x-3">
                                               <div className={`w-8 h-8 rounded-full border text-xs font-extrabold flex items-center justify-center uppercase shrink-0 ${
                                                 indentLevel === 0 ? 'bg-blue-600 border-blue-500 text-white shadow shadow-blue-500/20' :
-                                                indentLevel === 1 ? 'bg-amber-500/20 border-amber-500/40 text-amber-500' :
-                                                'bg-slate-800 border-white/10 text-slate-300'
+                                                indentLevel === 1 ? 'bg-amber-500/20 border-amber-500/40 text-amber-600 dark:text-amber-500' :
+                                                'bg-brand-surface border-brand-border text-brand-subtext'
                                               }`}>
                                                 {p.fullName.split(' ').map((n) => n[0]).join('').substring(0, 2)}
                                               </div>
                                               <div>
-                                                <p className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">{p.fullName}</p>
-                                                <p className="text-[10px] font-mono text-slate-500">{p.id}</p>
+                                                <p className="font-bold text-brand-text group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">{p.fullName}</p>
+                                                <p className="text-[10px] font-mono text-brand-subtext">{p.id}</p>
                                               </div>
                                             </div>
                                           </div>
@@ -3200,12 +3073,12 @@ export default function App() {
                                             {p.role}
                                           </span>
                                         </td>
-                                        <td className="py-4 px-5 text-slate-400 font-mono">{p.email}</td>
-                                        <td className="py-4 px-5 text-slate-300">
+                                        <td className="py-4 px-5 text-brand-subtext font-mono">{p.email}</td>
+                                        <td className="py-4 px-5 text-brand-text">
                                           {p.role === 'superadmin' ? (
-                                            <span className="text-slate-500 italic text-[10px]">N/A</span>
+                                            <span className="text-brand-subtext italic text-[10px]">N/A</span>
                                           ) : mgr ? (
-                                            <span className="font-medium text-slate-300">{mgr.fullName}</span>
+                                            <span className="font-medium text-brand-text">{mgr.fullName}</span>
                                           ) : (
                                             <span className="text-rose-400/80 bg-rose-500/5 border border-rose-500/10 px-2 py-0.5 rounded text-[10px] font-mono">⚠️ No asignado</span>
                                           )}
@@ -3220,9 +3093,16 @@ export default function App() {
                                           </span>
                                         </td>
                                         <td className="py-4 px-5 text-right">
-                                          <button className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-950 border border-white/5 rounded-lg text-[10px] text-slate-400 hover:text-white group-hover:border-cyan-400/30">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveUserForSheet(p);
+                                            }}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-surface hover:bg-brand-panel border border-brand-border rounded-lg text-[10px] font-mono font-bold text-brand-subtext hover:text-brand-text group-hover:border-blue-500/30 dark:group-hover:border-cyan-400/30 transition-colors duration-200 cursor-pointer"
+                                          >
                                             <span>Ver Permisos</span>
-                                            <ChevronRight className="w-3.5 h-3.5 text-slate-500 transition-transform group-hover:translate-x-0.5" />
+                                            <ChevronRight className="w-3.5 h-3.5 text-brand-subtext transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600 dark:group-hover:text-cyan-400" />
                                           </button>
                                         </td>
                                       </tr>
@@ -3262,8 +3142,13 @@ export default function App() {
                         ? myContracts
                         : activeRole === 'jefe_comercial'
                           ? teamContracts
-                          : contracts
+                          : showContractsUserFilter
+                            ? opsAdminContracts
+                            : contracts
                     }
+                    showUserFilter={showContractsUserFilter}
+                    userFilterId={contractsUserFilterId}
+                    onUserFilterChange={setContractsUserFilterId}
                     setContracts={setContracts}
                     contractsSearchQuery={contractsSearchQuery}
                     setContractsSearchQuery={setContractsSearchQuery}
@@ -3295,69 +3180,6 @@ export default function App() {
                   />
                 )}
 
-                {/* VIEW: TARIFAS */}
-                {currentMenuTab === 'Tarifas' && activeModule === 'erp' && (
-                  <div className="space-y-8 animate-fade-in">
-                    <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-6 shadow-sm dark:shadow-none">
-                      <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
-                        Tarifas de Comercialización Homologadas (Mayo 2026)
-                      </h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="p-5 rounded-2xl bg-brand-bg border border-blue-500/20 dark:border-blue-500/10 flex flex-col justify-between">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-blue-500/10 text-blue-600 dark:text-cyan-400 font-bold">Luz Indexada</span>
-                              <span className="text-xs font-mono text-brand-subtext">Omie Pool</span>
-                            </div>
-                            <h4 className="text-lg font-bold text-brand-text">Tarifa Variable Negocios</h4>
-                            <p className="text-xs text-brand-subtext leading-normal">
-                              Traslada el coste horario real del mercado de generación eléctrica directamente a las pymes, con un margen de gestión mínimo homologado.
-                            </p>
-                          </div>
-                          <div className="pt-4 border-t border-brand-border mt-4 text-xs font-mono text-brand-subtext flex justify-between">
-                            <span>Coste Gestión</span>
-                            <span className="text-blue-600 dark:text-cyan-400 font-bold">0.012 €/kWh</span>
-                          </div>
-                        </div>
-
-                        <div className="p-5 rounded-2xl bg-brand-bg border border-emerald-500/20 dark:border-emerald-500/10 flex flex-col justify-between">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold">Luz Fija</span>
-                              <span className="text-xs font-mono text-brand-subtext">Estable</span>
-                            </div>
-                            <h4 className="text-lg font-bold text-brand-text">Tarifa Fuerte Estar</h4>
-                            <p className="text-xs text-brand-subtext leading-normal">
-                              Precio de término de energía cerrado durante 12 meses. Sin sorpresas, protege contra subidas súbitas del pool.
-                            </p>
-                          </div>
-                          <div className="pt-4 border-t border-brand-border mt-4 text-xs font-mono text-brand-subtext flex justify-between">
-                            <span>Margen Gestión</span>
-                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">0.024 €/kWh</span>
-                          </div>
-                        </div>
-
-                        <div className="p-5 rounded-2xl bg-brand-bg border border-amber-500/25 dark:border-amber-500/10 flex flex-col justify-between">
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-start">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/15 text-amber-600 dark:text-amber-500 font-bold">Gas Pyme</span>
-                              <span className="text-xs font-mono text-brand-subtext">RL.3 Fijo</span>
-                            </div>
-                            <h4 className="text-lg font-bold text-brand-text">Gas MultiConfort</h4>
-                            <p className="text-xs text-brand-subtext leading-normal">
-                              Especialmente adaptada para locales comerciales, oficinas y hostelería. Término de consumo adaptado al escalón RL.1 a RL.3.
-                            </p>
-                          </div>
-                          <div className="pt-4 border-t border-brand-border mt-4 text-xs font-mono text-brand-subtext flex justify-between">
-                            <span>Margen Gestión</span>
-                            <span className="text-amber-600 dark:text-amber-500 font-bold">0.009 €/kWh</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* VIEW: LIQUIDACIONES INTERNAS (comercial / jefe / superadmin comercial) */}
                 {currentMenuTab === 'Liquidaciones internas' && activeModule === 'erp' && canViewInternalLiquidaciones && (
@@ -3379,55 +3201,19 @@ export default function App() {
                 )}
 
                 {/* VIEW: LIQUIDACIONES CONSOLIDADAS (tramitación / superadmin operativo) */}
-                {currentMenuTab === 'Liquidaciones' && activeModule === 'erp' && canViewConsolidatedLiquidaciones && (
+                {currentMenuTab === 'Liquidaciones externas' && activeModule === 'erp' && canViewConsolidatedLiquidaciones && (
                   <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
                     
                     {/* 1. SECCIÓN SUPERADMINISTRADOR: Métricas Consolidadas del Negocio (Internas vs Externas) */}
                     {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
-                      <div className="p-6 bg-slate-100 dark:bg-brand-surface border border-slate-200 dark:border-white/5 rounded-3xl space-y-4 shadow-sm animate-fade-in">
-                        <div className="flex items-center space-x-2.5">
-                          <span className="p-1.5 rounded-lg bg-blue-600/10 text-blue-600">
-                            <TrendingUp className="w-4 h-4" />
-                          </span>
-                          <span className="text-xs font-mono font-bold text-blue-600 dark:text-cyan-400 uppercase tracking-widest leading-none">
-                            Liquidaciones Consolidadas Corporativas: Distribución Interna y Externa
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
-                            <span className="text-[9px] text-slate-400 uppercase font-mono block font-semibold">100% Facturación Proveedores</span>
-                            <strong className="text-xl font-bold text-blue-600 dark:text-cyan-400 font-mono tracking-tight block mt-0.5">34.800 €</strong>
-                            <p className="text-[9px] text-slate-400 leading-normal mt-1 font-mono">
-                              Comisiones íntegras facturadas a las compañías (Endesa, Naturgy, Niba, etc.) por altas del canal.
-                            </p>
-                          </div>
-                          
-                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
-                            <span className="text-[9px] text-amber-500 uppercase font-mono block font-semibold">Liquidación Comerciales</span>
-                            <strong className="text-xl font-bold text-amber-500 font-mono tracking-tight block mt-0.5">18.540 euro</strong>
-                            <p className="text-[9px] text-slate-400 leading-normal mt-1 font-mono">
-                              Honorarios liquidados a los agentes comerciales de la red según sus comisiones de venta (60%-70%).
-                            </p>
-                          </div>
-
-                          <div className="p-4 bg-brand-panel border border-brand-border rounded-xl">
-                            <span className="text-[9px] text-emerald-500 uppercase font-mono block font-semibold">Liquidación Jefes de Nodo</span>
-                            <strong className="text-xl font-bold text-emerald-500 font-mono tracking-tight block mt-0.5">5.820 €</strong>
-                            <p className="text-[9px] text-slate-400 leading-normal mt-1 font-mono">
-                              Comisiones por venta propia de directores de red y márgenes de override sobre sus comerciales asignados.
-                            </p>
-                          </div>
-
-                          <div className="p-4 bg-indigo-500/5 border border-indigo-500/25 rounded-xl font-mono">
-                            <span className="text-[9px] text-indigo-500 dark:text-indigo-400 uppercase block font-semibold">Caja Neta de la Empresa</span>
-                            <strong className="text-xl font-semibold text-indigo-600 dark:text-indigo-300 block mt-0.5">10.440 €</strong>
-                            <p className="text-[9px] text-slate-400 leading-normal mt-1">
-                              Remanente líquido de retención corporativa (30.0%) para servicios y administración.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      <LiquidacionesConsolidadasSuperadminSection
+                        activeRole={activeRole}
+                        contracts={contracts}
+                        settlements={settlements}
+                        profiles={profiles}
+                        formatCurrency={formatCurrency}
+                        onViewChange={setLiquidacionesConsolidadasView}
+                      />
                     )}
 
                     {/* 2. SECCIÓN JEFE COMERCIAL: Su equipo + Retrocomisiones directas por override de rango */}
@@ -3538,7 +3324,8 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Header Principal de Liquidaciones Internas */}
+                    <>
+                    {/* Header Principal de Liquidaciones Externas */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pt-2">
                       <div className="flex items-center space-x-2">
                         <WalletCards className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
@@ -3613,7 +3400,6 @@ export default function App() {
                                 return true;
                               }).length})
                             </span>
-                            <span className="text-[10px] text-brand-subtext">Selecciona los contratos de luz o gas autorizados por distribuidora.</span>
                           </div>
                           
                           {/* Checked Total Indicator */}
@@ -3810,7 +3596,6 @@ export default function App() {
                             <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight block">
                               Pendiente de Liquidar
                             </span>
-                            <span className="text-[9px] text-brand-subtext font-mono">Volúmenes teóricos pendientes de facturar por marca</span>
                           </div>
 
                           <div className="space-y-2">
@@ -3873,7 +3658,6 @@ export default function App() {
                             <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight block">
                               Liquidaciones Consolidadas
                             </span>
-                            <span className="text-[9px] text-brand-subtext font-mono">Remesas liquidadas con código único de cierre contable</span>
                           </div>
 
                           <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
@@ -3910,94 +3694,95 @@ export default function App() {
                       </div>
 
                     </div>
+                    </>
 
                   </div>
                 )}
 
                 {/* VIEW: INCIDENCIAS */}
                 {currentMenuTab === 'Incidencias' && activeModule === 'erp' && (
-                  <div className="space-y-4 animate-fade-in">
-                    <div className="flex items-center justify-end text-xs">
-                      <span className="font-mono text-brand-subtext">
-                        Pendientes: {visibleIncidencias.filter(i => i.estado === 'pendiente').length}
-                      </span>
-                    </div>
-
-                    {canCreateIncidencia && (
-                      <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm dark:shadow-none">
-                        <form onSubmit={handleCreateIncidencia} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                          <div className="space-y-1 sm:col-span-2">
-                            <label className="block text-[10px] font-mono text-brand-subtext uppercase">Cliente</label>
-                            <input
-                              type="text"
-                              required
-                              value={newIncClientName}
-                              onChange={(e) => setNewIncClientName(e.target.value)}
-                              placeholder="Nombre del cliente"
-                              className="w-full h-8 px-3 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-[10px] font-mono text-brand-subtext uppercase">Tipo</label>
-                            <select
-                              value={newIncTipo}
-                              onChange={(e) => setNewIncTipo(e.target.value as Ticket['tipo'])}
-                              className="w-full h-8 px-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
-                            >
-                              <option value="Incidencia Cartera">Incidencia Cartera</option>
-                              <option value="Tarifa Incorrecta">Tarifa Incorrecta</option>
-                              <option value="Retraso de Firma">Retraso de Firma</option>
-                              <option value="Error de CUPS">Error de CUPS</option>
-                              <option value="Reclamación Distribuidora">Reclamación Distribuidora</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-[10px] font-mono text-brand-subtext uppercase">Prioridad</label>
-                            <select
-                              value={newIncPrioridad}
-                              onChange={(e) => setNewIncPrioridad(e.target.value as Ticket['prioridad'])}
-                              className="w-full h-8 px-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
-                            >
-                              <option value="alta">Alta</option>
-                              <option value="media">Media</option>
-                              <option value="baja">Baja</option>
-                            </select>
-                          </div>
-                          <div className="space-y-1 sm:col-span-2 lg:col-span-4">
-                            <label className="block text-[10px] font-mono text-brand-subtext uppercase">Descripción</label>
-                            <textarea
-                              required
-                              value={newIncDescripcion}
-                              onChange={(e) => setNewIncDescripcion(e.target.value)}
-                              placeholder="Detalle de la incidencia"
-                              rows={2}
-                              className="w-full px-3 py-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text resize-none"
-                            />
-                          </div>
-                          <div className="sm:col-span-2 lg:col-span-4">
-                            <button
-                              type="submit"
-                              className="h-8 px-3 text-[11px] font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors flex items-center gap-1.5"
-                            >
-                              <PlusCircle className="w-3.5 h-3.5" />
-                              Nueva incidencia
-                            </button>
-                          </div>
-                        </form>
-                      </div>
-                    )}
-
-                    <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm dark:shadow-none">
-                      <IncidenciasKanban
-                        incidencias={visibleIncidencias}
-                        showComercialName={activeRole !== 'comercial'}
-                        canEdit={canEditIncidencia}
-                        canDrag={canDragIncidencias}
-                        onSave={handleUpdateIncidencia}
-                        onMove={handleMoveIncidencia}
-                      />
-                    </div>
-                  </div>
+                  <IncidenciasPanel
+                    incidencias={roleFilteredIncidencias}
+                    activeUserId={activeUserId}
+                    activeRole={activeRole}
+                    teamMemberIds={teamMemberIds}
+                    showComercialName={activeRole !== 'comercial'}
+                    canEdit={canEditIncidencia}
+                    canDrag={canDragIncidencias}
+                    onSave={handleUpdateIncidencia}
+                    onMove={handleMoveIncidencia}
+                    createForm={
+                      canCreateIncidencia ? (
+                        <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm dark:shadow-none">
+                          <form onSubmit={handleCreateIncidencia} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="space-y-1 sm:col-span-2">
+                              <label className="block text-[10px] font-mono text-brand-subtext uppercase">Cliente</label>
+                              <input
+                                type="text"
+                                required
+                                value={newIncClientName}
+                                onChange={(e) => setNewIncClientName(e.target.value)}
+                                placeholder="Nombre del cliente"
+                                className="w-full h-8 px-3 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-mono text-brand-subtext uppercase">Tipo</label>
+                              <select
+                                value={newIncTipo}
+                                onChange={(e) => setNewIncTipo(e.target.value as Ticket['tipo'])}
+                                className="w-full h-8 px-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
+                              >
+                                <option value="Incidencia Cartera">Incidencia Cartera</option>
+                                <option value="Tarifa Incorrecta">Tarifa Incorrecta</option>
+                                <option value="Retraso de Firma">Retraso de Firma</option>
+                                <option value="Error de CUPS">Error de CUPS</option>
+                                <option value="Reclamación Distribuidora">Reclamación Distribuidora</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-mono text-brand-subtext uppercase">Prioridad</label>
+                              <select
+                                value={newIncPrioridad ?? ''}
+                                onChange={(e) =>
+                                  setNewIncPrioridad(
+                                    (e.target.value || undefined) as Ticket['prioridad']
+                                  )
+                                }
+                                className="w-full h-8 px-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text"
+                              >
+                                <option value="">Sin categorizar</option>
+                                <option value="critica">Crítica</option>
+                                <option value="alta">Alta</option>
+                                <option value="media">Media</option>
+                                <option value="baja">Baja</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1 sm:col-span-2 lg:col-span-4">
+                              <label className="block text-[10px] font-mono text-brand-subtext uppercase">Descripción</label>
+                              <textarea
+                                required
+                                value={newIncDescripcion}
+                                onChange={(e) => setNewIncDescripcion(e.target.value)}
+                                placeholder="Detalle de la incidencia"
+                                rows={2}
+                                className="w-full px-3 py-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text resize-none"
+                              />
+                            </div>
+                            <div className="sm:col-span-2 lg:col-span-4">
+                              <button
+                                type="submit"
+                                className="h-8 px-3 text-[11px] font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors flex items-center gap-1.5"
+                              >
+                                <PlusCircle className="w-3.5 h-3.5" />
+                                Nueva incidencia
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      ) : undefined
+                    }
+                  />
                 )}
 
                 {/* VIEW: MI EQUIPO */}
@@ -4161,6 +3946,8 @@ export default function App() {
                     contracts={contracts}
                     activeUserId={activeUserId}
                     activeUserName={activeUser.fullName}
+                    activeRole={activeRole}
+                    profiles={profiles}
                     clientesSearchQuery={clientesSearchQuery}
                     setClientesSearchQuery={setClientesSearchQuery}
                     onNavigateToContract={navigateToContract}
@@ -4676,9 +4463,24 @@ export default function App() {
                   </div>
                 )}
 
+                {/* VIEW: TARIFAS */}
+                {currentMenuTab === 'Tarifas' && activeModule === 'erp' && (
+                  <ProductosPanel
+                    title="Tarifas"
+                    subtitle="Catálogo de tarifas activas por comercializadora — crea contratos desde aquí."
+                    activeRole={activeRole}
+                    activeUserId={activeUserId}
+                    onNavigateContratos={() => setCurrentMenuTab('Contratos')}
+                    onCreateContract={openContractWizardFromProducto}
+                    renderCompaniaLogo={renderCompaniaLogo}
+                  />
+                )}
+
                 {/* VIEW: MARCO RETRIBUTIVO (comercial, jefe_comercial, superadmin modo comercial) */}
                 {currentMenuTab === 'Marco Retributivo' && activeModule === 'erp' && canViewMarcoRetributivo && (
                   <MarcoRetributivoPanel
+                    activeRole={activeRole as 'superadmin' | 'tramitacion' | 'jefe_comercial' | 'comercial'}
+                    activeUserId={activeUserId}
                     commissionPercentage={activeUser.commissionPercentage}
                     formatCurrency={formatCurrency}
                     renderCompaniaLogo={renderCompaniaLogo}
@@ -5551,6 +5353,7 @@ export default function App() {
           )}
 
       {/* FOOTER INFORMACIÓN GESTIÓN INTEGRADA */}
+      <Suspense fallback={null}>
       <NuevoContratoWizard
         open={contractWizardOpen}
         onClose={() => {
@@ -5584,7 +5387,10 @@ export default function App() {
         activeUserId={activeUserId}
         activeUserName={activeUser.fullName}
         activeUserRole={activeRole}
+        clients={clients}
+        contracts={contracts}
       />
+      </Suspense>
     </div>
   );
 }
