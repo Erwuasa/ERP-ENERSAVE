@@ -6,7 +6,6 @@ import { mergeProspectoMetadata } from "../../lib/ventas/prospecto-display"
 import {
   buildStageProgressPatch,
   getPhaseChecklistItems,
-  isProspectoReadyToAdvanceWithDrafts,
   readSavedItemState,
   readStageProgressCompletion,
   type StageGateChecklistItemState,
@@ -77,11 +76,6 @@ export function CentroMandoModal({
       },
     }))
   }, [prospecto, checklistItems])
-
-  const readyToAdvance = useMemo(() => {
-    if (!prospecto) return false
-    return isProspectoReadyToAdvanceWithDrafts(prospecto, commentDrafts)
-  }, [prospecto, commentDrafts])
 
   useEffect(() => {
     if (open && prospecto && checklistItems.length > 0) {
@@ -214,7 +208,6 @@ export function CentroMandoModal({
               prospecto={prospecto}
               actor={actor}
               cupsDisplay={linkedCups}
-              readyToAdvance={readyToAdvance}
               faseChanging={faseChanging}
               onFaseChange={handleFaseChange}
               onSaveEtiquetas={onUpdateProspecto

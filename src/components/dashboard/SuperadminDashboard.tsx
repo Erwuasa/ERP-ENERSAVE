@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Briefcase,
   FileText,
+  Lightbulb,
   ScanSearch,
   TrendingDown,
   TrendingUp,
@@ -48,6 +49,7 @@ export type DashboardNavigateTarget =
   | "comparativas"
   | "comerciales"
   | "contratos"
+  | "oportunidades_mejora"
 
 interface SuperadminDashboardProps {
   welcomeName: string
@@ -56,6 +58,7 @@ interface SuperadminDashboardProps {
   incidencias: IncidenciaTicket[]
   comerciales: DashboardComercial[]
   comparativas: ComparativaEntry[]
+  oportunidadesMejora?: number
   onNavigate?: (target: DashboardNavigateTarget) => void
 }
 
@@ -142,6 +145,7 @@ export function SuperadminDashboard({
   incidencias,
   comerciales,
   comparativas,
+  oportunidadesMejora,
   onNavigate,
 }: SuperadminDashboardProps) {
   const defaultDateRangeValue = useMemo(() => defaultDateRange(), [])
@@ -242,7 +246,7 @@ export function SuperadminDashboard({
         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
         <KpiCard
           title="Contratos activos"
           value={activos}
@@ -287,6 +291,17 @@ export function SuperadminDashboard({
           variation={comparativasCount.percentChange}
           onOpen={() => onNavigate?.("comparativas")}
         />
+        {oportunidadesMejora != null && (
+          <KpiCard
+            title="Oportunidades de mejora"
+            value={oportunidadesMejora}
+            suffix="contratos"
+            subtitle="retro elegible · tarifa alternativa"
+            icon={Lightbulb}
+            iconClass="text-amber-500"
+            onOpen={() => onNavigate?.("oportunidades_mejora")}
+          />
+        )}
         <KpiCard
           title="Comerciales"
           value={comercialesTotal}

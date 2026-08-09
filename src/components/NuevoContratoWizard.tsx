@@ -33,12 +33,15 @@ import {
   newContractFormToRegistrationInput,
   validateContractRegistration,
 } from "../lib/contract-registration"
-import { getTariffPeajeType, inferPeajeTypeFromSegment, spreadPotenciaFromP1 } from "../lib/contract-potencia"
-import { lookupSpainPostalCode } from "../lib/spain-postal-code"
 import {
-  CONTRACT_ESTADO_INICIAL,
-  getContractEstadoBadgeClass,
-} from "../lib/contract-estado"
+  getTariffPeajeType,
+  getVisiblePotenciaPeriods,
+  inferPeajeTypeFromSegment,
+  PEAJE_SEGMENT_OPTIONS,
+  spreadPotenciaFromP1,
+  type PeajeSegment,
+} from "../lib/contract-potencia"
+import { lookupSpainPostalCode } from "../lib/spain-postal-code"
 import type { Client } from "../types/client"
 import type { Contract } from "../types/contract"
 import { ClientPortfolioSearch } from "./contratos/ClientPortfolioSearch"
@@ -62,6 +65,10 @@ const TIPO_CLIENTE_OPTIONS: { value: TipoClienteContrato; label: string }[] = [
   { value: "comunidad_vecinos", label: "Comunidad de vecinos" },
 ]
 
+const TIPO_CLIENTE_EMPRESA_OPTIONS = TIPO_CLIENTE_OPTIONS.filter(
+  (o) => o.value !== "residencial"
+)
+
 const WIZARD_TABS: { id: Exclude<WizardStep, 1>; label: string }[] = [
   { id: "cliente", label: "Datos del cliente" },
   { id: "suministro", label: "Datos del suministro" },
@@ -84,6 +91,7 @@ interface ProfileOption {
 
 interface NuevoContratoWizardProps {
   open: boolean
+  mode?: "create" | "edit"
   onClose: () => void
   form: NewContractFormState
   onChange: (patch: Partial<NewContractFormState>) => void
@@ -102,6 +110,7 @@ interface NuevoContratoWizardProps {
 
 export function NuevoContratoWizard({
   open,
+  mode = "create",
   onClose,
   form,
   onChange,
@@ -120,7 +129,6 @@ export function NuevoContratoWizard({
   const isCompanyStep = form.wizardStep === 1
   const activeTab = isCompanyStep ? null : form.wizardStep
   const segment = form.wizardSegment
-  const [tariffSearch, setTariffSearch] = useState("")
   const [empresaOpen, setEmpresaOpen] = useState(false)
   const [newComment, setNewComment] = useState("")
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
@@ -139,8 +147,21 @@ export function NuevoContratoWizard({
     const segmentChanged = form.wizardSegment !== next
     onChange({
       wizardSegment: next,
+      peajeSegment: inferPeajeTypeFromSegment(next) ?? "2.0",
       ...(segmentChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
     })
+  }
+
+  function setPeajeSegment(next: PeajeSegment) {
+    const peajeChanged = form.peajeSegment !== next
+    const patch: Partial<NewContractFormState> = {
+      peajeSegment: next,
+      ...(peajeChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
+    }
+    if (form.potenciaP1.trim()) {
+      Object.assign(patch, spreadPotenciaFromP1(form.potenciaP1, next))
+    }
+    onChange(patch)
   }
 
   const companies = useMemo(() => getWizardCompanies(segment), [segment])
@@ -150,11 +171,11 @@ export function NuevoContratoWizard({
       filterMarcoTariffs({
         compania: form.compania,
         segment,
+        peajeSegment: form.peajeSegment,
         tipo: form.tipo,
         tipoCliente: form.tipoCliente,
-        search: tariffSearch,
       }),
-    [form.compania, form.tipo, form.tipoCliente, segment, tariffSearch]
+    [form.compania, form.tipo, form.tipoCliente, form.peajeSegment, segment]
   )
 
   const selectedMarcoEntry = useMemo(() => {
@@ -186,8 +207,9 @@ export function NuevoContratoWizard({
     )
   }, [selectedMarcoEntry, commissionPercentage, form.consumoAnual, formatCurrency])
 
-  const peajeType = getTariffPeajeType(selectedMarcoEntry?.peaje)
+  const peajeType = form.peajeSegment || getTariffPeajeType(selectedMarcoEntry?.peaje)
   const effectivePeajeType = peajeType ?? inferPeajeTypeFromSegment(form.wizardSegment)
+  const visiblePotenciaPeriods = getVisiblePotenciaPeriods(effectivePeajeType)
 
   const duplicateCups = useMemo(() => {
     const cups = form.cups.trim().toUpperCase()
@@ -277,8 +299,11 @@ export function NuevoContratoWizard({
     onSubmit({ preventDefault: () => {} } as React.FormEvent, { incomplete: true })
   }
 
+  function saveAsDraft() {
+    onSubmit({ preventDefault: () => {} } as React.FormEvent, { incomplete: true })
+  }
+
   function handleClose() {
-    setTariffSearch("")
     setEmpresaOpen(false)
     setIncompleteConfirmOpen(false)
     setIncompleteMissing([])
@@ -298,11 +323,13 @@ export function NuevoContratoWizard({
 
   function selectTariff(entryId: string, tarifa: string) {
     const entry = marcoRetributivoCatalog.find((e) => e.id === entryId)
+    const entryPeaje = getTariffPeajeType(entry?.peaje)
     onChange({
       marcoEntryId: entryId,
       tarifa,
       tipoPrecio: inferTipoPrecioFromTarifa(tarifa),
       tipo: entry?.tipo ?? form.tipo,
+      ...(entryPeaje ? { peajeSegment: entryPeaje } : {}),
     })
   }
 
@@ -357,7 +384,7 @@ export function NuevoContratoWizard({
           <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border shrink-0">
             <div>
               <h2 className="text-sm font-extrabold text-brand-text uppercase tracking-wide">
-                Crear contrato
+                {mode === "edit" ? "Editar contrato" : "Crear contrato"}
               </h2>
               <p className="text-[10px] text-brand-subtext font-mono mt-0.5">
                 {isCompanyStep
@@ -521,14 +548,18 @@ export function NuevoContratoWizard({
                           ) : (
                             <ChevronRight className="w-4 h-4 text-brand-subtext" />
                           )}
-                          Empresa / Pyme (opcional)
+                          PYME (opcional)
                         </button>
                         {empresaOpen && (
                           <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-brand-border pt-3">
                             <div>
                               <label className={labelClass}>Tipo de cliente</label>
                               <select
-                                value={form.tipoCliente}
+                                value={
+                                  form.tipoCliente === "residencial"
+                                    ? ""
+                                    : form.tipoCliente
+                                }
                                 onChange={(e) =>
                                   onChange({
                                     tipoCliente: e.target.value as TipoClienteContrato,
@@ -538,7 +569,10 @@ export function NuevoContratoWizard({
                                 }
                                 className={inputClass}
                               >
-                                {TIPO_CLIENTE_OPTIONS.map((o) => (
+                                <option value="" disabled>
+                                  Seleccionar tipo
+                                </option>
+                                {TIPO_CLIENTE_EMPRESA_OPTIONS.map((o) => (
                                   <option key={o.value} value={o.value}>
                                     {o.label}
                                   </option>
@@ -637,15 +671,6 @@ export function NuevoContratoWizard({
 
                 {activeTab === "suministro" && (
                   <>
-                    <div>
-                      <label className={labelClass}>Estado del contrato</label>
-                      <span
-                        className={`inline-flex px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase ${getContractEstadoBadgeClass(CONTRACT_ESTADO_INICIAL)}`}
-                      >
-                        {CONTRACT_ESTADO_INICIAL}
-                      </span>
-                    </div>
-
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className={labelClass}>Tipo de contrato</label>
@@ -676,14 +701,24 @@ export function NuevoContratoWizard({
                         </div>
                       </div>
                       <div className="sm:col-span-2">
+                        <label className={labelClass}>Segmento (peaje)</label>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {PEAJE_SEGMENT_OPTIONS.map((seg) => (
+                            <button
+                              key={seg}
+                              type="button"
+                              onClick={() => setPeajeSegment(seg)}
+                              className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
+                                form.peajeSegment === seg
+                                  ? "bg-cyan-600 text-white border-cyan-600"
+                                  : "bg-brand-surface border-brand-border text-brand-text"
+                              }`}
+                            >
+                              {seg} TD
+                            </button>
+                          ))}
+                        </div>
                         <label className={labelClass}>Tipo de tarifa</label>
-                        <input
-                          type="search"
-                          placeholder="Buscar tarifa…"
-                          value={tariffSearch}
-                          onChange={(e) => setTariffSearch(e.target.value)}
-                          className={`${inputClass} mb-2`}
-                        />
                         <select
                           value={form.marcoEntryId || ""}
                           onChange={(e) => {
@@ -774,15 +809,6 @@ export function NuevoContratoWizard({
                         </select>
                       </div>
                       <div>
-                        <label className={labelClass}>Fecha inicio</label>
-                        <input
-                          type="date"
-                          value={form.fechaInicio}
-                          onChange={(e) => onChange({ fechaInicio: e.target.value })}
-                          className={inputClass}
-                        />
-                      </div>
-                      <div>
                         <label className={labelClass}>Nombre del comercial</label>
                         <input
                           type="text"
@@ -793,33 +819,38 @@ export function NuevoContratoWizard({
                       </div>
                       <div className="sm:col-span-2">
                         <label className={labelClass}>Potencias contratadas (kW)</label>
-                        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                          {(["P1", "P2", "P3", "P4", "P5", "P6"] as const).map(
-                            (label, i) => {
-                              const key = `potenciaP${i + 1}` as keyof NewContractFormState
-                              return (
-                                <div key={label}>
-                                  <span className="text-[9px] font-mono text-brand-subtext block mb-0.5">
-                                    {label}
-                                  </span>
-                                  <input
-                                    type="number"
-                                    step="0.001"
-                                    min={0}
-                                    value={String(form[key])}
-                                    onChange={(e) => {
-                                      if (label === "P1") {
-                                        handlePotenciaP1Change(e.target.value)
-                                      } else {
-                                        onChange({ [key]: e.target.value })
-                                      }
-                                    }}
-                                    className={`${inputClass} text-center font-mono py-1.5`}
-                                  />
-                                </div>
-                              )
-                            }
-                          )}
+                        <div
+                          className={`grid gap-2 ${
+                            visiblePotenciaPeriods.length === 3
+                              ? "grid-cols-3"
+                              : "grid-cols-3 sm:grid-cols-6"
+                          }`}
+                        >
+                          {visiblePotenciaPeriods.map((label) => {
+                            const i = Number(label.slice(1)) - 1
+                            const key = `potenciaP${i + 1}` as keyof NewContractFormState
+                            return (
+                              <div key={label}>
+                                <span className="text-[9px] font-mono text-brand-subtext block mb-0.5">
+                                  {label}
+                                </span>
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  min={0}
+                                  value={String(form[key])}
+                                  onChange={(e) => {
+                                    if (label === "P1") {
+                                      handlePotenciaP1Change(e.target.value)
+                                    } else {
+                                      onChange({ [key]: e.target.value })
+                                    }
+                                  }}
+                                  className={`${inputClass} text-center font-mono py-1.5`}
+                                />
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     </div>
@@ -940,6 +971,14 @@ export function NuevoContratoWizard({
                   Cancelar
                 </button>
                 <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={saveAsDraft}
+                  className="px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-400/20 hover:bg-slate-400/30 border border-slate-400/35 rounded-lg disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                >
+                  Guardar borrador
+                </button>
+                <button
                   type="submit"
                   disabled={isSubmitting}
                   className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
@@ -948,6 +987,11 @@ export function NuevoContratoWizard({
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       Procesando…
+                    </>
+                  ) : mode === "edit" ? (
+                    <>
+                      Guardar cambios
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   ) : (
                     <>
@@ -973,7 +1017,7 @@ export function NuevoContratoWizard({
           >
             <h3 className="text-sm font-extrabold text-brand-text">Faltan datos o documentos</h3>
             <p className="text-xs text-brand-subtext">
-              ¿Guardar como pendiente de información o volver a completar el contrato?
+              ¿Guardar como borrador o volver a completar el contrato?
             </p>
             {incompleteMissing.length > 0 && (
               <ul className="text-[10px] font-mono text-brand-subtext space-y-1 max-h-32 overflow-y-auto">
@@ -995,7 +1039,7 @@ export function NuevoContratoWizard({
                 onClick={confirmIncompleteSave}
                 className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold rounded-lg cursor-pointer"
               >
-                Guardar pendiente de info
+                Guardar borrador
               </button>
             </div>
           </div>

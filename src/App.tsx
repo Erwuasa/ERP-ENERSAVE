@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -100,7 +100,9 @@ import {
 } from './lib/clients';
 import { flattenDocumentosPorTipo } from './lib/contrato-documentos';
 import {
+  buildPotenciaContratadaFromPeriods,
   contractRegistrationErrorMessage,
+  contractToNewContractForm,
   EMPTY_NEW_CONTRACT_FORM,
   inferTipoPrecioFromTarifa,
   newContractFormToRegistrationInput,
@@ -110,7 +112,19 @@ import {
 import { marcoRetributivoCatalog } from './data/marco-retributivo-catalog';
 import { companiesTariffsCatalog } from './data/tarifas-catalog';
 import { computeComisionBreakdown } from './lib/marco-commission';
-import { saveTeamContractToSupabase } from './lib/supabase/contracts';
+import {
+  listTeamContracts,
+  saveTeamContractToSupabase,
+  updateTeamContract,
+} from './lib/supabase/contracts';
+import { createCliente, listClientes, updateCliente } from './lib/supabase/clientes';
+import { createIncidencia, listIncidencias, updateIncidencia } from './lib/supabase/incidencias';
+import { createSettlement, listSettlements, updateSettlement } from './lib/supabase/settlements';
+import {
+  applyActivationSettlements,
+  buildPendingContractSettlement,
+} from './lib/contract-settlements';
+import type { SupabaseFailure, SupabaseResult } from './lib/supabase/result';
 import {
   createContratoCreadoActividad,
   updateProspecto,
@@ -127,10 +141,11 @@ import {
 import { isSupabaseConfigured } from './lib/supabase/client';
 import type { Prospecto } from './lib/ventas/types';
 import {
-  CONTRACT_ESTADO_INCOMPLETO,
+  CONTRACT_ESTADO_BORRADOR,
   CONTRACT_ESTADO_INICIAL,
   getContractEstadoBadgeClass,
   isContractActivado,
+  isContractBorrador,
 } from './lib/contract-estado';
 import type { ProductoTarifa } from './lib/productos-catalog';
 import { getTariffPeajeType, spreadPotenciaFromP1 } from './lib/contract-potencia';
@@ -141,17 +156,72 @@ import {
 } from './lib/contract-segment-rules';
 import type { IncidenciaTicket } from './lib/incidencias';
 import { isIncidenciaKanbanVisible, withIncidenciaEstado, normalizeIncidenciaTicket, generateIncidenciaCodigo, isIncidenciaAbierta } from './lib/incidencias';
+import {
+  generateEstudioAhorroPdf,
+  generateEstudioAhorroConjuntoPdf,
+  downloadEstudioAhorroPdf,
+} from './lib/pdf/estudio-ahorro-pdf';
+import {
+  mapComparadorToEstudioAhorro,
+  mapComparadorHistoryToEstudioAhorro,
+  mapComparadorHistoryListToEstudioAhorroConjunto,
+} from './lib/pdf/map-comparador-estudio-ahorro';
+import {
+  mapRecommendationToEstudioAhorro,
+  recommendationPdfFilename,
+} from './lib/pdf/map-recommendation-estudio-ahorro';
+import { getDemoEstudioAhorroInput } from './lib/pdf/demo-estudio-ahorro-input';
+import { calcularRecomendacionesParaContratos } from './lib/tarifa-recommendation';
+import type { TarifaRecommendation } from './lib/tarifa-recommendation';
+import { getFallbackMarcoCatalog, resolveMarcoCatalogEntry } from './lib/supabase/marco-retributivo';
+import { marcoRowToProducto } from './lib/productos-catalog';
+import {
+  dismissRecommendation,
+  filterUndismissedRecommendations,
+} from './lib/recommendation-dismissed';
+import { getRetroMonths } from './lib/retro-period';
 
 const SEED_CONTRACTS: Contract[] = [
-  { id: 'con-1', clientName: 'ANA MARIA PINEDA BARRAGA', cups: 'ES0031102370432011GL', tipo: 'luz', compania: 'Iberdrola', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 4200, tipoPrecio: 'fijo', precioFijoConsumo: 0.118, potenciaContratada: 4.6, nif: '12345678A', telefono: '600111222', email: 'ana.pineda@email.com', iban: 'ES91 2100 0418 4502 0005 1332', direccionSuministro: 'C/ Mayor 12, 28013 Madrid', consumoAnualManual: 4200, estado: 'Activado', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-07', fechaFin: '2026-04-07', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-07', diasRenovacion: 69, montoInterno: 240, montoExterno: 120 },
-  { id: 'con-2', clientName: 'GEA CATERING, S.L.', cups: 'ES0021000002359672001KF', tipo: 'luz', compania: 'Endesa', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 18420, tipoPrecio: 'fijo', precioFijoConsumo: 0.105, potenciaContratada: 9.2, nif: 'B12345678', telefono: '963111222', email: 'admin@geacatering.es', iban: 'ES80 2310 0001 1800 0001 2345', direccionSuministro: 'Pol. Ind. Norte, nave 4, 46015 Valencia', consumoAnualManual: 18420, estado: 'Activado', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-14', fechaFin: '2026-04-14', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-14', diasRenovacion: 76, montoInterno: 380, montoExterno: 190 },
-  { id: 'con-3', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045776921002PQ', tipo: 'luz', compania: 'Naturgy', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 8553, tipoPrecio: 'fijo', precioFijoConsumo: 0.112, potenciaContratada: 5.75, consumoAnualManual: null, estado: 'Incidencia', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 450, montoExterno: 225 },
-  { id: 'con-4', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045776921001PS', tipo: 'luz', compania: 'Niba Energía', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 3200, tipoPrecio: 'fijo', precioFijoConsumo: 0.099, potenciaContratada: 3.45, consumoAnualManual: 3200, estado: 'Pendiente de firma', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 120, montoExterno: 60 },
-  { id: 'con-5', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045813989001GL', tipo: 'luz', compania: 'Ignis', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 28227, tipoPrecio: 'fijo', precioFijoConsumo: 0.108, potenciaContratada: 11.5, consumoAnualManual: 28227, estado: 'Temporal', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 400, montoExterno: 200 },
-  { id: 'con-6', clientName: 'Siderúrgica del Norte SL', cups: 'ES0031105542292007LG', tipo: 'luz', compania: 'Axpo Iberia', tarifa: 'Indexada Pool', atr: '3.0TD', consumoAnual: 500000, tipoPrecio: 'mercado', precioFijoConsumo: 0.095, potenciaContratada: 450, consumoAnualManual: 500000, estado: 'Activado', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-21', fechaFin: '2026-04-21', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-21', diasRenovacion: 83, montoInterno: 500, montoExterno: 250 },
-  { id: 'con-7', clientName: 'GEA FOOD COOPERATIVA', cups: 'ES0031105542292008XG', tipo: 'gas', compania: 'Endesa', tarifa: 'Indexado', atr: '3.0TD', consumoAnual: 37270, tipoPrecio: 'mercado', precioFijoConsumo: 0.062, potenciaContratada: 0, consumoAnualManual: null, estado: 'KO', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-26', fechaFin: '2026-04-26', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-26', diasRenovacion: 88, montoInterno: 300, montoExterno: 150 },
-  { id: 'con-8', clientName: 'Hotel Continental', cups: 'ES0021000000987654ZX', tipo: 'gas', compania: 'Endesa', tarifa: 'Fija Confort', atr: '3.0TD', consumoAnual: 120000, tipoPrecio: 'fijo', precioFijoConsumo: 0.071, potenciaContratada: 0, consumoAnualManual: 120000, estado: 'Activado', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-15', fechaFin: '2027-05-15', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-15', diasRenovacion: 350, montoInterno: 960.00, montoExterno: 480.00 },
-  { id: 'con-9', clientName: 'Residencia Geriátrica Verde', cups: 'ES0021000000452391KL', tipo: 'luz', compania: 'Naturgy', tarifa: 'Indexada Pool', atr: '2.0TD', consumoAnual: 85000, tipoPrecio: 'mercado', precioFijoConsumo: 0.088, potenciaContratada: 25, consumoAnualManual: null, estado: 'Pendiente de firma', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-22', fechaFin: '2027-05-22', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-22', diasRenovacion: 360, montoInterno: 850.00, montoExterno: 510.00 },
+  { id: 'con-1', clientName: 'ANA MARIA PINEDA BARRAGA', cups: 'ES0031102370432011GL', tipo: 'luz', compania: 'Iberdrola', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 4200, tipoPrecio: 'fijo', precioFijoConsumo: 0.118, potenciaContratada: 4.6, nif: '12345678A', telefono: '600111222', email: 'ana.pineda@email.com', iban: 'ES91 2100 0418 4502 0005 1332', direccionSuministro: 'C/ Mayor 12, 28013 Madrid', consumoAnualManual: 4200, estado: 'ACTIVADO', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-07', fechaFin: '2026-04-07', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-07', diasRenovacion: 69, montoInterno: 240, montoExterno: 120 },
+  { id: 'con-2', clientName: 'GEA CATERING, S.L.', cups: 'ES0021000002359672001KF', tipo: 'luz', compania: 'Endesa', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 18420, tipoPrecio: 'fijo', precioFijoConsumo: 0.105, potenciaContratada: 9.2, nif: 'B12345678', telefono: '963111222', email: 'admin@geacatering.es', iban: 'ES80 2310 0001 1800 0001 2345', direccionSuministro: 'Pol. Ind. Norte, nave 4, 46015 Valencia', consumoAnualManual: 18420, estado: 'ACTIVADO', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-14', fechaFin: '2026-04-14', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-14', diasRenovacion: 76, montoInterno: 380, montoExterno: 190 },
+  { id: 'con-3', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045776921002PQ', tipo: 'luz', compania: 'Naturgy', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 8553, tipoPrecio: 'fijo', precioFijoConsumo: 0.112, potenciaContratada: 5.75, consumoAnualManual: null, estado: 'INCIDENCIA ADMINISTRATIVA', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 450, montoExterno: 225 },
+  { id: 'con-4', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045776921001PS', tipo: 'luz', compania: 'Niba Energía', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 3200, tipoPrecio: 'fijo', precioFijoConsumo: 0.099, potenciaContratada: 3.45, consumoAnualManual: 3200, estado: 'PTE DE FIRMA', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 120, montoExterno: 60 },
+  { id: 'con-5', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045813989001GL', tipo: 'luz', compania: 'Ignis', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 28227, tipoPrecio: 'fijo', precioFijoConsumo: 0.108, potenciaContratada: 11.5, consumoAnualManual: 28227, estado: 'PTE DE TRAMITACIÓN', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 400, montoExterno: 200 },
+  { id: 'con-6', clientName: 'Siderúrgica del Norte SL', cups: 'ES0031105542292007LG', tipo: 'luz', compania: 'Axpo Iberia', tarifa: 'Indexada Pool', atr: '3.0TD', consumoAnual: 500000, tipoPrecio: 'mercado', precioFijoConsumo: 0.095, potenciaContratada: 450, consumoAnualManual: 500000, estado: 'ACTIVADO', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-21', fechaFin: '2026-04-21', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-21', diasRenovacion: 83, montoInterno: 500, montoExterno: 250 },
+  { id: 'con-7', clientName: 'GEA FOOD COOPERATIVA', cups: 'ES0031105542292008XG', tipo: 'gas', compania: 'Endesa', tarifa: 'Indexado', atr: '3.0TD', consumoAnual: 37270, tipoPrecio: 'mercado', precioFijoConsumo: 0.062, potenciaContratada: 0, consumoAnualManual: null, estado: 'INCIDENCIA ADMINISTRATIVA', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-26', fechaFin: '2026-04-26', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-26', diasRenovacion: 88, montoInterno: 300, montoExterno: 150 },
+  { id: 'con-8', clientName: 'Hotel Continental', cups: 'ES0021000000987654ZX', tipo: 'gas', compania: 'Endesa', tarifa: 'Fija Confort', atr: '3.0TD', consumoAnual: 120000, tipoPrecio: 'fijo', precioFijoConsumo: 0.071, potenciaContratada: 0, consumoAnualManual: 120000, estado: 'ACTIVADO', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-15', fechaFin: '2027-05-15', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-15', diasRenovacion: 350, montoInterno: 960.00, montoExterno: 480.00 },
+  { id: 'con-9', clientName: 'Residencia Geriátrica Verde', cups: 'ES0021000000452391KL', tipo: 'luz', compania: 'Naturgy', tarifa: 'Indexada Pool', atr: '2.0TD', consumoAnual: 85000, tipoPrecio: 'mercado', precioFijoConsumo: 0.088, potenciaContratada: 25, consumoAnualManual: null, estado: 'PTE DE FIRMA', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-22', fechaFin: '2027-05-22', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-22', diasRenovacion: 360, montoInterno: 850.00, montoExterno: 510.00 },
+  {
+    id: 'con-10',
+    clientName: 'María López García',
+    cups: 'ES0021000000555123AB',
+    tipo: 'luz',
+    compania: 'Repsol',
+    tarifa: 'Luz Fija Hogar',
+    atr: '2.0TD',
+    consumoAnual: 4200,
+    consumoAnualManual: 4200,
+    tipoPrecio: 'fijo',
+    precioFijoConsumo: 0.178,
+    potenciaContratada: 4.6,
+    tipoCliente: 'residencial',
+    nif: '45678901B',
+    telefono: '612345678',
+    email: 'maria.lopez@email.com',
+    iban: 'ES76 2100 0813 6101 2345 6789',
+    direccionSuministro: 'Av. Constitución 42, 28012 Madrid',
+    estado: 'ACTIVADO',
+    comercialId: 'usr-1',
+    comercialName: 'Carlos De la Fuente',
+    createdAt: '2025-11-01',
+    fechaFin: '2026-11-01',
+    estadoRenovacion: 'Al día',
+    fechaRenovacion: '2026-11-01',
+    diasRenovacion: 120,
+    montoInterno: 44,
+    montoExterno: 30.8,
+    marcoEntryId: 'repsol-luz-fija-20',
+  },
   ...buildDemoSyncedContracts(),
 ];
 
@@ -429,6 +499,12 @@ const getSortedProfiles = (rawProfiles: Profile[]) => {
   return result;
 };
 
+/**
+ * Origen de cada colección. Con 'local' los ids son los del seed de demostración
+ * (`con-1`, `cli-…`), que no existen en Supabase, así que no se persiste nada.
+ */
+type DataSource = 'local' | 'supabase';
+
 export default function App() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -439,14 +515,9 @@ export default function App() {
 
   // Helper function to calculate retrocommission status and potential clawbacks
   const getRetrocommissionInfo = (c: Contract) => {
-    const brand = c.compania.toLowerCase();
-    let limitMonths = 6;
-    if (brand.includes('naturgy') || brand.includes('repsol')) limitMonths = 4;
-    else if (brand.includes('endesa')) limitMonths = 2;
-    else if (brand.includes('gana') || brand.includes('iberdrola') || brand.includes('niba')) limitMonths = 12;
+    const { meses: limitMonths } = getRetroMonths(c.compania);
 
     const actDate = new Date(c.createdAt);
-    // Reference date is 2026-05-28 or current date
     const now = new Date();
     const diffTime = now.getTime() - actDate.getTime();
     const diffMonths = Math.max(0, diffTime / (1000 * 60 * 60 * 24 * 30.4));
@@ -501,6 +572,7 @@ export default function App() {
   }
   const [contractWizardProspectoId, setContractWizardProspectoId] = useState<string | null>(null);
   const [contractWizardOpen, setContractWizardOpen] = useState(false);
+  const [editingContractId, setEditingContractId] = useState<string | null>(null);
   const [currentMenuTab, setCurrentMenuTab] = useState<string>('Dashboard');
   const [cashflowScenario, setCashflowScenario] = useState<'optimista' | 'realista' | 'pesimista'>('realista');
 
@@ -527,6 +599,13 @@ export default function App() {
 
   const [clients, setClients] = useState<Client[]>(INITIAL_CRM.clients);
   const [contracts, setContracts] = useState<Contract[]>(INITIAL_CRM.contracts);
+  // 'local' = datos de demostración con ids con-N; 'supabase' = filas reales con UUID.
+  // Solo se persiste contra Supabase en el segundo caso: un UPDATE con id 'con-1'
+  // reventaría con un error de sintaxis de uuid.
+  const [contractsSource, setContractsSource] = useState<DataSource>('local');
+  const [clientsSource, setClientsSource] = useState<DataSource>('local');
+  const [incidenciasSource, setIncidenciasSource] = useState<DataSource>('local');
+  const [settlementsSource, setSettlementsSource] = useState<DataSource>('local');
 
   // Dual switch view state for Superadmin
   const [superadminViewMode, setSuperadminViewMode] = useState<'tramitacion' | 'comercial'>('tramitacion');
@@ -537,6 +616,9 @@ export default function App() {
   const [contractsListFilter, setContractsListFilter] = useState<ContractsListFilter>('all');
   const [contractsUserFilterId, setContractsUserFilterId] = useState<string>('all');
   const [highlightContractId, setHighlightContractId] = useState<string | null>(null);
+  const [recommendationDismissVersion, setRecommendationDismissVersion] = useState(0);
+
+  const marcoEntries = useMemo(() => getFallbackMarcoCatalog(), []);
 
   useEffect(() => {
     setClients((prev) => syncClientEstados(prev, contracts));
@@ -614,7 +696,6 @@ export default function App() {
 
   const [newContractForm, setNewContractForm] = useState<NewContractFormState>({
     ...EMPTY_NEW_CONTRACT_FORM,
-    fechaInicio: new Date().toISOString().split('T')[0],
   });
 
   function patchNewContractForm(patch: Partial<NewContractFormState>) {
@@ -625,7 +706,6 @@ export default function App() {
     const user = profiles.find((p) => p.id === activeUserId) || profiles[0];
     setNewContractForm({
       ...EMPTY_NEW_CONTRACT_FORM,
-      fechaInicio: new Date().toISOString().split('T')[0],
       wizardStep: 1,
       nombreComercial: user.fullName,
       jefeEquipo:
@@ -692,6 +772,8 @@ export default function App() {
 
   // Comparison history search & interactive commission calculator states
   const [compHistorySearch, setCompHistorySearch] = useState<string>('');
+  const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
+  const [isGeneratingJointPdf, setIsGeneratingJointPdf] = useState<boolean>(false);
   const [marcoSimType, setMarcoSimType] = useState<'luz' | 'gas'>('luz');
   const [marcoSimConsumo, setMarcoSimConsumo] = useState<number>(35000);
   const [marcoSimTariff, setMarcoSimTariff] = useState<string>('3.0TD');
@@ -723,6 +805,24 @@ export default function App() {
     { id: 'comp-2', clientName: 'Lavandería Burbujas', cups: 'ES0021000000119988YY', accessTariff: '2.0TD', currentAnnualExpense: 2300, maxAnnualSavings: 450, bestTariffName: 'EnerLuz Inteligente Indexada', date: '2026-05-20' },
     { id: 'comp-3', clientName: 'Conservas del Cantábrico', cups: 'ES0021000000776655ZZ', accessTariff: '6.0TD', currentAnnualExpense: 14500, maxAnnualSavings: 3100, bestTariffName: 'EnerLuz Industrial Pool Max 6.0', date: '2026-05-22' }
   ]);
+
+  const filteredComparisonsHistory = useMemo(() => {
+    const query = compHistorySearch.trim().toLowerCase();
+    if (!query) return comparisonsHistory;
+    return comparisonsHistory.filter(
+      (item) =>
+        item.clientName.toLowerCase().includes(query) ||
+        item.cups.toLowerCase().includes(query)
+    );
+  }, [comparisonsHistory, compHistorySearch]);
+
+  const selectedComparisonsSavings = useMemo(
+    () =>
+      comparisonsHistory
+        .filter((item) => selectedComparisonIds.includes(item.id))
+        .reduce((acc, item) => acc + (item.maxAnnualSavings || 0), 0),
+    [comparisonsHistory, selectedComparisonIds]
+  );
 
   // Liquidaciones Internas state
   const [selectedCompaniaTab, setSelectedCompaniaTab] = useState<string>('Todos');
@@ -847,6 +947,181 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  // Carga los datos reales una vez hay sesión: todas las policies son
+  // `to authenticated`, así que antes del login los SELECT devolverían 0 filas.
+  // Cada colección cae por separado al seed local si su tabla falla o está vacía,
+  // y se cargan juntas para que los clientes de la tabla ganen a los derivados
+  // de los contratos en lugar de depender de qué petición termine antes.
+  useEffect(() => {
+    if (!isLoggedIn || !isSupabaseConfigured()) return;
+    let cancelled = false;
+
+    void (async () => {
+      const [contractsResult, clientsResult, incidenciasResult, settlementsResult] =
+        await Promise.all([
+          listTeamContracts(),
+          listClientes(),
+          listIncidencias(),
+          listSettlements(),
+        ]);
+      if (cancelled) return;
+
+      const missingTables: string[] = [];
+      const errors: string[] = [];
+
+      function unwrap<T>(result: SupabaseResult<T[]>, table: string): T[] | null {
+        if (result.ok === true) return result.data.length > 0 ? result.data : null;
+        const failure = result as SupabaseFailure;
+        if (failure.reason === 'table_missing') missingTables.push(table);
+        else errors.push(`${table}: ${failure.message}`);
+        return null;
+      }
+
+      const loadedContracts = unwrap(contractsResult, 'contratos_equipo');
+      const loadedClients = unwrap(clientsResult, 'clientes');
+      const loadedIncidencias = unwrap(incidenciasResult, 'incidencias');
+      const loadedSettlements = unwrap(settlementsResult, 'settlements');
+
+      // Sin filas propias en `clientes`, los clientes se siguen derivando de los
+      // contratos como hasta ahora, para no vaciar la pantalla de Mis Clientes.
+      const effectiveClients =
+        loadedClients ?? (loadedContracts ? buildClientsFromContracts(loadedContracts) : null);
+
+      if (effectiveClients) {
+        const reference = loadedContracts ?? contracts;
+        setClients(syncClientEstados(effectiveClients, reference));
+        if (loadedClients) setClientsSource('supabase');
+      }
+
+      if (loadedContracts) {
+        setContracts(linkContractsToClients(loadedContracts, effectiveClients ?? clients));
+        setContractsSource('supabase');
+      }
+
+      if (loadedIncidencias) {
+        setIncidencias(loadedIncidencias);
+        setIncidenciasSource('supabase');
+      }
+
+      if (loadedSettlements) {
+        setSettlements(loadedSettlements);
+        setSettlementsSource('supabase');
+      }
+
+      if (missingTables.length > 0) {
+        toast.warning(
+          `Faltan tablas en Supabase (${missingTables.join(', ')}). Se muestran los datos de demostración.`
+        );
+      }
+      if (errors.length > 0) toast.warning(`No se pudieron cargar algunos datos. ${errors.join(' · ')}`);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Se ejecuta una sola vez por sesión: `contracts` y `clients` solo se leen
+    // como valor de respaldo y no deben reactivar la carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  /**
+   * Refleja en Supabase un cambio ya aplicado al estado local. No-op con datos de
+   * demostración, cuyos ids no son UUID y no existen en la tabla.
+   */
+  function reportPersistFailure(result: SupabaseResult<unknown>) {
+    if (result.ok === false) {
+      toast.warning(`Cambio aplicado en la app pero no guardado en Supabase: ${result.message}`);
+    }
+  }
+
+  const persistContractPatch = useCallback(
+    (id: string, patch: Partial<Contract>) => {
+      if (contractsSource !== 'supabase') return;
+      void updateTeamContract(id, patch).then(reportPersistFailure);
+    },
+    [contractsSource]
+  );
+
+  const persistClientPatch = useCallback(
+    (id: string, patch: Partial<Client>) => {
+      if (clientsSource !== 'supabase') return;
+      void updateCliente(id, patch).then(reportPersistFailure);
+    },
+    [clientsSource]
+  );
+
+  const persistIncidenciaPatch = useCallback(
+    (id: string, patch: Partial<IncidenciaTicket>) => {
+      if (incidenciasSource !== 'supabase') return;
+      void updateIncidencia(id, patch).then(reportPersistFailure);
+    },
+    [incidenciasSource]
+  );
+
+  const persistSettlementPatch = useCallback(
+    (id: string, patch: Partial<Settlement>) => {
+      if (settlementsSource !== 'supabase') return;
+      void updateSettlement(id, patch).then(reportPersistFailure);
+    },
+    [settlementsSource]
+  );
+
+  /**
+   * Inserta la fila y devuelve el id definitivo que ha generado Postgres, para
+   * poder reemplazar el id temporal del estado local (`inc-…`, `liq-…`).
+   */
+  const persistNewIncidencia = useCallback(
+    (incidencia: IncidenciaTicket) => {
+      if (incidenciasSource !== 'supabase') return;
+      void createIncidencia(incidencia).then((result) => {
+        if (result.ok === false) return reportPersistFailure(result);
+        setIncidencias((prev) =>
+          prev.map((i) => (i.id === incidencia.id ? { ...result.data } : i))
+        );
+      });
+    },
+    [incidenciasSource]
+  );
+
+  const persistNewSettlements = useCallback(
+    (created: Settlement[]) => {
+      if (settlementsSource !== 'supabase') return;
+      created.forEach((settlement) => {
+        void createSettlement(settlement).then((result) => {
+          if (result.ok === false) return reportPersistFailure(result);
+          setSettlements((prev) =>
+            prev.map((s) => (s.id === settlement.id ? { ...result.data } : s))
+          );
+        });
+      });
+    },
+    [settlementsSource]
+  );
+
+  const persistNewClient = useCallback(
+    (client: Client) => {
+      if (clientsSource !== 'supabase') return;
+      void createCliente(client).then((result) => {
+        if (result.ok === false) return reportPersistFailure(result);
+        setClients((prev) => prev.map((c) => (c.id === client.id ? { ...result.data } : c)));
+      });
+    },
+    [clientsSource]
+  );
+
+  /**
+   * upsertClient no distingue alta de actualización, así que se deduce del
+   * tamaño de la lista para elegir entre INSERT y UPDATE.
+   */
+  const persistUpsertedClient = useCallback(
+    (before: Client[], after: Client[], client: Client) => {
+      if (clientsSource !== 'supabase') return;
+      if (after.length > before.length) persistNewClient(client);
+      else persistClientPatch(client.id, client);
+    },
+    [clientsSource, persistNewClient, persistClientPatch]
+  );
 
   // Perform Tariff Comparison logic
   // Perform Tariff Comparison logic (Synchronous for smooth real-time autocalculation)
@@ -977,6 +1252,8 @@ export default function App() {
         potenciaBreakdown: Math.round(potCost),
         consumoBreakdown: Math.round(conCost),
         rentCostAnnual: Math.round(meterCostAnnual),
+        potRates: prof.potRates,
+        conRates: prof.conRates,
         isBestOption: prof.companyName === "EnerLuz",
       };
     });
@@ -1023,6 +1300,96 @@ export default function App() {
       profitAgent: best.annualCost * 0.03
     });
   };
+
+  async function handleDownloadComparadorPdf(option?: NonNullable<typeof compResults>[number]) {
+    if (!compResults || !compSummary) {
+      toast.error('Ejecuta la comparativa antes de descargar el PDF.');
+      return;
+    }
+    const best = option ?? compResults.find((o) => o.isBestOption) ?? compResults[0];
+    try {
+      const input = mapComparadorToEstudioAhorro({
+        clienteNombre: compClient || 'Cliente',
+        cups: compCups,
+        accessTariff: compAccessTariff,
+        tarifaActualNombre: compTarifaActual,
+        potencias: compPotencias,
+        consumos: compConsumos,
+        rentMeterMonthly: compRentMeter,
+        currentBillMonthly: compCurrentBill,
+        bestOption: best,
+        summary: compSummary,
+      });
+      const blob = await generateEstudioAhorroPdf(input);
+      downloadEstudioAhorroPdf(blob, compClient || 'cliente');
+      toast.success('Estudio de ahorro descargado correctamente.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el PDF. Inténtalo de nuevo.');
+    }
+  }
+
+  async function handleDownloadHistoryPdf(item: {
+    clientName: string;
+    cups: string;
+    accessTariff: string;
+    currentAnnualExpense: number;
+    maxAnnualSavings: number;
+    bestTariffName: string;
+  }) {
+    try {
+      const input = mapComparadorHistoryToEstudioAhorro({
+        clientName: item.clientName,
+        cups: item.cups,
+        accessTariff: item.accessTariff,
+        currentAnnualExpense: item.currentAnnualExpense,
+        maxAnnualSavings: item.maxAnnualSavings,
+        bestTariffName: item.bestTariffName,
+      });
+      const blob = await generateEstudioAhorroPdf(input);
+      downloadEstudioAhorroPdf(blob, item.clientName);
+      toast.success('Estudio de ahorro descargado correctamente.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el PDF. Inténtalo de nuevo.');
+    }
+  }
+
+  function toggleComparisonSelection(id: string) {
+    setSelectedComparisonIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  async function handleDownloadJointHistoryPdf() {
+    const selected = comparisonsHistory.filter((item) => selectedComparisonIds.includes(item.id));
+    if (selected.length < 2) {
+      toast.error('Selecciona al menos 2 comparativas para generar el estudio conjunto.');
+      return;
+    }
+
+    setIsGeneratingJointPdf(true);
+    try {
+      const input = mapComparadorHistoryListToEstudioAhorroConjunto(
+        selected.map((item) => ({
+          clientName: item.clientName,
+          cups: item.cups,
+          accessTariff: item.accessTariff,
+          currentAnnualExpense: item.currentAnnualExpense,
+          maxAnnualSavings: item.maxAnnualSavings,
+          bestTariffName: item.bestTariffName,
+        }))
+      );
+      const blob = await generateEstudioAhorroConjuntoPdf(input);
+      downloadEstudioAhorroPdf(blob, `estudio-ahorro-conjunto-${selected.length}-cups.pdf`);
+      toast.success(`Estudio conjunto generado con ${selected.length} propuestas.`);
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el estudio conjunto. Inténtalo de nuevo.');
+    } finally {
+      setIsGeneratingJointPdf(false);
+    }
+  }
 
   // Real-time calculation effect triggers immediately upon typing parameters
   useEffect(() => {
@@ -1162,7 +1529,7 @@ export default function App() {
       consumoAnual: calculatedConsumo,
       montoInterno: Math.round(internalMargin * 100) / 100,
       montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
-      estado: 'Pendiente de firma',
+      estado: 'PTE DE FIRMA',
       comercialId: userAsSeller.id,
       comercialName: userAsSeller.fullName,
       createdAt: new Date().toISOString().split('T')[0],
@@ -1181,22 +1548,23 @@ export default function App() {
     const contractsWithNew = [newContractObj, ...contracts];
     setClients(syncClientEstados(clientsAfterUpsert, contractsWithNew));
 
-    // Auto-create Settlement row linked to this contract (Trigger logic representation)
-    const newSettlementObj: Settlement = {
+    // Comisión provisional: se confirma al activar el contrato (misma fila, nuevos importes).
+    const newSettlementObj = buildPendingContractSettlement({
       id: `liq-${settlements.length + 1}`,
+      contractId: newContractObj.id,
       comercialId: userAsSeller.id,
       comercialName: userAsSeller.fullName,
       montoInterno: Math.round(internalMargin * 100) / 100,
       montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
-      estado: 'pendiente',
-      tipo: 'luz',
-      descripcion: `Comisión generada para contrato nuevo: ${modalClientName}`,
+      tipo: compTipo,
+      clientName: modalClientName,
       createdAt: new Date().toISOString().split('T')[0],
-      contractId: newContractObj.id,
-    };
+    });
 
     setContracts(contractsWithNew);
     setSettlements([newSettlementObj, ...settlements]);
+    persistUpsertedClient(clients, clientsAfterUpsert, linkedClient);
+    persistNewSettlements([newSettlementObj]);
 
     // Save this simulation in comparisonsHistory list
     const newHistoryEntry = {
@@ -1301,19 +1669,7 @@ export default function App() {
         externalAdvisorMargin = breakdown.comisionComercial;
       }
 
-      const activationDate = form.fechaInicio || new Date().toISOString().split('T')[0];
-      const segmentContext = {
-        tipoCliente: form.tipoCliente,
-        compania: form.compania,
-        clientName: form.clientName.trim(),
-        nif: form.nif,
-      };
-      const renewalSchedule = aplicaRenovacionAnual(segmentContext)
-        ? computeRenewalSchedule(activationDate)
-        : { estadoRenovacion: 'No aplica' as const };
-      const fechaRenovacionStr = renewalSchedule.fechaRenovacion;
-      const diasRenovacion = renewalSchedule.diasRenovacion;
-      const estadoRenovacion = renewalSchedule.estadoRenovacion;
+      const registrationDate = new Date().toISOString().split('T')[0];
 
       const direccionCliente = form.direccionFiscal
         ? `${form.direccionFiscal}${form.codigoPostal ? `, ${form.codigoPostal}` : ''}${form.poblacion ? ` ${form.poblacion}` : ''}`
@@ -1331,21 +1687,7 @@ export default function App() {
       });
 
       const potenciaStr =
-        form.potenciaP1 ||
-        form.potenciaP2 ||
-        form.potenciaP3
-          ? [
-              form.potenciaP1,
-              form.potenciaP2,
-              form.potenciaP3,
-              form.potenciaP4,
-              form.potenciaP5,
-              form.potenciaP6,
-            ]
-              .map((v, i) => (String(v).trim() ? `P${i + 1}: ${v} kW` : ''))
-              .filter(Boolean)
-              .join(' · ')
-          : form.potenciaContratada;
+        buildPotenciaContratadaFromPeriods(form) || form.potenciaContratada;
 
       const tipoPrecio =
         form.tipoPrecio ||
@@ -1359,28 +1701,26 @@ export default function App() {
             : '');
 
       const contractEstado = isIncomplete
-        ? CONTRACT_ESTADO_INCOMPLETO
+        ? CONTRACT_ESTADO_BORRADOR
         : CONTRACT_ESTADO_INICIAL;
+
+      const supplyTipo = form.tipo === "gas" ? "gas" : "luz"
 
       const newContractObj: Contract = {
         id: `con-${contracts.length + 1}`,
         clientId: linkedClient.id,
         clientName: form.clientName.trim() || 'Pendiente de información',
         cups: form.cups ? form.cups.toUpperCase().trim() : 'PENDIENTE',
-        tipo: form.tipo,
-        compania: form.compania,
-        tarifa: form.tarifa,
+        tipo: supplyTipo,
+        compania: form.compania || '—',
+        tarifa: form.tarifa || '—',
         consumoAnual: consumo,
         montoInterno: Math.round(internalMargin * 100) / 100,
         montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
         estado: contractEstado,
         comercialId: userAsSeller.id,
         comercialName: userAsSeller.fullName,
-        createdAt: activationDate,
-        fechaFin: fechaRenovacionStr,
-        fechaRenovacion: fechaRenovacionStr,
-        diasRenovacion,
-        estadoRenovacion,
+        createdAt: '',
         nif: form.nif,
         telefono: form.telefono,
         email: form.email,
@@ -1439,7 +1779,11 @@ export default function App() {
         toast.message('Borrador guardado en la app. Supabase pendiente de configurar.');
       } else if (supabaseResult.reason === 'table_missing') {
         toast.warning(
-          'Contrato guardado en la app. Crea la tabla contratos_equipo en Supabase para persistir en base de datos.'
+          'Contrato guardado en la app. Falta la tabla contratos_equipo en Supabase.'
+        );
+      } else if (supabaseResult.reason === 'rls_denied') {
+        toast.warning(
+          'Contrato guardado en la app. Sin permiso para insertar en Supabase: aplica la migración contratos_equipo_insert_policy (SQL Editor).'
         );
       } else {
         toast.warning(`Contrato guardado en la app. Supabase: ${supabaseResult.message}`);
@@ -1449,30 +1793,31 @@ export default function App() {
       setClients(syncClientEstados(clientsAfterUpsert, contractsWithNew));
 
       if (!isIncomplete && internalMargin > 0) {
-        const newSettlementObj: Settlement = {
+        const newSettlementObj = buildPendingContractSettlement({
           id: `liq-${settlements.length + 1}`,
+          contractId: newContractObj.id,
           comercialId: userAsSeller.id,
           comercialName: userAsSeller.fullName,
           montoInterno: Math.round(internalMargin * 100) / 100,
           montoExterno: Math.round(externalAdvisorMargin * 100) / 100,
-          estado: 'pendiente',
           tipo: form.tipo,
-          descripcion: `Comisión generada para contrato nuevo: ${form.clientName || 'Sin nombre'}`,
+          clientName: form.clientName.trim() || 'Sin nombre',
           createdAt: new Date().toISOString().split('T')[0],
-          contractId: newContractObj.id,
-        };
+        });
         setSettlements([newSettlementObj, ...settlements]);
+        persistNewSettlements([newSettlementObj]);
       }
 
       setContracts(contractsWithNew);
+      persistUpsertedClient(clients, clientsAfterUpsert, linkedClient);
 
       resetNewContractForm();
       onSuccess?.();
 
       toast.success(
         isIncomplete
-          ? 'Contrato guardado como pendiente de información.'
-          : `¡Contrato registrado! Liquidación de ${formatCurrency(newContractObj.montoExterno)} para ${userAsSeller.fullName}.`
+          ? 'Contrato guardado como borrador.'
+          : `¡Contrato registrado! Comisión provisional de ${formatCurrency(newContractObj.montoExterno)} para ${userAsSeller.fullName} (se confirma al activar).`
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar el contrato';
@@ -1481,6 +1826,113 @@ export default function App() {
       setIsCreatingContract(false);
     }
   };
+
+  async function handleUpdateContractFromWizard(
+    e: React.FormEvent,
+    onSuccess?: () => void,
+    options?: { incomplete?: boolean }
+  ) {
+    e.preventDefault();
+    if (!editingContractId) return;
+
+    const existing = contracts.find((c) => c.id === editingContractId);
+    if (!existing) {
+      toast.error('Contrato no encontrado.');
+      return;
+    }
+
+    const form = newContractForm;
+    const input = newContractFormToRegistrationInput(form);
+    const validation = validateContractRegistration(input);
+    const isIncomplete = options?.incomplete === true;
+
+    if (!isIncomplete && !validation.valid) {
+      toast.error(contractRegistrationErrorMessage(validation.missingLabels));
+      return;
+    }
+
+    setIsCreatingContract(true);
+
+    try {
+      const consumo = form.consumoAnual === '' ? 0 : Number(form.consumoAnual);
+      const precioFijo = parseFloat(String(form.precioFijoConsumo).replace(',', '.'));
+      const potenciaStr =
+        buildPotenciaContratadaFromPeriods(form) || form.potenciaContratada;
+      const tipoPrecio =
+        form.tipoPrecio ||
+        (form.tarifa &&
+        (form.tarifa.toLowerCase().includes('index') ||
+          form.tarifa.toLowerCase().includes('variable') ||
+          form.tarifa.toLowerCase().includes('pool'))
+          ? 'mercado'
+          : form.tarifa
+            ? 'fijo'
+            : '');
+
+      const marcoEntry = form.marcoEntryId
+        ? marcoRetributivoCatalog.find((entry) => entry.id === form.marcoEntryId)
+        : marcoRetributivoCatalog.find(
+            (entry) =>
+              entry.compania === form.compania &&
+              entry.tarifa === form.tarifa &&
+              entry.tipo === form.tipo
+          );
+
+      const supplyTipo = form.tipo === 'gas' ? 'gas' : 'luz'
+
+      const patch: Partial<Contract> = {
+        clientName: form.clientName.trim() || existing.clientName,
+        cups: form.cups ? form.cups.toUpperCase().trim() : existing.cups,
+        tipo: supplyTipo,
+        compania: form.compania || existing.compania || '—',
+        tarifa: form.tarifa || existing.tarifa || '—',
+        consumoAnual: consumo,
+        consumoAnualManual: consumo,
+        nif: form.nif,
+        telefono: form.telefono,
+        email: form.email,
+        iban: form.iban,
+        direccionSuministro: form.direccionSuministro,
+        direccionCompleta: form.direccionFiscal
+          ? `${form.direccionFiscal}${form.codigoPostal ? `, ${form.codigoPostal}` : ''}${form.poblacion ? ` ${form.poblacion}` : ''}${form.provincia ? ` (${form.provincia})` : ''}`
+          : existing.direccionCompleta,
+        potenciaContratada: potenciaStr,
+        precioFijoConsumo: Number.isFinite(precioFijo) ? precioFijo : undefined,
+        tipoPrecio:
+          tipoPrecio === 'fijo' || tipoPrecio === 'mercado' ? tipoPrecio : undefined,
+        tipoCliente: form.tipoCliente,
+        formaPago: form.formaPago,
+        direccionFiscal: form.direccionFiscal || undefined,
+        codigoPostal: form.codigoPostal || undefined,
+        poblacion: form.poblacion || undefined,
+        provincia: form.provincia || undefined,
+        comentariosInternos:
+          form.comentariosInternos.length > 0 ? form.comentariosInternos : undefined,
+        marcoEntryId: form.marcoEntryId || marcoEntry?.id || undefined,
+        atr: marcoEntry?.peaje ?? existing.atr,
+        ...(isIncomplete || !validation.valid
+          ? { estado: CONTRACT_ESTADO_BORRADOR }
+          : isContractBorrador(existing.estado) && validation.valid
+            ? { estado: CONTRACT_ESTADO_INICIAL }
+            : {}),
+      };
+
+      setContracts((prev) =>
+        prev.map((c) => (c.id === editingContractId ? { ...c, ...patch } : c))
+      );
+      persistContractPatch(editingContractId, patch);
+
+      resetNewContractForm();
+      setEditingContractId(null);
+      onSuccess?.();
+      toast.success('Contrato actualizado.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al actualizar el contrato';
+      toast.error(msg);
+    } finally {
+      setIsCreatingContract(false);
+    }
+  }
 
   const handleAddNewUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1594,101 +2046,95 @@ export default function App() {
       }
       return s;
     }));
+    persistSettlementPatch(id, { estado: nextState as Settlement['estado'] });
     toast.success(`Liquidación ${id} para ${item?.comercialName} cambiada a ${nextState === 'pagado' ? '💰 PAGADA' : '⏳ PENDIENTE'}.`);
   };
 
-  // Marks a contract as 'activo' and calculates & splits commissions using exact splits
+  // Marks a contract as 'activo' and calculates commission from marco retributivo
   const handleActivateAndDistribute = (contractId: string, consumoKwh: number, potenciaKw: number) => {
-    // 1. Find contract
     const contract = contracts.find(c => c.id === contractId);
     if (!contract) return;
 
     setIsActivatingContractLoading(true);
 
     setTimeout(() => {
-      // 2. Determine rates and calculate total commission
-      const kwhRate = contract.tipo === 'luz' ? 0.015 : 0.012;
-      const kwRate = contract.tipo === 'luz' ? 5.50 : 4.00;
-      const totalCom = (consumoKwh * kwhRate) + (potenciaKw * kwRate);
-
-      // 3. Find comercial user and manager to allocate splits
       const comercialProfile = profiles.find(p => p.id === contract.comercialId);
-      const managerId = comercialProfile ? comercialProfile.managerId : null;
+      const commissionPct = comercialProfile?.commissionPercentage ?? 70;
+      const marcoEntry = resolveMarcoCatalogEntry(
+        contract.marcoEntryId,
+        contract.compania,
+        contract.tarifa,
+        contract.tipo,
+        marcoEntries
+      );
+
+      const breakdown = marcoEntry
+        ? computeComisionBreakdown(marcoEntry, commissionPct, consumoKwh, formatCurrency)
+        : null;
+
+      const totalCom = breakdown?.comisionEmpresa ?? 0;
+      const comercialShare = breakdown?.comisionComercial ?? 0;
+
+      const managerId = comercialProfile?.managerId ?? null;
       const managerProfile = managerId ? profiles.find(p => p.id === managerId) : null;
-
-      // Split shares
-      const comercialShare = Math.round(totalCom * 0.50 * 100) / 100;
-      let jefeShare = Math.round(totalCom * 0.20 * 100) / 100;
-      let superadminShare = Math.round(totalCom * 0.30 * 100) / 100;
-
-      // Rollup if no Jefe Comercial is assigned
-      if (!managerId) {
-        superadminShare += jefeShare;
-        jefeShare = 0;
+      let jefeShare = 0;
+      if (managerProfile && comercialProfile && totalCom > 0) {
+        const overridePct = managerProfile.commissionPercentage - comercialProfile.commissionPercentage;
+        if (overridePct > 0) {
+          jefeShare = Math.round(totalCom * (overridePct / 100) * 100) / 100;
+        }
       }
 
       const today = new Date().toISOString().split('T')[0];
-      const newRecords: Settlement[] = [];
 
-      // Row A: Comercial direct commission (50%)
-      const recComercial: Settlement = {
-        id: `liq-auto-c-${Math.floor(1000 + Math.random() * 9000).toString()}`,
-        comercialId: contract.comercialId,
-        comercialName: contract.comercialName,
-        montoInterno: Math.round(totalCom * 100) / 100,
-        montoExterno: comercialShare,
-        estado: 'pendiente',
-        tipo: contract.tipo,
-        descripcion: `Comisión Directa (50%) - Contrato Activo: ${contract.clientName} (CUPS: ${contract.cups})`,
-        createdAt: today,
+      const activationSettlementResult = applyActivationSettlements(settlements, {
+        contract,
+        commissionPct,
+        totalCom,
+        comercialShare,
+        jefeShare,
+        managerId,
+        managerName: managerProfile?.fullName ?? null,
+        activationDate: today,
+      });
+
+      const activationDate = today;
+      const renewalSchedule = aplicaRenovacionAnual(contract)
+        ? computeRenewalSchedule(activationDate)
+        : { estadoRenovacion: 'No aplica' as const };
+
+      const activationPatch: Partial<Contract> = {
+        estado: 'ACTIVADO',
+        createdAt: activationDate,
+        consumoAnual: consumoKwh,
+        potenciaContratada: potenciaKw,
+        montoInterno: totalCom,
+        montoExterno: comercialShare + jefeShare,
+        fechaFin: renewalSchedule.fechaRenovacion,
+        fechaRenovacion: renewalSchedule.fechaRenovacion,
+        diasRenovacion: renewalSchedule.diasRenovacion,
+        estadoRenovacion: renewalSchedule.estadoRenovacion,
       };
-      newRecords.push(recComercial);
 
-      // Row B: Jefe de Red override commission (20%)
-      if (managerId && managerProfile && jefeShare > 0) {
-        const recJefe: Settlement = {
-          id: `liq-auto-j-${Math.floor(1000 + Math.random() * 9000).toString()}`,
-          comercialId: managerId,
-          comercialName: managerProfile.fullName,
-          montoInterno: Math.round(totalCom * 100) / 100,
-          montoExterno: jefeShare,
-          estado: 'pendiente',
-          tipo: contract.tipo,
-          descripcion: `Comisión de Dirección Override (20% de ${contract.comercialName}) - Contrato Activo: ${contract.clientName}`,
-          createdAt: today,
-        };
-        newRecords.push(recJefe);
+      setContracts(contracts.map(c => (c.id === contractId ? { ...c, ...activationPatch } : c)));
+      persistContractPatch(contractId, activationPatch);
+
+      setSettlements(activationSettlementResult.settlements);
+      activationSettlementResult.updates.forEach(({ id, patch }) => persistSettlementPatch(id, patch));
+      if (activationSettlementResult.creates.length > 0) {
+        persistNewSettlements(activationSettlementResult.creates);
       }
-
-      // 4. Update state variables of contracts
-      setContracts(contracts.map(c => {
-        if (c.id === contractId) {
-          const activationDate = today;
-          const renewalSchedule = aplicaRenovacionAnual(c)
-            ? computeRenewalSchedule(activationDate)
-            : { estadoRenovacion: 'No aplica' as const };
-          return {
-            ...c,
-            estado: 'Activado',
-            createdAt: activationDate,
-            consumoAnual: consumoKwh,
-            montoInterno: Math.round(totalCom * 100) / 100,
-            montoExterno: comercialShare + jefeShare,
-            fechaFin: renewalSchedule.fechaRenovacion,
-            fechaRenovacion: renewalSchedule.fechaRenovacion,
-            diasRenovacion: renewalSchedule.diasRenovacion,
-            estadoRenovacion: renewalSchedule.estadoRenovacion,
-          };
-        }
-        return c;
-      }));
-
-      // Add new settlements
-      setSettlements([...newRecords, ...settlements]);
       setIsActivatingContractLoading(false);
       setIsActivateOpen(false);
       setSelectedContractForActivation(null);
-      toast.success(`¡Contrato activado de forma oficial! Comisión neta repartida: Asesor (50%: ${formatCurrency(comercialShare)}) y Jefe (20%: ${formatCurrency(jefeShare)}).`);
+
+      if (breakdown) {
+        toast.success(
+          `Contrato activado. Comisión comercial: ${formatCurrency(comercialShare)}${jefeShare > 0 ? ` · Jefe: ${formatCurrency(jefeShare)}` : ''}.`
+        );
+      } else {
+        toast.success('Contrato activado. No se encontró marco retributivo para calcular comisión.');
+      }
     }, 600);
   };
 
@@ -1712,16 +2158,7 @@ export default function App() {
       setIsBajaLoading(false);
 
       const diffMonths = diffTime / (1000 * 60 * 60 * 24 * 30.4);
-      
-      let limitMonths = 6;
-      const brand = c.compania.toLowerCase();
-      if (brand.includes('naturgy') || brand.includes('repsol')) {
-        limitMonths = 4;
-      } else if (brand.includes('endesa')) {
-        limitMonths = 2;
-      } else if (brand.includes('gana') || brand.includes('iberdrola') || brand.includes('niba')) {
-        limitMonths = 12;
-      }
+      const { meses: limitMonths } = getRetroMonths(c.compania);
 
       let clawbackPercent = 0;
       let clawbackAmount = 0;
@@ -1735,17 +2172,14 @@ export default function App() {
       const internalClawbackRounded = Math.round(c.montoInterno * clawbackPercent * 100) / 100;
 
       // Update contracts list
-      setContracts(contracts.map(item => {
-        if (item.id === c.id) {
-          return {
-            ...item,
-            estado: 'Dado de Baja',
-            fechaBaja: bajaDate,
-            retrocomisionClawback: clawbackAmountRounded
-          };
-        }
-        return item;
-      }));
+      const bajaPatch: Partial<Contract> = {
+        estado: 'Dado de Baja',
+        fechaBaja: bajaDate,
+        retrocomisionClawback: clawbackAmountRounded,
+      };
+
+      setContracts(contracts.map(item => (item.id === c.id ? { ...item, ...bajaPatch } : item)));
+      persistContractPatch(c.id, bajaPatch);
 
       // Create a negative settlement record
       const negativeSettlement: Settlement = {
@@ -1761,6 +2195,7 @@ export default function App() {
         contractId: c.id,
       };
       setSettlements([negativeSettlement, ...settlements]);
+      persistNewSettlements([negativeSettlement]);
 
       // If there is clawback, inject a negative entry into pendingContracts as a checklist item
       if (clawbackAmountRounded > 0) {
@@ -1859,6 +2294,14 @@ export default function App() {
     };
   const activeRole = activeUser.role;
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
+  const ventasActor = useMemo(
+    () => ({
+      comercialId: activeUserId,
+      comercialName: activeUser.fullName,
+      role: mapVentasRole(activeRole),
+    }),
+    [activeUserId, activeUser.fullName, activeRole]
+  );
 
   useEffect(() => {
     if (activeRole !== 'superadmin' || superadminViewMode !== 'tramitacion') return;
@@ -1890,9 +2333,6 @@ export default function App() {
   }, [currentMenuTab, activeRole]);
 
   function navigateToContract(contract: Contract) {
-    if (activeRole === 'superadmin' && superadminViewMode === 'comercial' && activeModule === 'erp') {
-      setSuperadminViewMode('tramitacion');
-    }
     setHighlightContractId(contract.id);
     setContractsSearchQuery(contract.cups);
     setContractsListFilter('all');
@@ -1901,15 +2341,16 @@ export default function App() {
   }
 
   function navigateToRenovacionProxima() {
-    if (activeRole === 'superadmin' && superadminViewMode === 'comercial' && activeModule === 'erp') {
-      setSuperadminViewMode('tramitacion');
-    }
     setHighlightContractId(null);
     setContractsSearchQuery('');
     setContractsListFilter('renovacion_proxima');
     setActiveModule('erp');
     setCurrentMenuTab('Contratos');
-    toast.info('Contratos con renovación próxima');
+    toast.info(
+      activeRole === 'superadmin' && superadminViewMode === 'comercial'
+        ? 'Tus contratos con renovación próxima'
+        : 'Contratos con renovación próxima'
+    );
   }
 
   function navigateToContratosEstadoKpi(filter: ContractEstadoKpiFilter) {
@@ -1943,6 +2384,13 @@ export default function App() {
       case 'comerciales':
         setCurrentMenuTab('Usuarios');
         break;
+      case 'oportunidades_mejora':
+        if (!canViewTarifaRecommendations) break;
+        setActiveModule('erp');
+        setContractsListFilter('con_recomendacion');
+        setCurrentMenuTab('Contratos');
+        toast.info('Contratos propios con oportunidad de mejora tarifaria');
+        break;
       default:
         break;
     }
@@ -1951,6 +2399,23 @@ export default function App() {
   function openContractWizardBlank() {
     resetNewContractForm();
     setContractWizardProspectoId(null);
+    setEditingContractId(null);
+    setContractWizardOpen(true);
+  }
+
+  function openContractWizardForEdit(contract: Contract) {
+    const comercial = profiles.find((p) => p.id === contract.comercialId);
+    const jefe = comercial?.managerId
+      ? profiles.find((p) => p.id === comercial.managerId)
+      : undefined;
+    patchNewContractForm({
+      ...contractToNewContractForm(contract, {
+        nombreComercial: contract.comercialName ?? comercial?.fullName ?? '',
+        jefeEquipo: contract.jefeEquipo ?? jefe?.fullName ?? '',
+      }),
+    });
+    setContractWizardProspectoId(null);
+    setEditingContractId(contract.id);
     setContractWizardOpen(true);
   }
 
@@ -1985,12 +2450,126 @@ export default function App() {
     setContractWizardOpen(true);
   }
 
+  function openContractWizardFromRecommendation(
+    contract: Contract,
+    recommendation: TarifaRecommendation
+  ) {
+    const row = marcoEntries.find((e) => e.id === recommendation.tarifaRecomendadaId);
+    if (!row) {
+      toast.error('No se encontró la tarifa recomendada en el marco retributivo.');
+      return;
+    }
+    openContractWizardFromProducto(marcoRowToProducto(row));
+    patchNewContractForm({
+      clientName: contract.clientName,
+      cups: contract.cups,
+      nif: contract.nif ?? '',
+      telefono: contract.telefono ?? '',
+      email: contract.email ?? '',
+      iban: contract.iban ?? '',
+      direccionSuministro: contract.direccionSuministro ?? '',
+      direccionCompleta: contract.direccionCompleta ?? '',
+      consumoAnual: String(contract.consumoAnualManual ?? contract.consumoAnual ?? ''),
+      potenciaContratada: contract.potenciaContratada != null ? String(contract.potenciaContratada) : '',
+      precioFijoConsumo:
+        contract.precioFijoConsumo != null ? String(contract.precioFijoConsumo) : '',
+      wizardStep: 'cliente',
+    });
+    toast.success(`Wizard prellenado con ${recommendation.companiaRecomendada}`);
+  }
+
+  async function handleDownloadRecommendationPdf(
+    contract: Contract,
+    recommendation: TarifaRecommendation
+  ) {
+    const demoInput = getDemoEstudioAhorroInput({
+      nombre: contract.clientName,
+      cups: contract.cups,
+      direccion: contract.direccionSuministro ?? contract.direccionCompleta,
+    })
+
+    try {
+      let input = demoInput
+      try {
+        input = mapRecommendationToEstudioAhorro(contract, recommendation, marcoEntries)
+      } catch (mapError) {
+        console.warn('[PDF] Mapeo dinámico fallido, usando demo embebido', mapError)
+      }
+      const blob = await generateEstudioAhorroPdf(input)
+      downloadEstudioAhorroPdf(blob, recommendationPdfFilename(recommendation))
+      toast.success('PDF de estudio de ahorro generado')
+    } catch (error) {
+      console.error(error)
+      try {
+        const blob = await generateEstudioAhorroPdf(demoInput)
+        downloadEstudioAhorroPdf(blob, recommendationPdfFilename(recommendation))
+        toast.success('PDF de estudio de ahorro generado (plantilla demo)')
+      } catch (fallbackError) {
+        console.error(fallbackError)
+        toast.error('No se pudo generar el PDF.')
+      }
+    }
+  }
+
+  async function handleDownloadJointContractsPdf(selectedContracts: Contract[]) {
+    const withRec = selectedContracts.filter((c) => tarifaRecommendations?.has(c.id));
+    if (withRec.length === 0) {
+      toast.error('Ningún contrato seleccionado tiene recomendación tarifaria.');
+      return;
+    }
+
+    setIsGeneratingJointPdf(true);
+    try {
+      const estudios = withRec.map((c) => {
+        const rec = tarifaRecommendations!.get(c.id)!;
+        try {
+          return mapRecommendationToEstudioAhorro(c, rec, marcoEntries);
+        } catch {
+          return getDemoEstudioAhorroInput({
+            nombre: c.clientName,
+            cups: c.cups,
+            direccion: c.direccionSuministro ?? c.direccionCompleta,
+          });
+        }
+      });
+
+      const input = {
+        fechaGeneracion: new Intl.DateTimeFormat('es-ES', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date()),
+        titular:
+          withRec.length === 1
+            ? withRec[0].clientName
+            : `${withRec.length} suministros`,
+        estudios,
+      };
+
+      const blob = await generateEstudioAhorroConjuntoPdf(input);
+      downloadEstudioAhorroPdf(blob, 'estudio-ahorro-conjunto.pdf');
+      toast.success(`PDF conjunto generado (${estudios.length} CUPS)`);
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el PDF conjunto.');
+    } finally {
+      setIsGeneratingJointPdf(false);
+    }
+  }
+
+  function handleDismissRecommendation(contractId: string) {
+    dismissRecommendation(contractId);
+    setRecommendationDismissVersion((v) => v + 1);
+    toast.message('Recomendación descartada durante 30 días');
+  }
+
   function openContractWizardForProspecto(prospecto: Prospecto) {
     const user = profiles.find((p) => p.id === activeUserId) || profiles[0];
     const jefe = profiles.find((p) => p.id === user.managerId);
     patchNewContractForm({
       ...EMPTY_NEW_CONTRACT_FORM,
-      fechaInicio: new Date().toISOString().split('T')[0],
       ...buildNewContractFormFromProspecto(prospecto, {
         nombreComercial: user.fullName,
         jefeEquipo: jefe?.fullName ?? '',
@@ -2025,6 +2604,47 @@ export default function App() {
   const teamSettlements = settlements.filter(s => teamMemberIds.includes(s.comercialId) || s.comercialId === activeUser.id);
   
   const myContracts = contracts.filter(c => c.comercialId === activeUser.id);
+
+  const isSuperadminComercialView =
+    activeRole === 'superadmin' && superadminViewMode === 'comercial';
+
+  const canViewTarifaRecommendations =
+    activeRole === 'comercial' ||
+    activeRole === 'jefe_comercial' ||
+    isSuperadminComercialView;
+
+  const ownContractsForRecommendations = useMemo(
+    () => contracts.filter((c) => c.comercialId === activeUserId),
+    [contracts, activeUserId]
+  );
+
+  const tarifaRecommendations = useMemo(() => {
+    if (!canViewTarifaRecommendations) {
+      return new Map<string, TarifaRecommendation>();
+    }
+    const raw = calcularRecomendacionesParaContratos(
+      ownContractsForRecommendations,
+      marcoEntries,
+      profiles.map((p) => ({
+        id: p.id,
+        commissionPercentage: p.commissionPercentage,
+      })),
+      formatCurrency
+    );
+    return filterUndismissedRecommendations(raw);
+  }, [
+    canViewTarifaRecommendations,
+    ownContractsForRecommendations,
+    marcoEntries,
+    profiles,
+    recommendationDismissVersion,
+  ]);
+
+  useEffect(() => {
+    if (!canViewTarifaRecommendations && contractsListFilter === 'con_recomendacion') {
+      setContractsListFilter('all');
+    }
+  }, [canViewTarifaRecommendations, contractsListFilter]);
 
   const showContractsUserFilter =
     activeRole === 'tramitacion' ||
@@ -2070,6 +2690,7 @@ export default function App() {
     });
 
     setIncidencias(prev => [newTicket, ...prev]);
+    persistNewIncidencia(newTicket);
     setNewIncClientName('');
     setNewIncDescripcion('');
     setNewIncTipo('Incidencia Cartera');
@@ -2083,14 +2704,20 @@ export default function App() {
     if (!existing) return;
     const final = withIncidenciaEstado({ ...updated, estadoAt: existing.estadoAt }, updated.estado);
     setIncidencias(prev => prev.map(i => (i.id === final.id ? final : i)));
+    persistIncidenciaPatch(final.id, final);
     toast.success('Incidencia actualizada.');
   };
 
   const handleMoveIncidencia = (id: string, newEstado: IncidenciaTicket['estado']) => {
     if (!isErpOpsAdmin) return;
+    const moved = incidencias.find(i => i.id === id);
     setIncidencias(prev =>
       prev.map(i => (i.id === id ? withIncidenciaEstado(i, newEstado) : i))
     );
+    if (moved) {
+      const { estado, estadoAt } = withIncidenciaEstado(moved, newEstado);
+      persistIncidenciaPatch(id, { estado, estadoAt });
+    }
   };
 
   // New clean, unified Menu items lists based on allowed roles in the exact ordered sequence
@@ -2152,6 +2779,7 @@ export default function App() {
                 'Dashboard',
                 'Liquidaciones internas',
                 'Mis Clientes',
+                'Contratos',
                 'Comparador',
                 'Historial de Comparativas',
                 'Tarifas',
@@ -2647,7 +3275,8 @@ export default function App() {
                   <div className="space-y-8">
                     
                     {/* PROFILE: SUPERADMIN (EXECUTIVE CONTROL BOARD) */}
-                    {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
+                    {(activeRole === 'tramitacion' ||
+                      (activeRole === 'superadmin' && superadminViewMode === 'tramitacion')) && (
                       <SuperadminDashboard
                         welcomeName={activeUser.fullName}
                         activeRole={activeRole}
@@ -2671,7 +3300,7 @@ export default function App() {
                     {activeRole === 'jefe_comercial' && (
                       <div className="space-y-8 animate-fade-in">
                         {/* STATS ROW */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
                           <div className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm">
                             <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
                             <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
@@ -2743,6 +3372,23 @@ export default function App() {
                               Asesores directos bajo tu supervisión
                             </p>
                           </div>
+
+                          <div
+                            onClick={() => handleDashboardNavigate('oportunidades_mejora')}
+                            className="bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-2 relative overflow-hidden shadow-sm cursor-pointer hover:border-amber-500/40 transition-colors"
+                          >
+                            <div className="absolute top-0 left-0 w-1 h-full bg-amber-500" />
+                            <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest flex items-center gap-1.5">
+                              <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                              Oportunidades tarifarias
+                            </p>
+                            <h3 className="text-2xl font-black text-amber-500 tracking-tight font-mono">
+                              {tarifaRecommendations.size}
+                            </h3>
+                            <p className="text-[11px] text-brand-subtext">
+                              Contratos propios · retro vencida · mejora de comisión
+                            </p>
+                          </div>
                         </div>
 
                         {/* LIST ROW */}
@@ -2810,10 +3456,10 @@ export default function App() {
                     )}
 
                     {/* PROFILE: COMERCIAL (PERSONAL COMMISSION HUD) */}
-                    {activeRole === 'comercial' && (
+                    {(activeRole === 'comercial' || isSuperadminComercialView) && (
                       <div className="space-y-4 animate-fade-in">
                         <ComercialCommissionsChart
-                          contracts={contracts}
+                          settlements={settlements}
                           activeUserId={activeUserId}
                           selectedPeriod={selectedPeriod}
                           onPeriodChange={setSelectedPeriod}
@@ -2878,6 +3524,27 @@ export default function App() {
                             activeUserId={activeUserId}
                             onNavigate={navigateToRenovacionProxima}
                           />
+                          </div>
+
+                          <div
+                            onClick={() => handleDashboardNavigate('oportunidades_mejora')}
+                            className="bg-brand-panel p-3 rounded-xl border border-brand-border shadow-sm flex flex-col justify-between gap-2 font-sans cursor-pointer hover:border-amber-500/40 transition-colors min-h-[132px] min-w-0"
+                          >
+                            <div className="space-y-1">
+                              <span className="text-[10px] font-semibold text-brand-text uppercase tracking-tight flex items-center gap-1.5">
+                                <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                                Oportunidades tarifarias
+                              </span>
+                              <p className="text-[9px] text-brand-subtext leading-snug">
+                                Contratos propios con mejora de ahorro y comisión
+                              </p>
+                            </div>
+                            <div className="pt-1.5 border-t border-dashed border-brand-border">
+                              <strong className="text-xl font-black text-amber-500 tabular-nums font-mono leading-none">
+                                {tarifaRecommendations.size}
+                              </strong>
+                              <span className="text-[9px] text-brand-subtext block mt-0.5">Ver mis contratos →</span>
+                            </div>
                           </div>
                         </div>
 
@@ -3132,13 +3799,12 @@ export default function App() {
                     activeRole={activeRole}
                     activeUserId={activeUserId}
                     activeUserName={activeUser.fullName}
-                    canEditContractEstado={
-                      activeModule === 'erp' &&
-                      (isErpOpsAdmin &&
-                        (activeRole === 'tramitacion' || superadminViewMode === 'tramitacion'))
-                    }
+                    canEditContractEstado={activeModule === 'erp' && activeRole === 'tramitacion'}
+                    canManageContractLifecycle={activeRole === 'tramitacion'}
                     visibleContracts={
-                      currentMenuTab === 'Mis Contratos' || activeRole === 'comercial'
+                      currentMenuTab === 'Mis Contratos' ||
+                      activeRole === 'comercial' ||
+                      isSuperadminComercialView
                         ? myContracts
                         : activeRole === 'jefe_comercial'
                           ? teamContracts
@@ -3150,6 +3816,7 @@ export default function App() {
                     userFilterId={contractsUserFilterId}
                     onUserFilterChange={setContractsUserFilterId}
                     setContracts={setContracts}
+                    onPersistContract={persistContractPatch}
                     contractsSearchQuery={contractsSearchQuery}
                     setContractsSearchQuery={setContractsSearchQuery}
                     contractsListFilter={contractsListFilter}
@@ -3177,6 +3844,30 @@ export default function App() {
                     commissionPercentage={activeUser.commissionPercentage}
                     formatCurrency={formatCurrency}
                     renderCompaniaLogo={renderCompaniaLogo}
+                    showTarifaRecommendations={canViewTarifaRecommendations}
+                    tarifaRecommendations={
+                      canViewTarifaRecommendations ? tarifaRecommendations : undefined
+                    }
+                    onCreateContractFromRecommendation={
+                      canViewTarifaRecommendations
+                        ? openContractWizardFromRecommendation
+                        : undefined
+                    }
+                    onDownloadRecommendationPdf={
+                      canViewTarifaRecommendations
+                        ? handleDownloadRecommendationPdf
+                        : undefined
+                    }
+                    onDismissRecommendation={
+                      canViewTarifaRecommendations ? handleDismissRecommendation : undefined
+                    }
+                    onDownloadJointRecommendationPdf={
+                      canViewTarifaRecommendations
+                        ? handleDownloadJointContractsPdf
+                        : undefined
+                    }
+                    isGeneratingJointPdf={isGeneratingJointPdf}
+                    onEditContract={openContractWizardForEdit}
                   />
                 )}
 
@@ -3849,11 +4540,7 @@ export default function App() {
                 {/* VENTAS: Mi Día */}
                 {currentMenuTab === 'Mi Día' && activeModule === 'ventas' && (
                   <MiDiaPage
-                    actor={{
-                      comercialId: activeUserId,
-                      comercialName: activeUser.fullName,
-                      role: mapVentasRole(activeRole),
-                    }}
+                    actor={ventasActor}
                     contracts={contracts}
                     importSources={prospectoImportSources}
                     onOpenFicha={openVentasFicha}
@@ -3865,11 +4552,7 @@ export default function App() {
                 {/* VENTAS: Pipeline */}
                 {currentMenuTab === 'Pipeline' && activeModule === 'ventas' && (
                   <PipelinePage
-                    actor={{
-                      comercialId: activeUserId,
-                      comercialName: activeUser.fullName,
-                      role: mapVentasRole(activeRole),
-                    }}
+                    actor={ventasActor}
                     profiles={profiles.map((p) => ({
                       id: p.id,
                       fullName: p.fullName,
@@ -3891,11 +4574,7 @@ export default function App() {
 
                 {currentMenuTab === 'Reporting' && activeModule === 'ventas' && (
                   <ReportingPage
-                    actor={{
-                      comercialId: activeUserId,
-                      comercialName: activeUser.fullName,
-                      role: mapVentasRole(activeRole),
-                    }}
+                    actor={ventasActor}
                     profiles={profiles.map((p) => ({
                       id: p.id,
                       fullName: p.fullName,
@@ -3907,11 +4586,7 @@ export default function App() {
 
                 {currentMenuTab === 'Avisos SLA' && activeModule === 'ventas' && (
                   <SlaAvisosPage
-                    actor={{
-                      comercialId: activeUserId,
-                      comercialName: activeUser.fullName,
-                      role: mapVentasRole(activeRole),
-                    }}
+                    actor={ventasActor}
                     profiles={profiles.map((p) => ({
                       id: p.id,
                       fullName: p.fullName,
@@ -3925,11 +4600,7 @@ export default function App() {
                   <FichaProspecto
                     prospectoId={ventasFichaProspectoId}
                     initialProspecto={ventasFichaSnapshot}
-                    actor={{
-                      comercialId: activeUserId,
-                      comercialName: activeUser.fullName,
-                      role: mapVentasRole(activeRole),
-                    }}
+                    actor={ventasActor}
                     onClose={closeVentasFicha}
                     onDeleted={closeVentasFicha}
                     onOpenContractWizard={openContractWizardForProspecto}
@@ -3943,6 +4614,7 @@ export default function App() {
                   <MisClientesPanel
                     clients={clients}
                     setClients={setClients}
+                    onPersistClient={persistClientPatch}
                     contracts={contracts}
                     activeUserId={activeUserId}
                     activeUserName={activeUser.fullName}
@@ -3951,6 +4623,9 @@ export default function App() {
                     clientesSearchQuery={clientesSearchQuery}
                     setClientesSearchQuery={setClientesSearchQuery}
                     onNavigateToContract={navigateToContract}
+                    superadminComercialScope={
+                      activeRole === 'superadmin' && superadminViewMode === 'comercial'
+                    }
                   />
                 )}
 
@@ -4240,7 +4915,17 @@ export default function App() {
                               {/* Listing Title */}
                               <div className="flex items-center justify-between px-2">
                                 <span className="text-[10px] font-bold uppercase font-mono text-brand-subtext tracking-wider">Top 3 Ofertas de Comercialización</span>
-                                <span className="text-[9px] text-brand-subtext font-mono italic">Ordenado por coste anual</span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDownloadComparadorPdf()}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold text-[10px] rounded-lg tracking-wider uppercase shadow transition-colors cursor-pointer"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    <span>Descargar PDF</span>
+                                  </button>
+                                  <span className="text-[9px] text-brand-subtext font-mono italic">Ordenado por coste anual</span>
+                                </div>
                               </div>
 
                               {/* Cards cascade comparison */}
@@ -4372,6 +5057,9 @@ export default function App() {
                             <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
                               Historial de Comparativas
                             </h3>
+                            <p className="text-[11px] text-brand-subtext mt-0.5">
+                              Selecciona varias propuestas para generar un estudio de ahorro conjunto.
+                            </p>
                           </div>
                         </div>
 
@@ -4388,6 +5076,38 @@ export default function App() {
                         </div>
                       </div>
 
+                      {selectedComparisonIds.length > 0 && (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/20">
+                          <div className="text-xs text-brand-text">
+                            <span className="font-extrabold">
+                              {selectedComparisonIds.length} comparativa{selectedComparisonIds.length === 1 ? '' : 's'} seleccionada{selectedComparisonIds.length === 1 ? '' : 's'}
+                            </span>
+                            <span className="text-brand-subtext"> · Ahorro conjunto estimado </span>
+                            <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(selectedComparisonsSavings)}/año
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setSelectedComparisonIds([])}
+                              className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-subtext hover:text-brand-text transition-colors"
+                            >
+                              Limpiar selección
+                            </button>
+                            <button
+                              onClick={handleDownloadJointHistoryPdf}
+                              disabled={selectedComparisonIds.length < 2 || isGeneratingJointPdf}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-[10px] rounded-xl tracking-wider uppercase shadow transition-colors"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              <span>
+                                {isGeneratingJointPdf ? 'Generando...' : 'PDF estudio conjunto'}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* History list or empty state */}
                       {comparisonsHistory.length === 0 ? (
                         <div className="p-12 text-center text-brand-subtext border border-dashed border-brand-border rounded-2xl bg-slate-50/50">
@@ -4398,6 +5118,36 @@ export default function App() {
                           <table className="w-full text-left border-collapse text-xs">
                             <thead>
                               <tr className="border-b border-brand-border text-[10px] uppercase font-bold tracking-wider font-mono text-brand-subtext">
+                                <th className="pb-3 px-2 w-8">
+                                  <input
+                                    type="checkbox"
+                                    aria-label="Seleccionar todas las comparativas"
+                                    className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+                                    checked={
+                                      filteredComparisonsHistory.length > 0 &&
+                                      filteredComparisonsHistory.every((item) =>
+                                        selectedComparisonIds.includes(item.id)
+                                      )
+                                    }
+                                    onChange={(e) =>
+                                      setSelectedComparisonIds(
+                                        e.target.checked
+                                          ? Array.from(
+                                              new Set([
+                                                ...selectedComparisonIds,
+                                                ...filteredComparisonsHistory.map((item) => item.id),
+                                              ])
+                                            )
+                                          : selectedComparisonIds.filter(
+                                              (id) =>
+                                                !filteredComparisonsHistory.some(
+                                                  (item) => item.id === id
+                                                )
+                                            )
+                                      )
+                                    }
+                                  />
+                                </th>
                                 <th className="pb-3 px-2">Cliente / Fecha</th>
                                 <th className="pb-3 px-2">CUPS / Tarifa Acceso</th>
                                 <th className="pb-3 px-2 text-right">Gasto Actual</th>
@@ -4407,17 +5157,26 @@ export default function App() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-brand-border">
-                              {comparisonsHistory
-                                .filter(item => 
-                                  item.clientName.toLowerCase().includes(compHistorySearch.toLowerCase()) || 
-                                  item.cups.toLowerCase().includes(compHistorySearch.toLowerCase())
-                                )
+                              {filteredComparisonsHistory
                                 .map((item, idx) => {
                                   const savingsPercent = item.currentAnnualExpense > 0 
                                     ? Math.round((item.maxAnnualSavings / item.currentAnnualExpense) * 100) 
                                     : 0;
+                                  const isSelected = selectedComparisonIds.includes(item.id);
                                   return (
-                                    <tr key={item.id || idx} className="border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.01] transition-all">
+                                    <tr
+                                      key={item.id || idx}
+                                      className={`border-b border-brand-border transition-all ${isSelected ? 'bg-emerald-50/60 dark:bg-emerald-950/10' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.01]'}`}
+                                    >
+                                      <td className="py-4 px-2">
+                                        <input
+                                          type="checkbox"
+                                          aria-label={`Seleccionar comparativa de ${item.clientName}`}
+                                          className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"
+                                          checked={isSelected}
+                                          onChange={() => toggleComparisonSelection(item.id)}
+                                        />
+                                      </td>
                                       <td className="py-4 px-2">
                                         <div className="font-bold text-brand-text">{item.clientName}</div>
                                         <div className="text-[10px] text-brand-subtext font-mono mt-0.5">{item.date}</div>
@@ -4443,9 +5202,7 @@ export default function App() {
                                       </td>
                                       <td className="py-4 px-2 text-right">
                                         <button
-                                          onClick={() => {
-                                            alert(`📄 Generando propuesta comercial en formato PDF...\nCliente: ${item.clientName}\nCUPS: ${item.cups}\nAhorro Estimado: ${formatCurrency(item.maxAnnualSavings)}/año (${savingsPercent}%)\n\n¡PDF de Propuesta Comercial Enersave guardado en descargas con éxito!`);
-                                          }}
+                                          onClick={() => handleDownloadHistoryPdf(item)}
                                           className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold text-[10px] rounded-lg tracking-wider uppercase shadow transition-colors cursor-pointer"
                                         >
                                           <Download className="w-3.5 h-3.5" />
@@ -4514,7 +5271,7 @@ export default function App() {
                           setIsActivateOpen(false);
                           setSelectedContractForActivation(null);
                         }}
-                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs"
+                        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xs"
                       />
 
                       {/* Modal Content container */}
@@ -4522,63 +5279,55 @@ export default function App() {
                         initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.95, opacity: 0 }}
-                        className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl z-10"
+                        className="relative bg-brand-panel border border-brand-border rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl z-10"
                       >
-                        <div className="flex items-center space-x-3 text-emerald-400">
+                        <div className="flex items-center space-x-3 text-emerald-600 dark:text-emerald-400">
                           <Zap className="w-5 h-5" />
-                          <h3 className="text-sm font-black uppercase font-mono tracking-wider text-white">
+                          <h3 className="text-sm font-black uppercase font-mono tracking-wider text-brand-text">
                             Aprobación, Activación e Insert RLS
                           </h3>
                         </div>
 
-                        <div>
-                          <p className="text-xs text-slate-400 leading-relaxed">
-                            Se calcula la liquidación contable inmediata procediendo a la activación del suministro energético y aplicando la regla retributiva:
-                          </p>
-                          <div className="p-2 bg-slate-950 rounded border border-white/5 text-[10px] font-mono text-slate-500 mt-2 space-y-1">
-                            <span className="text-emerald-500 font-bold block uppercase text-[8px]">Reparticiones Reguladas:</span>
-                            <span>• Comercial Individual (Comisión Directa): <strong className="text-white">50%</strong></span>
-                            <span>• Jefe Comercial (Override de Supervisión): <strong className="text-white">20%</strong></span>
-                            <span>• Superadmin/Empresa (Retenido Base del ERP): <strong className="text-white">30%</strong></span>
-                          </div>
-                        </div>
+                        <p className="text-xs text-brand-subtext leading-relaxed">
+                          Se calcula la liquidación según el marco retributivo del contrato y el reparto configurado para cada persona antes de activar el suministro.
+                        </p>
 
                         {/* Customer details banner */}
-                        <div className="p-3 bg-slate-950/50 border border-white/5 rounded-xl text-xs space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">CLIENTE:</span>
-                            <span className="text-slate-200 font-bold">{selectedContractForActivation.clientName}</span>
+                        <div className="p-3 bg-brand-surface border border-brand-border rounded-xl text-xs space-y-1">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">CLIENTE:</span>
+                            <span className="text-brand-text font-bold text-right">{selectedContractForActivation.clientName}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">CUPS SUMINISTRO:</span>
-                            <span className="text-slate-300 font-mono text-[10px]">{selectedContractForActivation.cups}</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">CUPS SUMINISTRO:</span>
+                            <span className="text-brand-text font-mono text-[10px] text-right break-all">{selectedContractForActivation.cups}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">TIPO COMERCIAL:</span>
-                            <span className="text-slate-200 font-bold uppercase">{selectedContractForActivation.tipo}</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">TIPO COMERCIAL:</span>
+                            <span className="text-brand-text font-bold uppercase">{selectedContractForActivation.tipo}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">ASESOR DE REPORTE:</span>
-                            <span className="text-slate-200">{selectedContractForActivation.comercialName}</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">ASESOR DE REPORTE:</span>
+                            <span className="text-brand-text text-right">{selectedContractForActivation.comercialName}</span>
                           </div>
                         </div>
 
                         {/* Inputs area */}
                         <div className="grid grid-cols-2 gap-3 text-xs">
                           <div>
-                            <label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest mb-1">
+                            <label className="block text-[9px] font-mono text-brand-subtext uppercase tracking-widest mb-1">
                               Consumo Real (kWh/año)
                             </label>
                             <input
                               type="number"
                               value={activateConsumoKwh}
                               onChange={(e) => setActivateConsumoKwh(Math.max(0, Number(e.target.value)))}
-                              className="w-full bg-slate-950 border border-white/15 rounded-lg p-2 font-mono text-white text-xs"
+                              className="w-full bg-brand-surface border border-brand-border rounded-lg p-2 font-mono text-brand-text text-xs focus:border-emerald-500 focus:outline-none"
                             />
                           </div>
 
                           <div>
-                            <label className="block text-[9px] font-mono text-slate-400 uppercase tracking-widest mb-1">
+                            <label className="block text-[9px] font-mono text-brand-subtext uppercase tracking-widest mb-1">
                               Potencia Suministro (kW)
                             </label>
                             <input
@@ -4586,56 +5335,60 @@ export default function App() {
                               step="0.1"
                               value={activatePowerKw}
                               onChange={(e) => setActivatePowerKw(Math.max(0, Number(e.target.value)))}
-                              className="w-full bg-slate-950 border border-white/15 rounded-lg p-2 font-mono text-white text-xs"
+                              className="w-full bg-brand-surface border border-brand-border rounded-lg p-2 font-mono text-brand-text text-xs focus:border-emerald-500 focus:outline-none"
                             />
                           </div>
                         </div>
 
-                        {/* Dynamic Live Calculations */}
+                        {/* Comisión según marco retributivo */}
                         {(() => {
-                          const kwhRate = selectedContractForActivation.tipo === 'luz' ? 0.015 : 0.012;
-                          const kwRate = selectedContractForActivation.tipo === 'luz' ? 5.50 : 4.00;
-                          const totalCom = (activateConsumoKwh * kwhRate) + (activatePowerKw * kwRate);
+                          const comercialProfile = profiles.find(
+                            (p) => p.id === selectedContractForActivation.comercialId
+                          );
+                          const commissionPct = comercialProfile?.commissionPercentage ?? 70;
+                          const marcoEntry = resolveMarcoCatalogEntry(
+                            selectedContractForActivation.marcoEntryId,
+                            selectedContractForActivation.compania,
+                            selectedContractForActivation.tarifa,
+                            selectedContractForActivation.tipo,
+                            marcoEntries
+                          );
+                          const breakdown =
+                            marcoEntry && activateConsumoKwh > 0
+                              ? computeComisionBreakdown(
+                                  marcoEntry,
+                                  commissionPct,
+                                  activateConsumoKwh,
+                                  formatCurrency
+                                )
+                              : null;
 
-                          const comShare = Math.round(totalCom * 0.50 * 100) / 100;
-                          let jefeShare = Math.round(totalCom * 0.20 * 100) / 100;
-                          let superShare = Math.round(totalCom * 0.30 * 100) / 100;
-
-                          // Rollup
-                          const comercialProfile = profiles.find(p => p.id === selectedContractForActivation.comercialId);
-                          const managerId = comercialProfile ? comercialProfile.managerId : null;
-                          const managerProfile = managerId ? profiles.find(p => p.id === managerId) : null;
-
-                          if (!managerId) {
-                            superShare += jefeShare;
-                            jefeShare = 0;
+                          if (!breakdown) {
+                            return (
+                              <p className="text-[10px] text-brand-subtext italic p-3 bg-brand-surface border border-brand-border rounded-xl">
+                                Indica consumo y potencia para calcular la comisión según marco retributivo.
+                              </p>
+                            );
                           }
 
                           return (
-                            <div className="p-4 bg-slate-950 border border-emerald-500/20 rounded-xl space-y-2 text-xs font-mono">
-                              <div className="flex justify-between text-white border-b border-white/5 pb-1.5 text-[10px]">
-                                <span>COMISIÓN BRUTA GLOBAL (100%):</span>
-                                <span className="font-extrabold text-emerald-400">{Math.round(totalCom * 100) / 100} €</span>
+                            <div className="p-4 bg-brand-surface border border-emerald-500/25 rounded-xl space-y-2 text-xs font-mono">
+                              <div className="flex justify-between text-brand-text border-b border-brand-border pb-1.5 text-[10px]">
+                                <span>Comisión empresa (marco):</span>
+                                <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                                  {formatCurrency(breakdown.comisionEmpresa)}
+                                </span>
                               </div>
-
-                              <div className="space-y-1 text-[10px] pt-1">
-                                <div className="flex justify-between text-yellow-400/90 font-semibold">
-                                  <span>↳ Comercial (50% Split):</span>
-                                  <span>{comShare} €</span>
-                                </div>
-                                <p className="text-[8px] text-slate-500 pl-3">Destinatario: {selectedContractForActivation.comercialName}</p>
-
-                                <div className="flex justify-between text-cyan-400/90 font-semibold">
-                                  <span>↳ Jefe Comercial (20% Override):</span>
-                                  <span>{jefeShare} €</span>
-                                </div>
-                                <p className="text-[8px] text-slate-500 pl-3">Supervisor: {managerProfile ? managerProfile.fullName : 'Sin manager (Rolls up to company)'}</p>
-
-                                <div className="flex justify-between text-emerald-400/90 font-semibold">
-                                  <span>↳ Empresa Plataforma (30% Retención):</span>
-                                  <span>{Math.round(superShare * 100) / 100} €</span>
-                                </div>
+                              <div className="flex justify-between text-amber-700 dark:text-amber-400 font-semibold text-[10px]">
+                                <span>↳ Comercial ({commissionPct}%):</span>
+                                <span>{formatCurrency(breakdown.comisionComercial)}</span>
                               </div>
+                              <p className="text-[8px] text-brand-subtext pl-1">
+                                Destinatario: {selectedContractForActivation.comercialName}
+                              </p>
+                              <p className="text-[9px] text-brand-subtext leading-relaxed pt-1 border-t border-brand-border">
+                                {breakdown.detalle}
+                              </p>
                             </div>
                           );
                         })()}
@@ -4648,7 +5401,7 @@ export default function App() {
                               setIsActivateOpen(false);
                               setSelectedContractForActivation(null);
                             }}
-                            className="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded-xl"
+                            className="px-4 py-2 bg-brand-surface hover:bg-brand-elevated text-brand-text font-bold rounded-xl border border-brand-border"
                           >
                             Cancelar
                           </button>
@@ -4694,7 +5447,7 @@ export default function App() {
                           setIsBajaOpen(false);
                           setSelectedContractForBaja(null);
                         }}
-                        className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs"
+                        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-xs"
                       />
 
                       {/* Modal Panel Container */}
@@ -4702,50 +5455,50 @@ export default function App() {
                         initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.95, opacity: 0 }}
-                        className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl z-10 text-slate-300"
+                        className="relative bg-brand-panel border border-brand-border rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl z-10 text-brand-text"
                       >
                         <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-rose-500 to-amber-500" />
                         
-                        <div className="flex items-center space-x-3 text-rose-400">
+                        <div className="flex items-center space-x-3 text-rose-600 dark:text-rose-400">
                           <Trash2 className="w-5 h-5 text-rose-500" />
-                          <h3 className="text-sm font-black uppercase font-mono tracking-wider text-white">
+                          <h3 className="text-sm font-black uppercase font-mono tracking-wider text-brand-text">
                             Registro de Baja e Inicio de Retrocomisión
                           </h3>
                         </div>
 
                         <div>
-                          <p className="text-xs text-slate-400 leading-relaxed">
+                          <p className="text-xs text-brand-subtext leading-relaxed">
                             Al cancelar el suministro eléctrico o de gas antes del periodo de cobertura, se genera una liquidación negativa proporcional contra la cuenta del comercial implicado:
                           </p>
                         </div>
 
                         {/* Customer details banner */}
-                        <div className="p-3 bg-slate-950/50 border border-white/5 rounded-xl text-xs space-y-1">
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">CLIENTE AFECTADO:</span>
-                            <span className="text-slate-200 font-bold">{selectedContractForBaja.clientName}</span>
+                        <div className="p-3 bg-brand-surface border border-brand-border rounded-xl text-xs space-y-1">
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">CLIENTE AFECTADO:</span>
+                            <span className="text-brand-text font-bold text-right">{selectedContractForBaja.clientName}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">CUPS:</span>
-                            <span className="text-slate-300 font-mono text-[10px]">{selectedContractForBaja.cups}</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">CUPS:</span>
+                            <span className="text-brand-text font-mono text-[10px] text-right break-all">{selectedContractForBaja.cups}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">COMPAÑÍA / TIPO:</span>
-                            <span className="text-slate-200 font-bold uppercase">{selectedContractForBaja.compania} ({selectedContractForBaja.tipo})</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">COMPAÑÍA / TIPO:</span>
+                            <span className="text-brand-text font-bold uppercase text-right">{selectedContractForBaja.compania} ({selectedContractForBaja.tipo})</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">COMISIÓN ORIGINAL LIQUIDADA:</span>
-                            <span className="text-emerald-400 font-mono font-bold">{formatCurrency(selectedContractForBaja.montoExterno)}</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">COMISIÓN ORIGINAL LIQUIDADA:</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold">{formatCurrency(selectedContractForBaja.montoExterno)}</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span className="text-slate-500 font-mono text-[10px]">FECHA DE ACTIVACIÓN:</span>
-                            <span className="text-slate-300 font-mono">{selectedContractForBaja.createdAt}</span>
+                          <div className="flex justify-between gap-2">
+                            <span className="text-brand-subtext font-mono text-[10px] shrink-0">FECHA DE ACTIVACIÓN:</span>
+                            <span className="text-brand-text font-mono">{selectedContractForBaja.createdAt}</span>
                           </div>
                         </div>
 
                         {/* Date input area */}
                         <div className="space-y-1.5 text-xs">
-                          <label className="block text-[9px] font-mono text-slate-400 tracking-widest uppercase font-bold">
+                          <label className="block text-[9px] font-mono text-brand-subtext tracking-widest uppercase font-bold">
                             Fecha Oficial de Baja de Suministro
                           </label>
                           <input
@@ -4753,7 +5506,7 @@ export default function App() {
                             required
                             value={bajaDate}
                             onChange={(e) => setBajaDate(e.target.value)}
-                            className="w-full bg-slate-950 border border-white/10 rounded-lg p-2.5 font-mono text-white text-xs text-center border-white/10"
+                            className="w-full bg-brand-surface border border-brand-border rounded-lg p-2.5 font-mono text-brand-text text-xs text-center focus:border-rose-500 focus:outline-none"
                           />
                         </div>
 
@@ -4770,7 +5523,7 @@ export default function App() {
 
                           if (diffTime < 0) {
                             return (
-                              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-450 text-[10px] rounded-lg font-mono">
+                              <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[10px] rounded-lg font-mono">
                                 ⚠️ Error: La fecha de baja no puede ser anterior a la de activación.
                               </div>
                             );
@@ -4788,22 +5541,22 @@ export default function App() {
                           const secure = diffMonths >= limitMonths;
 
                           return (
-                            <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-md text-xs font-mono space-y-2">
+                            <div className="p-3.5 bg-brand-surface border border-brand-border rounded-md text-xs font-mono space-y-2">
                               {secure ? (
-                                <div className="text-emerald-400 font-bold text-center py-1">
+                                <div className="text-emerald-600 dark:text-emerald-400 font-bold text-center py-1">
                                   ✓ SEGURO: El contrato ha consumido todo el periodo de cobertura ({limitMonths} meses). No se aplicará retrocomisión negativa.
                                 </div>
                               ) : (
                                 <>
-                                  <div className="flex justify-between text-rose-400 border-b border-white/5 pb-1">
+                                  <div className="flex justify-between text-rose-600 dark:text-rose-400 border-b border-brand-border pb-1">
                                     <span>PENALIZACIÓN CORRESPONDIENTE:</span>
                                     <span className="font-extrabold">{(clawbackPercent * 100).toFixed(0)} %</span>
                                   </div>
-                                  <div className="flex justify-between text-white font-bold text-[11px] pt-2">
+                                  <div className="flex justify-between text-brand-text font-bold text-[11px] pt-2">
                                     <span>SALDO NEGATIVO RECOBRABLE:</span>
-                                    <span className="text-rose-405 font-black text-red-400">-{formatCurrency(clawbackAmount)}</span>
+                                    <span className="text-rose-600 dark:text-rose-400 font-black">-{formatCurrency(clawbackAmount)}</span>
                                   </div>
-                                  <p className="text-[9px] text-slate-500 mt-1 leading-snug">
+                                  <p className="text-[9px] text-brand-subtext mt-1 leading-snug">
                                     Se deducirá {formatCurrency(clawbackAmount)} de las liquidaciones pendientes para {selectedContractForBaja.comercialName}. El contrato pasará a estado «Dado de Baja».
                                   </p>
                                 </>
@@ -4820,7 +5573,7 @@ export default function App() {
                               setIsBajaOpen(false);
                               setSelectedContractForBaja(null);
                             }}
-                            className="px-4 py-2 bg-slate-800 hover:bg-slate-755 text-slate-300 font-bold rounded-xl cursor-safe"
+                            className="px-4 py-2 bg-brand-surface hover:bg-brand-elevated text-brand-text font-bold rounded-xl border border-brand-border cursor-safe"
                           >
                             Cancelar
                           </button>
@@ -5356,14 +6109,27 @@ export default function App() {
       <Suspense fallback={null}>
       <NuevoContratoWizard
         open={contractWizardOpen}
+        mode={editingContractId ? 'edit' : 'create'}
         onClose={() => {
           setContractWizardOpen(false);
           setContractWizardProspectoId(null);
+          setEditingContractId(null);
           resetNewContractForm();
         }}
         form={newContractForm}
         onChange={patchNewContractForm}
-        onSubmit={(e, opts) =>
+        onSubmit={(e, opts) => {
+          if (editingContractId) {
+            void handleUpdateContractFromWizard(
+              e,
+              () => {
+                setContractWizardOpen(false);
+                setEditingContractId(null);
+              },
+              { incomplete: opts?.incomplete }
+            );
+            return;
+          }
           handleCreateContract(
             e,
             () => {
@@ -5377,8 +6143,8 @@ export default function App() {
               incomplete: opts?.incomplete,
               prospectoId: contractWizardProspectoId ?? undefined,
             }
-          )
-        }
+          );
+        }}
         isSubmitting={isCreatingContract}
         commissionPercentage={activeUser.commissionPercentage}
         formatCurrency={formatCurrency}

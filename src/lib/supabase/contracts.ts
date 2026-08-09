@@ -1,7 +1,19 @@
 import type { Contract } from "../../types/contract"
+import { normalizeContractEstado } from "../contract-estado"
 import { flattenDocumentosPorTipo } from "../contrato-documentos"
 import type { NewContractFormState } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
+import {
+  num,
+  resolveSupabaseClient,
+  str,
+  toSupabaseFailure,
+  type Row,
+  type SupabaseFailureReason,
+  type SupabaseResult,
+} from "./result"
+
+const TABLE = "contratos_equipo"
 
 export interface TeamContractInsert {
   client_name: string
@@ -87,13 +99,188 @@ export function buildTeamContractRow(
       potencia_p4: form.potenciaP4,
       potencia_p5: form.potenciaP5,
       potencia_p6: form.potenciaP6,
+      peaje_segment: form.peajeSegment,
     },
   }
 }
 
+export type TeamContractFailure = SupabaseFailure
+
+export type TeamContractResult<T> = SupabaseResult<T>
+
 export type SaveTeamContractResult =
   | { ok: true; id: string }
-  | { ok: false; reason: "not_configured" | "table_missing" | "error"; message: string }
+  | { ok: false; reason: SupabaseFailureReason; message: string }
+
+const resolveClient = resolveSupabaseClient
+
+function toFailure(error: { code?: string; message: string }): TeamContractFailure {
+  return toSupabaseFailure(error, TABLE)
+}
+
+function metadataOf(row: Row): Record<string, unknown> {
+  const raw = row.metadata
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {}
+}
+
+export function mapRowToContract(row: Row): Contract {
+  const metadata = metadataOf(row)
+  const tipoPrecio = str(row.tipo_precio)
+
+  return {
+    id: String(row.id ?? ""),
+    clientId: str(metadata.client_id),
+    clientName: str(row.client_name) ?? "",
+    cups: str(row.cups) ?? "",
+    tipo: row.tipo === "gas" ? "gas" : "luz",
+    compania: str(row.compania) ?? "",
+    tarifa: str(row.tarifa) ?? "",
+    consumoAnual: num(row.consumo_anual) ?? 0,
+    montoInterno: num(row.monto_interno) ?? 0,
+    montoExterno: num(row.monto_externo) ?? 0,
+    estado: normalizeContractEstado(str(row.estado) ?? ""),
+    comercialId: str(row.comercial_id) ?? "",
+    comercialName: str(row.comercial_name) ?? "",
+    createdAt: str(row.fecha_inicio) ?? str(row.created_at)?.slice(0, 10) ?? "",
+    fechaBaja: str(row.fecha_baja),
+    retrocomisionClawback: num(row.retrocomision_clawback),
+    estadoRenovacion: str(row.estado_renovacion),
+    fechaRenovacion: str(row.fecha_renovacion),
+    diasRenovacion: num(row.dias_renovacion),
+    consumoAnualManual: num(row.consumo_anual_manual) ?? null,
+    atr: str(metadata.atr),
+    nif: str(row.nif),
+    telefono: str(row.telefono),
+    email: str(row.email),
+    iban: str(row.iban),
+    direccionSuministro: str(row.direccion_suministro),
+    direccionFiscal: str(row.direccion_fiscal),
+    codigoPostal: str(row.codigo_postal),
+    poblacion: str(row.poblacion),
+    provincia: str(row.provincia),
+    potenciaContratada: num(row.potencia_contratada_kw) ?? str(row.potencia_contratada),
+    tipoPrecio: tipoPrecio === "fijo" || tipoPrecio === "mercado" ? tipoPrecio : undefined,
+    precioFijoConsumo: num(row.precio_fijo_consumo),
+    tipoCliente: str(row.tipo_cliente),
+    formaPago: str(row.forma_pago),
+    nombreComercial: str(row.nombre_comercial),
+    jefeEquipo: str(row.jefe_equipo),
+    marcoEntryId: str(row.marco_entry_id),
+    documentos: Array.isArray(row.documentos)
+      ? (row.documentos as Contract["documentos"])
+      : undefined,
+    comentariosInternos: Array.isArray(row.comentarios_internos)
+      ? (row.comentarios_internos as Contract["comentariosInternos"])
+      : undefined,
+  }
+}
+
+const PATCH_COLUMNS: Partial<Record<keyof Contract, string>> = {
+  clientName: "client_name",
+  cups: "cups",
+  tipo: "tipo",
+  compania: "compania",
+  tarifa: "tarifa",
+  consumoAnual: "consumo_anual",
+  montoInterno: "monto_interno",
+  montoExterno: "monto_externo",
+  estado: "estado",
+  comercialId: "comercial_id",
+  comercialName: "comercial_name",
+  createdAt: "fecha_inicio",
+  fechaBaja: "fecha_baja",
+  retrocomisionClawback: "retrocomision_clawback",
+  estadoRenovacion: "estado_renovacion",
+  fechaRenovacion: "fecha_renovacion",
+  diasRenovacion: "dias_renovacion",
+  consumoAnualManual: "consumo_anual_manual",
+  nif: "nif",
+  telefono: "telefono",
+  email: "email",
+  iban: "iban",
+  direccionSuministro: "direccion_suministro",
+  direccionFiscal: "direccion_fiscal",
+  codigoPostal: "codigo_postal",
+  poblacion: "poblacion",
+  provincia: "provincia",
+  precioFijoConsumo: "precio_fijo_consumo",
+  tipoPrecio: "tipo_precio",
+  tipoCliente: "tipo_cliente",
+  formaPago: "forma_pago",
+  nombreComercial: "nombre_comercial",
+  jefeEquipo: "jefe_equipo",
+  marcoEntryId: "marco_entry_id",
+  documentos: "documentos",
+  comentariosInternos: "comentarios_internos",
+}
+
+export function buildTeamContractPatch(patch: Partial<Contract>): Row {
+  const row: Row = {}
+
+  for (const [field, column] of Object.entries(PATCH_COLUMNS)) {
+    const value = patch[field as keyof Contract]
+    if (value !== undefined) row[column] = value
+  }
+
+  // La tabla guarda la potencia dos veces: texto libre (admite el formato
+  // multiperiodo "15 · 12 · 10") y numérico para poder filtrar y agregar.
+  if (patch.potenciaContratada !== undefined) {
+    row.potencia_contratada = String(patch.potenciaContratada)
+    row.potencia_contratada_kw = num(patch.potenciaContratada) ?? null
+  }
+
+  return row
+}
+
+export async function listTeamContracts(): Promise<TeamContractResult<Contract[]>> {
+  const resolved = resolveClient()
+  if (resolved.ok === false) return resolved
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .select("*")
+    .order("created_at", { ascending: false })
+
+  if (error) return toFailure(error)
+
+  return { ok: true, data: (data ?? []).map((row) => mapRowToContract(row as Row)) }
+}
+
+export async function updateTeamContract(
+  id: string,
+  patch: Partial<Contract>
+): Promise<TeamContractResult<Contract>> {
+  const resolved = resolveClient()
+  if (resolved.ok === false) return resolved
+
+  const row = buildTeamContractPatch(patch)
+  if (Object.keys(row).length === 0) {
+    return { ok: false, reason: "error", message: "No hay cambios que persistir." }
+  }
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .update(row)
+    .eq("id", id)
+    .select("*")
+    .single()
+
+  if (error) return toFailure(error)
+
+  return { ok: true, data: mapRowToContract(data as Row) }
+}
+
+export async function deleteTeamContract(id: string): Promise<TeamContractResult<void>> {
+  const resolved = resolveClient()
+  if (resolved.ok === false) return resolved
+
+  const { error } = await resolved.client.from(TABLE).delete().eq("id", id)
+  if (error) return toFailure(error)
+
+  return { ok: true, data: undefined }
+}
 
 export async function saveTeamContractToSupabase(
   contract: Contract,
@@ -125,18 +312,7 @@ export async function saveTeamContractToSupabase(
     .select("id")
     .single()
 
-  if (error) {
-    const isMissingTable =
-      error.code === "42P01" ||
-      error.message.includes("contratos_equipo") ||
-      error.message.toLowerCase().includes("does not exist")
-
-    return {
-      ok: false,
-      reason: isMissingTable ? "table_missing" : "error",
-      message: error.message,
-    }
-  }
+  if (error) return toFailure(error)
 
   return { ok: true, id: String(data.id) }
 }

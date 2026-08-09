@@ -45,6 +45,7 @@ interface ProfileOption {
 interface MisClientesPanelProps {
   clients: Client[]
   setClients: React.Dispatch<React.SetStateAction<Client[]>>
+  onPersistClient?: (id: string, patch: Partial<Client>) => void
   contracts: Contract[]
   activeUserId: string
   activeUserName: string
@@ -53,6 +54,8 @@ interface MisClientesPanelProps {
   clientesSearchQuery: string
   setClientesSearchQuery: (v: string) => void
   onNavigateToContract: (contract: Contract) => void
+  /** Superadmin en vista comercial: solo clientes propios (como rol comercial). */
+  superadminComercialScope?: boolean
 }
 
 const TH =
@@ -118,6 +121,7 @@ function SortableHeader({
 export function MisClientesPanel({
   clients,
   setClients,
+  onPersistClient,
   contracts,
   activeUserId,
   activeUserName,
@@ -126,6 +130,7 @@ export function MisClientesPanel({
   clientesSearchQuery,
   setClientesSearchQuery,
   onNavigateToContract,
+  superadminComercialScope = false,
 }: MisClientesPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [folderClientId, setFolderClientId] = useState<string | null>(null)
@@ -143,8 +148,14 @@ export function MisClientesPanel({
 
   const visibleClients = useMemo(
     () =>
-      getVisibleClientsForRole(clients, activeRole, activeUserId, teamMemberIds),
-    [clients, activeRole, activeUserId, teamMemberIds]
+      getVisibleClientsForRole(
+        clients,
+        activeRole,
+        activeUserId,
+        teamMemberIds,
+        { superadminComercialScope }
+      ),
+    [clients, activeRole, activeUserId, teamMemberIds, superadminComercialScope]
   )
 
   const filterOpts = useMemo(
@@ -240,24 +251,24 @@ export function MisClientesPanel({
       })
     }
 
+    const target = clients.find((c) => c.id === folderClientId)
+    if (!target) return
+
+    const archivos = [...newArchivos, ...target.archivos]
     setClients((prev) =>
-      prev.map((c) =>
-        c.id === folderClientId
-          ? { ...c, archivos: [...newArchivos, ...c.archivos] }
-          : c
-      )
+      prev.map((c) => (c.id === folderClientId ? { ...c, archivos } : c))
     )
+    onPersistClient?.(folderClientId, { archivos })
     toast.success(`${newArchivos.length} archivo(s) añadido(s)`)
   }
 
   function removeArchivo(clientId: string, archivoId: string) {
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === clientId
-          ? { ...c, archivos: c.archivos.filter((a) => a.id !== archivoId) }
-          : c
-      )
-    )
+    const target = clients.find((c) => c.id === clientId)
+    if (!target) return
+
+    const archivos = target.archivos.filter((a) => a.id !== archivoId)
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, archivos } : c)))
+    onPersistClient?.(clientId, { archivos })
     toast.info("Archivo eliminado de la carpeta del cliente")
   }
 

@@ -1,8 +1,8 @@
 import { normalizeContractEstado, type ContractEstado } from "./contract-estado"
 
 export const CONTRACT_ESTADO_KPI_FILTERS = [
-  "pte_firma",
   "activado",
+  "pte_firma",
   "tramitando",
   "incidencia_administrativa",
 ] as const
@@ -12,34 +12,31 @@ export type ContractEstadoKpiFilter = (typeof CONTRACT_ESTADO_KPI_FILTERS)[numbe
 export type ContractsListFilter =
   | "all"
   | "renovacion_proxima"
+  | "con_recomendacion"
+  | "borrador"
   | ContractEstadoKpiFilter
 
 export interface ContractEstadoKpiMeta {
   id: ContractEstadoKpiFilter
   label: string
-  hint: string
 }
 
 export const CONTRACT_ESTADO_KPI_META: ContractEstadoKpiMeta[] = [
   {
-    id: "pte_firma",
-    label: "Pte. de firma",
-    hint: "Esperando firma del cliente",
-  },
-  {
     id: "activado",
     label: "Activados",
-    hint: "Contratos en vigor",
+  },
+  {
+    id: "pte_firma",
+    label: "Pte. de firma",
   },
   {
     id: "tramitando",
     label: "Tramitando",
-    hint: "En curso con comercializadora",
   },
   {
     id: "incidencia_administrativa",
     label: "Incidencia administrativa",
-    hint: "Incluye firma caducada",
   },
 ]
 
@@ -54,7 +51,7 @@ export function getContractEstadoKpiBucket(
       return "activado"
     case "TRAMITANDO":
     case "PTE DE TRAMITACIÓN":
-    case "Pendiente de info.":
+    case "Borrador":
       return "tramitando"
     case "INCIDENCIA ADMINISTRATIVA":
     case "FIRMA CADUCADA":
@@ -71,6 +68,8 @@ export function matchesContractEstadoKpiFilter(
   if (
     filter === "all" ||
     filter === "renovacion_proxima" ||
+    filter === "con_recomendacion" ||
+    filter === "borrador" ||
     !CONTRACT_ESTADO_KPI_FILTERS.includes(filter as ContractEstadoKpiFilter)
   ) {
     return true
@@ -111,6 +110,8 @@ export function countContractsByEstadoKpi(
 export function contractsListFilterLabel(filter: ContractsListFilter): string {
   if (filter === "all") return ""
   if (filter === "renovacion_proxima") return " · renovación próxima"
+  if (filter === "con_recomendacion") return " · con recomendación"
+  if (filter === "borrador") return " · borrador"
   const meta = CONTRACT_ESTADO_KPI_META.find((m) => m.id === filter)
   return meta ? ` · ${meta.label.toLowerCase()}` : ""
 }
@@ -142,7 +143,7 @@ export interface ContractEstadoUiMeta {
 
 export const CONTRACT_ESTADO_UI_META: ContractEstadoUiMeta[] = [
   { id: "todos", label: "Todos", sampleEstado: "ACTIVADO" },
-  { id: "borrador", label: "Borrador", sampleEstado: "Pendiente de info." },
+  { id: "borrador", label: "Borrador", sampleEstado: "Borrador" },
   { id: "solicitado", label: "Solicitado", sampleEstado: "PTE DE TRAMITACIÓN" },
   { id: "pendiente_firma", label: "Pendiente de firma", sampleEstado: "PTE DE FIRMA" },
   { id: "firmado", label: "Firmado", sampleEstado: "PTE DE FIRMA" },
@@ -156,7 +157,7 @@ export const CONTRACT_ESTADO_UI_META: ContractEstadoUiMeta[] = [
 ]
 
 const ESTADO_INTERNO_TO_UI: Record<ContractEstado, Exclude<ContractEstadoUiFilter, "todos">> = {
-  "Pendiente de info.": "borrador",
+  Borrador: "borrador",
   "PTE DE TRAMITACIÓN": "solicitado",
   "PTE DE FIRMA": "pendiente_firma",
   "FIRMA CADUCADA": "incidencia",

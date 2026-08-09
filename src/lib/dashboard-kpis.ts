@@ -100,7 +100,7 @@ export function getPipelineBucket(estado: string): PipelineBucket | null {
     return "ko"
   }
   if (
-    normalized === "Pendiente de info." ||
+    normalized === "Borrador" ||
     normalized === "PTE DE TRAMITACIÓN" ||
     normalized === "PTE DE FIRMA" ||
     normalized === "TRAMITANDO"

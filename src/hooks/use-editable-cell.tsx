@@ -5,6 +5,7 @@ const NUMERIC_FIELDS = new Set([
   "consumoAnual",
   "consumoAnualManual",
   "precioFijoConsumo",
+  "potenciaContratada",
   "diasRenovacion",
   "montoInterno",
   "montoExterno",
@@ -55,11 +56,14 @@ export function useEditableCell<T extends { id: string }>(
       placeholder?: string
       display?: (value: unknown, row: T) => ReactNode
       className?: string
+      readOnly?: boolean
     }
   ) {
     const placeholder = options?.placeholder ?? "—"
+    const readOnly = options?.readOnly ?? false
     const raw = row[field as keyof T]
-    const isEditing = editingCell?.rowId === row.id && editingCell?.field === field
+    const isEditing =
+      !readOnly && editingCell?.rowId === row.id && editingCell?.field === field
     const textValue = raw != null && raw !== "" ? String(raw) : ""
 
     if (isEditing) {
@@ -85,17 +89,32 @@ export function useEditableCell<T extends { id: string }>(
 
     return (
       <span
-        role="button"
-        tabIndex={0}
-        onClick={() => {
+        role={readOnly ? undefined : "button"}
+        tabIndex={readOnly ? undefined : 0}
+        onClick={(e) => {
+          if (readOnly) return
           if (textValue) copyValue(textValue)
         }}
-        onDoubleClick={() => startEdit(row.id, field, raw)}
+        onDoubleClick={(e) => {
+          if (readOnly) return
+          e.preventDefault()
+          e.stopPropagation()
+          startEdit(row.id, field, raw)
+        }}
         onKeyDown={(e) => {
+          if (readOnly) return
           if (e.key === "Enter") startEdit(row.id, field, raw)
         }}
-        className={`cursor-pointer hover:underline decoration-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400 select-all ${options?.className ?? ""}`}
-        title="1 clic para copiar · doble clic para editar"
+        className={`${
+          readOnly
+            ? "cursor-default"
+            : "cursor-pointer hover:underline decoration-cyan-500 hover:text-cyan-600 dark:hover:text-cyan-400"
+        } select-all ${options?.className ?? ""}`}
+        title={
+          readOnly
+            ? undefined
+            : "1 clic para copiar · doble clic para editar"
+        }
       >
         {displayContent}
       </span>

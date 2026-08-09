@@ -7,8 +7,6 @@ import { mergeProspectoMetadata } from "../../lib/ventas/prospecto-display"
 import {
   computeCaducidadOferta5Dias,
   getPhaseChecklistItems,
-  isProspectoReadyToAdvance,
-  canCentroMandoAdvance,
   readStageProgressCompletion,
   serializeChecklistForMetadata,
 } from "../../lib/ventas/stage-gate"
@@ -161,9 +159,8 @@ export function PipelinePage({
     const prospecto = prospectos.find((p) => p.id === move.prospectoId)
     if (!prospecto) return
 
-    if (!isProspectoReadyToAdvance(prospecto)) {
-      setCentroMandoProspecto(prospecto)
-      toast.info("Completa checklist, notas y adjuntos antes de avanzar de fase.")
+    if (!canTransition(move.from, move.to)) {
+      toast.error("Transición de fase no permitida.")
       return
     }
 
@@ -191,18 +188,18 @@ export function PipelinePage({
     const from = centroMandoProspecto.fase
     if (to === from) return
 
-    if (!canCentroMandoAdvance(from, to)) {
-      toast.error("Solo puedes avanzar a la siguiente fase del pipeline.")
+    if (to === "activado") {
+      toast.error("La activación se registra vía sync con el ERP.")
+      return
+    }
+
+    if (!canTransition(from, to)) {
+      toast.error("Transición de fase no permitida.")
       return
     }
 
     const prospecto =
       prospectos.find((p) => p.id === centroMandoProspecto.id) ?? centroMandoProspecto
-
-    if (!isProspectoReadyToAdvance(prospecto)) {
-      toast.info("Completa todas las tareas y las notas obligatorias antes de avanzar.")
-      return
-    }
 
     const items = getPhaseChecklistItems(from)
     const completion = readStageProgressCompletion(prospecto, from, items)

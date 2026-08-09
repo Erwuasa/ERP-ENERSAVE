@@ -51,3 +51,8 @@ export function formatPenalizacionFormula(
   const meses = Math.max(0, Math.round((diasHastaRenovacion / 365) * 12))
   return `(${precioFijoConsumo.toFixed(4)} × ${consumoAnual.toLocaleString("es-ES")} × 0,05) × (${meses}/12)`
 }
+
+export function penalizacionRestanteFormula(diasHastaRenovacion: number): string {
+  const meses = Math.max(0, Math.round((diasHastaRenovacion / 365) * 12))
+  return `Penalización anual × ${meses}/12 (restan ${meses} meses)`
+}

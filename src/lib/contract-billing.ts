@@ -181,3 +181,35 @@ export function collectBillingEvents(
     .filter((c) => c.comercialId === comercialId)
     .flatMap(getContractBillingEvents)
 }
+
+export interface SettlementBillingRow {
+  comercialId: string
+  montoExterno: number
+  createdAt: string
+}
+
+export function getSettlementBillingEvents(
+  settlement: SettlementBillingRow
+): BillingEvent[] {
+  return [{ date: settlement.createdAt, amount: settlement.montoExterno }]
+}
+
+export function collectSettlementBillingEvents(
+  settlements: SettlementBillingRow[],
+  comercialId: string
+): BillingEvent[] {
+  return settlements
+    .filter((s) => s.comercialId === comercialId)
+    .flatMap(getSettlementBillingEvents)
+}
+
+export function countSettlementsInPeriod(
+  settlements: SettlementBillingRow[],
+  comercialId: string,
+  period: string
+): number {
+  const limit = getPeriodLimit(period)
+  return settlements.filter(
+    (s) => s.comercialId === comercialId && inPeriod(s.createdAt, limit)
+  ).length
+}

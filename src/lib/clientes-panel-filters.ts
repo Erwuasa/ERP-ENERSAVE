@@ -44,9 +44,16 @@ export function getVisibleClientsForRole(
   clients: Client[],
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion",
   activeUserId: string,
-  teamMemberIds: string[]
+  teamMemberIds: string[],
+  options?: { superadminComercialScope?: boolean }
 ): Client[] {
-  if (activeRole === "superadmin" || activeRole === "tramitacion") return clients
+  if (activeRole === "superadmin") {
+    if (options?.superadminComercialScope) {
+      return clients.filter((c) => c.comercialId === activeUserId)
+    }
+    return clients
+  }
+  if (activeRole === "tramitacion") return clients
   if (activeRole === "jefe_comercial") {
     const teamIds = new Set([activeUserId, ...teamMemberIds])
     return clients.filter((c) => teamIds.has(c.comercialId))

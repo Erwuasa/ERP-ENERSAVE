@@ -1,3 +1,5 @@
+import type { Contract } from "../types/contract"
+
 export type FormaPago =
   | "al_contado"
   | "cheque_bancario"
@@ -47,7 +49,10 @@ export interface NewContractFormState {
   direccionSuministro: string
   potenciaContratada: string
   precioFijoConsumo: string
-  fechaInicio: string
+  /** Fecha de activación; no se pide en el alta del contrato */
+  fechaInicio?: string
+  /** Segmento de peaje (2.0 / 3.0 / 6.0) para filtrar tarifas y periodos de potencia */
+  peajeSegment: "2.0" | "3.0" | "6.0"
   /** Segmento elegido al seleccionar comercializadora (paso 1) */
   wizardSegment: "residencial" | "pyme"
   /** Fase comercializadora = 1; tabs = cliente | suministro | documentos */
@@ -89,7 +94,7 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   direccionSuministro: "",
   potenciaContratada: "",
   precioFijoConsumo: "",
-  fechaInicio: "",
+  peajeSegment: "2.0",
   wizardSegment: "residencial",
   wizardStep: 1,
   tipoCliente: "residencial",
@@ -152,9 +157,134 @@ export function buildPotenciaContratadaFromPeriods(form: NewContractFormState): 
   ]
   values.forEach((v, i) => {
     const trimmed = String(v).trim()
-    if (trimmed) parts.push(`${labels[i]}: ${trimmed} kW`)
+    if (trimmed) parts.push(`${labels[i]}: ${trimmed}`)
   })
   return parts.join(" · ")
+}
+
+/** Extrae kW por periodo desde el texto guardado en potenciaContratada. */
+export function parsePotenciaPeriodsKw(
+  value: string | number | undefined
+): { periodo: number; kw: number }[] {
+  if (value == null || value === "") return []
+  const str = String(value).trim()
+
+  const labeled = [...str.matchAll(/P(\d)\s*:\s*([\d.,]+)/gi)]
+  if (labeled.length > 0) {
+    return labeled
+      .map((m) => ({ periodo: Number(m[1]), kw: Number(m[2].replace(",", ".")) }))
+      .filter((p) => Number.isFinite(p.kw))
+  }
+
+  const plain = Number(str.replace(/[^\d.,]/g, "").replace(",", "."))
+  if (Number.isFinite(plain) && plain > 0) return [{ periodo: 1, kw: plain }]
+  return []
+}
+
+/**
+ * Si todos los periodos son iguales → "10 kW".
+ * Si difieren → "P1 10 · P2 8 · P3 6 kW".
+ */
+export function formatPotenciaContratadaDisplay(
+  value: string | number | undefined
+): string {
+  const periods = parsePotenciaPeriodsKw(value)
+  if (periods.length === 0) {
+    const str = String(value ?? "").trim()
+    return str ? str : "—"
+  }
+
+  const values = periods.map((p) => p.kw)
+  if (values.every((v) => v === values[0])) {
+    return `${values[0]} kW`
+  }
+
+  return `${periods.map((p) => `P${p.periodo} ${p.kw}`).join(" · ")} kW`
+}
+
+function inferPeajeSegmentFromContract(contract: Contract): NewContractFormState["peajeSegment"] {
+  const atr = contract.atr ?? ""
+  if (atr.includes("6.0")) return "6.0"
+  if (atr.includes("3.0")) return "3.0"
+  return "2.0"
+}
+
+function inferWizardSegmentFromContract(contract: Contract): NewContractFormState["wizardSegment"] {
+  const tipo = contract.tipoCliente ?? ""
+  if (tipo === "pyme" || tipo === "autonomo" || tipo === "comunidad_vecinos") return "pyme"
+  if (contract.nif?.trim().match(/^[ABCDEFGHJNPQRSUVW]/i)) return "pyme"
+  return "residencial"
+}
+
+function inferTipoClienteFromContract(contract: Contract): TipoClienteContrato {
+  const tipo = contract.tipoCliente
+  if (
+    tipo === "residencial" ||
+    tipo === "pyme" ||
+    tipo === "autonomo" ||
+    tipo === "comunidad_vecinos"
+  ) {
+    return tipo
+  }
+  if (contract.nif?.trim().match(/^[ABCDEFGHJNPQRSUVW]/i)) return "pyme"
+  return "residencial"
+}
+
+/** Rellena el wizard de contrato a partir de un contrato existente (modo edición). */
+export function contractToNewContractForm(
+  contract: Contract,
+  opts?: { nombreComercial?: string; jefeEquipo?: string }
+): NewContractFormState {
+  const { clientNombre, clientApellidos } = splitClientNameToParts(contract.clientName)
+  const periods = parsePotenciaPeriodsKw(contract.potenciaContratada)
+  const kwFor = (periodo: number) => {
+    const match = periods.find((p) => p.periodo === periodo)
+    return match != null ? String(match.kw) : ""
+  }
+  const tipoCliente = inferTipoClienteFromContract(contract)
+  const isCompany =
+    tipoCliente === "pyme" || tipoCliente === "comunidad_vecinos"
+
+  return {
+    ...EMPTY_NEW_CONTRACT_FORM,
+    clientName: contract.clientName,
+    clientNombre: isCompany ? "" : clientNombre,
+    clientApellidos: isCompany ? "" : clientApellidos,
+    razonSocial: isCompany ? contract.clientName : "",
+    cups: contract.cups,
+    tipo: contract.tipo,
+    compania: contract.compania,
+    tarifa: contract.tarifa,
+    tipoPrecio: contract.tipoPrecio ?? inferTipoPrecioFromTarifa(contract.tarifa),
+    consumoAnual: contract.consumoAnualManual ?? contract.consumoAnual ?? "",
+    nif: contract.nif ?? "",
+    telefono: contract.telefono ?? "",
+    email: contract.email ?? "",
+    iban: contract.iban ?? "",
+    direccionSuministro: contract.direccionSuministro ?? "",
+    potenciaContratada: String(contract.potenciaContratada ?? ""),
+    precioFijoConsumo:
+      contract.precioFijoConsumo != null ? String(contract.precioFijoConsumo) : "",
+    peajeSegment: inferPeajeSegmentFromContract(contract),
+    wizardSegment: inferWizardSegmentFromContract(contract),
+    wizardStep: "cliente",
+    tipoCliente,
+    direccionFiscal: contract.direccionFiscal ?? contract.direccionCompleta ?? "",
+    codigoPostal: contract.codigoPostal ?? "",
+    poblacion: contract.poblacion ?? "",
+    provincia: contract.provincia ?? "",
+    formaPago: (contract.formaPago as FormaPago) ?? "al_contado",
+    nombreComercial: opts?.nombreComercial ?? contract.nombreComercial ?? contract.comercialName ?? "",
+    jefeEquipo: opts?.jefeEquipo ?? contract.jefeEquipo ?? "",
+    potenciaP1: kwFor(1) || (periods[0] ? String(periods[0].kw) : ""),
+    potenciaP2: kwFor(2),
+    potenciaP3: kwFor(3),
+    potenciaP4: kwFor(4),
+    potenciaP5: kwFor(5),
+    potenciaP6: kwFor(6),
+    marcoEntryId: contract.marcoEntryId ?? "",
+    comentariosInternos: contract.comentariosInternos ?? [],
+  }
 }
 
 export function inferTipoPrecioFromTarifa(tarifa: string): "fijo" | "mercado" {
@@ -196,7 +326,6 @@ export function newContractFormToRegistrationInput(
     direccionSuministro: form.direccionSuministro,
     potenciaContratada: potencia,
     precioFijoConsumo: precioFijo,
-    fechaInicio: form.fechaInicio,
     direccionCompleta: form.direccionFiscal
       ? `${form.direccionFiscal}${form.codigoPostal ? `, ${form.codigoPostal}` : ""}${form.poblacion ? ` ${form.poblacion}` : ""}${form.provincia ? ` (${form.provincia})` : ""}`
       : undefined,
@@ -250,7 +379,6 @@ export function validateContractRegistration(
     [isFilled(input.direccionSuministro), "Dirección de suministro"],
     [isFilled(input.potenciaContratada), "Potencia contratada"],
     [isFilled(input.precioFijoConsumo), "Precio fijo del consumo (€/kWh)"],
-    [isFilled(input.fechaInicio), "Fecha de inicio del contrato"],
   ]
 
   if (options?.requireDireccionCompleta) {
