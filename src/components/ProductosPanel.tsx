@@ -8,7 +8,6 @@ import {
   Lightbulb,
   Loader2,
   Package,
-  Pencil,
   Phone,
   Plus,
   Search,
@@ -38,13 +37,14 @@ import {
   type MarcoRetributivoRow,
   type NewMarcoEntryInput,
 } from "../lib/supabase/marco-retributivo"
-import { MarcoRetributivoEditModal } from "./MarcoRetributivoEditModal"
+import { canEditMarcoRetributivo } from "../lib/marco-retributivo-permissions"
 
 interface ProductosPanelProps {
   title?: string
   subtitle?: string
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
   activeUserId: string
+  canEditMarco?: boolean
   onNavigateContratos: () => void
   onCreateContract: (product: ProductoTarifa) => void
   renderCompaniaLogo?: (brandName: string) => ReactNode
@@ -59,13 +59,11 @@ function SuministroIcon({ tipo }: { tipo: ProductoSuministroTab | "luz" | "gas" 
 function ProductoCard({
   product,
   onCreateContract,
-  canEditMarco,
-  onEditMarco,
+  onOpenDetail,
 }: {
   product: ProductoTarifa
   onCreateContract: (product: ProductoTarifa) => void
-  canEditMarco: boolean
-  onEditMarco: (product: ProductoTarifa) => void
+  onOpenDetail: (product: ProductoTarifa) => void
 }) {
   const energiaRows = ([1, 2, 3, 4, 5, 6] as const)
     .map((n) => {
@@ -84,23 +82,23 @@ function ProductoCard({
   const pricingRows = [...energiaRows.slice(0, 3), ...potenciaRows.slice(0, 2)]
 
   return (
-    <article className="bg-brand-panel border border-brand-border rounded-2xl p-4 flex flex-col gap-3 shadow-sm hover:border-emerald-500/35 transition-colors duration-200 h-full">
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpenDetail(product)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onOpenDetail(product)
+        }
+      }}
+      className="bg-brand-panel border border-brand-border rounded-2xl p-4 flex flex-col gap-3 shadow-sm hover:border-emerald-500/35 transition-colors duration-200 h-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wide truncate">
           {product.compania}
         </p>
         <div className="flex items-center gap-1 shrink-0">
-          {canEditMarco && (
-            <button
-              type="button"
-              onClick={() => onEditMarco(product)}
-              className="p-1 rounded-md border border-brand-border text-brand-subtext hover:text-emerald-600 hover:border-emerald-500/40 cursor-pointer"
-              title="Editar marco retributivo"
-              aria-label="Editar marco retributivo"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-          )}
           <span
             className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${
               product.tipo === "luz"
@@ -138,7 +136,10 @@ function ProductoCard({
 
       <button
         type="button"
-        onClick={() => onCreateContract(product)}
+        onClick={(e) => {
+          e.stopPropagation()
+          onCreateContract(product)
+        }}
         className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold uppercase tracking-wide transition-colors cursor-pointer"
       >
         <Plus className="h-3.5 w-3.5" />
@@ -154,6 +155,7 @@ export function ProductosPanel({
   subtitle = "Catálogo de tarifas activas por comercializadora — crea contratos desde aquí.",
   activeRole,
   activeUserId,
+  canEditMarco: canEditMarcoProp,
   onNavigateContratos,
   onCreateContract,
 }: ProductosPanelProps) {
@@ -165,10 +167,11 @@ export function ProductosPanel({
   const [tipoCliente, setTipoCliente] = useState<ProductoTipoClienteFilter>("todos")
   const [peaje, setPeaje] = useState<ProductoPeajeFilter>("todos")
   const [search, setSearch] = useState("")
-  const [modalOpen, setModalOpen] = useState(false)
-  const [modalEntry, setModalEntry] = useState<MarcoRetributivoRow | null>(null)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [panelEntry, setPanelEntry] = useState<MarcoRetributivoRow | null>(null)
 
-  const canEditMarco = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canEditMarco =
+    canEditMarcoProp ?? canEditMarcoRetributivo(activeRole)
 
   const loadProducts = useCallback(async () => {
     setLoading(true)
@@ -180,16 +183,16 @@ export function ProductosPanel({
     setLoading(false)
   }, [])
 
-  function openEditModal(product: ProductoTarifa) {
+  function openDetailPanel(product: ProductoTarifa) {
     const row = marcoRows.find((r) => r.id === product.id)
     if (!row) return
-    setModalEntry(row)
-    setModalOpen(true)
+    setPanelEntry(row)
+    setPanelOpen(true)
   }
 
-  function closeModal() {
-    setModalOpen(false)
-    setModalEntry(null)
+  function closePanel() {
+    setPanelOpen(false)
+    setPanelEntry(null)
   }
 
   async function handleSaveMarco(id: string, patch: Partial<MarcoEntryInput>): Promise<boolean> {
@@ -468,8 +471,7 @@ export function ProductosPanel({
                   key={product.id}
                   product={product}
                   onCreateContract={onCreateContract}
-                  canEditMarco={canEditMarco}
-                  onEditMarco={openEditModal}
+                  onOpenDetail={openDetailPanel}
                 />
               ))}
             </div>
@@ -477,13 +479,11 @@ export function ProductosPanel({
         </div>
       </div>
 
-      <MarcoRetributivoEditModal
-        open={modalOpen}
-        entry={modalEntry}
+      <TarifaDetailPanel
+        open={panelOpen}
+        entry={panelEntry}
         canEdit={canEditMarco}
-        isCreateMode={false}
-        allEntries={marcoRows}
-        onClose={closeModal}
+        onClose={closePanel}
         onSave={handleSaveMarco}
         onCreate={handleCreateMarco}
       />

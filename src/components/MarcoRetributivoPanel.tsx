@@ -17,6 +17,7 @@ import {
   type NewMarcoEntryInput,
 } from "../lib/supabase/marco-retributivo"
 import { isSupabaseConfigured } from "../lib/supabase/client"
+import { canEditMarcoRetributivo } from "../lib/marco-retributivo-permissions"
 import { MarcoRetributivoEditModal } from "./MarcoRetributivoEditModal"
 
 type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
@@ -27,7 +28,7 @@ interface MarcoRetributivoPanelProps {
   commissionPercentage: number
   formatCurrency: (val: number) => string
   renderCompaniaLogo: (brandName: string) => ReactNode
-  /** Solo superadmin puede crear/editar entradas del marco */
+  /** Solo superadmin (modo operativo) y tramitación pueden editar */
   canEditMarco?: boolean
 }
 
@@ -37,7 +38,7 @@ export function MarcoRetributivoPanel({
   commissionPercentage,
   formatCurrency,
   renderCompaniaLogo,
-  canEditMarco = false,
+  canEditMarco: canEditMarcoProp,
 }: MarcoRetributivoPanelProps) {
   const [rows, setRows] = useState<MarcoRetributivoRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,7 +49,7 @@ export function MarcoRetributivoPanel({
   const [modalEntry, setModalEntry] = useState<MarcoRetributivoRow | null>(null)
   const [isCreateMode, setIsCreateMode] = useState(false)
 
-  const canEdit = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canEdit = canEditMarcoProp ?? canEditMarcoRetributivo(activeRole)
   const showComisionEnersave = activeRole === "superadmin" || activeRole === "tramitacion"
 
   const loadRows = useCallback(async () => {
@@ -452,7 +453,6 @@ export function MarcoRetributivoPanel({
         entry={modalEntry}
         canEdit={canEdit}
         isCreateMode={isCreateMode}
-        allEntries={rows}
         onClose={closeModal}
         onSave={handleSave}
         onCreate={handleCreate}

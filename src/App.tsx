@@ -180,6 +180,7 @@ import {
   filterUndismissedRecommendations,
 } from './lib/recommendation-dismissed';
 import { getRetroMonths } from './lib/retro-period';
+import { canEditMarcoRetributivo } from './lib/marco-retributivo-permissions';
 
 const SEED_CONTRACTS: Contract[] = [
   { id: 'con-1', clientName: 'ANA MARIA PINEDA BARRAGA', cups: 'ES0031102370432011GL', tipo: 'luz', compania: 'Iberdrola', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 4200, tipoPrecio: 'fijo', precioFijoConsumo: 0.118, potenciaContratada: 4.6, nif: '12345678A', telefono: '600111222', email: 'ana.pineda@email.com', iban: 'ES91 2100 0418 4502 0005 1332', direccionSuministro: 'C/ Mayor 12, 28013 Madrid', consumoAnualManual: 4200, estado: 'ACTIVADO', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-07', fechaFin: '2026-04-07', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-07', diasRenovacion: 69, montoInterno: 240, montoExterno: 120 },
@@ -2294,6 +2295,7 @@ export default function App() {
     };
   const activeRole = activeUser.role;
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
+  const canEditMarcoEntries = canEditMarcoRetributivo(activeRole, { superadminViewMode });
   const ventasActor = useMemo(
     () => ({
       comercialId: activeUserId,
@@ -5227,6 +5229,7 @@ export default function App() {
                     subtitle="Catálogo de tarifas activas por comercializadora — crea contratos desde aquí."
                     activeRole={activeRole}
                     activeUserId={activeUserId}
+                    canEditMarco={canEditMarcoEntries}
                     onNavigateContratos={() => setCurrentMenuTab('Contratos')}
                     onCreateContract={openContractWizardFromProducto}
                     renderCompaniaLogo={renderCompaniaLogo}
@@ -5241,6 +5244,7 @@ export default function App() {
                     commissionPercentage={activeUser.commissionPercentage}
                     formatCurrency={formatCurrency}
                     renderCompaniaLogo={renderCompaniaLogo}
+                    canEditMarco={canEditMarcoEntries}
                   />
                 )}
 
