@@ -9,7 +9,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, 'src'),
         sonner: path.resolve(__dirname, 'src/lib/sonner-silent.ts'),
         'sonner-original': 'sonner',
       },
