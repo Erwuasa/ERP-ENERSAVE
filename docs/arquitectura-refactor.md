@@ -234,15 +234,17 @@ pages/ventas/pipeline/PipelinePage.tsx
 **Fase 0** (sin romper nada):
 
 - [x] Documento de arquitectura (este archivo)
-- [ ] Alias `@/` → `src/`
-- [ ] `src/api/supabaseClient.ts` + re-exports
-- [ ] `src/constants/styles.ts` + `navigation.ts`
-- [ ] `src/lib/utils.ts` (`cn()`)
-- [ ] `src/providers/AppProviders.tsx`
+- [x] Alias `@/` → `src/`
+- [x] `src/api/supabaseClient.ts` + re-exports
+- [x] `src/constants/styles.ts` + `navigation.ts`
+- [x] `src/lib/utils.ts` (`cn()`)
+- [ ] `src/providers/AppProviders.tsx` — parcial (Theme + Router + Toaster)
 
 **Fase 1** (primer corte real):
 
-- [ ] Instalar `react-router-dom`
-- [ ] Extraer `LoginPage` + `useAuth`
-- [ ] Extraer `AppShell` (sidebar + header)
-- [ ] Reducir `App.tsx` a providers + `<RouterProvider />`
+- [x] Instalar `react-router-dom`
+- [x] Extraer `LoginPage` + `useAuth` (`AuthProvider`)
+- [ ] Extraer `AppShell` (sidebar + header) — pendiente; sidebar sigue en `ErpWorkspace`
+- [x] Reducir `App.tsx` a providers + `<RouterProvider />` (~5 líneas)
+- [x] Mover lógica ERP a `pages/erp/ErpWorkspace.tsx` (lazy-loaded)
+- [x] Rutas URL: `/login`, `/erp/*`, `/ventas/*` sincronizadas con tabs
