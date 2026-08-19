@@ -97,7 +97,10 @@ import { SlaAvisosPage } from '@/components/ventas/SlaAvisosPage';
 import { EnersaveLeadDatabasePage } from '@/components/ventas/EnersaveLeadDatabasePage';
 import { SuperadminDashboard, type DashboardNavigateTarget } from '@/components/dashboard/SuperadminDashboard';
 import { FileDropZone } from '@/components/ui/FileDropZone';
-import { ContratosPanel } from '@/components/ContratosPanel';
+import { ContratosPage } from '@/pages/erp/contratos/ContratosPage';
+import { useErpData } from '@/providers/ErpDataProvider';
+import { formatCurrency } from '@/lib/erp/format-currency';
+import { renderCompaniaLogo } from '@/lib/erp/render-compania-logo';
 import { MisClientesPanel } from '@/components/MisClientesPanel';
 const NuevoContratoWizard = lazy(() =>
   import('@/components/NuevoContratoWizard').then((m) => ({ default: m.NuevoContratoWizard }))
@@ -149,27 +152,6 @@ import {
 import type { IncidenciaTicket } from '@/lib/incidencias';
 import { isIncidenciaKanbanVisible, withIncidenciaEstado, normalizeIncidenciaTicket, generateIncidenciaCodigo, isIncidenciaAbierta } from '@/lib/incidencias';
 
-const SEED_CONTRACTS: Contract[] = [
-  { id: 'con-1', clientName: 'ANA MARIA PINEDA BARRAGA', cups: 'ES0031102370432011GL', tipo: 'luz', compania: 'Iberdrola', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 4200, tipoPrecio: 'fijo', precioFijoConsumo: 0.118, potenciaContratada: 4.6, nif: '12345678A', telefono: '600111222', email: 'ana.pineda@email.com', iban: 'ES91 2100 0418 4502 0005 1332', direccionSuministro: 'C/ Mayor 12, 28013 Madrid', consumoAnualManual: 4200, estado: 'Activado', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-07', fechaFin: '2026-04-07', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-07', diasRenovacion: 69, montoInterno: 240, montoExterno: 120 },
-  { id: 'con-2', clientName: 'GEA CATERING, S.L.', cups: 'ES0021000002359672001KF', tipo: 'luz', compania: 'Endesa', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 18420, tipoPrecio: 'fijo', precioFijoConsumo: 0.105, potenciaContratada: 9.2, nif: 'B12345678', telefono: '963111222', email: 'admin@geacatering.es', iban: 'ES80 2310 0001 1800 0001 2345', direccionSuministro: 'Pol. Ind. Norte, nave 4, 46015 Valencia', consumoAnualManual: 18420, estado: 'Activado', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-14', fechaFin: '2026-04-14', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-14', diasRenovacion: 76, montoInterno: 380, montoExterno: 190 },
-  { id: 'con-3', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045776921002PQ', tipo: 'luz', compania: 'Naturgy', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 8553, tipoPrecio: 'fijo', precioFijoConsumo: 0.112, potenciaContratada: 5.75, consumoAnualManual: null, estado: 'Incidencia', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 450, montoExterno: 225 },
-  { id: 'con-4', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045776921001PS', tipo: 'luz', compania: 'Niba Energía', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 3200, tipoPrecio: 'fijo', precioFijoConsumo: 0.099, potenciaContratada: 3.45, consumoAnualManual: 3200, estado: 'Pendiente de firma', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 120, montoExterno: 60 },
-  { id: 'con-5', clientName: 'MARIAN DOREL CHERBZAN', cups: 'ES003110237045813989001GL', tipo: 'luz', compania: 'Ignis', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 28227, tipoPrecio: 'fijo', precioFijoConsumo: 0.108, potenciaContratada: 11.5, consumoAnualManual: 28227, estado: 'Temporal', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-15', fechaFin: '2026-04-15', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-15', diasRenovacion: 77, montoInterno: 400, montoExterno: 200 },
-  { id: 'con-6', clientName: 'Siderúrgica del Norte SL', cups: 'ES0031105542292007LG', tipo: 'luz', compania: 'Axpo Iberia', tarifa: 'Indexada Pool', atr: '3.0TD', consumoAnual: 500000, tipoPrecio: 'mercado', precioFijoConsumo: 0.095, potenciaContratada: 450, consumoAnualManual: 500000, estado: 'Activado', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-21', fechaFin: '2026-04-21', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-21', diasRenovacion: 83, montoInterno: 500, montoExterno: 250 },
-  { id: 'con-7', clientName: 'GEA FOOD COOPERATIVA', cups: 'ES0031105542292008XG', tipo: 'gas', compania: 'Endesa', tarifa: 'Indexado', atr: '3.0TD', consumoAnual: 37270, tipoPrecio: 'mercado', precioFijoConsumo: 0.062, potenciaContratada: 0, consumoAnualManual: null, estado: 'KO', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', createdAt: '2025-04-26', fechaFin: '2026-04-26', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-26', diasRenovacion: 88, montoInterno: 300, montoExterno: 150 },
-  { id: 'con-8', clientName: 'Hotel Continental', cups: 'ES0021000000987654ZX', tipo: 'gas', compania: 'Endesa', tarifa: 'Fija Confort', atr: '3.0TD', consumoAnual: 120000, tipoPrecio: 'fijo', precioFijoConsumo: 0.071, potenciaContratada: 0, consumoAnualManual: 120000, estado: 'Activado', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-15', fechaFin: '2027-05-15', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-15', diasRenovacion: 350, montoInterno: 960.00, montoExterno: 480.00 },
-  { id: 'con-9', clientName: 'Residencia Geriátrica Verde', cups: 'ES0021000000452391KL', tipo: 'luz', compania: 'Naturgy', tarifa: 'Indexada Pool', atr: '2.0TD', consumoAnual: 85000, tipoPrecio: 'mercado', precioFijoConsumo: 0.088, potenciaContratada: 25, consumoAnualManual: null, estado: 'Pendiente de firma', comercialId: 'usr-4', comercialName: 'Marta Rivas', createdAt: '2026-05-22', fechaFin: '2027-05-22', estadoRenovacion: 'Al día', fechaRenovacion: '2027-05-22', diasRenovacion: 360, montoInterno: 850.00, montoExterno: 510.00 },
-  ...buildDemoSyncedContracts(),
-];
-
-function createInitialCrmState() {
-  const clients = buildClientsFromContracts(SEED_CONTRACTS);
-  const contracts = linkContractsToClients(SEED_CONTRACTS, clients);
-  return { clients, contracts };
-}
-
-const INITIAL_CRM = createInitialCrmState();
-
 interface Ticket extends IncidenciaTicket {}
 
 function Skeleton({ className }: { className?: string }) {
@@ -178,90 +160,22 @@ function Skeleton({ className }: { className?: string }) {
   );
 }
 
-const formatCurrency = (val: number) => {
-  return new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(val);
-};
-
-const renderCompaniaLogo = (brandName: string) => {
-  const brand = (brandName || '').toLowerCase().trim();
-  
-  if (brand.includes('niba')) {
-    return (
-      <span className="inline-flex items-center bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Niba Energía">
-        <span className="w-2 h-2 rounded-full bg-blue-500 inline-block mr-1 shrink-0" />
-        NIBA
-      </span>
-    );
-  } else if (brand.includes('connect') || brand.includes('global')) {
-    return (
-      <span className="inline-flex items-center bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Global Connect">
-        <span className="w-2 h-2 rounded-full bg-teal-450 inline-block mr-1 shrink-0 animate-pulse" />
-        GLOBAL CONNECT
-      </span>
-    );
-  } else if (brand.includes('axpo')) {
-    return (
-      <span className="inline-flex items-center bg-red-600/10 text-red-600 dark:text-red-450 border border-red-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Axpo Iberia">
-        <span className="w-2 h-2 rounded bg-red-600 inline-block mr-1 shrink-0" />
-        AXPO
-      </span>
-    );
-  } else if (brand.includes('endesa')) {
-    return (
-      <span className="inline-flex items-center bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Endesa">
-        <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block mr-1 shrink-0 animate-ping" style={{ animationDuration: '3s' }} />
-        ENDESA
-      </span>
-    );
-  } else if (brand.includes('repsol')) {
-    return (
-      <span className="inline-flex items-center bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Repsol">
-        <span className="w-2 h-2 rounded-full bg-gradient-to-r from-orange-400 to-red-500 inline-block mr-1 shrink-0" />
-        REPSOL
-      </span>
-    );
-  } else if (brand.includes('naturgy')) {
-    return (
-      <span className="inline-flex items-center bg-yellow-600/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Naturgy">
-        <span className="w-2 h-2 rounded bg-amber-500 inline-block mr-1 shrink-0" />
-        NATURGY
-      </span>
-    );
-  } else if (brand.includes('octopus')) {
-    return (
-      <span className="inline-flex items-center bg-pink-500/10 text-pink-600 dark:text-pink-400 border border-pink-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Octopus Energy">
-        <span className="w-2 h-2 rounded-full bg-pink-500 inline-block mr-1 shrink-0" />
-        OCTOPUS
-      </span>
-    );
-  } else if (brand.includes('factor')) {
-    return (
-      <span className="inline-flex items-center bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Factorenergia">
-        <span className="w-2 h-2 rounded bg-emerald-500 inline-block mr-1 shrink-0" />
-        FACTOR ENERGÍA
-      </span>
-    );
-  } else if (brand.includes('ignis')) {
-    return (
-      <span className="inline-flex items-center bg-purple-600/10 text-purple-600 dark:text-purple-400 border border-purple-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider" title="Ignis">
-        <span className="w-2 h-2 rounded-full bg-purple-500 inline-block mr-1 shrink-0" />
-        IGNIS
-      </span>
-    );
-  } else {
-    return (
-      <span className="inline-flex items-center bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/25 px-2 py-0.5 rounded text-[9px] font-extrabold font-mono tracking-wider">
-        <span className="w-2 h-2 rounded-full bg-slate-400 inline-block mr-1 shrink-0" />
-        {brandName.toUpperCase()}
-      </span>
-    );
-  }
-};
-
 export function ErpWorkspace() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profiles, setProfiles, activeUserId, setActiveUserId, activeUser, logout } = useAuth();
+  const {
+    contracts,
+    setContracts,
+    clients,
+    setClients,
+    settlements,
+    setSettlements,
+    setContractsSearchQuery,
+    setContractsListFilter,
+    setContractsUserFilterId,
+    setHighlightContractId,
+  } = useErpData();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -348,32 +262,8 @@ export function ErpWorkspace() {
 
   const [copiedText, setCopiedText] = useState(false);
 
-  // ==========================================
-  // SEED INITIAL DATABASE MOCKS
-  // ==========================================
-  const [clients, setClients] = useState<Client[]>(INITIAL_CRM.clients);
-  const [contracts, setContracts] = useState<Contract[]>(INITIAL_CRM.contracts);
-
-  // Dual switch view state for Superadmin
   const [superadminViewMode, setSuperadminViewMode] = useState<'tramitacion' | 'comercial'>('tramitacion');
-
-  // Interactive filters for Clients database views
   const [clientesSearchQuery, setClientesSearchQuery] = useState('');
-  const [contractsSearchQuery, setContractsSearchQuery] = useState('');
-  const [contractsListFilter, setContractsListFilter] = useState<ContractsListFilter>('all');
-  const [contractsUserFilterId, setContractsUserFilterId] = useState<string>('all');
-  const [highlightContractId, setHighlightContractId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setClients((prev) => syncClientEstados(prev, contracts));
-  }, [contracts]);
-
-  useEffect(() => {
-    if (!highlightContractId) return;
-    const timer = setTimeout(() => setHighlightContractId(null), 10000);
-    return () => clearTimeout(timer);
-  }, [highlightContractId]);
-
   const [liquidacionesSearchQuery, setLiquidacionesSearchQuery] = useState('');
   const [liquidacionesConsolidadasView, setLiquidacionesConsolidadasView] =
     useState<LiquidacionesConsolidadasView>('overview');
@@ -387,17 +277,6 @@ export function ErpWorkspace() {
   // Editing cells tracking state
   const [editingCell, setEditingCell] = useState<{ contractId: string, field: keyof Contract } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
-
-  const [settlements, setSettlements] = useState<Settlement[]>([
-    { id: 'liq-1', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: 240, montoExterno: 120, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión liquidada - ANA MARIA PINEDA BARRAGA', createdAt: '2026-06-02', contractId: 'con-1' },
-    { id: 'liq-2', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: 380, montoExterno: 190, estado: 'pendiente', tipo: 'luz', descripcion: 'Comisión pendiente - GEA CATERING, S.L.', createdAt: '2026-06-04', contractId: 'con-2' },
-    { id: 'liq-3', comercialId: 'usr-3', comercialName: 'Ignacio Ortiz', montoInterno: -450, montoExterno: -225, estado: 'pendiente', tipo: 'luz', descripcion: 'Retrocomisión proporcional - MARIAN DOREL CHERBZAN (Naturgy)', createdAt: '2026-06-08', contractId: 'con-3' },
-    { id: 'liq-4', comercialId: 'usr-4', comercialName: 'Marta Rivas', montoInterno: 960, montoExterno: 480, estado: 'pendiente', tipo: 'gas', descripcion: 'Comisión pendiente - Hotel Continental', createdAt: '2026-06-05', contractId: 'con-8' },
-    { id: 'liq-5', comercialId: 'usr-4', comercialName: 'Marta Rivas', montoInterno: 850, montoExterno: 510, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión liquidada - Residencia Geriátrica Verde', createdAt: '2026-06-01', contractId: 'con-9' },
-    { id: 'liq-6', comercialId: 'usr-5', comercialName: 'Santiago Cano', montoInterno: 400, montoExterno: 200, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión regularizada - MARIAN DOREL CHERBZAN (Ignis)', createdAt: '2026-06-03', contractId: 'con-5' },
-    { id: 'liq-7', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', montoInterno: 500, montoExterno: 250, estado: 'pagado', tipo: 'luz', descripcion: 'Comisión liquidada - Siderúrgica del Norte SL', createdAt: '2026-06-06', contractId: 'con-6' },
-    { id: 'liq-8', comercialId: 'usr-1', comercialName: 'Carlos De la Fuente', montoInterno: -300, montoExterno: -150, estado: 'pendiente', tipo: 'gas', descripcion: 'Retrocomisión - GEA FOOD COOPERATIVA (Endesa)', createdAt: '2026-06-10', contractId: 'con-7' },
-  ]);
 
   const [incidencias, setIncidencias] = useState<Ticket[]>(() =>
     [
@@ -1724,19 +1603,8 @@ export function ErpWorkspace() {
   const myTeamMembers = profiles.filter(p => p.managerId === activeUser.id);
   const teamMemberIds = myTeamMembers.map(m => m.id);
 
-  const teamContracts = contracts.filter(c => teamMemberIds.includes(c.comercialId) || c.comercialId === activeUser.id);
   const teamSettlements = settlements.filter(s => teamMemberIds.includes(s.comercialId) || s.comercialId === activeUser.id);
-  
-  const myContracts = contracts.filter(c => c.comercialId === activeUser.id);
 
-  const showContractsUserFilter =
-    activeRole === 'tramitacion' ||
-    (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
-
-  const opsAdminContracts = useMemo(() => {
-    if (!showContractsUserFilter || contractsUserFilterId === 'all') return contracts;
-    return contracts.filter(c => c.comercialId === contractsUserFilterId);
-  }, [contracts, contractsUserFilterId, showContractsUserFilter]);
   const mySettlements = settlements.filter(s => s.comercialId === activeUser.id);
 
   const roleFilteredIncidencias = (() => {
@@ -2706,55 +2574,31 @@ export function ErpWorkspace() {
                 )}
                  {/* VIEW: CONTRATOS */}
                  {(currentMenuTab === 'Contratos' || currentMenuTab === 'Mis Contratos') && activeModule === 'erp' && (
-                  <ContratosPanel
-                    activeRole={activeRole}
-                    activeUserId={activeUserId}
-                    activeUserName={activeUser.fullName}
-                    canEditContractEstado={
-                      activeModule === 'erp' &&
-                      (isErpOpsAdmin &&
-                        (activeRole === 'tramitacion' || superadminViewMode === 'tramitacion'))
-                    }
-                    visibleContracts={
-                      currentMenuTab === 'Mis Contratos' || activeRole === 'comercial'
-                        ? myContracts
-                        : activeRole === 'jefe_comercial'
-                          ? teamContracts
-                          : showContractsUserFilter
-                            ? opsAdminContracts
-                            : contracts
-                    }
-                    showUserFilter={showContractsUserFilter}
-                    userFilterId={contractsUserFilterId}
-                    onUserFilterChange={setContractsUserFilterId}
-                    setContracts={setContracts}
-                    contractsSearchQuery={contractsSearchQuery}
-                    setContractsSearchQuery={setContractsSearchQuery}
-                    contractsListFilter={contractsListFilter}
-                    setContractsListFilter={setContractsListFilter}
-                    onActivateContract={(c) => {
-                      setSelectedContractForActivation(c);
-                      setActivateConsumoKwh(c.consumoAnual);
-                      setActivatePowerKw(15.5);
-                      setIsActivateOpen(true);
+                  <ContratosPage
+                    activeModule={activeModule}
+                    currentMenuTab={currentMenuTab}
+                    superadminViewMode={superadminViewMode}
+                    isErpOpsAdmin={isErpOpsAdmin}
+                    actions={{
+                      onActivateContract: (c) => {
+                        setSelectedContractForActivation(c);
+                        setActivateConsumoKwh(c.consumoAnual);
+                        setActivatePowerKw(15.5);
+                        setIsActivateOpen(true);
+                      },
+                      onBajaContract: (c) => {
+                        setSelectedContractForBaja(c);
+                        setBajaDate(new Date().toISOString().split('T')[0]);
+                        setIsBajaOpen(true);
+                      },
+                      handleCreateContract,
+                      isCreatingContract,
+                      newContractForm,
+                      onNewContractFormChange: patchNewContractForm,
+                      onResetNewContractForm: resetNewContractForm,
+                      applyOcrToNewContractForm,
+                      onOpenNewContract: openContractWizardBlank,
                     }}
-                    onBajaContract={(c) => {
-                      setSelectedContractForBaja(c);
-                      setBajaDate(new Date().toISOString().split('T')[0]);
-                      setIsBajaOpen(true);
-                    }}
-                    handleCreateContract={handleCreateContract}
-                    isCreatingContract={isCreatingContract}
-                    newContractForm={newContractForm}
-                    onNewContractFormChange={patchNewContractForm}
-                    onResetNewContractForm={resetNewContractForm}
-                    applyOcrToNewContractForm={applyOcrToNewContractForm}
-                    onOpenNewContract={openContractWizardBlank}
-                    highlightContractId={highlightContractId}
-                    profiles={profiles}
-                    commissionPercentage={activeUser.commissionPercentage}
-                    formatCurrency={formatCurrency}
-                    renderCompaniaLogo={renderCompaniaLogo}
                   />
                 )}
 

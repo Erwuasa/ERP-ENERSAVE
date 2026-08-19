@@ -240,7 +240,16 @@ pages/ventas/pipeline/PipelinePage.tsx
 - [x] `src/lib/utils.ts` (`cn()`)
 - [ ] `src/providers/AppProviders.tsx` — parcial (Theme + Router + Toaster)
 
-**Fase 1** (primer corte real):
+**Fase 2 — Contratos** (en curso):
+
+- [x] `api/erp/contracts.service.ts`
+- [x] `providers/ErpDataProvider.tsx` — contracts, clients, settlements, filtros
+- [x] `pages/erp/contratos/ContratosPage.tsx` + `hooks/useContratosPage.ts`
+- [x] `ContratosPanel` movido a `pages/erp/contratos/components/` (re-export en `components/`)
+- [x] Ruta `/erp/contratos` sincronizada con tab (via `pathToMenuTab`)
+- [ ] Extraer modales activación/baja a `pages/erp/contratos/components/`
+- [ ] Mover `handleCreateContract` a hook/servicio dedicado
+- [ ] Extraer `AppShell` (sidebar) de `ErpWorkspace`
 
 - [x] Instalar `react-router-dom`
 - [x] Extraer `LoginPage` + `useAuth` (`AuthProvider`)
