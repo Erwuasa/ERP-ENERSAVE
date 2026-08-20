@@ -72,7 +72,7 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
     }
 
     const result = await updateTarea(id, { estado: "completada" })
-    if (!result.ok) {
+    if (result.ok === false) {
       if (previous) {
         setTareas((prev) => prev.map((t) => (t.id === id ? previous : t)))
       }
@@ -110,7 +110,7 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
     }
 
     const result = await updateTarea(id, { estado: "descartada" })
-    if (!result.ok) {
+    if (result.ok === false) {
       if (previous) {
         setTareas((prev) => prev.map((t) => (t.id === id ? previous : t)))
       }
@@ -137,7 +137,7 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
     }
 
     const result = await updateTarea(id, { fechaObjetivo })
-    if (!result.ok) {
+    if (result.ok === false) {
       if (previous) {
         setTareas((prev) => prev.map((t) => (t.id === id ? previous : t)))
       }

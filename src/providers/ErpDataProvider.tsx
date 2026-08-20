@@ -15,6 +15,90 @@ import { syncClientEstados } from "@/lib/clients"
 import { INITIAL_CRM } from "@/lib/erp/initial-crm-state"
 
 import type { ContractsListFilter } from "@/lib/contract-renewal"
+import type { ClawbackPendingContract } from "@/lib/erp/contract-clawback"
+
+const INITIAL_PENDING_CONTRACTS: ClawbackPendingContract[] = [
+  {
+    id: "pcon-1",
+    code: "04AE54BBX",
+    cups: "ES875404715066446",
+    dateFirm: "28-abr-2025",
+    dateAct: "13-may-2025",
+    direction: "Calle Mayor 53 , Barcelona 25006",
+    agentId: "usr-3",
+    agentName: "Ignacio Ortiz",
+    brand: "Niba",
+    tariff: "Tarifa 2.0TD",
+    price: 150.0,
+    checked: false,
+    clientName: "Suministros Pérez",
+    tipo: "luz",
+  },
+  {
+    id: "pcon-2",
+    code: "EC900F84X",
+    cups: "ES963107157423318",
+    dateFirm: "04-jun-2025",
+    dateAct: "19-jun-2025",
+    direction: "Calle Mayor 7 , Barcelona 33367",
+    agentId: "usr-4",
+    agentName: "Marta Rivas",
+    brand: "Global Connect",
+    tariff: "Tarifa 2.0TD",
+    price: 50.0,
+    checked: false,
+    clientName: "Clínica Dental Les Corts",
+    tipo: "luz",
+  },
+  {
+    id: "pcon-3",
+    code: "F5264AD0X",
+    cups: "ES94130653587045",
+    dateFirm: "28-jun-2025",
+    dateAct: "13-jul-2025",
+    direction: "Calle Mayor 54 , Barcelona 9297",
+    agentId: "usr-3",
+    agentName: "Ignacio Ortiz",
+    brand: "Niba",
+    tariff: "Tarifa 3.0TD",
+    price: 230.0,
+    checked: true,
+    clientName: "Panadería Barcelona",
+    tipo: "gas",
+  },
+  {
+    id: "pcon-4",
+    code: "79B45E63X",
+    cups: "ES727908497439937",
+    dateFirm: "17-jul-2025",
+    dateAct: "01-ago-2025",
+    direction: "Calle Mayor 35 , Barcelona 11367",
+    agentId: "usr-5",
+    agentName: "Santiago Cano",
+    brand: "Axpo",
+    tariff: "Tarifa 3.0TD",
+    price: 230.0,
+    checked: false,
+    clientName: "Restaurante El Celler",
+    tipo: "luz",
+  },
+  {
+    id: "pcon-5",
+    code: "A828A291A",
+    cups: "ES102983719283712",
+    dateFirm: "02-ago-2025",
+    dateAct: "15-ago-2025",
+    direction: "Gran Via 122, Madrid 28008",
+    agentId: "usr-2",
+    agentName: "Elena Garrido",
+    brand: "Endesa",
+    tariff: "Tarifa Fija Pyme",
+    price: 180.0,
+    checked: false,
+    clientName: "Talleres Mecánicos Gran Vía",
+    tipo: "luz",
+  },
+]
 
 const INITIAL_SETTLEMENTS: Settlement[] = [
   {
@@ -58,6 +142,8 @@ interface ErpDataContextValue {
   setContractsUserFilterId: Dispatch<SetStateAction<string>>
   highlightContractId: string | null
   setHighlightContractId: Dispatch<SetStateAction<string | null>>
+  pendingContracts: ClawbackPendingContract[]
+  setPendingContracts: Dispatch<SetStateAction<ClawbackPendingContract[]>>
 }
 
 const ErpDataContext = createContext<ErpDataContextValue | null>(null)
@@ -72,6 +158,9 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
   const [contractsUserFilterId, setContractsUserFilterId] = useState("all")
   const [highlightContractId, setHighlightContractId] = useState<string | null>(
     null
+  )
+  const [pendingContracts, setPendingContracts] = useState<ClawbackPendingContract[]>(
+    INITIAL_PENDING_CONTRACTS
   )
 
   useEffect(() => {
@@ -100,6 +189,8 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       setContractsUserFilterId,
       highlightContractId,
       setHighlightContractId,
+      pendingContracts,
+      setPendingContracts,
     }),
     [
       contracts,
@@ -109,6 +200,7 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       contractsListFilter,
       contractsUserFilterId,
       highlightContractId,
+      pendingContracts,
     ]
   )
 

@@ -1,3 +1,4 @@
+import { Fragment } from "react"
 import { motion } from "motion/react"
 import {
   AlertTriangle,
@@ -225,13 +226,14 @@ export function MiDiaHeroAction({
           aria-label="Lista de pendientes por fase"
         >
           {faseGroups.map((group, index) => (
-            <FaseSection
-              key={group.fase}
-              group={group}
-              reducedMotion={reducedMotion}
-              onOpenPipelineProspecto={onOpenPipelineProspecto}
-              sectionIndex={index}
-            />
+            <Fragment key={group.fase}>
+              <FaseSection
+                group={group}
+                reducedMotion={reducedMotion}
+                onOpenPipelineProspecto={onOpenPipelineProspecto}
+                sectionIndex={index}
+              />
+            </Fragment>
           ))}
         </div>
       )}

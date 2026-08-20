@@ -243,7 +243,7 @@ export function MiDiaPage({
   async function handleHecho(tarea: TareaVenta) {
     toast.success("Tarea completada")
     const result = await completeTarea(tarea.id)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return
     }
@@ -256,7 +256,7 @@ export function MiDiaPage({
   async function handlePosponer(tarea: TareaVenta) {
     toast.success("Tarea pospuesta")
     const result = await postponeTarea(tarea.id)
-    if (!result.ok) toast.error(result.message)
+    if (result.ok === false) toast.error(result.message)
   }
 
   async function handleCreateProspecto(data: NuevoProspectoFormData) {
@@ -274,7 +274,7 @@ export function MiDiaPage({
       metadata: data.canalOrigen ? { canal_origen: data.canalOrigen } : undefined,
     })
     setCreating(false)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return false
     }

@@ -1,6 +1,6 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
-export type ErpComercialRole = "superadmin" | "jefe_comercial" | "comercial"
+export type ErpComercialRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
 
 export interface ErpComercialRow {
   id: string
@@ -59,7 +59,7 @@ function selectColumns(): string {
 
 function withDefaultCommission(row: Record<string, unknown>): ErpComercialRow {
   return mapErpComercialRow({
-    ...(row as ErpComercialRow),
+    ...(row as unknown as ErpComercialRow),
     commission_percentage:
       row.commission_percentage != null ? Number(row.commission_percentage) : 70,
   })
@@ -80,7 +80,7 @@ async function queryErpComerciales(
     if (error) return mapError(error)
     return {
       ok: true,
-      data: ((data ?? []) as Record<string, unknown>[]).map(withDefaultCommission),
+      data: ((data ?? []) as unknown as Record<string, unknown>[]).map(withDefaultCommission),
     }
   }
 
@@ -92,7 +92,7 @@ async function queryErpComerciales(
     if (fallback.error) return mapError(fallback.error)
     return {
       ok: true,
-      data: ((fallback.data ?? []) as Record<string, unknown>[]).map(withDefaultCommission),
+      data: ((fallback.data ?? []) as unknown as Record<string, unknown>[]).map(withDefaultCommission),
     }
   }
 
@@ -100,7 +100,7 @@ async function queryErpComerciales(
   hasCommissionColumn = true
   return {
     ok: true,
-    data: ((data ?? []) as ErpComercialRow[]).map(mapErpComercialRow),
+    data: ((data ?? []) as unknown as ErpComercialRow[]).map(mapErpComercialRow),
   }
 }
 
@@ -124,14 +124,14 @@ async function querySingleErpComercial(
       .maybeSingle()
     if (fallback.error) return { data: null, error: fallback.error }
     return {
-      data: fallback.data ? withDefaultCommission(fallback.data as Record<string, unknown>) : null,
+      data: fallback.data ? withDefaultCommission(fallback.data as unknown as Record<string, unknown>) : null,
       error: null,
     }
   }
 
   if (error) return { data: null, error }
   if (!data) return { data: null, error: null }
-  return { data: withDefaultCommission(data as Record<string, unknown>), error: null }
+  return { data: withDefaultCommission(data as unknown as Record<string, unknown>), error: null }
 }
 
 export async function listErpComerciales(): Promise<ErpComercialResult<ErpComercialRow[]>> {

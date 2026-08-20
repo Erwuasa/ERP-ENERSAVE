@@ -5,7 +5,10 @@ import {
   useEffect,
   useMemo,
   useState,
+  type Dispatch,
+  type FormEvent,
   type ReactNode,
+  type SetStateAction,
 } from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -26,17 +29,17 @@ interface AuthContextValue {
   isLoggedIn: boolean
   isBootstrapping: boolean
   profiles: Profile[]
-  setProfiles: React.Dispatch<React.SetStateAction<Profile[]>>
+  setProfiles: Dispatch<SetStateAction<Profile[]>>
   activeUserId: string
-  setActiveUserId: React.Dispatch<React.SetStateAction<string>>
+  setActiveUserId: Dispatch<SetStateAction<string>>
   activeUser: Profile
   loginEmail: string
-  setLoginEmail: React.Dispatch<React.SetStateAction<string>>
+  setLoginEmail: Dispatch<SetStateAction<string>>
   loginPassword: string
-  setLoginPassword: React.Dispatch<React.SetStateAction<string>>
+  setLoginPassword: Dispatch<SetStateAction<string>>
   loginLoading: boolean
   loginError: string | null
-  triggerLogin: (e: React.FormEvent) => Promise<void>
+  triggerLogin: (e: FormEvent) => Promise<void>
   quickLoginAs: (profileId: string) => Promise<void>
   logout: () => Promise<void>
   applyLoginProfile: (profile: Profile) => void
@@ -101,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: profile.role,
         fullName: profile.fullName,
       })
-      if (!sessionResult.ok) {
+      if (sessionResult.ok === false) {
         setLoginError(
           `No se pudo conectar con Supabase: ${sessionResult.message}. Crea el usuario en Auth con el mismo email y contraseña, o desactiva «Confirm email» en Supabase.`
         )
@@ -134,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const triggerLogin = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault()
       setLoginLoading(true)
       setLoginError(null)

@@ -107,7 +107,7 @@ describe("stage-gate", () => {
           contacto_telefonico_o_visita: { checked: true },
         },
       },
-    } as import("./types").Prospecto)
+    } as unknown as import("./types").Prospecto)
     expect(tasks.length).toBe(2)
     expect(tasks[0].label).toContain("Primer intento de contacto")
     expect(tasks[0].done).toBe(true)

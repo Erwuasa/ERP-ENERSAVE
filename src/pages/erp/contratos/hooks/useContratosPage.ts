@@ -1,36 +1,17 @@
 import { useMemo } from "react"
-import type { Contract } from "@/types/contract"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
-import type { NewContractFormState } from "@/lib/contract-registration"
-import type { ContractOcrResult } from "@/lib/contract-ocr"
 import type { UserRole } from "@/types/profile"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
+import { useContractActionsContext } from "@/providers/ContractActionsProvider"
 import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { formatCurrency } from "@/lib/erp/format-currency"
-
-export interface ContratosPageActions {
-  onActivateContract: (contract: Contract) => void
-  onBajaContract: (contract: Contract) => void
-  handleCreateContract: (
-    e: React.FormEvent,
-    onSuccess?: () => void,
-    options?: { incomplete?: boolean; prospectoId?: string }
-  ) => void | Promise<void>
-  isCreatingContract: boolean
-  newContractForm: NewContractFormState
-  onNewContractFormChange: (patch: Partial<NewContractFormState>) => void
-  onResetNewContractForm: () => void
-  applyOcrToNewContractForm: (data: ContractOcrResult) => void
-  onOpenNewContract?: () => void
-}
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
   currentMenuTab: string
   superadminViewMode: "tramitacion" | "comercial"
   isErpOpsAdmin: boolean
-  actions: ContratosPageActions
 }
 
 export function useContratosPage({
@@ -38,7 +19,6 @@ export function useContratosPage({
   currentMenuTab,
   superadminViewMode,
   isErpOpsAdmin,
-  actions,
 }: UseContratosPageOptions) {
   const { profiles, activeUserId, activeUser } = useAuth()
   const {
@@ -52,6 +32,18 @@ export function useContratosPage({
     setContractsUserFilterId,
     highlightContractId,
   } = useErpData()
+
+  const {
+    handleCreateContract,
+    isCreatingContract,
+    newContractForm,
+    patchNewContractForm,
+    resetNewContractForm,
+    applyOcrToNewContractForm,
+    openContractWizardBlank,
+    openActivateModal,
+    openBajaModal,
+  } = useContractActionsContext()
 
   const activeRole = activeUser.role as UserRole
 
@@ -119,17 +111,17 @@ export function useContratosPage({
       setContracts,
       contractsSearchQuery,
       setContractsSearchQuery,
-      contractsListFilter,
+      contractsListFilter: contractsListFilter as ContractsListFilter,
       setContractsListFilter,
-      onActivateContract: actions.onActivateContract,
-      onBajaContract: actions.onBajaContract,
-      handleCreateContract: actions.handleCreateContract,
-      isCreatingContract: actions.isCreatingContract,
-      newContractForm: actions.newContractForm,
-      onNewContractFormChange: actions.onNewContractFormChange,
-      onResetNewContractForm: actions.onResetNewContractForm,
-      applyOcrToNewContractForm: actions.applyOcrToNewContractForm,
-      onOpenNewContract: actions.onOpenNewContract,
+      onActivateContract: openActivateModal,
+      onBajaContract: openBajaModal,
+      handleCreateContract,
+      isCreatingContract,
+      newContractForm,
+      onNewContractFormChange: patchNewContractForm,
+      onResetNewContractForm: resetNewContractForm,
+      applyOcrToNewContractForm,
+      onOpenNewContract: openContractWizardBlank,
       highlightContractId,
       profiles: profiles.map((p) => ({
         id: p.id,

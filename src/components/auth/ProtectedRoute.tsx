@@ -1,8 +1,9 @@
+import type { ReactNode } from "react"
 import { Navigate, useLocation } from "react-router-dom"
 import { ROUTES } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { isLoggedIn, isBootstrapping } = useAuth()
   const location = useLocation()
 

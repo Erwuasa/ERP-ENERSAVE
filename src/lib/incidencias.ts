@@ -62,17 +62,21 @@ export function migrateLegacyEstado(estado: string): IncidenciaEstado {
 }
 
 export function normalizeIncidenciaTicket(
-  inc: Omit<IncidenciaTicket, "estado" | "codigo" | "origen"> & {
+  inc: Omit<IncidenciaTicket, "estado" | "codigo" | "origen" | "tipo" | "prioridad"> & {
     estado: string
     codigo?: string
-    origen?: IncidenciaOrigen
+    origen?: IncidenciaOrigen | string
+    tipo?: IncidenciaTipo | string
+    prioridad?: IncidenciaPrioridad | string
   }
 ): IncidenciaTicket {
   return {
     ...inc,
     codigo: inc.codigo ?? generateIncidenciaCodigoFromId(inc.id),
-    origen: inc.origen ?? "comercial",
+    origen: (inc.origen ?? "comercial") as IncidenciaOrigen,
     estado: migrateLegacyEstado(inc.estado),
+    tipo: inc.tipo as IncidenciaTipo,
+    prioridad: inc.prioridad as IncidenciaPrioridad | undefined,
   }
 }
 

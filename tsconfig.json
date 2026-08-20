@@ -25,6 +25,6 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*", "app/**/*"],
-  "exclude": []
+  "include": ["src/**/*"],
+  "exclude": ["app"]
 }

@@ -240,20 +240,83 @@ pages/ventas/pipeline/PipelinePage.tsx
 - [x] `src/lib/utils.ts` (`cn()`)
 - [ ] `src/providers/AppProviders.tsx` — parcial (Theme + Router + Toaster)
 
-**Fase 2 — Contratos** (en curso):
+**Fase 2 — Contratos** (completada):
 
 - [x] `api/erp/contracts.service.ts`
-- [x] `providers/ErpDataProvider.tsx` — contracts, clients, settlements, filtros
+- [x] `providers/ErpDataProvider.tsx` — contracts, clients, settlements, pendingContracts, filtros
+- [x] `providers/ContractActionsProvider.tsx` + `hooks/useContractActions.ts`
 - [x] `pages/erp/contratos/ContratosPage.tsx` + `hooks/useContratosPage.ts`
 - [x] `ContratosPanel` movido a `pages/erp/contratos/components/` (re-export en `components/`)
+- [x] Modales activación/baja → `ContractActivateModal`, `ContractBajaModal`, `ContractActionsHost`
+- [x] `handleCreateContract` → `lib/erp/create-contract-from-form.ts` + `useContractActions`
+- [x] Wizard `NuevoContratoWizard` montado en `ContractActionsHost` (global vía provider)
 - [x] Ruta `/erp/contratos` sincronizada con tab (via `pathToMenuTab`)
-- [ ] Extraer modales activación/baja a `pages/erp/contratos/components/`
-- [ ] Mover `handleCreateContract` a hook/servicio dedicado
-- [ ] Extraer `AppShell` (sidebar) de `ErpWorkspace`
+- [x] Extraer `AppShell` (sidebar) de `ErpWorkspace` → `components/layout/AppShell.tsx` + `hooks/useWorkspaceNavigation.ts` + `lib/navigation/sidebar-items.ts`
+
+**Fase 2b — ErpWorkspace modular** (completada):
+
+- [x] `ErpWorkspace.tsx` (~34 L) — shell + composición
+- [x] `hooks/useErpWorkspace.ts` — composer de sub-hooks de dominio
+- [x] `hooks/workspace/` — `useErpComparador`, `useErpIncidencias`, `useErpUsuarios`, `useErpLiquidacionesDemo`, `useErpVentasBridge`
+- [x] `components/workspace/ErpWorkspaceContent.tsx` — tab router delgado
+- [x] `components/workspace/ErpWorkspaceModals.tsx` — modales usuario + comparador contrato
+- [x] `components/workspace/workspace-lazy-tabs.tsx` — `React.lazy` + `Suspense` por tab
+- [x] Vistas extraídas: Dashboard, Usuarios, Liquidaciones externas, Mi Equipo, Comparador, Historial, Incidencias, Ventas, Mis Clientes, Tarifas/Marco
+- [x] `ContratosPanelTable.tsx` — tabla + paginación (~415 L) extraída de `ContratosPanel`
+- [x] `lib/erp/comparador-rates.ts` — lógica pura del comparador
+- [x] `NuevoContratoWizard` — modularizado en `pages/erp/contratos/components/wizard/` (hook + 4 pasos + modal confirmación; re-export en `components/`)
+
+**Fase 2c — Mis Clientes** (completada):
+
+- [x] `pages/erp/clientes/ClientesPage.tsx` + `hooks/useClientesPage.ts` (ErpData + Auth)
+- [x] `hooks/useMisClientesPanel.ts` — filtros, sort, KPIs, archivos, export CSV
+- [x] Componentes: `ClientesKpiStrip`, `ClientesPanelToolbar`, `ClientesPanelTable`, `ClientesFolderModal`, `ClientesContractsModal`
+- [x] `ErpMisClientesView` → delega en `ClientesPage`
+- [x] Re-export en `components/MisClientesPanel.tsx`
+
+**Fase 2d — Cashflow + Incidencias** (completada):
+
+- [x] `pages/erp/cashflow/` — `CashflowPage`, `useCashflowPanel`, KPI/proyección/canales modularizados
+- [x] `lib/erp/cashflow-demo-data.ts` — datos demo + KPIs por escenario
+- [x] Re-export en `components/CashflowPanel.tsx`
+- [x] `pages/erp/incidencias/` — `IncidenciasPage`, `IncidenciasProvider`, `useIncidenciasPage`, `useIncidenciasPanel`
+- [x] `IncidenciaCreateForm` extraído del view
+- [x] `IncidenciasProvider` en `ErpWorkspace` — estado compartido con dashboard KPI
+- [x] Re-export en `components/IncidenciasPanel.tsx`
+
+**Fase 2e — Tarifas + Marco Retributivo** (completada):
+
+- [x] `pages/erp/productos/` — `ProductosPage`, `useProductosPanel`, `ProductoCard`, filtros sidebar, grid
+- [x] Re-export en `components/ProductosPanel.tsx`
+- [x] `pages/erp/marco-retributivo/` — `MarcoRetributivoPage`, `useMarcoRetributivoPanel`, toolbar + tabla
+- [x] Re-export en `components/MarcoRetributivoPanel.tsx`
+- [x] `ErpCatalogTabsView` → delega en `ProductosPage` y `MarcoRetributivoPage`
+
+**Fase 2f — Modales y Kanban** (completada):
+
+- [x] `MarcoRetributivoEditModal` → `pages/erp/marco-retributivo/components/` (hook + secciones datos/comisiones)
+- [x] Re-export en `components/MarcoRetributivoEditModal.tsx`
+- [x] `IncidenciasKanban` → `pages/erp/incidencias/components/` (config, card, edit modal)
+- [x] Re-export en `components/IncidenciasKanban.tsx`
+
+**Fase 2g — Contratos, Workspace modals, Ventas API** (completada):
+
+- [x] `useContratosPanel.tsx` — filtros, paginación, OCR, estado editable
+- [x] `ContratosPanelToolbar`, `ContratosPanelSearchRow`, `ContratosPanelPagination`, `ContratosPanelFicha`
+- [x] `ContratosPanel.tsx` (~180 L) — composición delgada
+- [x] `ErpWorkspaceModals` → `CreateUserModal`, `ComparadorContractModal` + sheet usuario
+- [x] `lib/supabase/ventas.ts` → barrel; dominios en `ventas-prospectos`, `ventas-actividades`, `ventas-tareas`, `ventas-shared`, `ventas-types`
+
+**Fase 2h — Liquidaciones externas** (completada):
+
+- [x] `pages/erp/liquidaciones-externas/` — `LiquidacionesExternasPage`, `useLiquidacionesExternasPanel`
+- [x] `lib/liquidaciones-externas-utils.ts` — filtros por rol, métricas jefe comercial, agrupación por marca
+- [x] Componentes: `JefeComercialNodoSection`, header, tabs compañía, panel pendientes, card, pendiente por marca, consolidadas
+- [x] `ErpLiquidacionesExternasView` → re-export de `LiquidacionesExternasPage`
 
 - [x] Instalar `react-router-dom`
 - [x] Extraer `LoginPage` + `useAuth` (`AuthProvider`)
-- [ ] Extraer `AppShell` (sidebar + header) — pendiente; sidebar sigue en `ErpWorkspace`
+- [x] Extraer `AppShell` (sidebar + viewport) — `ErpWorkspace` solo orquesta tabs/contenido
 - [x] Reducir `App.tsx` a providers + `<RouterProvider />` (~5 líneas)
 - [x] Mover lógica ERP a `pages/erp/ErpWorkspace.tsx` (lazy-loaded)
 - [x] Rutas URL: `/login`, `/erp/*`, `/ventas/*` sincronizadas con tabs

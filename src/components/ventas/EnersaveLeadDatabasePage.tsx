@@ -70,7 +70,7 @@ export function EnersaveLeadDatabasePage() {
     }
 
     const result = await bulkCreateEnersaveLeads(parsed)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return
     }
@@ -100,7 +100,7 @@ export function EnersaveLeadDatabasePage() {
     }
 
     const result = await createEnersaveLead({ ...form, nombre: form.nombre.trim() })
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return
     }
@@ -117,7 +117,7 @@ export function EnersaveLeadDatabasePage() {
       return
     }
     const result = await deleteEnersaveLead(id)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return
     }

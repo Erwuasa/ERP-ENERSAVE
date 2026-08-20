@@ -137,7 +137,7 @@ export function PipelinePage({
     const result = await updateProspecto(prospectoId, {
       metadata: mergeProspectoMetadata(baseProspecto, metadataPatch),
     })
-    if (!result.ok) toast.error(result.message)
+    if (result.ok === false) toast.error(result.message)
   }
 
   async function executeFaseChange(
@@ -149,7 +149,7 @@ export function PipelinePage({
     const result = await changeFase(prospectoId, from, input)
     setFaseChanging(false)
 
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return false
     }
@@ -228,7 +228,7 @@ export function PipelinePage({
     setDeleting(true)
     const result = await deleteProspecto(deleteTarget.id)
     setDeleting(false)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return
     }
@@ -288,7 +288,7 @@ export function PipelinePage({
     })
     setCreating(false)
 
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return false
     }
@@ -414,7 +414,7 @@ export function PipelinePage({
         }}
         onUpdateProspecto={async (id, patch) => {
           const result = await updateProspecto(id, patch)
-          if (!result.ok) return { ok: false, message: result.message }
+          if (result.ok === false) return { ok: false, message: result.message }
           return { ok: true, data: result.data }
         }}
         onProspectoUpdated={(p) => {
@@ -423,7 +423,9 @@ export function PipelinePage({
         }}
         onDeleteProspecto={async (id) => {
           const result = await deleteProspecto(id)
-          return result.ok ? { ok: true } : { ok: false, message: result.message }
+          return result.ok === false
+            ? { ok: false, message: result.message }
+            : { ok: true }
         }}
         onNavigateToContratos={(contratoEquipoId) => {
           setCentroMandoProspecto(null)

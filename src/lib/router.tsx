@@ -3,6 +3,7 @@ import { Navigate, Outlet, createBrowserRouter } from "react-router-dom"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { AuthProvider } from "@/hooks/useAuth"
 import { ErpDataProvider } from "@/providers/ErpDataProvider"
+import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
 import { ROUTES } from "@/constants/navigation"
 import { LoginPage } from "@/pages/auth/LoginPage"
 
@@ -22,7 +23,9 @@ function AuthLayout() {
   return (
     <AuthProvider>
       <ErpDataProvider>
-        <Outlet />
+        <ContractActionsProvider>
+          <Outlet />
+        </ContractActionsProvider>
       </ErpDataProvider>
     </AuthProvider>
   )

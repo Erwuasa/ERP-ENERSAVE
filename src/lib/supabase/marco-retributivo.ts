@@ -109,9 +109,17 @@ function mapError(error: { message: string }): MarcoRetributivoResult<never> {
   return { ok: false, message: error.message }
 }
 
+type MarcoClientError = { ok: false; message: string }
+
+function isMarcoClientError(
+  value: NonNullable<ReturnType<typeof getSupabaseClient>> | MarcoClientError
+): value is MarcoClientError {
+  return typeof value === "object" && value !== null && "ok" in value && value.ok === false
+}
+
 function requireClient():
   | NonNullable<ReturnType<typeof getSupabaseClient>>
-  | MarcoRetributivoResult<never> {
+  | MarcoClientError {
   if (!isSupabaseConfigured()) {
     return { ok: false, message: "Supabase no configurado" }
   }
@@ -240,7 +248,7 @@ export async function listMarcoRetributivo(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
   const clientOrError = requireClient()
-  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+  if (isMarcoClientError(clientOrError)) {
     return { ok: true, data: getFallbackMarcoCatalog() }
   }
 
@@ -276,7 +284,7 @@ export async function createMarcoEntry(
   updatedBy?: string | null
 ): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
   const clientOrError = requireClient()
-  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+  if (isMarcoClientError(clientOrError)) {
     return clientOrError
   }
 
@@ -312,7 +320,7 @@ export async function updateMarcoEntry(
   updatedBy?: string | null
 ): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
   const clientOrError = requireClient()
-  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+  if (isMarcoClientError(clientOrError)) {
     return clientOrError
   }
 
@@ -332,7 +340,7 @@ export async function deleteMarcoEntry(
   updatedBy?: string | null
 ): Promise<MarcoRetributivoResult<void>> {
   const clientOrError = requireClient()
-  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+  if (isMarcoClientError(clientOrError)) {
     return clientOrError
   }
 
@@ -381,7 +389,7 @@ export async function getMarcoEntryById(
   marcoEntryId: string
 ): Promise<MarcoRetributivoResult<MarcoRetributivoEntry>> {
   const clientOrError = requireClient()
-  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+  if (isMarcoClientError(clientOrError)) {
     const fallback = resolveMarcoCatalogEntry(marcoEntryId, "", "", "luz")
     if (!fallback) {
       return { ok: false, message: "Entrada de marco retributivo no encontrada" }
@@ -439,7 +447,7 @@ export async function getComisionParaComercial(
   formatCurrency: (val: number) => string = (v) => `${v.toFixed(2)} €`
 ): Promise<ComisionParaComercialResult> {
   const entryResult = await getMarcoEntryById(marcoEntryId)
-  if (!entryResult.ok) {
+  if (entryResult.ok === false) {
     throw new Error(entryResult.message)
   }
 

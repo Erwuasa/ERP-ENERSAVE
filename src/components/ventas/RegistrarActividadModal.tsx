@@ -55,7 +55,7 @@ export function RegistrarActividadModal({
     })
     setLoading(false)
 
-    if (!result.ok) {
+    if (result.ok === false) {
       setError(result.message)
       return
     }

@@ -94,7 +94,7 @@ export function useProspectos(actor: VentasActor, filters?: ListProspectosFilter
     if (result.ok) {
       const merged = mergeProspectosCache(cacheKey, result.data)
       setProspectosState(merged)
-    } else if (!silent) {
+    } else if (result.ok === false && !silent) {
       setError(result.message)
       // Mantener caché/localStorage — no vaciar la UI si falla la red o RLS
       const cached = readProspectosCache(cacheKey)
@@ -164,7 +164,7 @@ export function useProspectos(actor: VentasActor, filters?: ListProspectosFilter
       comercialName: actor.comercialName,
     })
 
-    if (!result.ok) {
+    if (result.ok === false) {
       setProspectos((prev) =>
         mergeProspectoLists(
           [
