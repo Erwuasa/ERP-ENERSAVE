@@ -1,30 +1,22 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 import type { AppModule } from "@/constants/navigation"
-import { menuTabToPath, pathToMenuTab } from "@/constants/navigation"
-import type { UserRole } from "@/types/profile"
+import { getDefaultVentasTab, menuTabToPath, pathToMenuTab } from "@/constants/navigation"
+import { defaultTabForRole, type UserRole } from "@/types/profile"
 
 export function useWorkspaceNavigation(activeRole: UserRole) {
   const navigate = useNavigate()
   const location = useLocation()
-
-  const [activeModule, setActiveModule] = useState<AppModule>("erp")
-  const [currentMenuTab, setCurrentMenuTab] = useState("Dashboard")
   const [superadminViewMode, setSuperadminViewMode] = useState<"tramitacion" | "comercial">(
     "tramitacion"
   )
 
-  useEffect(() => {
-    const parsed = pathToMenuTab(location.pathname)
-    if (!parsed) return
-    setActiveModule(parsed.module)
-    setCurrentMenuTab(parsed.tab)
-  }, [location.pathname])
+  const parsed = useMemo(() => pathToMenuTab(location.pathname), [location.pathname])
+  const activeModule: AppModule = parsed?.module ?? "erp"
+  const currentMenuTab = parsed?.tab ?? defaultTabForRole(activeRole)
 
   const navigateToTab = useCallback(
     (module: AppModule, tab: string) => {
-      setActiveModule(module)
-      setCurrentMenuTab(tab)
       navigate(menuTabToPath(module, tab))
     },
     [navigate]
@@ -33,8 +25,7 @@ export function useWorkspaceNavigation(activeRole: UserRole) {
   const switchAppModule = useCallback(
     (module: AppModule) => {
       if (module === "ventas") {
-        const tab = activeRole === "tramitacion" ? "Base EnerSave" : "Mi Día"
-        navigateToTab("ventas", tab)
+        navigateToTab("ventas", getDefaultVentasTab(activeRole))
         return
       }
       if (activeRole === "superadmin") {
@@ -52,9 +43,7 @@ export function useWorkspaceNavigation(activeRole: UserRole) {
 
   return {
     activeModule,
-    setActiveModule,
     currentMenuTab,
-    setCurrentMenuTab,
     superadminViewMode,
     setSuperadminViewMode,
     navigateToTab,

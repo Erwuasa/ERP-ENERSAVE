@@ -2,6 +2,8 @@ import { lazy, Suspense } from "react"
 import { Navigate, Outlet, createBrowserRouter } from "react-router-dom"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { WorkspaceIndexRedirect } from "@/components/auth/WorkspaceIndexRedirect"
+import { WorkspaceModuleIndexRedirect } from "@/components/auth/WorkspaceModuleIndexRedirect"
+import { DynamicWorkspacePage } from "@/components/workspace/DynamicWorkspacePage"
 import { AuthProvider } from "@/hooks/useAuth"
 import { ErpDataProvider } from "@/providers/ErpDataProvider"
 import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
@@ -32,7 +34,7 @@ function AuthLayout() {
   )
 }
 
-function ProtectedWorkspace() {
+function ProtectedWorkspaceLayout() {
   return (
     <ProtectedRoute>
       <Suspense fallback={<WorkspaceFallback />}>
@@ -60,19 +62,19 @@ export const router = createBrowserRouter([
       },
       {
         path: "/erp",
-        element: <ProtectedWorkspace />,
-      },
-      {
-        path: "/erp/*",
-        element: <ProtectedWorkspace />,
+        element: <ProtectedWorkspaceLayout />,
+        children: [
+          { index: true, element: <WorkspaceModuleIndexRedirect module="erp" /> },
+          { path: "*", element: <DynamicWorkspacePage /> },
+        ],
       },
       {
         path: "/ventas",
-        element: <ProtectedWorkspace />,
-      },
-      {
-        path: "/ventas/*",
-        element: <ProtectedWorkspace />,
+        element: <ProtectedWorkspaceLayout />,
+        children: [
+          { index: true, element: <WorkspaceModuleIndexRedirect module="ventas" /> },
+          { path: "*", element: <DynamicWorkspacePage /> },
+        ],
       },
       {
         path: "*",

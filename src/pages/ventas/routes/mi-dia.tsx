@@ -11,7 +11,7 @@ export default function VentasMiDiaRoute() {
     contracts,
     prospectoImportSources,
     openVentasFicha,
-    setCurrentMenuTab,
+    navigateToTab,
     openVentasPipelineCentroMando,
   } = ws
 
@@ -27,7 +27,7 @@ export default function VentasMiDiaRoute() {
       contracts={contracts}
       importSources={prospectoImportSources}
       onOpenFicha={openVentasFicha}
-      onNavigateTab={(tab) => setCurrentMenuTab(tab)}
+      onNavigateTab={(tab) => navigateToTab("ventas", tab)}
       onOpenPipelineProspecto={openVentasPipelineCentroMando}
     />
   )

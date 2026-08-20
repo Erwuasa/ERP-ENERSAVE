@@ -14,7 +14,9 @@ import {
   Zap,
 } from "lucide-react"
 import { EnersaveLogo } from "@/components/common/EnersaveLogo"
+import { NavLink } from "react-router-dom"
 import type { AppModule } from "@/constants/navigation"
+import { menuTabToPath } from "@/constants/navigation"
 import { getVisibleSidebarItems } from "@/lib/navigation/sidebar-items"
 import type { Profile, UserRole } from "@/types/profile"
 
@@ -93,12 +95,12 @@ export function AppShell({
     .join("")
 
   return (
-    <div className="min-h-screen bg-brand-bg text-brand-text font-sans selection:bg-cyan-500/30 selection:text-white flex flex-col relative transition-colors duration-300">
-      <div className="flex-1 flex h-screen overflow-hidden relative">
+    <div className="h-screen bg-brand-bg text-brand-text font-sans selection:bg-cyan-500/30 selection:text-white flex flex-col relative transition-colors duration-300 overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
         <motion.aside
           animate={{ width: sidebarCollapsed ? "76px" : "280px" }}
           transition={{ duration: 0.3 }}
-          className="bg-brand-panel border-r border-brand-border backdrop-blur-xl shrink-0 h-full flex flex-col justify-between overflow-y-auto relative z-20 transition-colors duration-300"
+          className="bg-brand-panel border-r border-brand-border backdrop-blur-xl shrink-0 h-full min-h-0 flex flex-col justify-between overflow-y-auto relative z-20 transition-colors duration-300"
         >
           <div>
             <div className="p-4 flex items-center justify-between border-b border-brand-border h-[73px]">
@@ -246,27 +248,33 @@ export function AppShell({
             <div className="p-3 space-y-1">
               {menuOptions.map((opt) => {
                 const Icon = opt.icon
-                const isSelected = currentMenuTab === opt.name
+                const to = menuTabToPath(activeModule, opt.name)
                 return (
-                  <button
+                  <NavLink
                     key={opt.name}
-                    type="button"
-                    onClick={() => onNavigateToTab(activeModule, opt.name)}
-                    className={`w-full flex items-center shrink-0 space-x-3 px-3 py-2.5 rounded-xl cursor-pointer text-left transition-all ${
-                      isSelected
-                        ? "bg-blue-600 text-white shadow-md shadow-blue-500/10 dark:bg-cyan-500/12 dark:text-cyan-200 dark:border dark:border-cyan-500/25 dark:shadow-none"
-                        : "text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-brand-elevated/40"
-                    }`}
+                    to={to}
+                    end
+                    className={({ isActive }) =>
+                      `w-full flex items-center shrink-0 space-x-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                        isActive
+                          ? "bg-blue-600 text-white shadow-md shadow-blue-500/10 dark:bg-cyan-500/12 dark:text-cyan-200 dark:border dark:border-cyan-500/25 dark:shadow-none"
+                          : "text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-brand-elevated/40"
+                      }`
+                    }
                   >
-                    <Icon
-                      className={`w-4 h-4 shrink-0 ${isSelected ? "text-white dark:text-cyan-300" : "text-brand-subtext"}`}
-                    />
-                    {!sidebarCollapsed && (
-                      <span className="text-xs font-semibold truncate tracking-tight">
-                        {opt.name}
-                      </span>
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          className={`w-4 h-4 shrink-0 ${isActive ? "text-white dark:text-cyan-300" : "text-brand-subtext"}`}
+                        />
+                        {!sidebarCollapsed && (
+                          <span className="text-xs font-semibold truncate tracking-tight">
+                            {opt.name}
+                          </span>
+                        )}
+                      </>
                     )}
-                  </button>
+                  </NavLink>
                 )
               })}
             </div>
@@ -344,7 +352,7 @@ export function AppShell({
           </div>
         </motion.aside>
 
-        <div className="flex-1 min-w-0 p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-brand-bg text-brand-text">
+        <div className="flex-1 min-w-0 min-h-0 p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-brand-bg text-brand-text">
           <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
           <div className="absolute bottom-10 left-10 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-amber)]" />
           {children}

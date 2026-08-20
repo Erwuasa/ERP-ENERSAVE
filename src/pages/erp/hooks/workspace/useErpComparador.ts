@@ -29,6 +29,8 @@ interface ComparisonHistoryEntry {
   date: string;
 }
 
+import type { AppModule } from '@/constants/navigation';
+
 interface UseErpComparadorParams {
   activeUser: Profile;
   activeModule: string;
@@ -39,7 +41,7 @@ interface UseErpComparadorParams {
   setContracts: Dispatch<SetStateAction<Contract[]>>;
   setClients: Dispatch<SetStateAction<Client[]>>;
   setSettlements: Dispatch<SetStateAction<Settlement[]>>;
-  setCurrentMenuTab: (tab: string) => void;
+  navigateToTab: (module: AppModule, tab: string) => void;
 }
 
 export function useErpComparador({
@@ -52,7 +54,7 @@ export function useErpComparador({
   setContracts,
   setClients,
   setSettlements,
-  setCurrentMenuTab,
+  navigateToTab,
 }: UseErpComparadorParams) {
   const [compClient, setCompClient] = useState('');
   const [compTipo, setCompTipo] = useState<'luz' | 'gas'>('luz');
@@ -341,7 +343,10 @@ export function useErpComparador({
     setComparisonsHistory((prev) => [newHistoryEntry, ...prev]);
 
     setIsContractModalOpen(false);
-    setCurrentMenuTab(activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos');
+    navigateToTab(
+      activeModule === 'ventas' ? 'ventas' : 'erp',
+      activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos'
+    );
     toast.success(
       `¡Contrato registrado con éxito para ${modalClientName}! Se ha redirigido al gestor de contrataciones.`
     );

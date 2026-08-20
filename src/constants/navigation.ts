@@ -78,9 +78,18 @@ export function menuTabToPath(module: AppModule, tab: string): string {
   return `/${module}/${slug}`
 }
 
+/** Segmento de ruta (sin prefijo /erp o /ventas) para rutas anidadas */
+export function menuTabToSegment(module: AppModule, tab: string): string {
+  return menuTabToPath(module, tab).slice(`/${module}/`.length)
+}
+
 /** Ruta inicial según rol del usuario autenticado */
 export function getDefaultAppPath(role: UserRole): string {
   return menuTabToPath("erp", defaultTabForRole(role))
+}
+
+export function getDefaultVentasTab(role: UserRole): string {
+  return role === "tramitacion" ? "Base EnerSave" : "Mi Día"
 }
 
 export function pathToMenuTab(

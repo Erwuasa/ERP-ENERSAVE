@@ -13,7 +13,7 @@ export function DashboardPage() {
     activeRole, activeUser, activeUserId, profiles, contracts, settlements,
     incidencias, comparisonsHistory, selectedPeriod, setSelectedPeriod,
     visibleIncidencias, navigateToRenovacionProxima, navigateToContratosEstadoKpi,
-    handleDashboardNavigate, setLiquidacionesSearchQuery, setCurrentMenuTab, formatCurrency
+    handleDashboardNavigate, setLiquidacionesSearchQuery, navigateToTab, formatCurrency
   } = ws;
 
   return (
@@ -197,7 +197,7 @@ export function DashboardPage() {
                               <div
                                 onClick={() => {
                                   setLiquidacionesSearchQuery('');
-                                  setCurrentMenuTab('Liquidaciones internas');
+                                  navigateToTab('erp', 'Liquidaciones internas');
                                 }}
                                 className="bg-brand-panel p-3 rounded-xl border border-brand-border shadow-sm flex flex-col justify-between gap-2 font-sans cursor-pointer hover:border-cyan-500/40 transition-colors group min-h-[132px] min-w-0"
                               >
@@ -220,7 +220,7 @@ export function DashboardPage() {
                               </div>
 
                               <div 
-                                onClick={() => setCurrentMenuTab('Incidencias')}
+                                onClick={() => navigateToTab('erp', 'Incidencias')}
                                 className="bg-brand-panel px-2 py-3 rounded-xl border border-brand-border shadow-sm flex flex-col items-center justify-between gap-1 font-sans cursor-pointer hover:border-rose-500/40 transition-colors group min-h-[132px] min-w-0"
                               >
                                 <div className="flex items-center gap-1 w-full justify-center">

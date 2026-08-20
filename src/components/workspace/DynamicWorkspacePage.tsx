@@ -1,22 +1,14 @@
-import { lazy, Suspense, useMemo } from "react"
-import { Navigate, useLocation } from "react-router-dom"
-import { getDefaultAppPath, menuTabToPath, pathToMenuTab } from "@/constants/navigation"
+import { Suspense, useMemo } from "react"
+import { Navigate, useLocation, useParams } from "react-router-dom"
+import { getDefaultAppPath, pathToMenuTab } from "@/constants/navigation"
 import type { AppModule } from "@/constants/navigation"
-import { getWorkspaceRouteLoader } from "@/lib/workspaceModuleRegistry"
+import { getWorkspaceRouteComponent } from "@/lib/workspaceModuleRegistry"
 import { canAccessWorkspaceSegment } from "@/lib/workspaceAccess"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 
-function workspaceSegmentFromPath(pathname: string): { module: AppModule; segment: string } | null {
-  const normalized = pathname.replace(/\/+$/, "") || "/"
-  if (normalized === "/erp") return { module: "erp", segment: "" }
-  if (normalized === "/ventas") return { module: "ventas", segment: "" }
-
-  const erpMatch = normalized.match(/^\/erp\/(.+)$/)
-  if (erpMatch) return { module: "erp", segment: erpMatch[1] }
-
-  const ventasMatch = normalized.match(/^\/ventas\/(.+)$/)
-  if (ventasMatch) return { module: "ventas", segment: ventasMatch[1] }
-
+function moduleFromPath(pathname: string): AppModule | null {
+  if (pathname.startsWith("/ventas")) return "ventas"
+  if (pathname.startsWith("/erp")) return "erp"
   return null
 }
 
@@ -31,38 +23,40 @@ function WorkspaceTabFallback() {
 export function DynamicWorkspacePage() {
   const ws = useErpWorkspaceContext()
   const { pathname } = useLocation()
-  const resolved = useMemo(() => workspaceSegmentFromPath(pathname), [pathname])
+  const params = useParams()
+  const splat = params["*"] ?? ""
+
+  const module = useMemo(() => moduleFromPath(pathname), [pathname])
+  const segment = splat.replace(/\/+$/, "")
 
   const LazyPage = useMemo(() => {
-    if (!resolved?.segment) return null
-    const loader = getWorkspaceRouteLoader(resolved.module, resolved.segment)
-    return loader ? lazy(loader) : null
-  }, [resolved])
+    if (!module || !segment) return null
+    return getWorkspaceRouteComponent(module, segment) ?? null
+  }, [module, segment])
 
-  if (!resolved) {
+  if (!module) {
     return <Navigate to={getDefaultAppPath(ws.activeRole)} replace />
   }
 
-  if (resolved.segment === "") {
-    const tab = pathToMenuTab(pathname)?.tab ?? "Dashboard"
-    return <Navigate to={menuTabToPath(resolved.module, tab)} replace />
+  if (!segment) {
+    return null
   }
 
-  if (!canAccessWorkspaceSegment(ws, resolved.module, resolved.segment)) {
+  if (!canAccessWorkspaceSegment(ws, module, segment)) {
     return <Navigate to={getDefaultAppPath(ws.activeRole)} replace />
   }
 
   if (!LazyPage) {
+    const parsed = pathToMenuTab(pathname)
     return (
       <section className="rounded-3xl border border-dashed border-brand-border bg-brand-panel/50 p-8 text-center space-y-2">
         <h1 className="text-sm font-bold text-brand-text uppercase tracking-wide">
           Vista no implementada
         </h1>
         <p className="text-xs text-brand-subtext">
-          Falta el archivo en{" "}
-          <code className="font-mono text-[10px]">
-            pages/{resolved.module}/routes/{resolved.segment}.tsx
-          </code>
+          {parsed
+            ? `Ruta ${pathname} sin módulo en pages/${module}/routes/${segment}.tsx`
+            : `Ruta desconocida: ${pathname}`}
         </p>
       </section>
     )

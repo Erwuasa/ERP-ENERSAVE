@@ -36,9 +36,7 @@ export function useErpWorkspace() {
   const activeRole = activeUser.role;
   const {
     activeModule,
-    setActiveModule,
     currentMenuTab,
-    setCurrentMenuTab,
     superadminViewMode,
     setSuperadminViewMode,
     navigateToTab,
@@ -57,7 +55,7 @@ export function useErpWorkspace() {
     setContracts,
     setClients,
     setSettlements,
-    setCurrentMenuTab,
+    navigateToTab,
   });
   const usuarios = useErpUsuarios({
     profiles,
@@ -87,18 +85,14 @@ export function useErpWorkspace() {
     if (activeRole !== 'superadmin' || superadminViewMode !== 'tramitacion') return;
     const disallowedTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
     if (disallowedTabs.includes(currentMenuTab)) {
-      setCurrentMenuTab('Dashboard');
+      navigateToTab('erp', 'Dashboard');
     }
-  }, [activeRole, superadminViewMode, currentMenuTab, setCurrentMenuTab]);
+  }, [activeRole, superadminViewMode, currentMenuTab, navigateToTab]);
 
   const handleToggleSuperadminMode = () => {
     const nextMode = superadminViewMode === 'tramitacion' ? 'comercial' : 'tramitacion';
     setSuperadminViewMode(nextMode);
-    if (nextMode === 'comercial') {
-      setCurrentMenuTab('Mis Clientes');
-    } else {
-      setCurrentMenuTab('Dashboard');
-    }
+    navigateToTab('erp', nextMode === 'comercial' ? 'Mis Clientes' : 'Dashboard');
     toast.success(
       `Cambiando a Panel de ${nextMode === 'comercial' ? 'Mis Clientes (Agente)' : 'Tramitación (Operativo)'}`
     );
@@ -115,7 +109,7 @@ export function useErpWorkspace() {
     setHighlightContractId(contract.id);
     setContractsSearchQuery(contract.cups);
     setContractsListFilter('all');
-    setCurrentMenuTab(activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos');
+    navigateToTab(activeModule, activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos');
     toast.info(`Contrato ${contract.cups} — pantalla Contratos`);
   }
 
@@ -130,8 +124,7 @@ export function useErpWorkspace() {
     setHighlightContractId(null);
     setContractsSearchQuery('');
     setContractsListFilter('renovacion_proxima');
-    setActiveModule('erp');
-    setCurrentMenuTab('Contratos');
+    navigateToTab('erp', 'Contratos');
     toast.info('Contratos con renovación próxima');
   }
 
@@ -139,32 +132,30 @@ export function useErpWorkspace() {
     setHighlightContractId(null);
     setContractsSearchQuery('');
     setContractsListFilter(filter);
-    setActiveModule('erp');
-    setCurrentMenuTab('Contratos');
+    navigateToTab('erp', 'Contratos');
     toast.info('Contratos filtrados por estado');
   }
 
   function handleDashboardNavigate(target: DashboardNavigateTarget) {
-    setActiveModule('erp');
     switch (target) {
       case 'contratos_activos':
         setContractsListFilter('activado');
-        setCurrentMenuTab('Contratos');
+        navigateToTab('erp', 'Contratos');
         break;
       case 'contratos_nuevos':
       case 'bajas':
       case 'contratos':
         setContractsListFilter('all');
-        setCurrentMenuTab('Contratos');
+        navigateToTab('erp', 'Contratos');
         break;
       case 'incidencias':
-        setCurrentMenuTab('Incidencias');
+        navigateToTab('erp', 'Incidencias');
         break;
       case 'comparativas':
-        setCurrentMenuTab('Comparador');
+        navigateToTab('erp', 'Comparador');
         break;
       case 'comerciales':
-        setCurrentMenuTab('Usuarios');
+        navigateToTab('erp', 'Usuarios');
         break;
       default:
         break;
@@ -175,11 +166,9 @@ export function useErpWorkspace() {
     setHighlightContractId(contratoEquipoId);
     ventasBridge.closeVentasFicha();
     if (activeRole === 'comercial') {
-      setActiveModule('ventas');
-      setCurrentMenuTab('Mis Contratos');
+      navigateToTab('ventas', 'Mis Contratos');
     } else {
-      setActiveModule('erp');
-      setCurrentMenuTab('Contratos');
+      navigateToTab('erp', 'Contratos');
     }
     toast.info('Contrato resaltado en la lista');
   }
@@ -223,9 +212,7 @@ export function useErpWorkspace() {
     openContractWizardFromProducto,
     activeRole,
     activeModule,
-    setActiveModule,
     currentMenuTab,
-    setCurrentMenuTab,
     superadminViewMode,
     setSuperadminViewMode,
     navigateToTab,

@@ -7,7 +7,7 @@ export function UsuariosPage() {
   const {
     activeRole, profiles, userSearchText, setUserSearchText,
     userRoleFilter, setUserRoleFilter, userStatusFilter, setUserStatusFilter,
-    setIsCreateOpen, isSyncingErpUsers, setActiveUserForSheet, setCurrentMenuTab
+    setIsCreateOpen, isSyncingErpUsers, setActiveUserForSheet, navigateToTab
   } = ws;
 
   return (
@@ -27,7 +27,7 @@ export function UsuariosPage() {
                             </div>
                             <div className="pt-2">
                               <button
-                                onClick={() => setCurrentMenuTab('Dashboard')}
+                                onClick={() => navigateToTab('erp', 'Dashboard')}
                                 className="px-4 py-2 bg-slate-900 border border-white/10 hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-300 uppercase transition-all cursor-pointer"
                               >
                                 Volver al Dashboard

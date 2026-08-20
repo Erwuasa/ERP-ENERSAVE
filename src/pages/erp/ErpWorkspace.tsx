@@ -1,6 +1,6 @@
 import { useAuth } from '@/hooks/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
-import { DynamicWorkspacePage } from '@/components/workspace/DynamicWorkspacePage';
+import { Outlet } from 'react-router-dom';
 import { IncidenciasProvider } from '@/pages/erp/incidencias/IncidenciasProvider';
 import {
   ErpWorkspaceProvider,
@@ -35,7 +35,7 @@ function ErpWorkspaceShell() {
       onToggleSuperadminMode={handleToggleSuperadminMode}
       onLogout={logout}
     >
-      <DynamicWorkspacePage />
+      <Outlet />
       <VentasFichaOverlay />
       <ErpWorkspaceModals />
     </AppShell>
