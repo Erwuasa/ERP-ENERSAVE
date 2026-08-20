@@ -1,7 +1,9 @@
 /**
  * Navegación de módulos ERP / Ventas.
- * Transición: hoy App.tsx usa estos ids como currentMenuTab; luego mapearán a rutas React Router.
+ * Las rutas React Router son la fuente de verdad; AppShell lee pathname vía useWorkspaceNavigation.
  */
+
+import { defaultTabForRole, type UserRole } from "@/types/profile"
 
 export type AppModule = "erp" | "ventas"
 
@@ -74,6 +76,11 @@ export function menuTabToPath(module: AppModule, tab: string): string {
       ? VENTAS_TAB_SLUGS[tab] ?? "mi-dia"
       : ERP_TAB_SLUGS[tab] ?? "dashboard"
   return `/${module}/${slug}`
+}
+
+/** Ruta inicial según rol del usuario autenticado */
+export function getDefaultAppPath(role: UserRole): string {
+  return menuTabToPath("erp", defaultTabForRole(role))
 }
 
 export function pathToMenuTab(

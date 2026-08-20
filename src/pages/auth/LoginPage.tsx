@@ -1,12 +1,14 @@
 import { Navigate } from "react-router-dom"
 import { AlertCircle, ChevronRight, Lock, User } from "lucide-react"
 import { EnersaveLogo } from "@/components/common/EnersaveLogo"
+import { getDefaultAppPath } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
 
 export function LoginPage() {
   const {
     isLoggedIn,
     isBootstrapping,
+    activeUser,
     loginEmail,
     setLoginEmail,
     loginPassword,
@@ -26,7 +28,7 @@ export function LoginPage() {
   }
 
   if (isLoggedIn) {
-    return <Navigate to="/" replace />
+    return <Navigate to={getDefaultAppPath(activeUser.role)} replace />
   }
 
   return (

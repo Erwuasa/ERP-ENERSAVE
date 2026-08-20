@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react"
 import { Navigate, Outlet, createBrowserRouter } from "react-router-dom"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
+import { WorkspaceIndexRedirect } from "@/components/auth/WorkspaceIndexRedirect"
 import { AuthProvider } from "@/hooks/useAuth"
 import { ErpDataProvider } from "@/providers/ErpDataProvider"
 import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
@@ -51,10 +52,22 @@ export const router = createBrowserRouter([
       },
       {
         path: "/",
+        element: (
+          <ProtectedRoute>
+            <WorkspaceIndexRedirect />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/erp",
         element: <ProtectedWorkspace />,
       },
       {
         path: "/erp/*",
+        element: <ProtectedWorkspace />,
+      },
+      {
+        path: "/ventas",
         element: <ProtectedWorkspace />,
       },
       {

@@ -1,12 +1,16 @@
 import { useAuth } from '@/hooks/useAuth';
 import { AppShell } from '@/components/layout/AppShell';
+import { DynamicWorkspacePage } from '@/components/workspace/DynamicWorkspacePage';
 import { IncidenciasProvider } from '@/pages/erp/incidencias/IncidenciasProvider';
-import { useErpWorkspace } from '@/pages/erp/hooks/useErpWorkspace';
-import { ErpWorkspaceContent } from '@/pages/erp/components/workspace/ErpWorkspaceContent';
-import { ErpWorkspaceModals } from '@/pages/erp/components/workspace/ErpWorkspaceModals';
+import {
+  ErpWorkspaceProvider,
+  useErpWorkspaceContext,
+} from '@/pages/erp/providers/ErpWorkspaceProvider';
+import { ErpWorkspaceModals } from '@/pages/erp/workspace/ErpWorkspaceModals';
+import { VentasFichaOverlay } from '@/pages/ventas/overlays/VentasFichaOverlay';
 
 function ErpWorkspaceShell() {
-  const ws = useErpWorkspace();
+  const ws = useErpWorkspaceContext();
   const {
     activeModule,
     currentMenuTab,
@@ -31,8 +35,9 @@ function ErpWorkspaceShell() {
       onToggleSuperadminMode={handleToggleSuperadminMode}
       onLogout={logout}
     >
-      <ErpWorkspaceContent ws={ws} />
-      <ErpWorkspaceModals ws={ws} />
+      <DynamicWorkspacePage />
+      <VentasFichaOverlay />
+      <ErpWorkspaceModals />
     </AppShell>
   );
 }
@@ -44,7 +49,9 @@ export function ErpWorkspace() {
 
   return (
     <IncidenciasProvider teamMemberIds={teamMemberIds} isErpOpsAdmin={isErpOpsAdmin}>
-      <ErpWorkspaceShell />
+      <ErpWorkspaceProvider>
+        <ErpWorkspaceShell />
+      </ErpWorkspaceProvider>
     </IncidenciasProvider>
   );
 }

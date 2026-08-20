@@ -18,12 +18,8 @@ import {
   syncSupabaseSession,
 } from "@/lib/supabase/auth-session"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
-import {
-  defaultTabForRole,
-  SEED_PROFILES,
-  type Profile,
-} from "@/types/profile"
-import { menuTabToPath, ROUTES } from "@/constants/navigation"
+import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
+import { SEED_PROFILES, type Profile } from "@/types/profile"
 
 interface AuthContextValue {
   isLoggedIn: boolean
@@ -90,8 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (profile: Profile) => {
       setActiveUserId(profile.id)
       setIsLoggedIn(true)
-      const tab = defaultTabForRole(profile.role)
-      navigate(menuTabToPath("erp", tab))
+      navigate(getDefaultAppPath(profile.role))
     },
     [navigate]
   )

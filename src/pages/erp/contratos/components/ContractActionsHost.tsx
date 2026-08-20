@@ -10,7 +10,9 @@ import { ContractActivateModal } from "@/pages/erp/contratos/components/Contract
 import { ContractBajaModal } from "@/pages/erp/contratos/components/ContractBajaModal"
 
 const NuevoContratoWizard = lazy(() =>
-  import("@/components/NuevoContratoWizard").then((m) => ({ default: m.NuevoContratoWizard }))
+  import("@/pages/erp/contratos/components/wizard/NuevoContratoWizard").then((m) => ({
+    default: m.NuevoContratoWizard,
+  }))
 )
 
 export function ContractActionsHost() {
