@@ -29,22 +29,28 @@ export function ProductosPanel({
   const vm = useProductosPanel({ activeRole, activeUserId })
 
   return (
-    <div className="space-y-5 animate-fade-in font-sans">
-      <ProductosPanelHeader
-        title={title}
-        subtitle={subtitle}
-        onNavigateContratos={onNavigateContratos}
-        products={vm.products}
-        suministro={vm.suministro}
-        setSuministro={vm.setSuministro}
-        compania={vm.compania}
-        setCompania={vm.setCompania}
-        companias={vm.companias}
-        countsByCompania={vm.countsByCompania}
-        totalActivas={vm.totalActivas}
-      />
+    <div className="xl:h-full flex flex-col animate-fade-in font-sans">
+      {/* Header + filtros de tipo/comercializadora: fijos en desktop, no hacen scroll */}
+      <div className="xl:shrink-0 space-y-5 pb-5">
+        <ProductosPanelHeader
+          title={title}
+          subtitle={subtitle}
+          onNavigateContratos={onNavigateContratos}
+          products={vm.products}
+          suministro={vm.suministro}
+          setSuministro={vm.setSuministro}
+          compania={vm.compania}
+          setCompania={vm.setCompania}
+          companias={vm.companias}
+          countsByCompania={vm.countsByCompania}
+          totalActivas={vm.totalActivas}
+        />
+      </div>
 
-      <div className="flex flex-col xl:flex-row gap-4">
+      {/* xl+: Filtros fijos y solo el listado de tarifas hace scroll.
+          Por debajo de xl: todo fluye en la página normal (como el resto de la app),
+          y Filtros se colapsa para no comerse la pantalla. */}
+      <div className="xl:flex-1 xl:min-h-0 flex flex-col xl:flex-row gap-4">
         <ProductosFiltersSidebar
           tipoCliente={vm.tipoCliente}
           setTipoCliente={vm.setTipoCliente}

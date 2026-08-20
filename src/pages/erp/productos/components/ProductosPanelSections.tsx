@@ -183,8 +183,8 @@ export function ProductosGrid({
   | "onEditMarco"
 >) {
   return (
-    <div className="flex-1 min-w-0 space-y-4">
-      <div className="relative">
+    <div className="xl:flex-1 min-w-0 xl:min-h-0 flex flex-col gap-4">
+      <div className="relative shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-subtext pointer-events-none" />
         <input
           type="search"
@@ -208,40 +208,53 @@ export function ProductosGrid({
         )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center gap-2 py-20 text-brand-subtext border border-dashed border-brand-border rounded-2xl bg-brand-panel">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="text-xs font-mono">Cargando tarifas…</span>
-        </div>
-      ) : suministro === "telefonia" ? (
-        <div className="text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-panel">
-          <Phone className="h-8 w-8 mx-auto text-brand-subtext mb-2" />
-          <p className="text-sm font-semibold text-brand-text">Telefonía próximamente</p>
-          <p className="text-xs text-brand-subtext mt-1">
-            No hay tarifas de telefonía activas en el catálogo.
-          </p>
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-panel">
-          <p className="text-sm font-semibold text-brand-text">Sin tarifas</p>
-          <p className="text-xs text-brand-subtext mt-1">
-            Ajusta los filtros o prueba otra comercializadora.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
-          {filtered.map((product) => (
-            <Fragment key={product.id}>
-              <ProductoCard
-                product={product}
-                onCreateContract={onCreateContract}
-                canEditMarco={canEditMarco}
-                onEditMarco={onEditMarco}
-              />
-            </Fragment>
-          ))}
-        </div>
-      )}
+      {/* xl+: solo esta zona hace scroll, el header y los filtros de arriba quedan fijos.
+          Por debajo de xl fluye con el resto de la página. */}
+      <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto pr-1 -mr-1">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-20 text-brand-subtext border border-dashed border-brand-border rounded-2xl bg-brand-panel">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-xs font-mono">Cargando tarifas…</span>
+          </div>
+        ) : suministro === "telefonia" ? (
+          <div
+            key="telefonia"
+            className="animate-fade-in-ease text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-panel"
+          >
+            <Phone className="h-8 w-8 mx-auto text-brand-subtext mb-2" />
+            <p className="text-sm font-semibold text-brand-text">Telefonía próximamente</p>
+            <p className="text-xs text-brand-subtext mt-1">
+              No hay tarifas de telefonía activas en el catálogo.
+            </p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div
+            key="empty"
+            className="animate-fade-in-ease text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-panel"
+          >
+            <p className="text-sm font-semibold text-brand-text">Sin tarifas</p>
+            <p className="text-xs text-brand-subtext mt-1">
+              Ajusta los filtros o prueba otra comercializadora.
+            </p>
+          </div>
+        ) : (
+          <div
+            key={filtered.map((product) => product.id).join("|")}
+            className="animate-fade-in-ease grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3"
+          >
+            {filtered.map((product) => (
+              <Fragment key={product.id}>
+                <ProductoCard
+                  product={product}
+                  onCreateContract={onCreateContract}
+                  canEditMarco={canEditMarco}
+                  onEditMarco={onEditMarco}
+                />
+              </Fragment>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

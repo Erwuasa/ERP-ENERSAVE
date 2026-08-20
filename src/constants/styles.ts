@@ -61,6 +61,14 @@ export const layout = {
   fadeIn: "animate-fade-in",
 } as const
 
+export const sidebar = {
+  widthExpanded: 280,
+  widthCollapsed: 76,
+  mobileOverlay: "fixed inset-y-0 left-0 z-40 w-[280px] shadow-2xl",
+  backdrop: "fixed inset-0 z-30 bg-black/50 backdrop-blur-[2px] lg:hidden",
+  mobileHeader: "lg:hidden shrink-0 h-14 border-b border-brand-border bg-brand-panel flex items-center justify-between px-4 z-10",
+} as const
+
 /** Coincide con --transition-base en src/index.css */
 export const motion = {
   transition: "duration-200 ease-in-out",
