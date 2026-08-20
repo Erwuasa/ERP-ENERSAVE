@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react"
 import { EnersaveBrandMark } from "@/components/common/EnersaveLogo"
+import { LogoutConfirmModal } from "@/components/layout/LogoutConfirmModal"
 import { NavLink } from "react-router-dom"
 import type { AppModule } from "@/constants/navigation"
 import { menuTabToPath } from "@/constants/navigation"
@@ -75,6 +76,7 @@ export function AppShell({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
 
   const isExpanded = isMobile ? true : !sidebarCollapsed
 
@@ -408,7 +410,7 @@ export function AppShell({
 
             <button
               type="button"
-              onClick={onLogout}
+              onClick={() => setLogoutConfirmOpen(true)}
               className="w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-rose-500 dark:text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer text-left"
             >
               <LogOut className="w-4 h-4 shrink-0" />
@@ -418,6 +420,16 @@ export function AppShell({
             </button>
           </div>
         </motion.aside>
+
+        <LogoutConfirmModal
+          open={logoutConfirmOpen}
+          userName={activeUser.fullName}
+          onCancel={() => setLogoutConfirmOpen(false)}
+          onConfirm={() => {
+            setLogoutConfirmOpen(false)
+            onLogout()
+          }}
+        />
 
         <div className="flex-1 min-w-0 min-h-0 p-4 sm:p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-brand-bg text-brand-text">
           <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
