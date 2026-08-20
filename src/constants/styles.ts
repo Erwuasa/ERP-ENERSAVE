@@ -1,11 +1,37 @@
 /**
- * Clases Tailwind reutilizables — alineadas con tokens en src/index.css (@theme brand-*).
- * Usar en componentes para evitar duplicar strings largos.
+ * Clases Tailwind reutilizables — alineadas con tokens en src/index.css (@theme inline).
+ * Misma convención que Festiva: CSS variables → @theme → clases aquí.
  */
 
 export const fonts = {
   sans: "font-sans",
   mono: "font-mono",
+} as const
+
+export const radius = {
+  sm: "rounded-sm",
+  md: "rounded-md",
+  lg: "rounded-lg",
+  xl: "rounded-xl",
+  "2xl": "rounded-2xl",
+  "3xl": "rounded-3xl",
+} as const
+
+export const colors = {
+  bg: "bg-brand-bg",
+  panel: "bg-brand-panel",
+  surface: "bg-brand-surface",
+  elevated: "bg-brand-elevated",
+  border: "border-brand-border",
+  text: "text-brand-text",
+  subtext: "text-brand-subtext",
+  accent: "text-brand-accent",
+  primary: "bg-primary text-primary-foreground",
+} as const
+
+export const shadows = {
+  card: "shadow-card",
+  panel: "shadow-panel",
 } as const
 
 export const labels = {
@@ -14,18 +40,28 @@ export const labels = {
 } as const
 
 export const inputs = {
-  base: "w-full h-9 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text",
+  base: "w-full h-9 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text focus:border-ring focus:ring-2 focus:ring-ring/20 focus:outline-none",
   textarea:
-    "w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text resize-none",
+    "w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text resize-none focus:border-ring focus:ring-2 focus:ring-ring/20 focus:outline-none",
 } as const
 
 export const panels = {
-  dropdown:
-    "bg-brand-panel border border-brand-border rounded-xl shadow-lg py-1",
-  card: "bg-brand-panel border border-brand-border rounded-xl",
+  dropdown: "bg-brand-panel border border-brand-border rounded-xl shadow-lg py-1",
+  card: "bg-brand-panel border border-brand-border rounded-xl shadow-card",
+  page: "bg-brand-panel border border-brand-border rounded-2xl shadow-card",
 } as const
 
 export const badges = {
   count:
-    "inline-flex min-w-[1.25rem] justify-center px-1.5 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-panel",
+    "inline-flex min-w-[1.25rem] justify-center px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground",
+} as const
+
+export const layout = {
+  container: "container-page",
+  fadeIn: "animate-fade-in",
+} as const
+
+/** Coincide con --transition-base en src/index.css */
+export const motion = {
+  transition: "duration-200 ease-in-out",
 } as const
