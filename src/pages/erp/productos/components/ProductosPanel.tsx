@@ -33,7 +33,6 @@ export function ProductosPanel({
           title={title}
           subtitle={subtitle}
           onNavigateContratos={onNavigateContratos}
-          products={vm.products}
           suministro={vm.suministro}
           setSuministro={vm.setSuministro}
           compania={vm.compania}
@@ -42,6 +41,7 @@ export function ProductosPanel({
           countsByCompania={vm.countsByCompania}
           totalActivas={vm.totalActivas}
           webPublishedCount={vm.webPublishedCount}
+          supplyTabCounts={vm.supplyTabCounts}
         />
         {vm.loadError && (
           <p className="text-sm font-medium text-red-600 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
@@ -63,8 +63,12 @@ export function ProductosPanel({
           search={vm.search}
           setSearch={vm.setSearch}
           loading={vm.loading}
+          loadingMore={vm.loadingMore}
           suministro={vm.suministro}
           filtered={vm.filtered}
+          totalFiltered={vm.totalFiltered}
+          hasMore={vm.hasMore}
+          onLoadMore={vm.loadMore}
           canEditWeb={vm.canEditWeb}
           onCreateContract={onCreateContract}
           onEditWeb={vm.openEditModal}

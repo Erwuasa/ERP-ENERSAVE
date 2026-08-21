@@ -172,10 +172,22 @@ function inferTipoClienteFromSegment(segment: string): {
 }
 
 function pricesFromTariffRow(row: TariffCatalogRow): ProductoTarifaPrecios {
+  if (row.prices_summary) {
+    const energia: ProductoTarifaPrecios["energia"] = {}
+    const potencia: ProductoTarifaPrecios["potencia"] = {}
+    for (const [key, value] of Object.entries(row.prices_summary.energia ?? {})) {
+      if (key.startsWith("p")) energia[key as keyof typeof energia] = Number(value)
+    }
+    for (const [key, value] of Object.entries(row.prices_summary.potencia ?? {})) {
+      if (key.startsWith("p")) potencia[key as keyof typeof potencia] = Number(value)
+    }
+    return { energia, potencia }
+  }
+
   const energia: ProductoTarifaPrecios["energia"] = {}
   const potencia: ProductoTarifaPrecios["potencia"] = {}
 
-  for (const price of row.tariff_prices) {
+  for (const price of row.tariff_prices ?? []) {
     const match = price.period.match(/^P(\d)$/i)
     if (!match) continue
     const key = `p${match[1]}` as keyof ProductoTarifaPrecios["energia"]

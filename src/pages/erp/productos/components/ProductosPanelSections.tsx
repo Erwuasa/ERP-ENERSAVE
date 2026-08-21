@@ -7,7 +7,6 @@ type Props = {
   title: string
   subtitle: string
   onNavigateContratos: () => void
-  products: ProductoTarifa[]
   suministro: ProductoSuministroTab
   setSuministro: (tab: ProductoSuministroTab) => void
   compania: string
@@ -16,10 +15,15 @@ type Props = {
   countsByCompania: Record<string, number>
   totalActivas: number
   webPublishedCount: number
+  supplyTabCounts: { luz: number; gas: number }
   search: string
   setSearch: (value: string) => void
   loading: boolean
+  loadingMore: boolean
   filtered: ProductoTarifa[]
+  totalFiltered: number
+  hasMore: boolean
+  onLoadMore: () => void
   canEditWeb: boolean
   onCreateContract: (product: ProductoTarifa) => void
   onEditWeb: (product: ProductoTarifa) => void
@@ -35,7 +39,6 @@ export function ProductosPanelHeader({
   title,
   subtitle,
   onNavigateContratos,
-  products,
   suministro,
   setSuministro,
   compania,
@@ -44,12 +47,12 @@ export function ProductosPanelHeader({
   countsByCompania,
   totalActivas,
   webPublishedCount,
+  supplyTabCounts,
 }: Pick<
   Props,
   | "title"
   | "subtitle"
   | "onNavigateContratos"
-  | "products"
   | "suministro"
   | "setSuministro"
   | "compania"
@@ -58,6 +61,7 @@ export function ProductosPanelHeader({
   | "countsByCompania"
   | "totalActivas"
   | "webPublishedCount"
+  | "supplyTabCounts"
 >) {
   return (
     <>
@@ -92,7 +96,7 @@ export function ProductosPanelHeader({
               {SUMINISTRO_TABS.map((tab) => {
                 const Icon = tab.icon
                 const count =
-                  tab.id === "telefonia" ? 0 : products.filter((p) => p.tipo === tab.id).length
+                  tab.id === "telefonia" ? 0 : tab.id === "luz" ? supplyTabCounts.luz : supplyTabCounts.gas
                 const isActive = suministro === tab.id
                 return (
                   <button
@@ -171,8 +175,12 @@ export function ProductosGrid({
   search,
   setSearch,
   loading,
+  loadingMore,
   suministro,
   filtered,
+  totalFiltered,
+  hasMore,
+  onLoadMore,
   canEditWeb,
   onCreateContract,
   onEditWeb,
@@ -181,8 +189,12 @@ export function ProductosGrid({
   | "search"
   | "setSearch"
   | "loading"
+  | "loadingMore"
   | "suministro"
   | "filtered"
+  | "totalFiltered"
+  | "hasMore"
+  | "onLoadMore"
   | "canEditWeb"
   | "onCreateContract"
   | "onEditWeb"
@@ -199,7 +211,7 @@ export function ProductosGrid({
           className="w-full pl-10 pr-24 py-2.5 rounded-xl border border-brand-border bg-brand-surface text-sm text-brand-text placeholder:text-brand-subtext/70"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-brand-subtext pointer-events-none">
-          {filtered.length} tarifa{filtered.length !== 1 ? "s" : ""}
+          {filtered.length}/{totalFiltered} tarifa{totalFiltered !== 1 ? "s" : ""}
         </span>
         {search && (
           <button
@@ -243,20 +255,35 @@ export function ProductosGrid({
             </p>
           </div>
         ) : (
-          <div
-            key={filtered.map((product) => product.id).join("|")}
-            className="animate-fade-in-ease grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3"
-          >
-            {filtered.map((product) => (
-              <Fragment key={product.id}>
-                <ProductoCard
-                  product={product}
-                  onCreateContract={onCreateContract}
-                  canEditWeb={canEditWeb}
-                  onEditWeb={onEditWeb}
-                />
-              </Fragment>
-            ))}
+          <div className="space-y-4">
+            <div
+              key={filtered.map((product) => product.id).join("|")}
+              className="animate-fade-in-ease grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3"
+            >
+              {filtered.map((product) => (
+                <Fragment key={product.id}>
+                  <ProductoCard
+                    product={product}
+                    onCreateContract={onCreateContract}
+                    canEditWeb={canEditWeb}
+                    onEditWeb={onEditWeb}
+                  />
+                </Fragment>
+              ))}
+            </div>
+            {hasMore && (
+              <div className="flex justify-center pb-2">
+                <button
+                  type="button"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-brand-border bg-brand-panel text-xs font-bold text-brand-text hover:border-emerald-500/40 hover:text-emerald-600 disabled:opacity-60 cursor-pointer"
+                >
+                  {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {loadingMore ? "Cargando…" : `Cargar más (${filtered.length}/${totalFiltered})`}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
+import { tariffRowToProducto, type ProductoPeajeFilter, type ProductoSuministroTab, type ProductoTarifa, type ProductoTipoClienteFilter, type ProductoWebVisibilityFilter } from "@/lib/productos-catalog"
 import {
-  countProductosByCompania,
-  filterProductos,
-  listCompaniasFromProductos,
-  tariffRowToProducto,
-  type ProductoPeajeFilter,
-  type ProductoSuministroTab,
-  type ProductoTarifa,
-  type ProductoTipoClienteFilter,
-  type ProductoWebVisibilityFilter,
-} from "@/lib/productos-catalog"
-import {
-  listTariffCatalog,
+  listTariffCatalogPage,
+  TARIFF_CATALOG_PAGE_SIZE,
   updateTariffWebSettings,
+  type TariffCatalogPage,
   type TariffCatalogRow,
   type TariffWebSettingsPatch,
 } from "@/lib/supabase/tariffs"
@@ -22,9 +14,13 @@ type Options = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
 }
 
+const SEARCH_DEBOUNCE_MS = 350
+
 export function useProductosPanel({ activeRole }: Options) {
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [catalogPage, setCatalogPage] = useState<TariffCatalogPage | null>(null)
   const [tariffRows, setTariffRows] = useState<TariffCatalogRow[]>([])
   const [products, setProducts] = useState<ProductoTarifa[]>([])
   const [suministro, setSuministro] = useState<ProductoSuministroTab>("luz")
@@ -33,33 +29,61 @@ export function useProductosPanel({ activeRole }: Options) {
   const [peaje, setPeaje] = useState<ProductoPeajeFilter>("todos")
   const [webVisibility, setWebVisibility] = useState<ProductoWebVisibilityFilter>("todas")
   const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [modalProduct, setModalProduct] = useState<ProductoTarifa | null>(null)
   const [saving, setSaving] = useState(false)
 
   const canEditWeb = activeRole === "superadmin" || activeRole === "tramitacion"
 
-  const loadProducts = useCallback(async () => {
-    setLoading(true)
-    setLoadError(null)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [search])
 
-    const result = await listTariffCatalog()
-    if (result.ok === false) {
-      setLoadError(result.message)
-      setTariffRows([])
-      setProducts([])
-      setLoading(false)
-      return
-    }
+  const fetchPage = useCallback(
+    async (offset: number, append: boolean) => {
+      if (append) setLoadingMore(true)
+      else setLoading(true)
+      setLoadError(null)
 
-    setTariffRows(result.data)
-    setProducts(result.data.map(tariffRowToProducto))
-    setLoading(false)
-  }, [])
+      const result = await listTariffCatalogPage({
+        suministro,
+        compania,
+        tipoCliente,
+        peaje,
+        webVisibility,
+        search: debouncedSearch,
+        offset,
+        limit: TARIFF_CATALOG_PAGE_SIZE,
+      })
+
+      if (append) setLoadingMore(false)
+      else setLoading(false)
+
+      if (result.ok === false) {
+        setLoadError(result.message)
+        if (!append) {
+          setCatalogPage(null)
+          setTariffRows([])
+          setProducts([])
+        }
+        return
+      }
+
+      setCatalogPage(result.data)
+      setTariffRows((prev) => {
+        const merged = append ? [...prev, ...result.data.rows] : result.data.rows
+        setProducts(merged.map(tariffRowToProducto))
+        return merged
+      })
+    },
+    [suministro, compania, tipoCliente, peaje, webVisibility, debouncedSearch]
+  )
 
   useEffect(() => {
-    void loadProducts()
-  }, [loadProducts])
+    void fetchPage(0, false)
+  }, [fetchPage])
 
   function openEditModal(product: ProductoTarifa) {
     setModalProduct(product)
@@ -102,34 +126,61 @@ export function useProductosPanel({ activeRole }: Options) {
 
     toast.success(patch.web_visible ? "Tarifa publicada en web." : "Tarifa oculta en web.")
     closeModal()
+    void fetchPage(0, false)
     return true
   }
 
-  const companias = useMemo(() => listCompaniasFromProductos(products), [products])
-  const countsByCompania = useMemo(
-    () => countProductosByCompania(products, suministro),
-    [products, suministro]
+  const loadMore = useCallback(() => {
+    if (!catalogPage?.hasMore || loading || loadingMore) return
+    void fetchPage(tariffRows.length, true)
+  }, [catalogPage?.hasMore, fetchPage, loading, loadingMore, tariffRows.length])
+
+  const providerCounts = catalogPage?.providerCounts ?? {}
+  const summary = catalogPage?.summary
+
+  const companias = useMemo(
+    () => Object.keys(providerCounts).sort((a, b) => a.localeCompare(b, "es")),
+    [providerCounts]
   )
-  const filtered = useMemo(
-    () =>
-      filterProductos(products, {
-        suministro,
-        compania,
-        tipoCliente,
-        peaje,
-        webVisibility,
-        search,
-      }),
-    [products, suministro, compania, tipoCliente, peaje, webVisibility, search]
-  )
-  const totalActivas = countsByCompania.Todas ?? 0
-  const webPublishedCount = useMemo(
-    () => products.filter((product) => product.webVisible).length,
-    [products]
+
+  const countsByCompania = useMemo(() => {
+    const counts: Record<string, number> = {
+      Todas: Object.values(providerCounts).reduce((sum, n) => sum + n, 0),
+    }
+    for (const [name, count] of Object.entries(providerCounts)) {
+      counts[name] = count
+    }
+    return counts
+  }, [providerCounts])
+
+  const totalActivas =
+    suministro === "gas"
+      ? (summary?.gas_total ?? countsByCompania.Todas ?? 0)
+      : suministro === "luz"
+        ? (summary?.luz_total ?? countsByCompania.Todas ?? 0)
+        : 0
+
+  const webPublishedCount =
+    suministro === "gas"
+      ? (summary?.gas_web_visible ?? 0)
+      : suministro === "luz"
+        ? (summary?.luz_web_visible ?? 0)
+        : (summary?.web_visible_total ?? 0)
+
+  const filtered = products
+  const totalFiltered = catalogPage?.total ?? filtered.length
+
+  const supplyTabCounts = useMemo(
+    () => ({
+      luz: summary?.luz_total ?? 0,
+      gas: summary?.gas_total ?? 0,
+    }),
+    [summary]
   )
 
   return {
     loading,
+    loadingMore,
     loadError,
     products,
     suministro,
@@ -151,11 +202,15 @@ export function useProductosPanel({ activeRole }: Options) {
     companias,
     countsByCompania,
     filtered,
+    totalFiltered,
     totalActivas,
     webPublishedCount,
+    hasMore: catalogPage?.hasMore ?? false,
+    supplyTabCounts,
     openEditModal,
     closeModal,
     handleSaveWebSettings,
-    reload: loadProducts,
+    loadMore,
+    reload: () => fetchPage(0, false),
   }
 }
