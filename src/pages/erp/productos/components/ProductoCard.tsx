@@ -1,5 +1,4 @@
-import { Flame, Phone, Zap } from "lucide-react"
-import { Plus, ChevronRight, Pencil } from "lucide-react"
+import { Flame, Globe, GlobeLock, Phone, Zap, Plus, ChevronRight, Settings2 } from "lucide-react"
 import {
   formatPrecioEnergia,
   formatPrecioPotencia,
@@ -16,11 +15,11 @@ function SuministroIcon({ tipo }: { tipo: ProductoSuministroTab | "luz" | "gas" 
 type Props = {
   product: ProductoTarifa
   onCreateContract: (product: ProductoTarifa) => void
-  canEditMarco: boolean
-  onEditMarco: (product: ProductoTarifa) => void
+  canEditWeb: boolean
+  onEditWeb: (product: ProductoTarifa) => void
 }
 
-export function ProductoCard({ product, onCreateContract, canEditMarco, onEditMarco }: Props) {
+export function ProductoCard({ product, onCreateContract, canEditWeb, onEditWeb }: Props) {
   const energiaRows = ([1, 2, 3, 4, 5, 6] as const)
     .map((n) => {
       const val = product.precios.energia[`p${n}`]
@@ -36,6 +35,7 @@ export function ProductoCard({ product, onCreateContract, canEditMarco, onEditMa
     .filter(Boolean) as { label: string; value: string }[]
 
   const pricingRows = [...energiaRows.slice(0, 3), ...potenciaRows.slice(0, 2)]
+  const hasAlias = product.webAlias && product.webAlias !== product.catalogName
 
   return (
     <article className="bg-brand-panel border border-brand-border rounded-2xl p-4 flex flex-col gap-3 shadow-sm hover:border-emerald-500/35 transition-colors duration-200 h-full">
@@ -44,17 +44,26 @@ export function ProductoCard({ product, onCreateContract, canEditMarco, onEditMa
           {product.compania}
         </p>
         <div className="flex items-center gap-1 shrink-0">
-          {canEditMarco && (
-            <button
-              type="button"
-              onClick={() => onEditMarco(product)}
-              className="p-1 rounded-md border border-brand-border text-brand-subtext hover:text-emerald-600 hover:border-emerald-500/40 cursor-pointer"
-              title="Editar marco retributivo"
-              aria-label="Editar marco retributivo"
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onEditWeb(product)}
+            className="p-1 rounded-md border border-brand-border text-brand-subtext hover:text-emerald-600 hover:border-emerald-500/40 cursor-pointer"
+            title={canEditWeb ? "Configurar publicación web" : "Ver publicación web"}
+            aria-label="Configurar publicación web"
+          >
+            <Settings2 className="h-3 w-3" />
+          </button>
+          <span
+            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border ${
+              product.webVisible
+                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/25"
+                : "bg-slate-500/10 text-brand-subtext border-brand-border"
+            }`}
+            title={product.webVisible ? "Visible en web" : "Oculta en web"}
+          >
+            {product.webVisible ? <Globe className="h-2.5 w-2.5" /> : <GlobeLock className="h-2.5 w-2.5" />}
+            {product.webVisible ? "Web" : "Oculta"}
+          </span>
           <span
             className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${
               product.tipo === "luz"
@@ -71,7 +80,14 @@ export function ProductoCard({ product, onCreateContract, canEditMarco, onEditMa
         </div>
       </div>
 
-      <h4 className="text-sm font-bold text-brand-text leading-snug line-clamp-2">{product.tarifa}</h4>
+      <div className="space-y-1">
+        <h4 className="text-sm font-bold text-brand-text leading-snug line-clamp-2">{product.displayName}</h4>
+        {hasAlias && (
+          <p className="text-[10px] font-mono text-brand-subtext truncate" title={product.catalogName}>
+            AT: {product.catalogName}
+          </p>
+        )}
+      </div>
 
       <span className="inline-flex self-start px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
         {product.tipoClienteLabel}

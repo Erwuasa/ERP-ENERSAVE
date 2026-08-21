@@ -15,13 +15,14 @@ type Props = {
   companias: string[]
   countsByCompania: Record<string, number>
   totalActivas: number
+  webPublishedCount: number
   search: string
   setSearch: (value: string) => void
   loading: boolean
   filtered: ProductoTarifa[]
-  canEditMarco: boolean
+  canEditWeb: boolean
   onCreateContract: (product: ProductoTarifa) => void
-  onEditMarco: (product: ProductoTarifa) => void
+  onEditWeb: (product: ProductoTarifa) => void
 }
 
 const SUMINISTRO_TABS = [
@@ -42,6 +43,7 @@ export function ProductosPanelHeader({
   companias,
   countsByCompania,
   totalActivas,
+  webPublishedCount,
 }: Pick<
   Props,
   | "title"
@@ -55,6 +57,7 @@ export function ProductosPanelHeader({
   | "companias"
   | "countsByCompania"
   | "totalActivas"
+  | "webPublishedCount"
 >) {
   return (
     <>
@@ -116,6 +119,8 @@ export function ProductosPanelHeader({
           <p className="text-[11px] font-mono text-brand-subtext shrink-0">
             <span className="font-bold text-brand-text">{totalActivas}</span> tarifa
             {totalActivas !== 1 ? "s" : ""} activa{totalActivas !== 1 ? "s" : ""}
+            <span className="mx-2 text-brand-border">·</span>
+            <span className="font-bold text-emerald-600 dark:text-emerald-400">{webPublishedCount}</span> en web
           </p>
         </div>
 
@@ -168,9 +173,9 @@ export function ProductosGrid({
   loading,
   suministro,
   filtered,
-  canEditMarco,
+  canEditWeb,
   onCreateContract,
-  onEditMarco,
+  onEditWeb,
 }: Pick<
   Props,
   | "search"
@@ -178,9 +183,9 @@ export function ProductosGrid({
   | "loading"
   | "suministro"
   | "filtered"
-  | "canEditMarco"
+  | "canEditWeb"
   | "onCreateContract"
-  | "onEditMarco"
+  | "onEditWeb"
 >) {
   return (
     <div className="xl:flex-1 min-w-0 xl:min-h-0 flex flex-col gap-4">
@@ -247,8 +252,8 @@ export function ProductosGrid({
                 <ProductoCard
                   product={product}
                   onCreateContract={onCreateContract}
-                  canEditMarco={canEditMarco}
-                  onEditMarco={onEditMarco}
+                  canEditWeb={canEditWeb}
+                  onEditWeb={onEditWeb}
                 />
               </Fragment>
             ))}

@@ -1,18 +1,17 @@
 import type { ReactNode } from "react"
-import type { ProductoTarifa } from "@/lib/productos-catalog"
-import { MarcoRetributivoEditModal } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoEditModal"
-import { useProductosPanel } from "@/pages/erp/productos/hooks/useProductosPanel"
 import { ProductosFiltersSidebar } from "@/pages/erp/productos/components/ProductosFiltersSidebar"
 import {
   ProductosGrid,
   ProductosPanelHeader,
 } from "@/pages/erp/productos/components/ProductosPanelSections"
+import { TariffWebSettingsModal } from "@/pages/erp/productos/components/TariffWebSettingsModal"
+import { useProductosPanel } from "@/pages/erp/productos/hooks/useProductosPanel"
+import type { ProductoTarifa } from "@/lib/productos-catalog"
 
 export interface ProductosPanelProps {
   title?: string
   subtitle?: string
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
-  activeUserId: string
   onNavigateContratos: () => void
   onCreateContract: (product: ProductoTarifa) => void
   renderCompaniaLogo?: (brandName: string) => ReactNode
@@ -20,17 +19,15 @@ export interface ProductosPanelProps {
 
 export function ProductosPanel({
   title = "Tarifas",
-  subtitle = "Catálogo de tarifas activas por comercializadora — crea contratos desde aquí.",
+  subtitle = "Catálogo sincronizado desde AT Enterprise — publica alias y visibilidad para la web.",
   activeRole,
-  activeUserId,
   onNavigateContratos,
   onCreateContract,
 }: ProductosPanelProps) {
-  const vm = useProductosPanel({ activeRole, activeUserId })
+  const vm = useProductosPanel({ activeRole })
 
   return (
     <div className="xl:h-full flex flex-col animate-fade-in font-sans">
-      {/* Header + filtros de tipo/comercializadora: fijos en desktop, no hacen scroll */}
       <div className="xl:shrink-0 space-y-5 pb-5">
         <ProductosPanelHeader
           title={title}
@@ -44,18 +41,23 @@ export function ProductosPanel({
           companias={vm.companias}
           countsByCompania={vm.countsByCompania}
           totalActivas={vm.totalActivas}
+          webPublishedCount={vm.webPublishedCount}
         />
+        {vm.loadError && (
+          <p className="text-sm font-medium text-red-600 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+            {vm.loadError}
+          </p>
+        )}
       </div>
 
-      {/* xl+: Filtros fijos y solo el listado de tarifas hace scroll.
-          Por debajo de xl: todo fluye en la página normal (como el resto de la app),
-          y Filtros se colapsa para no comerse la pantalla. */}
       <div className="xl:flex-1 xl:min-h-0 flex flex-col xl:flex-row gap-4">
         <ProductosFiltersSidebar
           tipoCliente={vm.tipoCliente}
           setTipoCliente={vm.setTipoCliente}
           peaje={vm.peaje}
           setPeaje={vm.setPeaje}
+          webVisibility={vm.webVisibility}
+          setWebVisibility={vm.setWebVisibility}
         />
         <ProductosGrid
           search={vm.search}
@@ -63,21 +65,19 @@ export function ProductosPanel({
           loading={vm.loading}
           suministro={vm.suministro}
           filtered={vm.filtered}
-          canEditMarco={vm.canEditMarco}
+          canEditWeb={vm.canEditWeb}
           onCreateContract={onCreateContract}
-          onEditMarco={vm.openEditModal}
+          onEditWeb={vm.openEditModal}
         />
       </div>
 
-      <MarcoRetributivoEditModal
+      <TariffWebSettingsModal
         open={vm.modalOpen}
-        entry={vm.modalEntry}
-        canEdit={vm.canEditMarco}
-        isCreateMode={false}
-        allEntries={vm.marcoRows}
+        product={vm.modalProduct}
+        canEdit={vm.canEditWeb}
+        saving={vm.saving}
         onClose={vm.closeModal}
-        onSave={vm.handleSaveMarco}
-        onCreate={vm.handleCreateMarco}
+        onSave={vm.handleSaveWebSettings}
       />
     </div>
   )

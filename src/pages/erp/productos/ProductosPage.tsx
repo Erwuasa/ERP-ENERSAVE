@@ -8,14 +8,13 @@ export interface ProductosPageProps {
 }
 
 export function ProductosPage({ onNavigateContratos, onCreateContract }: ProductosPageProps) {
-  const { activeUserId, activeUser } = useAuth()
+  const { activeUser } = useAuth()
 
   return (
     <ProductosPanel
       title="Tarifas"
-      subtitle="Catálogo de tarifas activas por comercializadora — crea contratos desde aquí."
+      subtitle="Catálogo sincronizado desde AT Enterprise — publica alias y visibilidad para la web."
       activeRole={activeUser.role as "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"}
-      activeUserId={activeUserId}
       onNavigateContratos={onNavigateContratos}
       onCreateContract={onCreateContract}
     />

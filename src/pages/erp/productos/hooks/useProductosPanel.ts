@@ -4,47 +4,56 @@ import {
   countProductosByCompania,
   filterProductos,
   listCompaniasFromProductos,
-  marcoRowToProducto,
+  tariffRowToProducto,
   type ProductoPeajeFilter,
   type ProductoSuministroTab,
   type ProductoTarifa,
   type ProductoTipoClienteFilter,
+  type ProductoWebVisibilityFilter,
 } from "@/lib/productos-catalog"
-import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
-  listMarcoRetributivo,
-  updateMarcoEntry,
-  type MarcoEntryInput,
-  type MarcoRetributivoRow,
-  type NewMarcoEntryInput,
-} from "@/lib/supabase/marco-retributivo"
+  listTariffCatalog,
+  updateTariffWebSettings,
+  type TariffCatalogRow,
+  type TariffWebSettingsPatch,
+} from "@/lib/supabase/tariffs"
 
 type Options = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
-  activeUserId: string
 }
 
-export function useProductosPanel({ activeRole, activeUserId }: Options) {
+export function useProductosPanel({ activeRole }: Options) {
   const [loading, setLoading] = useState(true)
-  const [marcoRows, setMarcoRows] = useState<MarcoRetributivoRow[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [tariffRows, setTariffRows] = useState<TariffCatalogRow[]>([])
   const [products, setProducts] = useState<ProductoTarifa[]>([])
   const [suministro, setSuministro] = useState<ProductoSuministroTab>("luz")
   const [compania, setCompania] = useState("Todas")
   const [tipoCliente, setTipoCliente] = useState<ProductoTipoClienteFilter>("todos")
   const [peaje, setPeaje] = useState<ProductoPeajeFilter>("todos")
+  const [webVisibility, setWebVisibility] = useState<ProductoWebVisibilityFilter>("todas")
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
-  const [modalEntry, setModalEntry] = useState<MarcoRetributivoRow | null>(null)
+  const [modalProduct, setModalProduct] = useState<ProductoTarifa | null>(null)
+  const [saving, setSaving] = useState(false)
 
-  const canEditMarco = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canEditWeb = activeRole === "superadmin" || activeRole === "tramitacion"
 
   const loadProducts = useCallback(async () => {
     setLoading(true)
-    const result = await listMarcoRetributivo()
-    if (result.ok) {
-      setMarcoRows(result.data)
-      setProducts(result.data.map(marcoRowToProducto))
+    setLoadError(null)
+
+    const result = await listTariffCatalog()
+    if (result.ok === false) {
+      setLoadError(result.message)
+      setTariffRows([])
+      setProducts([])
+      setLoading(false)
+      return
     }
+
+    setTariffRows(result.data)
+    setProducts(result.data.map(tariffRowToProducto))
     setLoading(false)
   }, [])
 
@@ -53,51 +62,47 @@ export function useProductosPanel({ activeRole, activeUserId }: Options) {
   }, [loadProducts])
 
   function openEditModal(product: ProductoTarifa) {
-    const row = marcoRows.find((r) => r.id === product.id)
-    if (!row) return
-    setModalEntry(row)
+    setModalProduct(product)
     setModalOpen(true)
   }
 
   function closeModal() {
     setModalOpen(false)
-    setModalEntry(null)
+    setModalProduct(null)
   }
 
-  async function handleSaveMarco(id: string, patch: Partial<MarcoEntryInput>): Promise<boolean> {
-    if (!canEditMarco) return false
-    if (!isSupabaseConfigured()) {
-      setMarcoRows((prev) => {
-        const next = prev.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                ...patch,
-                condicion_1: patch.condicion_1 ?? r.condicion_1,
-                condicion_2: patch.condicion_2 ?? r.condicion_2,
-                condiciones: patch.condiciones ?? r.condiciones,
-                updated_at: new Date().toISOString(),
-              }
-            : r
-        )
-        setProducts(next.map(marcoRowToProducto))
-        return next
-      })
-      toast.message("Cambios guardados en memoria local.")
-      return true
-    }
-    const result = await updateMarcoEntry(id, patch, activeUserId)
+  async function handleSaveWebSettings(
+    tariffId: string,
+    patch: TariffWebSettingsPatch
+  ): Promise<boolean> {
+    if (!canEditWeb) return false
+
+    setSaving(true)
+    const result = await updateTariffWebSettings(tariffId, patch)
+    setSaving(false)
+
     if (result.ok === false) {
       toast.error(result.message)
       return false
     }
-    toast.success("Marco retributivo actualizado.")
-    await loadProducts()
-    return true
-  }
 
-  async function handleCreateMarco(_input: NewMarcoEntryInput): Promise<boolean> {
-    return false
+    setTariffRows((prev) => {
+      const next = prev.map((row) =>
+        row.id === tariffId
+          ? {
+              ...row,
+              web_visible: result.data.web_visible,
+              web_alias: result.data.web_alias,
+            }
+          : row
+      )
+      setProducts(next.map(tariffRowToProducto))
+      return next
+    })
+
+    toast.success(patch.web_visible ? "Tarifa publicada en web." : "Tarifa oculta en web.")
+    closeModal()
+    return true
   }
 
   const companias = useMemo(() => listCompaniasFromProductos(products), [products])
@@ -106,14 +111,26 @@ export function useProductosPanel({ activeRole, activeUserId }: Options) {
     [products, suministro]
   )
   const filtered = useMemo(
-    () => filterProductos(products, { suministro, compania, tipoCliente, peaje, search }),
-    [products, suministro, compania, tipoCliente, peaje, search]
+    () =>
+      filterProductos(products, {
+        suministro,
+        compania,
+        tipoCliente,
+        peaje,
+        webVisibility,
+        search,
+      }),
+    [products, suministro, compania, tipoCliente, peaje, webVisibility, search]
   )
   const totalActivas = countsByCompania.Todas ?? 0
+  const webPublishedCount = useMemo(
+    () => products.filter((product) => product.webVisible).length,
+    [products]
+  )
 
   return {
     loading,
-    marcoRows,
+    loadError,
     products,
     suministro,
     setSuministro,
@@ -123,18 +140,22 @@ export function useProductosPanel({ activeRole, activeUserId }: Options) {
     setTipoCliente,
     peaje,
     setPeaje,
+    webVisibility,
+    setWebVisibility,
     search,
     setSearch,
     modalOpen,
-    modalEntry,
-    canEditMarco,
+    modalProduct,
+    saving,
+    canEditWeb,
     companias,
     countsByCompania,
     filtered,
     totalActivas,
+    webPublishedCount,
     openEditModal,
     closeModal,
-    handleSaveMarco,
-    handleCreateMarco,
+    handleSaveWebSettings,
+    reload: loadProducts,
   }
 }

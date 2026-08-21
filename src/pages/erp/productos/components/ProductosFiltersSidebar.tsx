@@ -5,13 +5,22 @@ import {
   PRODUCTO_TIPO_CLIENTE_OPTIONS,
   type ProductoPeajeFilter,
   type ProductoTipoClienteFilter,
+  type ProductoWebVisibilityFilter,
 } from "@/lib/productos-catalog"
+
+const WEB_VISIBILITY_OPTIONS: { id: ProductoWebVisibilityFilter; label: string }[] = [
+  { id: "todas", label: "Todas" },
+  { id: "publicadas", label: "Publicadas web" },
+  { id: "ocultas", label: "Ocultas web" },
+]
 
 type Props = {
   tipoCliente: ProductoTipoClienteFilter
   setTipoCliente: (value: ProductoTipoClienteFilter) => void
   peaje: ProductoPeajeFilter
   setPeaje: (value: ProductoPeajeFilter) => void
+  webVisibility: ProductoWebVisibilityFilter
+  setWebVisibility: (value: ProductoWebVisibilityFilter) => void
 }
 
 export function ProductosFiltersSidebar({
@@ -19,12 +28,17 @@ export function ProductosFiltersSidebar({
   setTipoCliente,
   peaje,
   setPeaje,
+  webVisibility,
+  setWebVisibility,
 }: Props) {
   // Por debajo de xl, Filtros va colapsado por defecto para no comerse la
   // pantalla y dejar ver las tarifas de entrada. En xl+ siempre va expandido
   // (el botón/chevron de abajo se ocultan con xl:hidden / xl:pointer-events-none).
   const [mobileOpen, setMobileOpen] = useState(false)
-  const activeFiltersCount = (tipoCliente !== "todos" ? 1 : 0) + (peaje !== "todos" ? 1 : 0)
+  const activeFiltersCount =
+    (tipoCliente !== "todos" ? 1 : 0) +
+    (peaje !== "todos" ? 1 : 0) +
+    (webVisibility !== "todas" ? 1 : 0)
 
   return (
     <aside className="w-full xl:w-56 shrink-0 xl:overflow-y-auto bg-brand-panel border border-brand-border rounded-2xl p-4 shadow-sm dark:shadow-none">
@@ -63,6 +77,28 @@ export function ProductosFiltersSidebar({
                 onClick={() => setTipoCliente(opt.id)}
                 className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                   tipoCliente === opt.id
+                    ? "bg-emerald-600 text-white"
+                    : "text-brand-subtext hover:bg-brand-surface hover:text-brand-text"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+            Visibilidad web
+          </p>
+          <div className="flex flex-col gap-1">
+            {WEB_VISIBILITY_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setWebVisibility(opt.id)}
+                className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
+                  webVisibility === opt.id
                     ? "bg-emerald-600 text-white"
                     : "text-brand-subtext hover:bg-brand-surface hover:text-brand-text"
                 }`}
