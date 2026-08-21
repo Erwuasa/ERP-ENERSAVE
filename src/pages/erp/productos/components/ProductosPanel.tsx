@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 import { ProductosFiltersSidebar } from "@/pages/erp/productos/components/ProductosFiltersSidebar"
 import {
-  ProductosGrid,
+  ProductosList,
   ProductosPanelHeader,
 } from "@/pages/erp/productos/components/ProductosPanelSections"
 import { TariffWebSettingsModal } from "@/pages/erp/productos/components/TariffWebSettingsModal"
@@ -59,7 +59,7 @@ export function ProductosPanel({
           webVisibility={vm.webVisibility}
           setWebVisibility={vm.setWebVisibility}
         />
-        <ProductosGrid
+        <ProductosList
           search={vm.search}
           setSearch={vm.setSearch}
           loading={vm.loading}

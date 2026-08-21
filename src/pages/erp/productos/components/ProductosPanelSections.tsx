@@ -1,7 +1,6 @@
 import { ArrowRight, FileSpreadsheet, Flame, Lightbulb, Loader2, Package, Phone, Search, X } from "lucide-react"
 import type { ProductoSuministroTab, ProductoTarifa } from "@/lib/productos-catalog"
-import { ProductoCard } from "@/pages/erp/productos/components/ProductoCard"
-import { Fragment } from "react"
+import { ProductosTable } from "@/pages/erp/productos/components/ProductosTable"
 
 type Props = {
   title: string
@@ -171,7 +170,7 @@ export function ProductosPanelHeader({
   )
 }
 
-export function ProductosGrid({
+export function ProductosList({
   search,
   setSearch,
   loading,
@@ -256,20 +255,13 @@ export function ProductosGrid({
           </div>
         ) : (
           <div className="space-y-4">
-            <div
-              key={filtered.map((product) => product.id).join("|")}
-              className="animate-fade-in-ease grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3"
-            >
-              {filtered.map((product) => (
-                <Fragment key={product.id}>
-                  <ProductoCard
-                    product={product}
-                    onCreateContract={onCreateContract}
-                    canEditWeb={canEditWeb}
-                    onEditWeb={onEditWeb}
-                  />
-                </Fragment>
-              ))}
+            <div key={filtered.map((product) => product.id).join("|")} className="animate-fade-in-ease">
+              <ProductosTable
+                products={filtered}
+                onCreateContract={onCreateContract}
+                canEditWeb={canEditWeb}
+                onEditWeb={onEditWeb}
+              />
             </div>
             {hasMore && (
               <div className="flex justify-center pb-2">
