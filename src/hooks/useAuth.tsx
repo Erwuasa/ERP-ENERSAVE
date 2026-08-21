@@ -12,12 +12,14 @@ import {
 } from "react"
 import { useNavigate } from "react-router-dom"
 import {
+  AUTH_USER_STORAGE_KEY,
   clearSupabaseSession,
   DEFAULT_DEV_PASSWORD,
+  ensureSupabaseSession,
   getAuthSessionStatus,
   syncSupabaseSession,
 } from "@/lib/supabase/auth-session"
-import { isSupabaseConfigured } from "@/lib/supabase/client"
+import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
 import { SEED_PROFILES, type Profile } from "@/types/profile"
 
@@ -66,6 +68,23 @@ function normalizeLoginEmail(raw: string): string {
   return searchEmail
 }
 
+function readStoredProfileId(profiles: Profile[]): string | null {
+  if (typeof sessionStorage === "undefined") return null
+  const stored = sessionStorage.getItem(AUTH_USER_STORAGE_KEY)
+  if (!stored) return null
+  return profiles.some((p) => p.id === stored && p.status !== "suspendido") ? stored : null
+}
+
+function persistLoggedInProfile(profileId: string): void {
+  if (typeof sessionStorage === "undefined") return
+  sessionStorage.setItem(AUTH_USER_STORAGE_KEY, profileId)
+}
+
+function clearPersistedProfile(): void {
+  if (typeof sessionStorage === "undefined") return
+  sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const [isBootstrapping, setIsBootstrapping] = useState(true)
@@ -86,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (profile: Profile) => {
       setActiveUserId(profile.id)
       setIsLoggedIn(true)
+      persistLoggedInProfile(profile.id)
       navigate(getDefaultAppPath(profile.role))
     },
     [navigate]
@@ -109,6 +129,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     []
   )
+
+  const restoreFromProfile = useCallback((profile: Profile) => {
+    setActiveUserId(profile.id)
+    setIsLoggedIn(true)
+    persistLoggedInProfile(profile.id)
+  }, [])
 
   const quickLoginAs = useCallback(
     async (profileId: string) => {
@@ -171,39 +197,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await clearSupabaseSession()
+    clearPersistedProfile()
     setIsLoggedIn(false)
     navigate(ROUTES.login)
   }, [navigate])
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setIsBootstrapping(false)
-      return
+    let cancelled = false
+
+    async function bootstrapAuth() {
+      const storedId = readStoredProfileId(profiles)
+      const storedProfile = storedId
+        ? profiles.find((p) => p.id === storedId)
+        : undefined
+
+      if (isSupabaseConfigured()) {
+        const status = await getAuthSessionStatus()
+        if (!cancelled && status.ok) {
+          const matches = profiles.find(
+            (p) => p.email.toLowerCase() === status.email.toLowerCase()
+          )
+          if (matches && matches.status !== "suspendido") {
+            restoreFromProfile(matches)
+            setIsBootstrapping(false)
+            return
+          }
+        }
+
+        if (!cancelled && storedProfile) {
+          const synced = await ensureSupabaseSession(
+            storedProfile.email,
+            DEFAULT_DEV_PASSWORD,
+            {
+              comercialId: storedProfile.id,
+              role: storedProfile.role,
+              fullName: storedProfile.fullName,
+            }
+          )
+          if (synced.ok) {
+            restoreFromProfile(storedProfile)
+            setIsBootstrapping(false)
+            return
+          }
+        }
+      } else if (!cancelled && storedProfile) {
+        restoreFromProfile(storedProfile)
+        setIsBootstrapping(false)
+        return
+      }
+
+      if (!cancelled) setIsBootstrapping(false)
     }
 
-    let cancelled = false
-    ;(async () => {
-      const status = await getAuthSessionStatus()
-      if (cancelled || !status.ok) {
-        setIsBootstrapping(false)
-        return
-      }
-      const matches = profiles.find(
-        (p) => p.email.toLowerCase() === status.email.toLowerCase()
-      )
-      if (!matches || matches.status === "suspendido") {
-        setIsBootstrapping(false)
-        return
-      }
-      setActiveUserId(matches.id)
-      setIsLoggedIn(true)
-      setIsBootstrapping(false)
-    })()
+    void bootstrapAuth()
 
     return () => {
       cancelled = true
     }
-  }, [profiles])
+  }, [profiles, restoreFromProfile])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+
+    const supabase = getSupabaseClient()
+    if (!supabase) return
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        clearPersistedProfile()
+        setIsLoggedIn(false)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const value = useMemo(
     (): AuthContextValue => ({

@@ -9,6 +9,7 @@ import {
   DollarSign,
   FileClock,
   FileSpreadsheet,
+  Inbox,
   LayoutDashboard,
   LayoutGrid,
   Package,
@@ -45,6 +46,11 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
 export const VENTAS_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Mi Día", icon: CalendarDays, allowedRoles: ["comercial", "jefe_comercial", "superadmin"] },
   { name: "Pipeline", icon: LayoutGrid, allowedRoles: ["comercial", "jefe_comercial", "superadmin"] },
+  {
+    name: "Leads web",
+    icon: Inbox,
+    allowedRoles: ["comercial", "jefe_comercial", "superadmin", "tramitacion"],
+  },
   { name: "Base EnerSave", icon: Database, allowedRoles: ["superadmin", "tramitacion"] },
   { name: "Avisos SLA", icon: ShieldAlert, allowedRoles: ["comercial", "jefe_comercial", "superadmin"] },
   { name: "Reporting", icon: BarChart3, allowedRoles: ["jefe_comercial", "superadmin"] },

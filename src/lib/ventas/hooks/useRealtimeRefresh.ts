@@ -1,7 +1,7 @@
 import { useEffect } from "react"
 import { getSupabaseClient, isSupabaseConfigured } from "../../supabase/client"
 
-type VentasRealtimeTable = "prospectos" | "tareas_ventas" | "actividades_ventas"
+type VentasRealtimeTable = "prospectos" | "tareas_ventas" | "actividades_ventas" | "leads"
 
 export interface VentasRealtimePayload {
   eventType: string

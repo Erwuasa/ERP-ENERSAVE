@@ -26,6 +26,7 @@ export type VentasTabId =
   | "Pipeline"
   | "Ficha"
   | "Base EnerSave"
+  | "Leads web"
   | "Avisos SLA"
   | "Reporting"
 
@@ -55,6 +56,7 @@ const VENTAS_TAB_SLUGS: Record<string, string> = {
   Pipeline: "pipeline",
   Ficha: "ficha",
   "Base EnerSave": "base-enersave",
+  "Leads web": "leads-web",
   "Avisos SLA": "sla-avisos",
   Reporting: "reporting",
 }
@@ -124,6 +126,7 @@ export const VENTAS_TABS: readonly VentasTabId[] = [
   "Pipeline",
   "Ficha",
   "Base EnerSave",
+  "Leads web",
   "Avisos SLA",
   "Reporting",
 ] as const
@@ -152,6 +155,7 @@ export const ROUTES = {
     pipeline: "/ventas/pipeline",
     ficha: "/ventas/ficha/:prospectoId",
     enersaveLeads: "/ventas/base-enersave",
+    leadsWeb: "/ventas/leads-web",
     slaAvisos: "/ventas/sla-avisos",
     reporting: "/ventas/reporting",
   },

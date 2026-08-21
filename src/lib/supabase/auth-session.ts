@@ -1,5 +1,7 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
+export const AUTH_USER_STORAGE_KEY = "erp-auth-user-id"
+
 export interface AuthProfileBridge {
   comercialId: string
   role: string
@@ -53,14 +55,15 @@ export async function getAuthSessionStatus(): Promise<AuthSessionStatus> {
   }
 
   const profile = mapSessionProfile(data.session.user)
-  if (!profile) {
-    return { ok: false, reason: "no_session" }
-  }
 
   return {
     ok: true,
     email: data.session.user.email,
-    profile,
+    profile: profile ?? {
+      comercialId: "",
+      role: "",
+      fullName: data.session.user.email,
+    },
   }
 }
 
