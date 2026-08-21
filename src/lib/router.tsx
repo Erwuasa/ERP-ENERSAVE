@@ -1,18 +1,18 @@
-import { lazy, Suspense } from "react"
+import { Suspense } from "react"
 import { Navigate, Outlet, createBrowserRouter } from "react-router-dom"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { WorkspaceIndexRedirect } from "@/components/auth/WorkspaceIndexRedirect"
 import { WorkspaceModuleIndexRedirect } from "@/components/auth/WorkspaceModuleIndexRedirect"
 import { DynamicWorkspacePage } from "@/components/workspace/DynamicWorkspacePage"
-import { AuthProvider } from "@/hooks/useAuth"
+import { AuthProvider, useAuth } from "@/hooks/useAuth"
 import { ErpDataProvider } from "@/providers/ErpDataProvider"
 import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
 import { ROUTES } from "@/constants/navigation"
 import { LoginPage } from "@/pages/auth/LoginPage"
-
-const ErpWorkspace = lazy(() =>
-  import("@/pages/erp/ErpWorkspace").then((m) => ({ default: m.ErpWorkspace }))
-)
+import { RegisterPage } from "@/pages/auth/RegisterPage"
+import { ErpWorkspaceShell } from "@/pages/erp/ErpWorkspace"
+import { IncidenciasProvider } from "@/pages/erp/incidencias/IncidenciasProvider"
+import { ErpWorkspaceProvider } from "@/pages/erp/providers/ErpWorkspaceProvider"
 
 function WorkspaceFallback() {
   return (
@@ -35,11 +35,22 @@ function AuthLayout() {
 }
 
 function ProtectedWorkspaceLayout() {
+  const { profiles, activeUser } = useAuth()
+  const teamMemberIds = profiles
+    .filter((p) => p.managerId === activeUser.id)
+    .map((p) => p.id)
+  const isErpOpsAdmin =
+    activeUser.role === "superadmin" || activeUser.role === "tramitacion"
+
   return (
     <ProtectedRoute>
-      <Suspense fallback={<WorkspaceFallback />}>
-        <ErpWorkspace />
-      </Suspense>
+      <IncidenciasProvider teamMemberIds={teamMemberIds} isErpOpsAdmin={isErpOpsAdmin}>
+        <ErpWorkspaceProvider>
+          <Suspense fallback={<WorkspaceFallback />}>
+            <ErpWorkspaceShell />
+          </Suspense>
+        </ErpWorkspaceProvider>
+      </IncidenciasProvider>
     </ProtectedRoute>
   )
 }
@@ -51,6 +62,10 @@ export const router = createBrowserRouter([
       {
         path: ROUTES.login,
         element: <LoginPage />,
+      },
+      {
+        path: ROUTES.register,
+        element: <RegisterPage />,
       },
       {
         path: "/",

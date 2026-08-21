@@ -112,6 +112,22 @@ export function getSortedProfiles(rawProfiles: Profile[]): Profile[] {
 
 export const SEED_PROFILES: Profile[] = [
   {
+    id: "usr-carlos",
+    fullName: "Carlos Altamirano",
+    role: "superadmin",
+    managerId: null,
+    permissions: {
+      contractsView: true,
+      comparatorAccess: true,
+      quickSettlement: true,
+      exportDatabase: true,
+      viewRetrocommissions: true,
+    },
+    email: "andresaltamirasanz@gmail.com",
+    status: "activo",
+    commissionPercentage: 100,
+  },
+  {
     id: "usr-1",
     fullName: "Carlos De la Fuente",
     role: "superadmin",

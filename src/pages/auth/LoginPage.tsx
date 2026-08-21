@@ -1,7 +1,7 @@
-import { Navigate } from "react-router-dom"
+import { Navigate, Link } from "react-router-dom"
 import { AlertCircle, ChevronRight, Lock, User } from "lucide-react"
 import { EnersaveLogo } from "@/components/common/EnersaveLogo"
-import { getDefaultAppPath } from "@/constants/navigation"
+import { getDefaultAppPath, ROUTES } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
 
 export function LoginPage() {
@@ -108,6 +108,13 @@ export function LoginPage() {
             )}
           </button>
         </form>
+
+        <p className="text-center text-xs text-brand-subtext">
+          ¿No tienes cuenta?{" "}
+          <Link to={ROUTES.register} className="font-bold text-blue-600 dark:text-cyan-400 hover:underline">
+            Regístrate
+          </Link>
+        </p>
 
         <div className="border-t border-slate-100 dark:border-white/5 pt-5 space-y-2.5">
           <span className="block text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">

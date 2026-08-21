@@ -1,20 +1,11 @@
-import { createContext, useContext, type ReactNode } from "react"
-import {
-  useErpWorkspace,
-  type ErpWorkspaceContext,
-} from "@/pages/erp/hooks/useErpWorkspace"
+import { type ReactNode } from "react"
+import { useErpWorkspace } from "@/pages/erp/hooks/useErpWorkspace"
+import { ErpWorkspaceContext } from "@/pages/erp/providers/erp-workspace-context"
 
-const ErpWorkspaceCtx = createContext<ErpWorkspaceContext | null>(null)
+export { useErpWorkspaceContext } from "@/pages/erp/providers/erp-workspace-context"
+export type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 
 export function ErpWorkspaceProvider({ children }: { children: ReactNode }) {
   const ws = useErpWorkspace()
-  return <ErpWorkspaceCtx.Provider value={ws}>{children}</ErpWorkspaceCtx.Provider>
-}
-
-export function useErpWorkspaceContext(): ErpWorkspaceContext {
-  const ctx = useContext(ErpWorkspaceCtx)
-  if (!ctx) {
-    throw new Error("useErpWorkspaceContext debe usarse dentro de ErpWorkspaceProvider")
-  }
-  return ctx
+  return <ErpWorkspaceContext.Provider value={ws}>{children}</ErpWorkspaceContext.Provider>
 }

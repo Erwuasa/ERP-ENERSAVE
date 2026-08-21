@@ -1,16 +1,13 @@
-import {
-  createContext,
-  useContext,
-  type ReactNode,
-} from "react"
+import { type ReactNode } from "react"
 import {
   useContractActions,
   type ContractActionsValue,
   type UseContractActionsOptions,
 } from "@/pages/erp/contratos/hooks/useContractActions"
 import { ContractActionsHost } from "@/pages/erp/contratos/components/ContractActionsHost"
+import { ContractActionsContext } from "@/providers/contract-actions-context"
 
-const ContractActionsContext = createContext<ContractActionsValue | null>(null)
+export { useContractActionsContext } from "@/providers/contract-actions-context"
 
 export function ContractActionsProvider({
   children,
@@ -21,15 +18,9 @@ export function ContractActionsProvider({
   return (
     <ContractActionsContext.Provider value={value}>
       {children}
-      <ContractActionsHost />
+      <ContractActionsHost actions={value} />
     </ContractActionsContext.Provider>
   )
 }
 
-export function useContractActionsContext(): ContractActionsValue {
-  const ctx = useContext(ContractActionsContext)
-  if (!ctx) {
-    throw new Error("useContractActionsContext debe usarse dentro de ContractActionsProvider")
-  }
-  return ctx
-}
+export type { ContractActionsValue }

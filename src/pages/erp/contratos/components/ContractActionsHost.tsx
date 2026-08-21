@@ -3,7 +3,7 @@ import { AnimatePresence } from "motion/react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
-import { useContractActionsContext } from "@/providers/ContractActionsProvider"
+import type { ContractActionsValue } from "@/pages/erp/contratos/hooks/useContractActions"
 import { formatCurrency } from "@/lib/erp/format-currency"
 import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { ContractActivateModal } from "@/pages/erp/contratos/components/ContractActivateModal"
@@ -15,7 +15,7 @@ const NuevoContratoWizard = lazy(() =>
   }))
 )
 
-export function ContractActionsHost() {
+export function ContractActionsHost({ actions }: { actions: ContractActionsValue }) {
   const { profiles, activeUserId, activeUser } = useAuth()
   const { clients, contracts } = useErpData()
   const activeRole = activeUser.role
@@ -44,7 +44,7 @@ export function ContractActionsHost() {
     isBajaLoading,
     closeBajaModal,
     handleCancelContract,
-  } = useContractActionsContext()
+  } = actions
 
   return (
     <>

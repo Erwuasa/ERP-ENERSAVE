@@ -1,16 +1,11 @@
-import { useAuth } from '@/hooks/useAuth';
-import { AppShell } from '@/components/layout/AppShell';
-import { Outlet } from 'react-router-dom';
-import { IncidenciasProvider } from '@/pages/erp/incidencias/IncidenciasProvider';
-import {
-  ErpWorkspaceProvider,
-  useErpWorkspaceContext,
-} from '@/pages/erp/providers/ErpWorkspaceProvider';
-import { ErpWorkspaceModals } from '@/pages/erp/workspace/ErpWorkspaceModals';
-import { VentasFichaOverlay } from '@/pages/ventas/overlays/VentasFichaOverlay';
+import { AppShell } from '@/components/layout/AppShell'
+import { Outlet } from 'react-router-dom'
+import { useErpWorkspaceContext } from '@/pages/erp/providers/erp-workspace-context'
+import { ErpWorkspaceModals } from '@/pages/erp/workspace/ErpWorkspaceModals'
+import { VentasFichaOverlay } from '@/pages/ventas/overlays/VentasFichaOverlay'
 
-function ErpWorkspaceShell() {
-  const ws = useErpWorkspaceContext();
+export function ErpWorkspaceShell() {
+  const ws = useErpWorkspaceContext()
   const {
     activeModule,
     currentMenuTab,
@@ -21,7 +16,7 @@ function ErpWorkspaceShell() {
     switchAppModule,
     handleToggleSuperadminMode,
     logout,
-  } = ws;
+  } = ws
 
   return (
     <AppShell
@@ -39,19 +34,5 @@ function ErpWorkspaceShell() {
       <VentasFichaOverlay />
       <ErpWorkspaceModals />
     </AppShell>
-  );
-}
-
-export function ErpWorkspace() {
-  const { profiles, activeUser } = useAuth();
-  const teamMemberIds = profiles.filter((p) => p.managerId === activeUser.id).map((p) => p.id);
-  const isErpOpsAdmin = activeUser.role === 'superadmin' || activeUser.role === 'tramitacion';
-
-  return (
-    <IncidenciasProvider teamMemberIds={teamMemberIds} isErpOpsAdmin={isErpOpsAdmin}>
-      <ErpWorkspaceProvider>
-        <ErpWorkspaceShell />
-      </ErpWorkspaceProvider>
-    </IncidenciasProvider>
-  );
+  )
 }
