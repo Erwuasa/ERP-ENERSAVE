@@ -6,8 +6,8 @@ import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 type Props = Pick<
   ErpWorkspaceContext,
   | "profiles"
-  | "newUserName"
-  | "setNewUserName"
+  | "newUserEmail"
+  | "setNewUserEmail"
   | "newUserRole"
   | "setNewUserRole"
   | "newUserManager"
@@ -20,8 +20,8 @@ type Props = Pick<
 
 export function CreateUserModal({
   profiles,
-  newUserName,
-  setNewUserName,
+  newUserEmail,
+  setNewUserEmail,
   newUserRole,
   setNewUserRole,
   newUserManager,
@@ -51,7 +51,7 @@ export function CreateUserModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-cyan-600" />
-                <h3 className="text-sm font-bold text-brand-text">Nuevo asesor</h3>
+                <h3 className="text-sm font-bold text-brand-text">Promover a staff</h3>
               </div>
               <button
                 type="button"
@@ -63,16 +63,19 @@ export function CreateUserModal({
             </div>
 
             <form onSubmit={handleAddNewUser} className="space-y-4 text-xs">
+              <p className="text-[11px] text-brand-subtext leading-relaxed">
+                La persona debe haberse registrado antes. Aquí solo se le asigna rol de staff.
+              </p>
               <div className="space-y-1">
                 <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">
-                  Nombre completo
+                  Email de la cuenta
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={newUserName}
-                  onChange={(e) => setNewUserName(e.target.value)}
-                  placeholder="p. ej. Miguel Ángel Soler"
+                  value={newUserEmail}
+                  onChange={(e) => setNewUserEmail(e.target.value)}
+                  placeholder="cliente@correo.com"
                   className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500 text-brand-text"
                 />
               </div>
@@ -87,6 +90,7 @@ export function CreateUserModal({
                 >
                   <option value="comercial">comercial</option>
                   <option value="jefe_comercial">jefe_comercial</option>
+                  <option value="tramitacion">tramitacion</option>
                   <option value="superadmin">superadmin</option>
                 </select>
               </div>
@@ -100,6 +104,7 @@ export function CreateUserModal({
                     onChange={(e) => setNewUserManager(e.target.value)}
                     className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none text-brand-text font-mono"
                   >
+                    <option value="">Selecciona jefe</option>
                     {profiles
                       .filter((p) => p.role === "jefe_comercial" || p.role === "superadmin")
                       .map((m) => (
@@ -123,7 +128,7 @@ export function CreateUserModal({
                   disabled={isCreatingUser}
                   className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold disabled:opacity-50"
                 >
-                  {isCreatingUser ? "Registrando…" : "Registrar en Supabase"}
+                  {isCreatingUser ? "Guardando…" : "Asignar rol"}
                 </button>
               </div>
             </form>

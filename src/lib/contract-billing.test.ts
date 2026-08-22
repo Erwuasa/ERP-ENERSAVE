@@ -8,7 +8,7 @@ import {
 
 describe("contract-billing", () => {
   const base = {
-    comercialId: "usr-3",
+    comercialId: "staff-ignacio",
     montoExterno: 200,
     createdAt: "2026-05-01",
     estado: "ACTIVADO",
@@ -58,7 +58,7 @@ describe("contract-billing", () => {
         estado: "PTE DE TRAMITACIÓN",
       },
     ]
-    const events = collectBillingEvents(contracts, "usr-3")
+    const events = collectBillingEvents(contracts, "staff-ignacio")
     const total = sumFacturadoInPeriod(events, "1m")
     expect(total).toBe(300)
   })

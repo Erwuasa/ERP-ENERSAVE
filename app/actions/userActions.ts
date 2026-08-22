@@ -27,7 +27,7 @@ export interface UserProfile {
 // to ensure perfect state persistence in the preview if actual DB credentials aren't linked yet.
 let mockProfiles: UserProfile[] = [
   {
-    id: "usr-1",
+    id: "staff-carlos",
     fullName: "Carlos De la Fuente",
     email: "carlos@ener-erp.com",
     role: "superadmin",
@@ -43,11 +43,11 @@ let mockProfiles: UserProfile[] = [
     createdAt: "2026-01-15T08:30:00Z",
   },
   {
-    id: "usr-2",
+    id: "staff-elena",
     fullName: "Elena Garrido",
     email: "elena@ener-erp.com",
     role: "jefe_comercial",
-    managerId: "usr-1",
+    managerId: "staff-carlos",
     status: "activo",
     permissions: {
       contractsView: true,
@@ -59,11 +59,11 @@ let mockProfiles: UserProfile[] = [
     createdAt: "2026-02-10T10:15:00Z",
   },
   {
-    id: "usr-3",
+    id: "staff-ignacio",
     fullName: "Ignacio Ortiz",
     email: "ignacio@ener-erp.com",
     role: "comercial",
-    managerId: "usr-2",
+    managerId: "staff-elena",
     status: "activo",
     permissions: {
       contractsView: true,
@@ -75,11 +75,11 @@ let mockProfiles: UserProfile[] = [
     createdAt: "2026-03-01T14:45:00Z",
   },
   {
-    id: "usr-4",
+    id: "staff-marta",
     fullName: "Marta Rivas",
     email: "marta@ener-erp.com",
     role: "comercial",
-    managerId: "usr-2",
+    managerId: "staff-elena",
     status: "activo",
     permissions: {
       contractsView: true,
@@ -91,11 +91,11 @@ let mockProfiles: UserProfile[] = [
     createdAt: "2026-04-18T11:20:00Z",
   },
   {
-    id: "usr-5",
+    id: "staff-santiago",
     fullName: "Santiago Cano",
     email: "santiago@ener-erp.com",
     role: "comercial",
-    managerId: "usr-2",
+    managerId: "staff-elena",
     status: "suspendido",
     permissions: {
       contractsView: false,
@@ -185,7 +185,7 @@ export async function createUser(payload: {
   managerId: string | null;
   status: "activo" | "suspendido" | "pendiente";
 }): Promise<{ success: boolean; error?: string; user?: UserProfile }> {
-  const newId = `usr-${Math.floor(1000 + Math.random() * 9000)}`;
+  const newId = `staff-${Math.floor(1000 + Math.random() * 9000)}`;
   
   const newUser: UserProfile = {
     id: newId,

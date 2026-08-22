@@ -1,7 +1,7 @@
 import { motion } from "motion/react"
 import { SlidersHorizontal, Trash2, X } from "lucide-react"
 
-export type UserControlRole = "superadmin" | "jefe_comercial" | "comercial"
+export type UserControlRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion" | "customer"
 
 export interface UserControlProfile {
   id: string
@@ -96,7 +96,7 @@ export function UserControlSheet({
             <SlidersHorizontal className="w-4 h-4 text-cyan-600" />
             <div>
               <h3 className="text-sm font-bold text-brand-text">Panel de control</h3>
-              <p className="text-[10px] font-mono text-brand-subtext">erp_comerciales</p>
+              <p className="text-[10px] font-mono text-brand-subtext">user_profiles</p>
             </div>
           </div>
           <button
@@ -135,10 +135,11 @@ export function UserControlSheet({
             >
               <option value="comercial">comercial</option>
               <option value="jefe_comercial">jefe_comercial</option>
+              <option value="tramitacion">tramitacion</option>
               <option value="superadmin">superadmin</option>
             </select>
             <p className="text-[10px] text-brand-subtext">
-              Al cambiar el rol se guarda en <span className="font-mono">erp_comerciales</span> y afecta RLS Ventas.
+              Al cambiar el rol se guarda en <span className="font-mono">user_profiles</span> y afecta RLS.
             </p>
           </div>
 

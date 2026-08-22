@@ -10,7 +10,7 @@ import {
 import type { Prospecto } from "./types"
 
 const actor = {
-  comercialId: "usr-3",
+  comercialId: "staff-ignacio",
   comercialName: "Test",
   role: "comercial" as const,
 }
@@ -18,7 +18,7 @@ const actor = {
 function prospecto(id: string): Prospecto {
   return {
     id,
-    comercialId: "usr-3",
+    comercialId: "staff-ignacio",
     comercialName: "Test",
     nombre: `P ${id}`,
     telefono: "600000000",

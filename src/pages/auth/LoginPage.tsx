@@ -16,7 +16,6 @@ export function LoginPage() {
     loginLoading,
     loginError,
     triggerLogin,
-    quickLoginAs,
   } = useAuth()
 
   if (isBootstrapping) {
@@ -115,38 +114,6 @@ export function LoginPage() {
             Regístrate
           </Link>
         </p>
-
-        <div className="border-t border-slate-100 dark:border-white/5 pt-5 space-y-2.5">
-          <span className="block text-[9px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">
-            Demo Acceso Rápido
-          </span>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              disabled={loginLoading}
-              onClick={() => quickLoginAs("usr-1")}
-              className="px-2 py-1.5 bg-brand-surface hover:bg-blue-50 dark:hover:bg-blue-950/20 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-cyan-500/30 text-[10px] font-semibold text-blue-600 dark:text-cyan-400 rounded-lg cursor-pointer transition-all text-center"
-            >
-              Superadmin
-            </button>
-            <button
-              type="button"
-              disabled={loginLoading}
-              onClick={() => quickLoginAs("usr-2")}
-              className="px-2 py-1.5 bg-brand-surface hover:bg-amber-50 dark:hover:bg-amber-950/20 border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-500/30 text-[10px] font-semibold text-amber-600 dark:text-amber-400 rounded-lg cursor-pointer transition-all text-center"
-            >
-              Jefe Comer.
-            </button>
-            <button
-              type="button"
-              disabled={loginLoading}
-              onClick={() => quickLoginAs("usr-3")}
-              className="px-2 py-1.5 bg-brand-surface hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-500/30 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 rounded-lg cursor-pointer transition-all text-center"
-            >
-              Comercial
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   )

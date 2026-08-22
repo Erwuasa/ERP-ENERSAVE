@@ -1,8 +1,8 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import { listErpComerciales } from "./erp-comerciales"
 import {
-  mergeErpRowsIntoProfiles,
   profileFromCustomer,
+  profileFromDirectoryRow,
   type Profile,
   type UserRole,
 } from "@/types/profile"
@@ -11,7 +11,9 @@ export interface UserProfileRow {
   id: string
   full_name: string
   role: UserRole
-  comercial_id: string | null
+  manager_id: string | null
+  email: string | null
+  commission_percentage: number
 }
 
 export type UserProfileResult<T> =
@@ -49,7 +51,7 @@ export async function fetchOwnUserProfile(): Promise<UserProfileResult<UserProfi
 
   const { data, error } = await client
     .from("user_profiles")
-    .select("id, full_name, role, comercial_id")
+    .select("id, full_name, role, manager_id, email, commission_percentage")
     .eq("id", userData.user.id)
     .maybeSingle()
 
@@ -63,7 +65,9 @@ export async function fetchOwnUserProfile(): Promise<UserProfileResult<UserProfi
       id: data.id,
       full_name: data.full_name,
       role,
-      comercial_id: data.comercial_id,
+      manager_id: data.manager_id,
+      email: data.email,
+      commission_percentage: Number(data.commission_percentage ?? 0),
     },
   }
 }
@@ -87,6 +91,7 @@ export async function ensureOwnCustomerProfile(
     id: userData.user.id,
     full_name: fullName || userData.user.email || "",
     role: "customer",
+    email: userData.user.email,
   })
 
   if (error && !/duplicate|unique/i.test(error.message)) {
@@ -123,7 +128,7 @@ export async function resolveWorkspaceAfterAuth(
   if (!STAFF_ROLES.includes(row.role)) {
     const profile = profileFromCustomer({
       id: row.id,
-      email,
+      email: row.email || email,
       fullName: row.full_name || displayName,
     })
     return { ok: true, data: { profile, directory: [profile] } }
@@ -132,18 +137,22 @@ export async function resolveWorkspaceAfterAuth(
   const comerciales = await listErpComerciales()
   if (comerciales.ok === false) return comerciales
 
-  const directory = mergeErpRowsIntoProfiles(comerciales.data, [])
-  const self =
-    (row.comercial_id
-      ? directory.find((p) => p.id === row.comercial_id)
-      : undefined) ??
-    directory.find((p) => p.email.toLowerCase() === email.toLowerCase())
+  const directory = comerciales.data.map((item) =>
+    profileFromDirectoryRow({
+      id: item.id,
+      full_name: item.full_name,
+      role: item.role,
+      manager_id: item.manager_id,
+      email: item.email,
+      commission_percentage: item.commission_percentage,
+    })
+  )
+  const self = directory.find((p) => p.id === row.id)
 
   if (!self) {
     return {
       ok: false,
-      message:
-        "Tu usuario de staff no está vinculado a un comercial. Un superadmin debe asignarte el rol en Usuarios.",
+      message: "Tu perfil de staff no aparece en el directorio. Recarga o contacta a un superadmin.",
     }
   }
 

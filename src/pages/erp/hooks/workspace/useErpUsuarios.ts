@@ -1,18 +1,13 @@
 import { useState, useEffect, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import {
-  mergeErpRowsIntoProfiles,
   defaultPermissionsForRole,
   defaultCommissionForRole,
+  profileFromDirectoryRow,
   type Profile,
   type UserRole,
 } from '@/types/profile';
-import {
-  deleteErpComercial,
-  insertErpComercial,
-  listErpComerciales,
-  updateErpComercial,
-} from '@/lib/supabase/erp-comerciales';
+import { listErpComerciales, updateErpComercial } from '@/lib/supabase/erp-comerciales';
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 
 interface UseErpUsuariosParams {
@@ -29,8 +24,9 @@ export function useErpUsuarios({
   currentMenuTab,
 }: UseErpUsuariosParams) {
   const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<UserRole>('comercial');
-  const [newUserManager, setNewUserManager] = useState<string>('usr-2');
+  const [newUserManager, setNewUserManager] = useState<string>('');
   const [activeUserForSheet, setActiveUserForSheet] = useState<Profile | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
   const [userSearchText, setUserSearchText] = useState<string>('');
@@ -52,17 +48,28 @@ export function useErpUsuarios({
       setIsSyncingErpUsers(true);
       const [comerciales, accounts] = await Promise.all([listErpComerciales(), listAppUsers()]);
       if (!cancelled && comerciales.ok) {
-        setProfiles((prev) => mergeErpRowsIntoProfiles(comerciales.data, prev));
+        setProfiles(
+          comerciales.data.map((row) =>
+            profileFromDirectoryRow({
+              id: row.id,
+              full_name: row.full_name,
+              role: row.role,
+              manager_id: row.manager_id,
+              email: row.email,
+              commission_percentage: row.commission_percentage,
+            })
+          )
+        );
       } else if (!cancelled && comerciales.ok === false) {
         console.warn('[Usuarios] Supabase sync:', comerciales.message);
       }
       if (!cancelled) {
-        if (accounts.ok) {
-          setAppUsers(accounts.data);
-          setAppUsersError(null);
-        } else {
+        if (accounts.ok === false) {
           setAppUsers([]);
           setAppUsersError(accounts.message);
+        } else {
+          setAppUsers(accounts.data);
+          setAppUsersError(null);
         }
         setIsSyncingErpUsers(false);
       }
@@ -76,45 +83,67 @@ export function useErpUsuarios({
 
   const handleAddNewUser = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newUserName) return;
+    const email = newUserEmail.trim().toLowerCase();
+    if (!email) {
+      toast.error('Indica el email de una cuenta ya registrada.');
+      return;
+    }
     setIsCreatingUser(true);
 
-    const randomID = `usr-${profiles.length + 1}`;
-    const email = `${newUserName.toLowerCase().replace(/\s+/g, '')}@ener-erp.com`;
-    const managerId = newUserRole === 'comercial' ? newUserManager : null;
-
-    const insertResult = await insertErpComercial({
-      id: randomID,
-      full_name: newUserName,
-      role: newUserRole,
-      manager_id: managerId,
-      email,
-    });
-
-    if (insertResult.ok === false) {
+    const accounts = await listAppUsers();
+    if (accounts.ok === false) {
       setIsCreatingUser(false);
-      toast.error(insertResult.message);
+      toast.error(accounts.message);
       return;
     }
 
-    const newProfile: Profile = {
-      id: randomID,
-      fullName: newUserName,
+    const target = accounts.data.find((u) => u.email.toLowerCase() === email);
+    if (!target) {
+      setIsCreatingUser(false);
+      toast.error('Esa cuenta no existe. La persona debe registrarse antes de ser staff.');
+      return;
+    }
+
+    const managerId =
+      newUserRole === 'comercial'
+        ? newUserManager || profiles.find((p) => p.role === 'jefe_comercial')?.id || null
+        : null;
+
+    const result = await updateErpComercial(target.id, {
       role: newUserRole,
-      managerId,
-      commissionPercentage: defaultCommissionForRole(newUserRole),
-      permissions: defaultPermissionsForRole(newUserRole),
-      email,
+      manager_id: managerId,
+    });
+
+    if (result.ok === false) {
+      setIsCreatingUser(false);
+      toast.error(result.message);
+      return;
+    }
+
+    const promoted: Profile = {
+      id: result.data.id,
+      fullName: result.data.full_name,
+      role: result.data.role,
+      managerId: result.data.manager_id,
+      commissionPercentage: result.data.commission_percentage,
+      permissions: defaultPermissionsForRole(result.data.role),
+      email: result.data.email ?? email,
       status: 'activo',
     };
 
-    setProfiles([...profiles, newProfile]);
+    setProfiles((prev) => {
+      if (prev.some((p) => p.id === promoted.id)) {
+        return prev.map((p) => (p.id === promoted.id ? promoted : p));
+      }
+      return [...prev, promoted];
+    });
     setNewUserName('');
+    setNewUserEmail('');
     setIsCreatingUser(false);
     setIsCreateOpen(false);
-    toast.success(`Asesor ${newUserName} registrado en Supabase.`);
-    const accounts = await listAppUsers();
-    if (accounts.ok) setAppUsers(accounts.data);
+    toast.success(`${promoted.fullName} ahora es ${promoted.role}.`);
+    const refreshed = await listAppUsers();
+    if (refreshed.ok) setAppUsers(refreshed.data);
   };
 
   async function handleSaveUserRoleToSupabase(
@@ -135,46 +164,37 @@ export function useErpUsuarios({
     }
 
     const permissions = defaultPermissionsForRole(role);
+    const commissionPercentage = defaultCommissionForRole(role);
     setProfiles((prev) =>
       prev.map((p) =>
-        p.id === userId
-          ? {
-              ...p,
-              role,
-              managerId,
-              permissions,
-              commissionPercentage: defaultCommissionForRole(role),
-            }
-          : p
+        p.id === userId ? { ...p, role, managerId, permissions, commissionPercentage } : p
       )
     );
     setActiveUserForSheet((prev) =>
       prev && prev.id === userId
-        ? {
-            ...prev,
-            role,
-            managerId,
-            permissions,
-            commissionPercentage: defaultCommissionForRole(role),
-          }
+        ? { ...prev, role, managerId, permissions, commissionPercentage }
         : prev
     );
-    toast.success('Rol actualizado en Supabase');
+    toast.success('Rol actualizado');
+    const refreshed = await listAppUsers();
+    if (refreshed.ok) setAppUsers(refreshed.data);
   }
 
   async function handleDeleteUserFromSupabase(userId: string) {
-    const user = profiles.find((p) => p.id === userId);
-    if (!user) return;
-    if (!confirm(`¿Eliminar ${user.fullName} de erp_comerciales?`)) return;
+    const fromProfiles = profiles.find((p) => p.id === userId);
+    const fromApp = appUsers.find((u) => u.id === userId);
+    if (!fromProfiles && !fromApp) return;
+    const label = fromProfiles?.fullName ?? fromApp?.fullName ?? fromApp?.email ?? userId;
+    if (!confirm(`¿Quitar el acceso staff de ${label}? Seguirá existiendo como cliente.`)) return;
 
-    const result = await deleteErpComercial(userId);
+    const result = await updateErpComercial(userId, { role: 'customer', manager_id: null });
     if (result.ok === false) {
       toast.error(result.message);
       return;
     }
     setProfiles((prev) => prev.filter((p) => p.id !== userId));
     setActiveUserForSheet(null);
-    toast.success('Usuario eliminado de Supabase');
+    toast.success('Pasado a cliente');
     const accounts = await listAppUsers();
     if (accounts.ok) setAppUsers(accounts.data);
   }
@@ -204,6 +224,8 @@ export function useErpUsuarios({
   return {
     newUserName,
     setNewUserName,
+    newUserEmail,
+    setNewUserEmail,
     newUserRole,
     setNewUserRole,
     newUserManager,

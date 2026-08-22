@@ -179,7 +179,7 @@ export function UsuariosPage() {
                                 className="w-full md:w-auto px-4 py-2.5 bg-gradient-to-r from-blue-700 via-blue-500 to-amber-500 hover:from-blue-800 hover:to-amber-600 text-white rounded-xl text-xs font-extrabold cursor-pointer hover:opacity-95 flex items-center justify-center gap-2 shadow-md"
                               >
                                 <UserPlus className="w-4 h-4 text-white" />
-                                <span>Registrar Nuevo Asesor</span>
+                                <span>Promover a staff</span>
                               </button>
                               {isSyncingErpUsers && (
                                 <span className="text-[10px] font-mono text-brand-subtext">Sincronizando Supabase…</span>

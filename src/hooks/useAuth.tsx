@@ -14,15 +14,13 @@ import { useNavigate } from "react-router-dom"
 import {
   AUTH_USER_STORAGE_KEY,
   clearSupabaseSession,
-  DEFAULT_DEV_PASSWORD,
-  ensureSupabaseSession,
   getAuthSessionStatus,
   syncSupabaseSession,
 } from "@/lib/supabase/auth-session"
 import { resolveWorkspaceAfterAuth } from "@/lib/supabase/user-profiles"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
-import { SEED_PROFILES, isStaffRole, type Profile } from "@/types/profile"
+import { EMPTY_PROFILE, type Profile } from "@/types/profile"
 
 interface AuthContextValue {
   isLoggedIn: boolean
@@ -39,42 +37,11 @@ interface AuthContextValue {
   loginLoading: boolean
   loginError: string | null
   triggerLogin: (e: FormEvent) => Promise<void>
-  quickLoginAs: (profileId: string) => Promise<void>
   logout: () => Promise<void>
   applyLoginProfile: (profile: Profile) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
-
-function normalizeLoginEmail(raw: string): string {
-  let searchEmail = raw.toLowerCase().trim()
-
-  if (
-    searchEmail === "superadmin@enersave.com" ||
-    searchEmail === "superadmin@ener-erp.com"
-  ) {
-    searchEmail = "carlos@enersave.com"
-  } else if (
-    searchEmail === "jefecomercial@enersave.com" ||
-    searchEmail === "jefecomercial@ener-erp.com"
-  ) {
-    searchEmail = "elena@enersave.com"
-  } else if (
-    searchEmail === "comercial@enersave.com" ||
-    searchEmail === "comercial@ener-erp.com"
-  ) {
-    searchEmail = "ignacio@enersave.com"
-  }
-
-  return searchEmail
-}
-
-function readStoredProfileId(profiles: Profile[]): string | null {
-  if (typeof sessionStorage === "undefined") return null
-  const stored = sessionStorage.getItem(AUTH_USER_STORAGE_KEY)
-  if (!stored) return null
-  return profiles.some((p) => p.id === stored && p.status !== "suspendido") ? stored : null
-}
 
 function persistLoggedInProfile(profileId: string): void {
   if (typeof sessionStorage === "undefined") return
@@ -90,15 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [profiles, setProfiles] = useState<Profile[]>(SEED_PROFILES)
-  const [activeUserId, setActiveUserId] = useState("usr-1")
-  const [loginEmail, setLoginEmail] = useState("carlos@enersave.com")
-  const [loginPassword, setLoginPassword] = useState(DEFAULT_DEV_PASSWORD)
+  const [profiles, setProfiles] = useState<Profile[]>([])
+  const [activeUserId, setActiveUserId] = useState("")
+  const [loginEmail, setLoginEmail] = useState("")
+  const [loginPassword, setLoginPassword] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
 
   const activeUser = useMemo(
-    () => profiles.find((p) => p.id === activeUserId) ?? profiles[0],
+    () => profiles.find((p) => p.id === activeUserId) ?? EMPTY_PROFILE,
     [profiles, activeUserId]
   )
 
@@ -113,19 +80,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [navigate]
   )
 
-  const ensureSupabaseForProfile = useCallback(
-    async (profile: Profile, password: string): Promise<boolean> => {
-      if (!isSupabaseConfigured()) return true
-      const sessionResult = await syncSupabaseSession(profile.email, password)
-      if (sessionResult.ok === false) {
-        setLoginError(sessionResult.message)
-        return false
-      }
-      return true
-    },
-    []
-  )
-
   const restoreFromProfile = useCallback((profile: Profile, directory?: Profile[]) => {
     if (directory) setProfiles(directory)
     setActiveUserId(profile.id)
@@ -133,80 +87,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persistLoggedInProfile(profile.id)
   }, [])
 
-  const quickLoginAs = useCallback(
-    async (profileId: string) => {
-      setLoginLoading(true)
-      setLoginError(null)
-      const matches = profiles.find((p) => p.id === profileId)
-      if (!matches) {
-        setLoginLoading(false)
-        setLoginError("Perfil demo no encontrado.")
-        return
-      }
-      setLoginEmail(matches.email)
-      if (!(await ensureSupabaseForProfile(matches, DEFAULT_DEV_PASSWORD))) {
-        setLoginLoading(false)
-        return
-      }
-      applyLoginProfile(matches)
-      setLoginLoading(false)
-    },
-    [profiles, ensureSupabaseForProfile, applyLoginProfile]
-  )
-
   const triggerLogin = useCallback(
     async (e: FormEvent) => {
       e.preventDefault()
       setLoginLoading(true)
       setLoginError(null)
 
-      const searchEmail = normalizeLoginEmail(loginEmail)
+      const searchEmail = loginEmail.toLowerCase().trim()
 
-      if (isSupabaseConfigured()) {
-        const sessionResult = await syncSupabaseSession(searchEmail, loginPassword)
-        if (sessionResult.ok === false) {
-          setLoginLoading(false)
-          setLoginError(sessionResult.message)
-          return
-        }
-
-        const workspace = await resolveWorkspaceAfterAuth(searchEmail)
-        if (workspace.ok === false) {
-          await clearSupabaseSession()
-          setLoginLoading(false)
-          setLoginError(workspace.message)
-          return
-        }
-
-        applyLoginProfile(workspace.data.profile, workspace.data.directory)
+      if (!isSupabaseConfigured()) {
         setLoginLoading(false)
+        setLoginError("Supabase no configurado")
         return
       }
 
-      const matches = profiles.find((p) => p.email.toLowerCase() === searchEmail)
-      if (!matches) {
+      const sessionResult = await syncSupabaseSession(searchEmail, loginPassword)
+      if (sessionResult.ok === false) {
         setLoginLoading(false)
-        setLoginError("Credenciales incorrectas.")
-        return
-      }
-      if (matches.status === "suspendido") {
-        setLoginLoading(false)
-        setLoginError(
-          "La cuenta de este agente se encuentra suspendida temporalmente por administración."
-        )
+        setLoginError(sessionResult.message)
         return
       }
 
-      applyLoginProfile(matches)
+      const workspace = await resolveWorkspaceAfterAuth(searchEmail)
+      if (workspace.ok === false) {
+        await clearSupabaseSession()
+        setLoginLoading(false)
+        setLoginError(workspace.message)
+        return
+      }
+
+      applyLoginProfile(workspace.data.profile, workspace.data.directory)
       setLoginLoading(false)
     },
-    [loginEmail, loginPassword, profiles, applyLoginProfile]
+    [loginEmail, loginPassword, applyLoginProfile]
   )
 
   const logout = useCallback(async () => {
     await clearSupabaseSession()
     clearPersistedProfile()
     setIsLoggedIn(false)
+    setProfiles([])
+    setActiveUserId("")
     navigate(ROUTES.login)
   }, [navigate])
 
@@ -214,40 +135,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false
 
     async function bootstrapAuth() {
-      const storedId = readStoredProfileId(profiles)
-      const storedProfile = storedId
-        ? profiles.find((p) => p.id === storedId)
-        : undefined
-
-      if (isSupabaseConfigured()) {
-        const status = await getAuthSessionStatus()
-        if (!cancelled && status.ok) {
-          const workspace = await resolveWorkspaceAfterAuth(status.email)
-          if (!cancelled && workspace.ok) {
-            restoreFromProfile(workspace.data.profile, workspace.data.directory)
-            setIsBootstrapping(false)
-            return
-          }
-        }
-
-        if (!cancelled && storedProfile && isStaffRole(storedProfile.role)) {
-          const synced = await ensureSupabaseSession(
-            storedProfile.email,
-            DEFAULT_DEV_PASSWORD
-          )
-          if (synced.ok) {
-            const workspace = await resolveWorkspaceAfterAuth(storedProfile.email)
-            if (workspace.ok) {
-              restoreFromProfile(workspace.data.profile, workspace.data.directory)
-              setIsBootstrapping(false)
-              return
-            }
-          }
-        }
-      } else if (!cancelled && storedProfile) {
-        restoreFromProfile(storedProfile)
-        setIsBootstrapping(false)
+      if (!isSupabaseConfigured()) {
+        if (!cancelled) setIsBootstrapping(false)
         return
+      }
+
+      const status = await getAuthSessionStatus()
+      if (!cancelled && status.ok) {
+        const workspace = await resolveWorkspaceAfterAuth(status.email)
+        if (!cancelled && workspace.ok) {
+          restoreFromProfile(workspace.data.profile, workspace.data.directory)
+          setIsBootstrapping(false)
+          return
+        }
       }
 
       if (!cancelled) setIsBootstrapping(false)
@@ -258,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [profiles, restoreFromProfile])
+  }, [restoreFromProfile])
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return
@@ -272,6 +172,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === "SIGNED_OUT") {
         clearPersistedProfile()
         setIsLoggedIn(false)
+        setProfiles([])
+        setActiveUserId("")
       }
     })
 
@@ -294,7 +196,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginLoading,
       loginError,
       triggerLogin,
-      quickLoginAs,
       logout,
       applyLoginProfile,
     }),
@@ -309,7 +210,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginLoading,
       loginError,
       triggerLogin,
-      quickLoginAs,
       logout,
       applyLoginProfile,
     ]

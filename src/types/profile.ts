@@ -1,11 +1,11 @@
-import type { ErpComercialRole } from "@/lib/supabase/erp-comerciales"
-
 export type UserRole =
   | "superadmin"
   | "jefe_comercial"
   | "comercial"
   | "tramitacion"
   | "customer"
+
+export type StaffRole = Exclude<UserRole, "customer">
 
 export interface Profile {
   id: string
@@ -89,40 +89,25 @@ export function profileFromCustomer(input: {
   }
 }
 
-export function mergeErpRowsIntoProfiles(
-  rows: Array<{
-    id: string
-    full_name: string
-    role: ErpComercialRole
-    manager_id: string | null
-    email: string | null
-    commission_percentage?: number
-  }>,
-  current: Profile[]
-): Profile[] {
-  const byId = new Map(current.map((p) => [p.id, p]))
-  const remoteIds = new Set(rows.map((r) => r.id))
-
-  const fromSupabase = rows.map((row) => {
-    const existing = byId.get(row.id)
-    const role = row.role as UserRole
-    return {
-      id: row.id,
-      fullName: row.full_name,
-      role,
-      managerId: row.manager_id,
-      email: row.email ?? existing?.email ?? "",
-      status: existing?.status ?? "activo",
-      commissionPercentage:
-        row.commission_percentage ??
-        existing?.commissionPercentage ??
-        defaultCommissionForRole(role),
-      permissions: existing?.permissions ?? defaultPermissionsForRole(role),
-    }
-  })
-
-  const localOnly = current.filter((p) => !remoteIds.has(p.id))
-  return [...fromSupabase, ...localOnly]
+export function profileFromDirectoryRow(row: {
+  id: string
+  full_name: string
+  role: UserRole
+  manager_id: string | null
+  email: string | null
+  commission_percentage?: number
+}): Profile {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    role: row.role,
+    managerId: row.manager_id,
+    email: row.email ?? "",
+    status: "activo",
+    commissionPercentage:
+      row.commission_percentage ?? defaultCommissionForRole(row.role),
+    permissions: defaultPermissionsForRole(row.role),
+  }
 }
 
 export function getSortedProfiles(rawProfiles: Profile[]): Profile[] {
@@ -146,120 +131,16 @@ export function getSortedProfiles(rawProfiles: Profile[]): Profile[] {
   return result
 }
 
-export const SEED_PROFILES: Profile[] = [
-  {
-    id: "usr-carlos",
-    fullName: "Carlos Altamirano",
-    role: "superadmin",
-    managerId: null,
-    permissions: {
-      contractsView: true,
-      comparatorAccess: true,
-      quickSettlement: true,
-      exportDatabase: true,
-      viewRetrocommissions: true,
-    },
-    email: "andresaltamirasanz@gmail.com",
-    status: "activo",
-    commissionPercentage: 100,
-  },
-  {
-    id: "usr-1",
-    fullName: "Carlos De la Fuente",
-    role: "superadmin",
-    managerId: null,
-    permissions: {
-      contractsView: true,
-      comparatorAccess: true,
-      quickSettlement: true,
-      exportDatabase: true,
-      viewRetrocommissions: true,
-    },
-    email: "carlos@enersave.com",
-    status: "activo",
-    commissionPercentage: 100,
-  },
-  {
-    id: "usr-2",
-    fullName: "Elena Garrido",
-    role: "jefe_comercial",
-    managerId: "usr-1",
-    permissions: {
-      contractsView: true,
-      comparatorAccess: true,
-      quickSettlement: true,
-      exportDatabase: false,
-      viewRetrocommissions: true,
-    },
-    email: "elena@enersave.com",
-    status: "activo",
-    commissionPercentage: 85,
-  },
-  {
-    id: "usr-3",
-    fullName: "Ignacio Ortiz",
-    role: "comercial",
-    managerId: "usr-2",
-    permissions: {
-      contractsView: true,
-      comparatorAccess: true,
-      quickSettlement: false,
-      exportDatabase: false,
-      viewRetrocommissions: false,
-    },
-    email: "ignacio@enersave.com",
-    status: "activo",
-    commissionPercentage: 60,
-  },
-  {
-    id: "usr-4",
-    fullName: "Marta Rivas",
-    role: "comercial",
-    managerId: "usr-2",
-    permissions: {
-      contractsView: true,
-      comparatorAccess: true,
-      quickSettlement: false,
-      exportDatabase: false,
-      viewRetrocommissions: false,
-    },
-    email: "marta@enersave.com",
-    status: "activo",
-    commissionPercentage: 70,
-  },
-  {
-    id: "usr-5",
-    fullName: "Santiago Cano",
-    role: "comercial",
-    managerId: null,
-    permissions: {
-      contractsView: true,
-      comparatorAccess: true,
-      quickSettlement: false,
-      exportDatabase: false,
-      viewRetrocommissions: false,
-    },
-    email: "santiago@enersave.com",
-    status: "suspendido",
-    commissionPercentage: 65,
-  },
-  {
-    id: "usr-6",
-    fullName: "Laura Tramitación",
-    role: "tramitacion",
-    managerId: "usr-1",
-    permissions: {
-      contractsView: true,
-      comparatorAccess: false,
-      quickSettlement: false,
-      exportDatabase: true,
-      viewRetrocommissions: false,
-    },
-    email: "tramitacion@enersave.com",
-    status: "activo",
-    commissionPercentage: 0,
-  },
-]
+export const EMPTY_PROFILE: Profile = {
+  id: "",
+  fullName: "",
+  role: "customer",
+  managerId: null,
+  email: "",
+  status: "activo",
+  commissionPercentage: 0,
+  permissions: defaultPermissionsForRole("customer"),
+}
 
 export function defaultTabForRole(role: UserRole): string {
   if (role === "customer") return "Dashboard"

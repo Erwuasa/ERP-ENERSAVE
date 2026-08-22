@@ -427,7 +427,7 @@ async function fetchComercialCommissionPercentage(comercialId: string): Promise<
   if (!client) return DEFAULT_COMMISSION_PERCENTAGE
 
   const { data, error } = await client
-    .from("erp_comerciales")
+    .from("user_profiles")
     .select("commission_percentage")
     .eq("id", comercialId)
     .maybeSingle()
