@@ -1,8 +1,12 @@
 import { Lock, Search, Filter, UserPlus, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner';
 import { useErpWorkspaceContext } from '@/pages/erp/providers/ErpWorkspaceProvider';
 import type { AppUser } from '@/lib/supabase/app-users';
-import type { UserRole } from '@/types/profile';
+import {
+  defaultCommissionForRole,
+  defaultPermissionsForRole,
+  type Profile,
+  type UserRole,
+} from '@/types/profile';
 
 function roleBadgeClass(role: UserRole): string {
   if (role === 'superadmin') return 'bg-rose-500/10 text-rose-400 border border-rose-500/25';
@@ -58,19 +62,24 @@ export function UsuariosPage() {
 
   const directory = appUsers.length > 0 ? appUsers : [];
 
+  function profileFromAppUser(user: AppUser): Profile {
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      role: user.role,
+      managerId: user.managerId,
+      email: user.email,
+      status: 'activo',
+      commissionPercentage: defaultCommissionForRole(user.role),
+      permissions: defaultPermissionsForRole(user.role),
+    };
+  }
+
   function openStaffSheet(user: AppUser) {
-    if (user.role === 'customer') {
-      toast.info('Cuenta cliente: no tiene ficha de asesor.');
-      return;
-    }
     const profile =
-      profiles.find((p) => p.id === user.comercialId) ??
       profiles.find((p) => p.id === user.id) ??
-      profiles.find((p) => p.email.toLowerCase() === user.email.toLowerCase());
-    if (!profile) {
-      toast.info('Este asesor aún no está en el organigrama editable.');
-      return;
-    }
+      profiles.find((p) => p.email.toLowerCase() === user.email.toLowerCase()) ??
+      profileFromAppUser(user);
     setActiveUserForSheet(profile);
   }
 
@@ -294,7 +303,7 @@ export function UsuariosPage() {
                                                 }}
                                                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-surface hover:bg-brand-panel border border-brand-border rounded-lg text-[10px] font-mono font-bold text-brand-subtext hover:text-brand-text group-hover:border-blue-500/30 dark:group-hover:border-cyan-400/30 transition-colors duration-200 cursor-pointer"
                                               >
-                                                <span>{p.role === 'customer' ? 'Ver' : 'Ver Permisos'}</span>
+                                                <span>{p.role === 'customer' ? 'Asignar rol' : 'Ver Permisos'}</span>
                                                 <ChevronRight className="w-3.5 h-3.5 text-brand-subtext transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600 dark:group-hover:text-cyan-400" />
                                               </button>
                                             </td>

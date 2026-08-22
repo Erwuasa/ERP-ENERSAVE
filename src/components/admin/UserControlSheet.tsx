@@ -133,13 +133,16 @@ export function UserControlSheet({
               onChange={(e) => handleRoleChange(e.target.value as UserControlRole)}
               className="w-full h-9 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text font-mono font-semibold disabled:opacity-50"
             >
+              <option value="customer">customer</option>
               <option value="comercial">comercial</option>
               <option value="jefe_comercial">jefe_comercial</option>
               <option value="tramitacion">tramitacion</option>
               <option value="superadmin">superadmin</option>
             </select>
             <p className="text-[10px] text-brand-subtext">
-              Al cambiar el rol se guarda en <span className="font-mono">user_profiles</span> y afecta RLS.
+              {user.role === "customer"
+                ? "Cuenta de cliente. Elige un rol de staff para darle acceso al ERP."
+                : "Al cambiar el rol se guarda en user_profiles y afecta RLS."}
             </p>
           </div>
 

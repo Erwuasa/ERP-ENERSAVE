@@ -165,15 +165,25 @@ export function useErpUsuarios({
 
     const permissions = defaultPermissionsForRole(role);
     const commissionPercentage = defaultCommissionForRole(role);
-    setProfiles((prev) =>
-      prev.map((p) =>
-        p.id === userId ? { ...p, role, managerId, permissions, commissionPercentage } : p
-      )
-    );
+    const patch = { role, managerId, permissions, commissionPercentage };
+
+    setProfiles((prev) => {
+      if (role === 'customer') return prev.filter((p) => p.id !== userId);
+      const existing = prev.find((p) => p.id === userId);
+      if (existing) return prev.map((p) => (p.id === userId ? { ...p, ...patch } : p));
+      return [
+        ...prev,
+        {
+          id: result.data.id,
+          fullName: result.data.full_name,
+          email: result.data.email ?? '',
+          status: 'activo' as const,
+          ...patch,
+        },
+      ];
+    });
     setActiveUserForSheet((prev) =>
-      prev && prev.id === userId
-        ? { ...prev, role, managerId, permissions, commissionPercentage }
-        : prev
+      prev && prev.id === userId ? { ...prev, ...patch } : prev
     );
     toast.success('Rol actualizado');
     const refreshed = await listAppUsers();
