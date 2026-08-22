@@ -1,6 +1,11 @@
 import type { ErpComercialRole } from "@/lib/supabase/erp-comerciales"
 
-export type UserRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+export type UserRole =
+  | "superadmin"
+  | "jefe_comercial"
+  | "comercial"
+  | "tramitacion"
+  | "customer"
 
 export interface Profile {
   id: string
@@ -28,7 +33,20 @@ export function mapVentasRole(
   return "comercial"
 }
 
+export function isStaffRole(role: UserRole): boolean {
+  return role !== "customer"
+}
+
 export function defaultPermissionsForRole(role: UserRole): Profile["permissions"] {
+  if (role === "customer") {
+    return {
+      contractsView: false,
+      comparatorAccess: false,
+      quickSettlement: false,
+      exportDatabase: false,
+      viewRetrocommissions: false,
+    }
+  }
   if (role === "tramitacion") {
     return {
       contractsView: true,
@@ -48,9 +66,27 @@ export function defaultPermissionsForRole(role: UserRole): Profile["permissions"
 }
 
 export function defaultCommissionForRole(role: UserRole): number {
+  if (role === "customer") return 0
   if (role === "superadmin") return 100
   if (role === "jefe_comercial") return 85
   return 60
+}
+
+export function profileFromCustomer(input: {
+  id: string
+  email: string
+  fullName: string
+}): Profile {
+  return {
+    id: input.id,
+    fullName: input.fullName,
+    role: "customer",
+    managerId: null,
+    email: input.email,
+    status: "activo",
+    commissionPercentage: 0,
+    permissions: defaultPermissionsForRole("customer"),
+  }
 }
 
 export function mergeErpRowsIntoProfiles(
@@ -226,6 +262,7 @@ export const SEED_PROFILES: Profile[] = [
 ]
 
 export function defaultTabForRole(role: UserRole): string {
+  if (role === "customer") return "Dashboard"
   if (role === "superadmin") return "Dashboard"
   if (role === "jefe_comercial") return "Mi Equipo"
   if (role === "comercial") return "Dashboard"

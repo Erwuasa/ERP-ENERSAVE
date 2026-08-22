@@ -19,9 +19,10 @@ import {
   getAuthSessionStatus,
   syncSupabaseSession,
 } from "@/lib/supabase/auth-session"
+import { resolveWorkspaceAfterAuth } from "@/lib/supabase/user-profiles"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
-import { SEED_PROFILES, type Profile } from "@/types/profile"
+import { SEED_PROFILES, isStaffRole, type Profile } from "@/types/profile"
 
 interface AuthContextValue {
   isLoggedIn: boolean
@@ -102,7 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 
   const applyLoginProfile = useCallback(
-    (profile: Profile) => {
+    (profile: Profile, directory?: Profile[]) => {
+      if (directory) setProfiles(directory)
       setActiveUserId(profile.id)
       setIsLoggedIn(true)
       persistLoggedInProfile(profile.id)
@@ -114,15 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ensureSupabaseForProfile = useCallback(
     async (profile: Profile, password: string): Promise<boolean> => {
       if (!isSupabaseConfigured()) return true
-      const sessionResult = await syncSupabaseSession(profile.email, password, {
-        comercialId: profile.id,
-        role: profile.role,
-        fullName: profile.fullName,
-      })
+      const sessionResult = await syncSupabaseSession(profile.email, password)
       if (sessionResult.ok === false) {
-        setLoginError(
-          `No se pudo conectar con Supabase: ${sessionResult.message}. Crea el usuario en Auth con el mismo email y contraseña, o desactiva «Confirm email» en Supabase.`
-        )
+        setLoginError(sessionResult.message)
         return false
       }
       return true
@@ -130,7 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  const restoreFromProfile = useCallback((profile: Profile) => {
+  const restoreFromProfile = useCallback((profile: Profile, directory?: Profile[]) => {
+    if (directory) setProfiles(directory)
     setActiveUserId(profile.id)
     setIsLoggedIn(true)
     persistLoggedInProfile(profile.id)
@@ -164,16 +161,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoginError(null)
 
       const searchEmail = normalizeLoginEmail(loginEmail)
-      const matches = profiles.find((p) => p.email.toLowerCase() === searchEmail)
 
-      if (!matches) {
+      if (isSupabaseConfigured()) {
+        const sessionResult = await syncSupabaseSession(searchEmail, loginPassword)
+        if (sessionResult.ok === false) {
+          setLoginLoading(false)
+          setLoginError(sessionResult.message)
+          return
+        }
+
+        const workspace = await resolveWorkspaceAfterAuth(searchEmail)
+        if (workspace.ok === false) {
+          await clearSupabaseSession()
+          setLoginLoading(false)
+          setLoginError(workspace.message)
+          return
+        }
+
+        applyLoginProfile(workspace.data.profile, workspace.data.directory)
         setLoginLoading(false)
-        setLoginError(
-          "Credenciales incorrectas: Correo no registrado en el servidor corporativo de ENERSAVE."
-        )
         return
       }
 
+      const matches = profiles.find((p) => p.email.toLowerCase() === searchEmail)
+      if (!matches) {
+        setLoginLoading(false)
+        setLoginError("Credenciales incorrectas.")
+        return
+      }
       if (matches.status === "suspendido") {
         setLoginLoading(false)
         setLoginError(
@@ -182,17 +197,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      if (isSupabaseConfigured()) {
-        if (!(await ensureSupabaseForProfile(matches, loginPassword))) {
-          setLoginLoading(false)
-          return
-        }
-      }
-
       applyLoginProfile(matches)
       setLoginLoading(false)
     },
-    [loginEmail, loginPassword, profiles, ensureSupabaseForProfile, applyLoginProfile]
+    [loginEmail, loginPassword, profiles, applyLoginProfile]
   )
 
   const logout = useCallback(async () => {
@@ -214,30 +222,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isSupabaseConfigured()) {
         const status = await getAuthSessionStatus()
         if (!cancelled && status.ok) {
-          const matches = profiles.find(
-            (p) => p.email.toLowerCase() === status.email.toLowerCase()
-          )
-          if (matches && matches.status !== "suspendido") {
-            restoreFromProfile(matches)
+          const workspace = await resolveWorkspaceAfterAuth(status.email)
+          if (!cancelled && workspace.ok) {
+            restoreFromProfile(workspace.data.profile, workspace.data.directory)
             setIsBootstrapping(false)
             return
           }
         }
 
-        if (!cancelled && storedProfile) {
+        if (!cancelled && storedProfile && isStaffRole(storedProfile.role)) {
           const synced = await ensureSupabaseSession(
             storedProfile.email,
-            DEFAULT_DEV_PASSWORD,
-            {
-              comercialId: storedProfile.id,
-              role: storedProfile.role,
-              fullName: storedProfile.fullName,
-            }
+            DEFAULT_DEV_PASSWORD
           )
           if (synced.ok) {
-            restoreFromProfile(storedProfile)
-            setIsBootstrapping(false)
-            return
+            const workspace = await resolveWorkspaceAfterAuth(storedProfile.email)
+            if (workspace.ok) {
+              restoreFromProfile(workspace.data.profile, workspace.data.directory)
+              setIsBootstrapping(false)
+              return
+            }
           }
         }
       } else if (!cancelled && storedProfile) {

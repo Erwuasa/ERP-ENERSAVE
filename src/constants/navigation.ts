@@ -87,6 +87,7 @@ export function menuTabToSegment(module: AppModule, tab: string): string {
 
 /** Ruta inicial según rol del usuario autenticado */
 export function getDefaultAppPath(role: UserRole): string {
+  if (role === "customer") return "/customer"
   return menuTabToPath("erp", defaultTabForRole(role))
 }
 
@@ -135,6 +136,10 @@ export const VENTAS_TABS: readonly VentasTabId[] = [
 export const ROUTES = {
   login: "/login",
   register: "/register",
+  customer: {
+    root: "/customer",
+    dashboard: "/customer",
+  },
   erp: {
     root: "/erp",
     dashboard: "/erp/dashboard",

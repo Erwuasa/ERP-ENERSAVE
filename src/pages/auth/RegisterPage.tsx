@@ -94,7 +94,7 @@ export function RegisterPage() {
             </p>
           </div>
           <p className="text-xs text-brand-subtext leading-relaxed">
-            Un superadmin revisará tu solicitud y te dará acceso al equipo comercial.
+            Un administrador puede cambiarte después a comercial, jefe o superadmin.
           </p>
         </div>
 
@@ -111,8 +111,8 @@ export function RegisterPage() {
           <div className="space-y-4">
             <div className="p-3.5 rounded-xl bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20">
               <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-normal font-medium">
-                Cuenta registrada. Si la confirmación de email está activa, revisa tu bandeja. Cuando
-                un administrador te active en el ERP, podrás iniciar sesión.
+                Cuenta registrada. Confirma el email si te lo pide y entra: empezarás como
+                cliente (facturas y cotizaciones). El acceso de comercial lo asigna un admin.
               </p>
             </div>
             <Link

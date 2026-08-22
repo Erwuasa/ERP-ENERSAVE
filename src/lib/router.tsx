@@ -10,6 +10,7 @@ import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
 import { ROUTES } from "@/constants/navigation"
 import { LoginPage } from "@/pages/auth/LoginPage"
 import { RegisterPage } from "@/pages/auth/RegisterPage"
+import { CustomerDashboardPage } from "@/pages/customer/CustomerDashboardPage"
 import { ErpWorkspaceShell } from "@/pages/erp/ErpWorkspace"
 import { IncidenciasProvider } from "@/pages/erp/incidencias/IncidenciasProvider"
 import { ErpWorkspaceProvider } from "@/pages/erp/providers/ErpWorkspaceProvider"
@@ -43,7 +44,7 @@ function ProtectedWorkspaceLayout() {
     activeUser.role === "superadmin" || activeUser.role === "tramitacion"
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute area="staff">
       <IncidenciasProvider teamMemberIds={teamMemberIds} isErpOpsAdmin={isErpOpsAdmin}>
         <ErpWorkspaceProvider>
           <Suspense fallback={<WorkspaceFallback />}>
@@ -72,6 +73,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute>
             <WorkspaceIndexRedirect />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: ROUTES.customer.root,
+        element: (
+          <ProtectedRoute area="customer">
+            <CustomerDashboardPage />
           </ProtectedRoute>
         ),
       },

@@ -3,6 +3,7 @@ import type { Prospecto } from "../ventas/types"
 import type { WebLead } from "../ventas/web-leads"
 import { mapSupabaseError, requireSupabase, type VentasResult } from "./ventas-shared"
 import type { ProspectoRow } from "./ventas-types"
+import { signFacturaPaths } from "./facturas-storage"
 
 interface WebLeadRow {
   id: string
@@ -87,7 +88,14 @@ export async function listWebLeadsInbox(): Promise<VentasResult<WebLead[]>> {
     .order("created_at", { ascending: false })
 
   if (error) return mapSupabaseError(error)
-  return { ok: true, data: (data as WebLeadRow[]).map(mapRow) }
+  const rows = (data as WebLeadRow[]).map(mapRow)
+  const signed = await Promise.all(
+    rows.map(async (lead) => ({
+      ...lead,
+      facturasUrls: await signFacturaPaths(client, lead.facturasUrls),
+    }))
+  )
+  return { ok: true, data: signed }
 }
 
 export async function assignWebLead(
