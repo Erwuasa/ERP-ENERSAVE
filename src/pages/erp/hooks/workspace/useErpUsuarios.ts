@@ -13,6 +13,7 @@ import {
   listErpComerciales,
   updateErpComercial,
 } from '@/lib/supabase/erp-comerciales';
+import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 
 interface UseErpUsuariosParams {
   profiles: Profile[];
@@ -38,6 +39,8 @@ export function useErpUsuarios({
   const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
   const [isSavingUserSheet, setIsSavingUserSheet] = useState<boolean>(false);
   const [isSyncingErpUsers, setIsSyncingErpUsers] = useState<boolean>(false);
+  const [appUsers, setAppUsers] = useState<AppUser[]>([]);
+  const [appUsersError, setAppUsersError] = useState<string | null>(null);
 
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
 
@@ -47,16 +50,25 @@ export function useErpUsuarios({
     let cancelled = false;
     async function loadErpUsers() {
       setIsSyncingErpUsers(true);
-      const result = await listErpComerciales();
-      if (!cancelled && result.ok) {
-        setProfiles((prev) => mergeErpRowsIntoProfiles(result.data, prev));
-      } else if (!cancelled && result.ok === false) {
-        console.warn('[Usuarios] Supabase sync:', result.message);
+      const [comerciales, accounts] = await Promise.all([listErpComerciales(), listAppUsers()]);
+      if (!cancelled && comerciales.ok) {
+        setProfiles((prev) => mergeErpRowsIntoProfiles(comerciales.data, prev));
+      } else if (!cancelled && comerciales.ok === false) {
+        console.warn('[Usuarios] Supabase sync:', comerciales.message);
       }
-      if (!cancelled) setIsSyncingErpUsers(false);
+      if (!cancelled) {
+        if (accounts.ok) {
+          setAppUsers(accounts.data);
+          setAppUsersError(null);
+        } else {
+          setAppUsers([]);
+          setAppUsersError(accounts.message);
+        }
+        setIsSyncingErpUsers(false);
+      }
     }
 
-    loadErpUsers();
+    void loadErpUsers();
     return () => {
       cancelled = true;
     };
@@ -101,6 +113,8 @@ export function useErpUsuarios({
     setIsCreatingUser(false);
     setIsCreateOpen(false);
     toast.success(`Asesor ${newUserName} registrado en Supabase.`);
+    const accounts = await listAppUsers();
+    if (accounts.ok) setAppUsers(accounts.data);
   };
 
   async function handleSaveUserRoleToSupabase(
@@ -161,6 +175,8 @@ export function useErpUsuarios({
     setProfiles((prev) => prev.filter((p) => p.id !== userId));
     setActiveUserForSheet(null);
     toast.success('Usuario eliminado de Supabase');
+    const accounts = await listAppUsers();
+    if (accounts.ok) setAppUsers(accounts.data);
   }
 
   const togglePermission = (userId: string, permKey: keyof Profile['permissions']) => {
@@ -205,6 +221,8 @@ export function useErpUsuarios({
     isCreatingUser,
     isSavingUserSheet,
     isSyncingErpUsers,
+    appUsers,
+    appUsersError,
     handleAddNewUser,
     handleSaveUserRoleToSupabase,
     handleDeleteUserFromSupabase,
