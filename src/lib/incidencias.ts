@@ -25,6 +25,7 @@ export type IncidenciaTipo =
   | "Error de CUPS"
   | "Reclamación Distribuidora"
   | "Incidencia Cartera"
+  | "Riesgo de Seguridad"
 
 export interface IncidenciaTicket {
   id: string

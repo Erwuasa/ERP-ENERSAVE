@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from "react"
-import { ImageIcon, Upload } from "lucide-react"
+import { FileText, ImageIcon, Upload } from "lucide-react"
 
 export interface FileDropZoneProps {
   onFiles: (files: File[]) => void | Promise<void>
@@ -9,6 +9,7 @@ export interface FileDropZoneProps {
   compact?: boolean
   minimal?: boolean
   minimalWide?: boolean
+  comparadorLayout?: boolean
   label?: string
   hint?: string
   className?: string
@@ -40,6 +41,7 @@ export function FileDropZone({
   compact = false,
   minimal = false,
   minimalWide = false,
+  comparadorLayout = false,
   label,
   hint,
   className = "",
@@ -114,10 +116,16 @@ export function FileDropZone({
   const active = dragActive || hovered || focused
   const glow =
     dragActive
-      ? "border-cyan-400 bg-cyan-500/12 shadow-[0_0_24px_rgba(34,211,238,0.45)] ring-2 ring-cyan-400/40 scale-[1.01]"
+      ? comparadorLayout
+        ? "border-blue-400 bg-blue-500/8 shadow-[0_0_24px_rgba(59,130,246,0.25)] ring-2 ring-blue-400/30"
+        : "border-cyan-400 bg-cyan-500/12 shadow-[0_0_24px_rgba(34,211,238,0.45)] ring-2 ring-cyan-400/40 scale-[1.01]"
       : active
-        ? "border-cyan-500/70 bg-cyan-500/8 shadow-[0_0_18px_rgba(34,211,238,0.28)] ring-1 ring-cyan-500/30"
-        : "border-brand-border/70 bg-brand-bg/40 hover:border-cyan-500/55 hover:bg-cyan-500/5 hover:shadow-[0_0_14px_rgba(34,211,238,0.18)]"
+        ? comparadorLayout
+          ? "border-blue-500/60 bg-blue-500/5 shadow-[0_0_16px_rgba(59,130,246,0.15)] ring-1 ring-blue-500/25"
+          : "border-cyan-500/70 bg-cyan-500/8 shadow-[0_0_18px_rgba(34,211,238,0.28)] ring-1 ring-cyan-500/30"
+        : comparadorLayout
+          ? "border-brand-border/80 bg-brand-bg/30 hover:border-blue-500/50 hover:bg-blue-500/5"
+          : "border-brand-border/70 bg-brand-bg/40 hover:border-cyan-500/55 hover:bg-cyan-500/5 hover:shadow-[0_0_14px_rgba(34,211,238,0.18)]"
 
   const defaultLabel = minimal
     ? "Adjuntar archivo"
@@ -128,15 +136,20 @@ export function FileDropZone({
     ? "Clic · Ctrl+V · Shift+V"
     : "Clic para buscar · Ctrl+V o Shift+V para pegar desde portapapeles"
 
-  const showText = !minimal && !minimalWide
+  const showText = !minimal && !minimalWide && !comparadorLayout
   const isMinimalStyle = minimal || minimalWide
+
+  const comparadorTitle = label ?? (disabled ? "Procesando factura…" : "Suelta la factura aquí")
+  const comparadorHint =
+    hint ??
+    "Un PDF o hasta 3 fotos de la misma factura. La IA rellena el suministro mientras lees lo que extrae."
 
   return (
     <div
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
-      aria-label={label ?? defaultLabel}
+      aria-label={comparadorLayout ? comparadorTitle : label ?? defaultLabel}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -149,10 +162,9 @@ export function FileDropZone({
       onBlur={() => setFocused(false)}
       onClick={() => !disabled && inputRef.current?.click()}
       className={`
-        relative border-2 border-dashed rounded-xl text-center cursor-pointer
-        transition-all duration-200 outline-none
-        ${minimalWide ? "w-full p-1.5 rounded-lg border" : minimal ? "inline-flex p-1 rounded-lg border w-9" : compact ? "p-2.5" : "p-5"}
-        ${isMinimalStyle ? "" : "rounded-xl"}
+        relative border-2 border-dashed text-center cursor-pointer
+        transition-all duration-200 outline-none w-full
+        ${comparadorLayout ? "rounded-2xl p-8 min-h-[148px]" : minimalWide ? "rounded-lg border p-1.5" : minimal ? "inline-flex p-1 rounded-lg border w-9" : compact ? "p-2.5 rounded-xl" : "p-5 rounded-xl"}
         ${disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}
         ${glow}
         ${className}
@@ -173,40 +185,61 @@ export function FileDropZone({
       />
 
       <div
-        className={`flex flex-col items-center justify-center pointer-events-none ${
-          minimalWide
-            ? "min-h-[32px] gap-0 w-full"
-            : minimal
-              ? "min-h-[28px] gap-0"
-              : compact
-                ? "gap-1.5 min-h-[52px]"
-                : "gap-1.5 min-h-[100px]"
+        className={`flex flex-col items-center justify-center pointer-events-none w-full ${
+          comparadorLayout
+            ? "gap-3 min-h-[100px]"
+            : minimalWide
+              ? "min-h-[32px] gap-0 w-full"
+              : minimal
+                ? "min-h-[28px] gap-0"
+                : compact
+                  ? "gap-1.5 min-h-[52px]"
+                  : "gap-1.5 min-h-[100px]"
         }`}
       >
-        {icon ?? (
-          minimalWide || minimal ? (
-            <ImageIcon className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
-          ) : compact ? (
-            <ImageIcon className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
-          ) : (
-            <Upload
-              className={`w-8 h-8 text-cyan-500 dark:text-cyan-400 transition-transform ${
-                active ? "scale-110" : ""
-              }`}
-            />
-          )
-        )}
-        {showText && (
+        {comparadorLayout ? (
           <>
-            <span
-              className={`font-semibold text-brand-text ${compact ? "text-[10px]" : "text-xs"}`}
-            >
-              {label ?? defaultLabel}
-            </span>
-            {!minimal && (
-              <span className="text-[9px] font-mono uppercase text-brand-subtext tracking-wide">
-                {hint ?? defaultHint}
+            <p className="text-sm font-semibold text-brand-text">{comparadorTitle}</p>
+            <p className="text-xs text-brand-subtext max-w-md leading-relaxed">{comparadorHint}</p>
+            <div className="flex flex-wrap items-center justify-center gap-4 pt-1 text-[11px] font-mono text-brand-subtext">
+              <span className="inline-flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5" />
+                PDF
               </span>
+              <span className="inline-flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5" />
+                JPG · PNG · WebP
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            {icon ?? (
+              minimalWide || minimal ? (
+                <ImageIcon className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" />
+              ) : compact ? (
+                <ImageIcon className="w-4 h-4 text-cyan-500 dark:text-cyan-400" />
+              ) : (
+                <Upload
+                  className={`w-8 h-8 text-cyan-500 dark:text-cyan-400 transition-transform ${
+                    active ? "scale-110" : ""
+                  }`}
+                />
+              )
+            )}
+            {showText && (
+              <>
+                <span
+                  className={`font-semibold text-brand-text ${compact ? "text-[10px]" : "text-xs"}`}
+                >
+                  {label ?? defaultLabel}
+                </span>
+                {!minimal && (
+                  <span className="text-[9px] font-mono uppercase text-brand-subtext tracking-wide">
+                    {hint ?? defaultHint}
+                  </span>
+                )}
+              </>
             )}
           </>
         )}

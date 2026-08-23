@@ -38,6 +38,7 @@ import {
   type NewMarcoEntryInput,
 } from "../lib/supabase/marco-retributivo"
 import { canEditMarcoRetributivo } from "../lib/marco-retributivo-permissions"
+import { TarifaDetailPanel } from "./TarifaDetailPanel"
 
 interface ProductosPanelProps {
   title?: string

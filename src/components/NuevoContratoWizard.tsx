@@ -10,6 +10,7 @@ import {
   Loader2,
   MessageSquare,
   Plus,
+  Trash2,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -44,6 +45,12 @@ import {
 import { lookupSpainPostalCode } from "../lib/spain-postal-code"
 import type { Client } from "../types/client"
 import type { Contract } from "../types/contract"
+import type { Settlement } from "../types/settlement"
+import { analyzeCupsLiquidacion } from "../lib/contract-cups-liquidacion"
+import {
+  canDeleteContract,
+  contractDeletionBlockedMessage,
+} from "../lib/contract-deletion"
 import { ClientPortfolioSearch } from "./contratos/ClientPortfolioSearch"
 import { DocumentoSlotCard } from "./contratos/DocumentoSlotCard"
 
@@ -106,6 +113,9 @@ interface NuevoContratoWizardProps {
   activeUserRole: string
   clients: Client[]
   contracts: Contract[]
+  settlements: Settlement[]
+  editingContractId?: string | null
+  onDeleteContract?: () => void
 }
 
 export function NuevoContratoWizard({
@@ -125,6 +135,9 @@ export function NuevoContratoWizard({
   activeUserRole,
   clients,
   contracts,
+  settlements,
+  editingContractId = null,
+  onDeleteContract,
 }: NuevoContratoWizardProps) {
   const isCompanyStep = form.wizardStep === 1
   const activeTab = isCompanyStep ? null : form.wizardStep
@@ -211,11 +224,26 @@ export function NuevoContratoWizard({
   const effectivePeajeType = peajeType ?? inferPeajeTypeFromSegment(form.wizardSegment)
   const visiblePotenciaPeriods = getVisiblePotenciaPeriods(effectivePeajeType)
 
-  const duplicateCups = useMemo(() => {
-    const cups = form.cups.trim().toUpperCase()
-    if (!cups || cups === "PENDIENTE") return null
-    return contracts.find((c) => c.cups.toUpperCase() === cups) ?? null
-  }, [form.cups, contracts])
+  const cupsLiquidacion = useMemo(
+    () =>
+      analyzeCupsLiquidacion(form.cups, contracts, settlements, {
+        excludeContractId: editingContractId ?? undefined,
+        formatCurrency,
+      }),
+    [form.cups, contracts, settlements, editingContractId, formatCurrency]
+  )
+
+  const editingContract = useMemo(
+    () =>
+      editingContractId
+        ? contracts.find((contract) => contract.id === editingContractId)
+        : undefined,
+    [contracts, editingContractId]
+  )
+
+  const canDeleteEditingContract = editingContract
+    ? canDeleteContract(editingContract, form)
+    : false
 
   const tarifaChipLabel = useMemo(() => {
     const peaje = selectedMarcoEntry?.peaje ?? (effectivePeajeType === "2.0" ? "2.0TD" : "3.0TD")
@@ -497,6 +525,7 @@ export function NuevoContratoWizard({
                   <>
                     <ClientPortfolioSearch
                       clients={clients}
+                      contracts={contracts}
                       activeUserId={activeUserId}
                       onSelectClient={onChange}
                     />
@@ -747,9 +776,37 @@ export function NuevoContratoWizard({
                           }
                           className={`${inputClass} font-mono`}
                         />
-                        {duplicateCups && (
-                          <p className="text-[10px] text-amber-600 font-mono mt-1">
-                            CUPS ya registrado: {duplicateCups.clientName}
+                        {cupsLiquidacion.lines.length > 0 && (
+                          <div className="mt-2 space-y-1.5 rounded-xl border border-rose-500/30 bg-rose-500/5 p-3">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400">
+                              Mismo CUPS detectado
+                            </p>
+                            {cupsLiquidacion.lines.map((line) => (
+                              <p
+                                key={line.id}
+                                className={`text-[10px] leading-relaxed font-mono ${
+                                  line.tone === "danger"
+                                    ? "text-rose-600 dark:text-rose-400 font-bold"
+                                    : line.tone === "success"
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : line.tone === "warning"
+                                        ? "text-amber-600 dark:text-amber-400"
+                                        : "text-brand-subtext"
+                                }`}
+                              >
+                                {line.text}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        {commissionEstimate && (
+                          <p className="text-[10px] font-mono text-cyan-700 dark:text-cyan-300 mt-2">
+                            Liquidación estimada del nuevo contrato:{" "}
+                            <span className="font-bold">
+                              {formatCurrency(commissionEstimate.amountEur)}
+                            </span>
+                            {" · "}
+                            {commissionEstimate.label}
                           </p>
                         )}
                       </div>
@@ -970,6 +1027,20 @@ export function NuevoContratoWizard({
                 >
                   Cancelar
                 </button>
+                {canDeleteEditingContract && onDeleteContract ? (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      if (!window.confirm("¿Eliminar este borrador de contrato?")) return
+                      onDeleteContract()
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-rose-600 hover:text-rose-500 border border-rose-500/30 rounded-lg cursor-pointer disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar borrador
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   disabled={isSubmitting}

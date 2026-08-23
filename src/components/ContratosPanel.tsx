@@ -27,7 +27,7 @@ import { ContractsExcelImportModal } from "./contratos/ContractsExcelImportModal
 import { EstadoFilterDropdown } from "./contratos/EstadoFilterDropdown"
 import { CompaniaFilterDropdown } from "./contratos/CompaniaFilterDropdown"
 import { UserFilterDropdown } from "./contratos/UserFilterDropdown"
-import type { NewContractFormState } from "../lib/contract-registration"
+import { canDeleteContract } from "../lib/contract-deletion"
 import {
   calcularPenalizacion,
   formatPenalizacionDisplay,
@@ -70,6 +70,7 @@ import {
   normalizeContractEstado,
   type ContractEstado,
 } from "../lib/contract-estado"
+import { getContractActionRowClass } from "../lib/contract-action-attention"
 
 function formatActivationDate(iso: string): string {
   if (!iso?.trim()) return "—"
@@ -272,6 +273,7 @@ interface ContratosPanelProps {
   onDownloadJointRecommendationPdf?: (contracts: Contract[]) => void | Promise<void>
   isGeneratingJointPdf?: boolean
   onEditContract?: (contract: Contract) => void
+  onDeleteContract?: (contract: Contract) => void
 }
 
 export function ContratosPanel({
@@ -312,6 +314,7 @@ export function ContratosPanel({
   onDownloadJointRecommendationPdf,
   isGeneratingJointPdf = false,
   onEditContract,
+  onDeleteContract,
 }: ContratosPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
@@ -918,7 +921,7 @@ export function ContratosPanel({
                         : "Precio fijo"
 
                 const isHighlighted = highlightContractId === c.id
-                const isIncompleteRow = isContractBorrador(c.estado)
+                const actionRowClass = getContractActionRowClass(c.estado)
 
                 return (
                   <tr
@@ -929,8 +932,8 @@ export function ContratosPanel({
                     className={`hover:bg-brand-surface/60 transition-colors duration-200 ${
                       isHighlighted
                         ? "ring-2 ring-inset ring-cyan-500/50 bg-cyan-500/5"
-                        : isIncompleteRow
-                          ? "bg-slate-300/20 dark:bg-slate-700/30"
+                        : actionRowClass
+                          ? actionRowClass
                           : selectedContractIds.includes(c.id)
                             ? "bg-cyan-500/5"
                             : ""
@@ -1097,6 +1100,25 @@ export function ContratosPanel({
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </ContractQuickActionButton>
+                        {canDeleteContract(c) && onDeleteContract ? (
+                          <ContractQuickActionButton
+                            tone="penalty"
+                            title="Eliminar borrador"
+                            ariaLabel={`Eliminar borrador ${c.clientName}`}
+                            onClick={() => {
+                              if (
+                                !window.confirm(
+                                  `¿Eliminar el borrador de ${c.clientName}?`
+                                )
+                              ) {
+                                return
+                              }
+                              onDeleteContract(c)
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </ContractQuickActionButton>
+                        ) : null}
                         {showTarifaRecommendations && tarifaRecommendations?.has(c.id) ? (
                           <TarifaRecommendationPopover
                             contract={c}

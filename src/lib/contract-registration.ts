@@ -284,7 +284,22 @@ export function contractToNewContractForm(
     potenciaP6: kwFor(6),
     marcoEntryId: contract.marcoEntryId ?? "",
     comentariosInternos: contract.comentariosInternos ?? [],
+    documentosPorTipo: contractDocumentosPorTipoFromContract(contract),
   }
+}
+
+function contractDocumentosPorTipoFromContract(contract: Contract): DocumentosPorTipo {
+  const map: DocumentosPorTipo = {}
+  for (const doc of contract.documentos ?? []) {
+    const tipo = doc.tipo ?? "otros"
+    if (!map[tipo]) map[tipo] = []
+    map[tipo].push({
+      name: doc.name,
+      size: doc.size,
+      uploadedAt: doc.uploadedAt ?? new Date().toISOString(),
+    })
+  }
+  return map
 }
 
 export function inferTipoPrecioFromTarifa(tarifa: string): "fijo" | "mercado" {

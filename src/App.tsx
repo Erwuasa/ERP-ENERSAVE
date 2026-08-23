@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
@@ -32,6 +32,7 @@ import {
   Briefcase,
   Layers,
   Database,
+  BookUser,
   Code,
   CheckCircle,
   Copy,
@@ -64,6 +65,8 @@ import {
   LayoutGrid,
   BarChart3,
   Package,
+  HardDrive,
+  Loader2,
 } from 'lucide-react';
 import { UserControlSheet } from './components/admin/UserControlSheet';
 import {
@@ -75,6 +78,18 @@ import {
 } from './lib/supabase/erp-comerciales';
 import { MarcoRetributivoPanel } from './components/MarcoRetributivoPanel';
 import { ProductosPanel } from './components/ProductosPanel';
+import { FtpPanel } from './components/FtpPanel';
+import { ComparadorOfferCard } from './components/ComparadorOfferCard';
+import { AppUpdateBanner } from './components/AppUpdateBanner';
+import { useAppVersionCheck } from './hooks/use-app-version-check';
+import {
+  consumeAppUpdateSnapshot,
+  setAppUpdateSnapshotProvider,
+} from './lib/app-update';
+import {
+  canDeleteContract,
+  contractDeletionBlockedMessage,
+} from './lib/contract-deletion';
 import { IncidenciasPanel } from './components/IncidenciasPanel';
 import { PipelinePage } from './components/ventas/PipelinePage';
 import { MiDiaPage } from './components/ventas/MiDiaPage';
@@ -82,6 +97,18 @@ import { FichaProspecto } from './components/ventas/FichaProspecto';
 import { ReportingPage } from './components/ventas/ReportingPage';
 import { SlaAvisosPage } from './components/ventas/SlaAvisosPage';
 import { EnersaveLeadDatabasePage } from './components/ventas/EnersaveLeadDatabasePage';
+import { GeneralDatabasePage } from './components/GeneralDatabasePage';
+import { RuntimeIntegrityBlockModal } from './components/RuntimeIntegrityBlockModal';
+import { createProspecto } from './lib/supabase/ventas';
+import { generalDatabaseLeadToProspectoInput } from './lib/general-database-prospecto';
+import type { GeneralDatabaseLead } from './types/general-database';
+import { useRuntimeIntegrityGuard } from './hooks/use-runtime-integrity-guard';
+import {
+  buildSecurityIncidencia,
+  securityIncidenciaFingerprint,
+} from './lib/runtime-integrity-incident';
+import { isRuntimeIntegrityEnforced } from './lib/runtime-integrity-env';
+import type { IntegrityFinding } from './lib/runtime-integrity';
 import { SuperadminDashboard, type DashboardNavigateTarget } from './components/dashboard/SuperadminDashboard';
 import { FileDropZone } from './components/ui/FileDropZone';
 import { ContratosPanel } from './components/ContratosPanel';
@@ -92,6 +119,14 @@ const NuevoContratoWizard = lazy(() =>
 import type { Contract } from './types/contract';
 import type { Client } from './types/client';
 import type { ContractOcrResult } from './lib/contract-ocr';
+import { extractContractDataFromDocument } from './lib/contract-ocr';
+import { applyComparadorOcrResult } from './lib/comparador-ocr-apply';
+import {
+  COMP_PROPOSAL_FILTER_OPTIONS,
+  matchesCompProposalFilters,
+  toggleCompProposalFilter,
+  type CompProposalFilterId,
+} from './lib/comparador-proposal-filters';
 import {
   buildClientsFromContracts,
   linkContractsToClients,
@@ -116,6 +151,7 @@ import {
   listTeamContracts,
   saveTeamContractToSupabase,
   updateTeamContract,
+  deleteTeamContract,
 } from './lib/supabase/contracts';
 import { createCliente, listClientes, updateCliente } from './lib/supabase/clientes';
 import { createIncidencia, listIncidencias, updateIncidencia } from './lib/supabase/incidencias';
@@ -181,6 +217,9 @@ import {
 } from './lib/recommendation-dismissed';
 import { getRetroMonths } from './lib/retro-period';
 import { canEditMarcoRetributivo } from './lib/marco-retributivo-permissions';
+import { canEditFtp } from './lib/ftp-permissions';
+import { buildSidebarActionBadges } from './lib/sidebar-action-badges';
+import { SidebarMenuBadge } from './components/SidebarMenuBadge';
 
 const SEED_CONTRACTS: Contract[] = [
   { id: 'con-1', clientName: 'ANA MARIA PINEDA BARRAGA', cups: 'ES0031102370432011GL', tipo: 'luz', compania: 'Iberdrola', tarifa: 'Fijo', atr: '2.0TD', consumoAnual: 4200, tipoPrecio: 'fijo', precioFijoConsumo: 0.118, potenciaContratada: 4.6, nif: '12345678A', telefono: '600111222', email: 'ana.pineda@email.com', iban: 'ES91 2100 0418 4502 0005 1332', direccionSuministro: 'C/ Mayor 12, 28013 Madrid', consumoAnualManual: 4200, estado: 'ACTIVADO', comercialId: 'usr-3', comercialName: 'Jose Antonio Acal Franco', createdAt: '2025-04-07', fechaFin: '2026-04-07', estadoRenovacion: 'Renovacion proxima', fechaRenovacion: '2026-04-07', diasRenovacion: 69, montoInterno: 240, montoExterno: 120 },
@@ -556,6 +595,23 @@ export default function App() {
   const [ventasFichaProspectoId, setVentasFichaProspectoId] = useState<string | null>(null);
   const [ventasFichaSnapshot, setVentasFichaSnapshot] = useState<Prospecto | null>(null);
   const [ventasPipelineCentroMandoId, setVentasPipelineCentroMandoId] = useState<string | null>(null);
+  const [generalDbImportedLeadIds, setGeneralDbImportedLeadIds] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem('enersave-general-db-imported');
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw) as string[];
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  });
+  const [generalDbHighlightLeadId, setGeneralDbHighlightLeadId] = useState<string | null>(null);
+
+  function openGeneralDatabase(leadId?: string) {
+    setActiveModule('erp');
+    setCurrentMenuTab('Base de Datos');
+    setGeneralDbHighlightLeadId(leadId ?? null);
+  }
 
   function openVentasFicha(prospecto: Prospecto) {
     setVentasFichaProspectoId(prospecto.id);
@@ -694,6 +750,9 @@ export default function App() {
   const [compResults, setCompResults] = useState<any[] | null>(null);
   const [compSummary, setCompSummary] = useState<any | null>(null);
   const [compLoading, setCompLoading] = useState<boolean>(false);
+  const [compProposalFilters, setCompProposalFilters] = useState<CompProposalFilterId[]>([]);
+  const [compOcrLoading, setCompOcrLoading] = useState(false);
+  const [compOcrProgress, setCompOcrProgress] = useState<string | null>(null);
 
   const [newContractForm, setNewContractForm] = useState<NewContractFormState>({
     ...EMPTY_NEW_CONTRACT_FORM,
@@ -713,6 +772,92 @@ export default function App() {
         profiles.find((p) => p.id === user.managerId)?.fullName ?? '',
     });
   }
+
+  const { remoteVersion, dismiss: dismissAppUpdate } = useAppVersionCheck();
+  const restoredAfterUpdateRef = useRef(false);
+
+  useEffect(() => {
+    if (restoredAfterUpdateRef.current) return;
+    restoredAfterUpdateRef.current = true;
+
+    const snapshot = consumeAppUpdateSnapshot();
+    if (!snapshot) return;
+
+    setActiveModule(snapshot.activeModule as 'erp' | 'ventas');
+    setCurrentMenuTab(snapshot.currentMenuTab);
+    setContractWizardOpen(snapshot.contractWizardOpen);
+    setEditingContractId(snapshot.editingContractId);
+    setContractWizardProspectoId(snapshot.contractWizardProspectoId);
+    setNewContractForm(snapshot.newContractForm as NewContractFormState);
+    setVentasFichaProspectoId(snapshot.ventasFichaProspectoId);
+
+    const comparador = snapshot.comparador;
+    setCompCups(comparador.compCups);
+    setCompClient(comparador.compClient);
+    setCompTipo(comparador.compTipo);
+    setCompConsumo(comparador.compConsumo);
+    setCompTarifaActual(comparador.compTarifaActual);
+    setCompSegment(comparador.compSegment);
+    setCompAccessTariff(comparador.compAccessTariff);
+    setCompPotencias(comparador.compPotencias);
+    setCompConsumos(comparador.compConsumos);
+    setCompRentMeter(comparador.compRentMeter);
+    setCompCurrentBill(comparador.compCurrentBill);
+    setCompResults(comparador.compResults as any[] | null);
+    setCompSummary(comparador.compSummary);
+
+    toast.success('Trabajo en curso restaurado tras la actualización');
+  }, []);
+
+  useEffect(() => {
+    setAppUpdateSnapshotProvider(() => ({
+      currentMenuTab,
+      activeModule,
+      contractWizardOpen,
+      editingContractId,
+      contractWizardProspectoId,
+      newContractForm,
+      ventasFichaProspectoId,
+      comparador: {
+        compCups,
+        compClient,
+        compTipo,
+        compConsumo,
+        compTarifaActual,
+        compSegment,
+        compAccessTariff,
+        compPotencias,
+        compConsumos,
+        compRentMeter,
+        compCurrentBill,
+        compResults,
+        compSummary,
+      },
+    }));
+
+    return () => setAppUpdateSnapshotProvider(null);
+  }, [
+    currentMenuTab,
+    activeModule,
+    contractWizardOpen,
+    editingContractId,
+    contractWizardProspectoId,
+    newContractForm,
+    ventasFichaProspectoId,
+    compCups,
+    compClient,
+    compTipo,
+    compConsumo,
+    compTarifaActual,
+    compSegment,
+    compAccessTariff,
+    compPotencias,
+    compConsumos,
+    compRentMeter,
+    compCurrentBill,
+    compResults,
+    compSummary,
+  ]);
 
   function applyOcrToNewContractForm(data: ContractOcrResult) {
     const patch: Partial<NewContractFormState> = {};
@@ -1135,6 +1280,9 @@ export default function App() {
       tariffName: string;
       potRates: number[];
       conRates: number[];
+      pricingType: 'fijo' | 'indexado';
+      sinSva: boolean;
+      potenciaBoe: boolean;
     }
 
     let testProfiles: SetupTariff[] = [];
@@ -1146,24 +1294,36 @@ export default function App() {
           tariffName: "EnerLuz Inteligente Indexada",
           potRates: [0.071, 0.022],
           conRates: [0.145, 0.125, 0.101],
+          pricingType: "indexado",
+          sinSva: true,
+          potenciaBoe: false,
         },
         {
           companyName: "Iberdrola",
           tariffName: "Iberdrola Plan Estable Luz",
           potRates: [0.082, 0.029],
           conRates: [0.178, 0.178, 0.178],
+          pricingType: "fijo",
+          sinSva: false,
+          potenciaBoe: true,
         },
         {
           companyName: "Endesa",
           tariffName: "Endesa One Luz 3 Periodos",
           potRates: [0.079, 0.026],
           conRates: [0.165, 0.139, 0.118],
+          pricingType: "fijo",
+          sinSva: true,
+          potenciaBoe: false,
         },
         {
           companyName: "Naturgy",
           tariffName: "Naturgy Tarifa Por Uso",
           potRates: [0.081, 0.027],
           conRates: [0.169, 0.149, 0.121],
+          pricingType: "indexado",
+          sinSva: true,
+          potenciaBoe: true,
         },
       ];
     } else if (compAccessTariff === "3.0TD") {
@@ -1173,18 +1333,27 @@ export default function App() {
           tariffName: "EnerLuz MultiPYME Indexada 6P",
           potRates: [0.102, 0.085, 0.045, 0.038, 0.022, 0.015],
           conRates: [0.129, 0.118, 0.105, 0.098, 0.091, 0.082],
+          pricingType: "indexado",
+          sinSva: true,
+          potenciaBoe: false,
         },
         {
           companyName: "Endesa",
           tariffName: "Endesa Negocio Fórmula Variable",
           potRates: [0.115, 0.095, 0.052, 0.044, 0.028, 0.018],
           conRates: [0.149, 0.138, 0.122, 0.115, 0.108, 0.095],
+          pricingType: "indexado",
+          sinSva: false,
+          potenciaBoe: true,
         },
         {
           companyName: "Iberdrola",
           tariffName: "Iberdrola Plan 3 Grabaciones PYME",
           potRates: [0.119, 0.098, 0.055, 0.045, 0.029, 0.019],
           conRates: [0.155, 0.141, 0.128, 0.119, 0.112, 0.099],
+          pricingType: "fijo",
+          sinSva: true,
+          potenciaBoe: true,
         },
       ];
     } else {
@@ -1194,20 +1363,40 @@ export default function App() {
           tariffName: "EnerLuz Industrial Pool Max 6.0",
           potRates: [0.095, 0.078, 0.042, 0.034, 0.019, 0.012],
           conRates: [0.111, 0.099, 0.092, 0.085, 0.078, 0.069],
+          pricingType: "indexado",
+          sinSva: true,
+          potenciaBoe: false,
         },
         {
           companyName: "Iberdrola",
           tariffName: "Iberdrola Alta Tensión a Medida",
           potRates: [0.112, 0.091, 0.049, 0.041, 0.024, 0.016],
           conRates: [0.132, 0.119, 0.109, 0.102, 0.094, 0.084],
+          pricingType: "fijo",
+          sinSva: false,
+          potenciaBoe: true,
         },
         {
           companyName: "Naturgy",
           tariffName: "Naturgy Gas & Luz Industrial Alianza",
           potRates: [0.106, 0.086, 0.046, 0.038, 0.022, 0.014],
           conRates: [0.125, 0.112, 0.103, 0.096, 0.088, 0.078],
+          pricingType: "indexado",
+          sinSva: true,
+          potenciaBoe: true,
         },
       ];
+    }
+
+    testProfiles = testProfiles.filter((profile) =>
+      matchesCompProposalFilters(profile, compProposalFilters)
+    );
+
+    if (testProfiles.length === 0) {
+      setCompResults([]);
+      setCompSummary(null);
+      setMatchingRate(null);
+      return;
     }
 
     const calculatedOptions = testProfiles.map((prof, idx) => {
@@ -1255,7 +1444,7 @@ export default function App() {
         rentCostAnnual: Math.round(meterCostAnnual),
         potRates: prof.potRates,
         conRates: prof.conRates,
-        isBestOption: prof.companyName === "EnerLuz",
+        isBestOption: false,
       };
     });
 
@@ -1268,7 +1457,7 @@ export default function App() {
     }
 
     const finalOptions = calculatedOptions.map((opt) => {
-      const savingsAnnual = Math.max(0, currentAnnualExpense - opt.annualCost);
+      const savingsAnnual = currentAnnualExpense - opt.annualCost;
       const savingsPercentage = Math.round((savingsAnnual / currentAnnualExpense) * 100);
 
       return {
@@ -1278,10 +1467,16 @@ export default function App() {
       };
     });
 
-    finalOptions.sort((a, b) => a.annualCost - b.annualCost);
+    finalOptions.sort((a, b) => b.savingsAnnual - a.savingsAnnual);
 
-    const topOptions = finalOptions.slice(0, 3);
-    const best = topOptions.find(o => o.companyName === "EnerLuz") || topOptions[0];
+    const topSavings = finalOptions[0]?.savingsAnnual ?? 0;
+    const markedOptions = finalOptions.map((opt, index) => ({
+      ...opt,
+      isBestOption: index === 0 && topSavings > 0,
+    }));
+
+    const topOptions = markedOptions.slice(0, 3);
+    const best = topOptions[0] ?? markedOptions[0];
 
     setCompResults(topOptions);
     setCompSummary({
@@ -1402,10 +1597,38 @@ export default function App() {
     compPotencias,
     compConsumos,
     compRentMeter,
-    compCurrentBill
+    compCurrentBill,
+    compProposalFilters,
   ]);
 
   // Open the detailed contract modal from comparator offer card
+  async function handleComparadorInvoiceOcr(file: File) {
+    setCompOcrLoading(true);
+    setCompOcrProgress('Leyendo factura…');
+    try {
+      const ocr = await extractContractDataFromDocument(file, setCompOcrProgress);
+      const applied = applyComparadorOcrResult(ocr, {
+        setCompCups,
+        setCompTipo,
+        setCompTarifaActual,
+        setCompAccessTariff,
+        setCompPotencias,
+        setCompProposalFilters,
+      });
+      if (applied === 0) {
+        toast.error('No se pudieron extraer datos útiles de la factura.');
+        return;
+      }
+      toast.success('Datos de la factura aplicados al comparador.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo procesar la factura con IA/OCR.');
+    } finally {
+      setCompOcrLoading(false);
+      setCompOcrProgress(null);
+    }
+  }
+
   const openNewContractModal = (opt: any) => {
     setModalClientName(compClient || '');
     setModalNif('');
@@ -1911,6 +2134,10 @@ export default function App() {
           form.comentariosInternos.length > 0 ? form.comentariosInternos : undefined,
         marcoEntryId: form.marcoEntryId || marcoEntry?.id || undefined,
         atr: marcoEntry?.peaje ?? existing.atr,
+        documentos: (() => {
+          const flat = flattenDocumentosPorTipo(form.documentosPorTipo)
+          return flat.length > 0 ? flat : existing.documentos
+        })(),
         ...(isIncomplete || !validation.valid
           ? { estado: CONTRACT_ESTADO_BORRADOR }
           : isContractBorrador(existing.estado) && validation.valid
@@ -1933,6 +2160,38 @@ export default function App() {
     } finally {
       setIsCreatingContract(false);
     }
+  }
+
+  async function handleDeleteContract(contractId: string) {
+    const contract = contracts.find((item) => item.id === contractId);
+    if (!contract) {
+      toast.error('Contrato no encontrado.');
+      return;
+    }
+
+    const formSnapshot =
+      editingContractId === contractId ? newContractForm : undefined;
+
+    if (!canDeleteContract(contract, formSnapshot)) {
+      toast.error(contractDeletionBlockedMessage());
+      return;
+    }
+
+    const supabaseResult = await deleteTeamContract(contractId);
+    if (supabaseResult.ok === false && supabaseResult.reason !== 'not_configured') {
+      toast.warning(`Eliminado en la app. Supabase: ${supabaseResult.message}`);
+    }
+
+    setContracts((prev) => prev.filter((item) => item.id !== contractId));
+    setSettlements((prev) => prev.filter((item) => item.contractId !== contractId));
+
+    if (editingContractId === contractId) {
+      setContractWizardOpen(false);
+      setEditingContractId(null);
+      resetNewContractForm();
+    }
+
+    toast.success('Contrato eliminado.');
   }
 
   const handleAddNewUser = async (e: React.FormEvent) => {
@@ -2296,6 +2555,36 @@ export default function App() {
   const activeRole = activeUser.role;
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
   const canEditMarcoEntries = canEditMarcoRetributivo(activeRole, { superadminViewMode });
+  const canEditFtpEntries = canEditFtp(activeRole);
+  const incidenciasRef = useRef(incidencias);
+  incidenciasRef.current = incidencias;
+
+  const handleIntegrityBlocked = useCallback(
+    (findings: IntegrityFinding[]) => {
+      const fp = securityIncidenciaFingerprint(findings);
+      const storageKey = `integrity-reported-${fp}`;
+      if (sessionStorage.getItem(storageKey)) return;
+      sessionStorage.setItem(storageKey, new Date().toISOString());
+
+      const ticket = buildSecurityIncidencia({
+        userId: activeUserId,
+        userName: activeUser.fullName,
+        findings,
+        existingIncidencias: incidenciasRef.current,
+      });
+      setIncidencias((prev) => [ticket, ...prev]);
+      persistNewIncidencia(ticket);
+      toast.error('Sesión bloqueada: incidencia de seguridad enviada al superadmin.');
+    },
+    [activeUserId, activeUser.fullName, persistNewIncidencia]
+  );
+
+  const { blocked: integrityBlocked, findings: integrityFindings } =
+    useRuntimeIntegrityGuard({
+      enabled: isLoggedIn && isRuntimeIntegrityEnforced(),
+      onBlocked: handleIntegrityBlocked,
+    });
+
   const ventasActor = useMemo(
     () => ({
       comercialId: activeUserId,
@@ -2304,6 +2593,35 @@ export default function App() {
     }),
     [activeUserId, activeUser.fullName, activeRole]
   );
+
+  const convertGeneralDatabaseLeadToProspecto = useCallback(
+    async (lead: GeneralDatabaseLead): Promise<string | null> => {
+      const input = generalDatabaseLeadToProspectoInput(
+        lead,
+        ventasActor.comercialId,
+        ventasActor.comercialName
+      );
+      const result = await createProspecto(input);
+      if (!result.ok) {
+        toast.error(result.message);
+        return null;
+      }
+      setGeneralDbImportedLeadIds((prev) => {
+        const next = new Set(prev);
+        next.add(lead.id);
+        sessionStorage.setItem('enersave-general-db-imported', JSON.stringify([...next]));
+        return next;
+      });
+      return result.data.id;
+    },
+    [ventasActor.comercialId, ventasActor.comercialName]
+  );
+
+  const openVentasFromGeneralDatabase = useCallback((prospectoId: string) => {
+    setActiveModule('ventas');
+    setCurrentMenuTab('Pipeline');
+    setVentasPipelineCentroMandoId(prospectoId);
+  }, []);
 
   useEffect(() => {
     if (activeRole !== 'superadmin' || superadminViewMode !== 'tramitacion') return;
@@ -2669,6 +2987,16 @@ export default function App() {
 
   const visibleIncidencias = roleFilteredIncidencias.filter((inc) => isIncidenciaKanbanVisible(inc));
 
+  const contractsForSidebarBadges = useMemo(() => {
+    if (activeRole === 'comercial' || isSuperadminComercialView) {
+      return contracts.filter((c) => c.comercialId === activeUserId);
+    }
+    if (activeRole === 'jefe_comercial') {
+      return teamContracts;
+    }
+    return contracts;
+  }, [activeRole, isSuperadminComercialView, contracts, activeUserId, teamContracts]);
+
   const canCreateIncidencia = activeRole === 'comercial' || activeRole === 'jefe_comercial';
   const canEditIncidencia = activeRole === 'comercial';
   const canDragIncidencias = isErpOpsAdmin;
@@ -2734,9 +3062,11 @@ export default function App() {
     { name: 'Contratos', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: FileSpreadsheet },
     { name: 'Comparador', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Calculator },
     { name: 'Historial de Comparativas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: FileClock },
+    { name: 'Base de Datos', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: BookUser },
     { name: 'Tarifas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Package },
     { name: 'Marco Retributivo', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Coins },
     { name: 'Incidencias', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: AlertTriangle },
+    { name: 'FTP', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: HardDrive },
   ];
 
   const ventasSidebarItemsConfig = [
@@ -2784,9 +3114,11 @@ export default function App() {
                 'Contratos',
                 'Comparador',
                 'Historial de Comparativas',
+                'Base de Datos',
                 'Tarifas',
                 'Marco Retributivo',
                 'Incidencias',
+                'FTP',
               ];
               return comercialTabs.includes(item.name);
             }
@@ -2798,6 +3130,7 @@ export default function App() {
               'Contratos',
               'Tarifas',
               'Incidencias',
+              'FTP',
             ];
             return superadminTramitacionTabs.includes(item.name);
           }
@@ -2809,14 +3142,36 @@ export default function App() {
               'Contratos',
               'Comparador',
               'Historial de Comparativas',
+              'Base de Datos',
               'Tarifas',
               'Marco Retributivo',
               'Incidencias',
+              'FTP',
             ];
             return tramitacionTabs.includes(item.name);
           }
           return item.allowedRoles.includes(activeRole);
         });
+
+  const sidebarActionBadges = useMemo(
+    () =>
+      buildSidebarActionBadges(
+        currentMenuOptions.map((item) => item.name),
+        {
+          contracts: contractsForSidebarBadges,
+          incidencias: roleFilteredIncidencias,
+          settlements,
+          activeUserId,
+        }
+      ),
+    [
+      currentMenuOptions,
+      contractsForSidebarBadges,
+      roleFilteredIncidencias,
+      settlements,
+      activeUserId,
+    ]
+  );
 
   // RAW CODES FOR THE TABS
   const sqlCode = "";
@@ -3169,6 +3524,7 @@ export default function App() {
                     {currentMenuOptions.map((opt, id) => {
                       const Icon = opt.icon;
                       const isSelected = currentMenuTab === opt.name;
+                      const badge = sidebarActionBadges[opt.name];
                       return (
                         <button
                           key={id}
@@ -3179,11 +3535,19 @@ export default function App() {
                               : 'text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-brand-elevated/40'
                           }`}
                         >
-                          <Icon className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white dark:text-cyan-300' : 'text-brand-subtext'}`} />
+                          <span className="relative shrink-0">
+                            <Icon className={`w-4 h-4 ${isSelected ? 'text-white dark:text-cyan-300' : 'text-brand-subtext'}`} />
+                            {sidebarCollapsed && (
+                              <SidebarMenuBadge badge={badge} collapsed />
+                            )}
+                          </span>
                           {!sidebarCollapsed && (
-                            <span className="text-xs font-semibold truncate tracking-tight">
-                              {opt.name}
-                            </span>
+                            <>
+                              <span className="text-xs font-semibold truncate tracking-tight flex-1 min-w-0">
+                                {opt.name}
+                              </span>
+                              <SidebarMenuBadge badge={badge} />
+                            </>
                           )}
                         </button>
                       );
@@ -3870,6 +4234,7 @@ export default function App() {
                     }
                     isGeneratingJointPdf={isGeneratingJointPdf}
                     onEditContract={openContractWizardForEdit}
+                    onDeleteContract={(contract) => void handleDeleteContract(contract.id)}
                   />
                 )}
 
@@ -4566,7 +4931,7 @@ export default function App() {
                     onNavigateToContratos={navigateToContratoFromFicha}
                     getContractCups={(id) => contracts.find((c) => c.id === id)?.cups}
                     openCentroMandoProspectoId={ventasPipelineCentroMandoId}
-                    onCentroMandoClosed={() => setVentasPipelineCentroMandoId(null)}
+                    onOpenGeneralDatabase={() => openGeneralDatabase()}
                   />
                 )}
 
@@ -4641,13 +5006,29 @@ export default function App() {
                       
                       {/* Left: Input controls */}
                       <div className="lg:col-span-5 bg-brand-panel p-6 sm:p-8 rounded-3xl border border-brand-border space-y-6 relative shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]">
-                        <div className="flex items-center space-x-3 pb-3 border-b border-brand-border">
-                          <Calculator className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                          <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
-                            Parámetros del Suministro
-                          </h3>
+                        <div className="rounded-2xl border border-brand-border bg-brand-surface/40 overflow-hidden">
+                          <FileDropZone
+                            comparadorLayout
+                            className="border-0 bg-transparent rounded-2xl"
+                            accept="image/*,.pdf,.png,.jpg,.jpeg,.webp"
+                            multiple={false}
+                            disabled={compOcrLoading}
+                            label={compOcrLoading ? "Procesando factura…" : undefined}
+                            onFiles={(files) => {
+                              const file = files[0];
+                              if (file) void handleComparadorInvoiceOcr(file);
+                            }}
+                          />
+
+                          {compOcrProgress && (
+                            <p className="text-[10px] font-mono text-brand-subtext flex items-center gap-2 px-4 pb-3">
+                              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                              {compOcrProgress}
+                            </p>
+                          )}
                         </div>
-                        <div className="space-y-5">
+
+                        <div className="space-y-5 pt-1">
                           {/* Client field */}
                           <div className="space-y-1">
                             <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
@@ -4859,9 +5240,9 @@ export default function App() {
 
                           {/* Auto-calculation indicator */}
                           <div className="pt-2 border-t border-dashed border-brand-border">
-                            <p className="text-[10px] text-center font-mono text-emerald-600 dark:text-emerald-400 animate-pulse uppercase tracking-wider font-extrabold flex items-center justify-center gap-1.5">
-                              <Sparkles className="w-3.5 h-3.5" />
-                              Autocalculando mejor tarifa...
+                            <p className="text-[10px] text-center font-mono text-brand-subtext uppercase tracking-wider flex items-center justify-center gap-1.5">
+                              <Sparkles className="w-3 h-3 opacity-60" />
+                              Calculando…
                             </p>
                           </div>
                         </div>
@@ -4869,6 +5250,35 @@ export default function App() {
 
                       {/* Right: Results comparison with visual cards list */}
                       <div className="lg:col-span-7 space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+                          <span className="text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider sm:mr-1">
+                            Tipo de propuesta comparativa
+                          </span>
+                          <div className="flex flex-wrap gap-2 sm:justify-end">
+                            {COMP_PROPOSAL_FILTER_OPTIONS.map((filter) => {
+                              const active = compProposalFilters.includes(filter.id);
+                              return (
+                                <button
+                                  key={filter.id}
+                                  type="button"
+                                  onClick={() =>
+                                    setCompProposalFilters((prev) =>
+                                      toggleCompProposalFilter(prev, filter.id)
+                                    )
+                                  }
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer ${
+                                    active
+                                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                      : 'bg-brand-surface text-brand-subtext border-brand-border hover:border-blue-500/40 hover:text-brand-text'
+                                  }`}
+                                >
+                                  {filter.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
                         <AnimatePresence mode="wait">
                           {compLoading ? (
                             <motion.div
@@ -4900,7 +5310,7 @@ export default function App() {
                                 </div>
                               </div>
                             </motion.div>
-                          ) : compResults && compSummary ? (
+                          ) : compResults && compSummary && compResults.length > 0 ? (
                             <motion.div
                               key="results"
                               initial="hidden"
@@ -4912,109 +5322,17 @@ export default function App() {
                                   transition: { staggerChildren: 0.1 }
                                 }
                               }}
-                              className="space-y-6"
+                              className="space-y-4"
                             >
-                              {/* Listing Title */}
-                              <div className="flex items-center justify-between px-2">
-                                <span className="text-[10px] font-bold uppercase font-mono text-brand-subtext tracking-wider">Top 3 Ofertas de Comercialización</span>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDownloadComparadorPdf()}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold text-[10px] rounded-lg tracking-wider uppercase shadow transition-colors cursor-pointer"
-                                  >
-                                    <Download className="w-3.5 h-3.5" />
-                                    <span>Descargar PDF</span>
-                                  </button>
-                                  <span className="text-[9px] text-brand-subtext font-mono italic">Ordenado por coste anual</span>
-                                </div>
-                              </div>
-
-                              {/* Cards cascade comparison */}
-                              {compResults.map((opt, idx) => (
-                                <motion.div
+                              {compResults.map((opt) => (
+                                <ComparadorOfferCard
                                   key={opt.id}
-                                  variants={{
-                                    hidden: { opacity: 0, y: 20 },
-                                    show: { opacity: 1, y: 0 }
-                                  }}
-                                  className={`rounded-3xl p-5 border relative transition-all ${
-                                    opt.isBestOption
-                                      ? "bg-brand-panel border-blue-500/40 shadow-sm"
-                                      : "bg-brand-panel border-brand-border hover:border-slate-300"
-                                  }`}
-                                >
-                                  {opt.isBestOption && (
-                                    <div className="absolute top-0 right-8 -translate-y-1/2 px-2.5 py-0.5 bg-yellow-400 text-blue-950 text-[9px] font-sans font-extrabold rounded-full uppercase tracking-wider scale-95 border border-yellow-500/10">
-                                      Mejor Tarifa Homologada
-                                    </div>
-                                  )}
-
-                                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div>
-                                      <div className="flex items-center space-x-2">
-                                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase font-mono ${
-                                          opt.companyName === "EnerLuz" ? "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20" :
-                                          opt.companyName === "Iberdrola" ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20" :
-                                          "bg-slate-100 dark:bg-brand-surface text-slate-500"
-                                        }`}>
-                                          {opt.companyName}
-                                        </span>
-                                        <span className="text-xs text-brand-subtext font-mono">
-                                          {opt.tariffName}
-                                        </span>
-                                      </div>
-
-                                      <div className="mt-2 text-brand-text">
-                                        <div className="flex items-baseline space-x-1">
-                                          <span className="text-xl font-bold font-mono text-brand-text">{opt.monthlyCost} €</span>
-                                          <span className="text-[10px] text-brand-subtext">/ mes</span>
-                                          <span className="text-[11px] text-brand-subtext font-mono ml-2">({opt.annualCost.toLocaleString("es-ES")} €/año)</span>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                    <div className="bg-brand-surface p-2 rounded-xl text-left sm:text-right border border-brand-border font-mono text-xs">
-                                      <span className="text-[9px] text-brand-subtext block font-bold leading-none mb-1">AHORRO NETO</span>
-                                      <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">-{opt.savingsAnnual} €/año</span>
-                                      <span className="text-[9px] text-emerald-650 dark:text-emerald-300 font-bold block bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 mt-1">
-                                        {opt.savingsPercentage}% ahorro
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Period breakdown breakdown */}
-                                  <div className="mt-3.5 pt-3 border-t border-brand-border grid grid-cols-3 gap-2 text-[10px] font-mono text-brand-subtext">
-                                    <div>
-                                      <span className="text-[8px] text-brand-subtext block uppercase font-bold">P. Potencia:</span>
-                                      <span className="text-brand-text font-semibold">{opt.potenciaBreakdown} €</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[8px] text-brand-subtext block uppercase font-bold">P. Consumo:</span>
-                                      <span className="text-brand-text font-semibold">{opt.consumoBreakdown} €</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-[8px] text-brand-subtext block uppercase font-bold">Alq. Contador:</span>
-                                      <span className="text-brand-text font-semibold">{opt.rentCostAnnual} €</span>
-                                    </div>
-                                  </div>
-
-                                  {/* Action button */}
-                                  <div className="mt-4 flex justify-between items-center bg-brand-surface p-2 rounded-xl border border-brand-border">
-                                    <span className="text-[10px] text-brand-subtext font-mono">¿Es conforme este ahorro?</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => openNewContractModal(opt)}
-                                      className={`px-4 py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-all ${
-                                        opt.isBestOption
-                                          ? "bg-blue-605 hover:bg-blue-700 bg-blue-600 text-white font-extrabold shadow"
-                                          : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-brand-border"
-                                      }`}
-                                    >
-                                      Generar Contrato
-                                    </button>
-                                  </div>
-                                </motion.div>
+                                  option={opt}
+                                  segment={compSegment}
+                                  renderCompaniaLogo={renderCompaniaLogo}
+                                  onContract={() => openNewContractModal(opt)}
+                                  onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}
+                                />
                               ))}
 
                             </motion.div>
@@ -5030,10 +5348,14 @@ export default function App() {
                               </div>
                               <div className="space-y-1">
                                 <h3 className="text-xs font-bold text-brand-text uppercase tracking-wider">
-                                  Esperando parámetros
+                                  {compProposalFilters.length > 0
+                                    ? 'Sin ofertas para los filtros seleccionados'
+                                    : 'Esperando parámetros'}
                                 </h3>
                                 <p className="text-xs text-brand-subtext max-w-sm mt-1 mx-auto leading-relaxed">
-                                  Completa el formulario de potencia contratada y consumos históricos y pincha el botón para procesar la comparativa multi-proveedor.
+                                  {compProposalFilters.length > 0
+                                    ? 'Prueba quitando algún filtro de propuesta o cambia la tarifa de acceso.'
+                                    : 'Completa el formulario de potencia contratada y consumos históricos para procesar la comparativa multi-proveedor.'}
                                 </p>
                               </div>
                             </motion.div>
@@ -5222,6 +5544,15 @@ export default function App() {
                   </div>
                 )}
 
+                {currentMenuTab === 'Base de Datos' && activeModule === 'erp' && (
+                  <GeneralDatabasePage
+                    importedLeadIds={generalDbImportedLeadIds}
+                    highlightLeadId={generalDbHighlightLeadId}
+                    onConvertToProspecto={convertGeneralDatabaseLeadToProspecto}
+                    onOpenProspecto={openVentasFromGeneralDatabase}
+                  />
+                )}
+
                 {/* VIEW: TARIFAS */}
                 {currentMenuTab === 'Tarifas' && activeModule === 'erp' && (
                   <ProductosPanel
@@ -5259,6 +5590,11 @@ export default function App() {
                       vista comercial para ver el marco retributivo del canal.
                     </p>
                   </div>
+                )}
+
+
+                {currentMenuTab === 'FTP' && activeModule === 'erp' && (
+                  <FtpPanel canEdit={canEditFtpEntries} activeUserId={activeUserId} />
                 )}
 
 
@@ -6159,8 +6495,24 @@ export default function App() {
         activeUserRole={activeRole}
         clients={clients}
         contracts={contracts}
+        settlements={settlements}
+        editingContractId={editingContractId}
+        onDeleteContract={
+          editingContractId
+            ? () => void handleDeleteContract(editingContractId)
+            : undefined
+        }
       />
       </Suspense>
+      {isLoggedIn && remoteVersion ? (
+        <AppUpdateBanner remoteVersion={remoteVersion} onDismiss={dismissAppUpdate} />
+      ) : null}
+      {isLoggedIn && isRuntimeIntegrityEnforced() && integrityBlocked ? (
+        <RuntimeIntegrityBlockModal
+          userName={activeUser.fullName}
+          findings={integrityFindings}
+        />
+      ) : null}
     </div>
   );
 }

@@ -23,6 +23,7 @@ const TIPOS: IncidenciaTipo[] = [
   "Error de CUPS",
   "Reclamación Distribuidora",
   "Incidencia Cartera",
+  "Riesgo de Seguridad",
 ]
 
 const PRIORIDADES: IncidenciaPrioridad[] = ["critica", "alta", "media", "baja"]

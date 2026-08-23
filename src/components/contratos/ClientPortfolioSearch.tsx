@@ -1,17 +1,20 @@
 import { useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import type { Client } from "../../types/client"
+import type { Contract } from "../../types/contract"
 import type { NewContractFormState } from "../../lib/contract-registration"
-import { splitClientNameToParts } from "../../lib/contract-registration"
+import { buildClientContractAutofillPatch } from "../../lib/contract-cups-liquidacion"
 
 interface ClientPortfolioSearchProps {
   clients: Client[]
+  contracts: Contract[]
   activeUserId: string
   onSelectClient: (patch: Partial<NewContractFormState>) => void
 }
 
 export function ClientPortfolioSearch({
   clients,
+  contracts,
   activeUserId,
   onSelectClient,
 }: ClientPortfolioSearchProps) {
@@ -36,23 +39,7 @@ export function ClientPortfolioSearch({
   }, [portfolio, query])
 
   function applyClient(client: Client) {
-    const { clientNombre, clientApellidos } = splitClientNameToParts(client.nombre)
-    onSelectClient({
-      clientName: client.nombre,
-      clientNombre,
-      clientApellidos,
-      nif: client.documento ?? "",
-      telefono: client.telefono ?? "",
-      email: client.email ?? "",
-      codigoPostal: client.codigoPostal ?? "",
-      poblacion: client.ciudad ?? "",
-      direccionFiscal: "",
-      tipoCliente:
-        client.tipoCliente === "empresa"
-          ? "pyme"
-          : "residencial",
-      razonSocial: client.tipoCliente === "empresa" ? client.nombre : "",
-    })
+    onSelectClient(buildClientContractAutofillPatch(client, contracts))
     setQuery(client.nombre)
   }
 

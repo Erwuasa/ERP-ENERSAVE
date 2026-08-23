@@ -21,7 +21,6 @@ import type { Contract } from "../types/contract"
 import { getContractsForClient } from "../lib/clients"
 import {
   applyClientesPanelFilters,
-  countClientesByAceptacion,
   countClientesByTipo,
   countContratosActivosForClients,
   formatClientContact,
@@ -29,7 +28,6 @@ import {
   getClientTerminos,
   getVisibleClientsForRole,
   sortClients,
-  type ClienteAceptacionFilter,
   type ClienteSortField,
   type ClienteTipoFilter,
   type SortDirection,
@@ -136,8 +134,6 @@ export function MisClientesPanel({
   const [folderClientId, setFolderClientId] = useState<string | null>(null)
   const [contractsClientId, setContractsClientId] = useState<string | null>(null)
   const [tipoFilter, setTipoFilter] = useState<ClienteTipoFilter>("todos")
-  const [aceptacionFilter, setAceptacionFilter] =
-    useState<ClienteAceptacionFilter>("todos")
   const [sortField, setSortField] = useState<ClienteSortField>("alta")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
 
@@ -162,19 +158,13 @@ export function MisClientesPanel({
     () => ({
       searchQuery: clientesSearchQuery,
       tipoFilter,
-      aceptacionFilter,
+      aceptacionFilter: "todos" as const,
     }),
-    [clientesSearchQuery, tipoFilter, aceptacionFilter]
+    [clientesSearchQuery, tipoFilter]
   )
 
   const poolForTipoCounts = useMemo(
     () => applyClientesPanelFilters(visibleClients, { ...filterOpts, skipTipo: true }),
-    [visibleClients, filterOpts]
-  )
-
-  const poolForAceptacionCounts = useMemo(
-    () =>
-      applyClientesPanelFilters(visibleClients, { ...filterOpts, skipAceptacion: true }),
     [visibleClients, filterOpts]
   )
 
@@ -191,11 +181,6 @@ export function MisClientesPanel({
   const tipoCounts = useMemo(
     () => countClientesByTipo(poolForTipoCounts),
     [poolForTipoCounts]
-  )
-
-  const aceptacionCounts = useMemo(
-    () => countClientesByAceptacion(poolForAceptacionCounts),
-    [poolForAceptacionCounts]
   )
 
   const kpiParticulares = useMemo(
@@ -430,27 +415,6 @@ export function MisClientesPanel({
           </FilterPill>
           <FilterPill active={tipoFilter === "empresa"} onClick={() => setTipoFilter("empresa")}>
             PYMEs [{tipoCounts.empresa}]
-          </FilterPill>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterPill
-            active={aceptacionFilter === "todos"}
-            onClick={() => setAceptacionFilter("todos")}
-          >
-            Todos [{aceptacionCounts.todos}]
-          </FilterPill>
-          <FilterPill
-            active={aceptacionFilter === "aceptado"}
-            onClick={() => setAceptacionFilter("aceptado")}
-          >
-            Aceptados [{aceptacionCounts.aceptado}]
-          </FilterPill>
-          <FilterPill
-            active={aceptacionFilter === "pendiente"}
-            onClick={() => setAceptacionFilter("pendiente")}
-          >
-            Pendientes [{aceptacionCounts.pendiente}]
           </FilterPill>
         </div>
       </div>

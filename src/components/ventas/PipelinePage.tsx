@@ -54,6 +54,7 @@ interface PipelinePageProps {
   getContractCups?: (contratoEquipoId: string) => string | undefined
   openCentroMandoProspectoId?: string | null
   onCentroMandoClosed?: () => void
+  onOpenGeneralDatabase?: () => void
   contracts?: Contract[]
 }
 
@@ -72,6 +73,7 @@ export function PipelinePage({
   getContractCups,
   openCentroMandoProspectoId = null,
   onCentroMandoClosed,
+  onOpenGeneralDatabase,
   contracts = [],
 }: PipelinePageProps) {
   const { prospectos, loading, error, changeFase, createProspecto, updateProspecto, deleteProspecto } =
@@ -331,6 +333,7 @@ export function PipelinePage({
           enersaveLeads={enersaveLeads}
           loading={leadsLoading}
           onImportToPipeline={importLeadToPipeline}
+          onOpenGeneralDatabase={onOpenGeneralDatabase}
         />
       ) : isInitialLoad ? (
         view === "kanban" ? (

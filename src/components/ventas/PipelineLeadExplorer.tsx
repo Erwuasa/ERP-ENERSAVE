@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { ArrowRight, Briefcase, Database, Search } from "lucide-react"
+import { ArrowRight, BookUser, Briefcase, Database, Search } from "lucide-react"
 import { toast } from "sonner"
 import type { Contract } from "../../types/contract"
 import {
@@ -25,6 +25,7 @@ interface PipelineLeadExplorerProps {
   onImportToPipeline: (
     input: Omit<CreateProspectoInput, "comercialId" | "comercialName">
   ) => Promise<boolean>
+  onOpenGeneralDatabase?: () => void
 }
 
 export function PipelineLeadExplorer({
@@ -33,6 +34,7 @@ export function PipelineLeadExplorer({
   enersaveLeads,
   loading = false,
   onImportToPipeline,
+  onOpenGeneralDatabase,
 }: PipelineLeadExplorerProps) {
   const [source, setSource] = useState<PipelineLeadSource>("enersave")
   const [search, setSearch] = useState("")
@@ -131,6 +133,16 @@ export function PipelineLeadExplorer({
             <Briefcase className="w-4 h-4" />
             Mi cartera ERP
           </button>
+          {onOpenGeneralDatabase ? (
+            <button
+              type="button"
+              onClick={onOpenGeneralDatabase}
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 text-xs font-semibold transition-colors bg-brand-panel text-brand-text hover:bg-cyan-600 hover:text-white border-l border-brand-border"
+            >
+              <BookUser className="w-4 h-4" />
+              BD General
+            </button>
+          ) : null}
         </div>
         <p className="text-xs text-brand-subtext">
           {source === "enersave"

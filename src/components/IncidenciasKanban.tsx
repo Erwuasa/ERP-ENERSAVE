@@ -55,6 +55,7 @@ const TIPO_OPTIONS: IncidenciaTipo[] = [
   "Retraso de Firma",
   "Error de CUPS",
   "Reclamación Distribuidora",
+  "Riesgo de Seguridad",
 ]
 
 const ORIGEN_OPTIONS: IncidenciaOrigen[] = ["manual", "comercial", "sistema", "cliente"]
