@@ -10,6 +10,13 @@ export interface ErpComercialRow {
   email: string | null
   auth_user_id: string | null
   commission_percentage: number
+  activo: boolean
+  dni?: string | null
+  direccion?: string | null
+  ciudad?: string | null
+  codigo_postal?: string | null
+  telefono?: string | null
+  iban?: string | null
   created_at: string
   updated_at: string
 }
@@ -18,23 +25,30 @@ export type ErpComercialResult<T> =
   | { ok: true; data: T }
   | { ok: false; message: string }
 
-const ERP_COMERCIAL_SELECT_FULL =
-  "id, full_name, role, manager_id, email, auth_user_id, commission_percentage, created_at, updated_at"
-
-const ERP_COMERCIAL_SELECT_BASE =
-  "id, full_name, role, manager_id, email, auth_user_id, created_at, updated_at"
-
 /** null = aún no probado; false = columna ausente en remoto */
 let hasCommissionColumn: boolean | null = null
+let hasActivoColumn: boolean | null = null
+let hasFiscalColumns: boolean | null = null
+
+function isMissingFiscalColumnError(message: string): boolean {
+  return /(\bdni\b|\bdireccion\b|\bciudad\b|codigo_postal|\btelefono\b|\biban\b)/i.test(
+    message
+  )
+}
 
 function isMissingCommissionColumnError(message: string): boolean {
   return /commission_percentage/i.test(message)
+}
+
+function isMissingActivoColumnError(message: string): boolean {
+  return /\bactivo\b/i.test(message)
 }
 
 function mapErpComercialRow(row: ErpComercialRow): ErpComercialRow {
   return {
     ...row,
     commission_percentage: Number(row.commission_percentage ?? 70),
+    activo: row.activo !== false,
   }
 }
 
@@ -52,9 +66,14 @@ function requireClient(): ReturnType<typeof getSupabaseClient> | ErpComercialRes
 }
 
 function selectColumns(): string {
-  return hasCommissionColumn === false
-    ? ERP_COMERCIAL_SELECT_BASE
-    : ERP_COMERCIAL_SELECT_FULL
+  const parts = ["id, full_name, role, manager_id, email, auth_user_id"]
+  if (hasCommissionColumn !== false) parts.push("commission_percentage")
+  if (hasActivoColumn !== false) parts.push("activo")
+  if (hasFiscalColumns !== false) {
+    parts.push("dni, direccion, ciudad, codigo_postal, telefono, iban")
+  }
+  parts.push("created_at, updated_at")
+  return parts.join(", ")
 }
 
 function withDefaultCommission(row: Record<string, unknown>): ErpComercialRow {
@@ -62,7 +81,25 @@ function withDefaultCommission(row: Record<string, unknown>): ErpComercialRow {
     ...(row as ErpComercialRow),
     commission_percentage:
       row.commission_percentage != null ? Number(row.commission_percentage) : 70,
+    activo: row.activo !== false,
   })
+}
+
+function handleSelectColumnFallback(message: string): boolean {
+  let retried = false
+  if (isMissingCommissionColumnError(message) && hasCommissionColumn !== false) {
+    hasCommissionColumn = false
+    retried = true
+  }
+  if (isMissingActivoColumnError(message) && hasActivoColumn !== false) {
+    hasActivoColumn = false
+    retried = true
+  }
+  if (isMissingFiscalColumnError(message) && hasFiscalColumns !== false) {
+    hasFiscalColumns = false
+    retried = true
+  }
+  return retried
 }
 
 async function queryErpComerciales(
@@ -75,20 +112,11 @@ async function queryErpComerciales(
     return q.order("id")
   }
 
-  if (hasCommissionColumn === false) {
-    const { data, error } = await runSelect(ERP_COMERCIAL_SELECT_BASE)
-    if (error) return mapError(error)
-    return {
-      ok: true,
-      data: ((data ?? []) as Record<string, unknown>[]).map(withDefaultCommission),
-    }
-  }
+  const columns = selectColumns()
+  let { data, error } = await runSelect(columns)
 
-  let { data, error } = await runSelect(ERP_COMERCIAL_SELECT_FULL)
-
-  if (error && isMissingCommissionColumnError(error.message)) {
-    hasCommissionColumn = false
-    const fallback = await runSelect(ERP_COMERCIAL_SELECT_BASE)
+  if (error && handleSelectColumnFallback(error.message)) {
+    const fallback = await runSelect(selectColumns())
     if (fallback.error) return mapError(fallback.error)
     return {
       ok: true,
@@ -97,7 +125,9 @@ async function queryErpComerciales(
   }
 
   if (error) return mapError(error)
-  hasCommissionColumn = true
+  if (columns.includes("commission_percentage")) hasCommissionColumn = true
+  if (columns.includes("activo")) hasActivoColumn = true
+  if (columns.includes("dni")) hasFiscalColumns = true
   return {
     ok: true,
     data: ((data ?? []) as ErpComercialRow[]).map(mapErpComercialRow),
@@ -115,11 +145,10 @@ async function querySingleErpComercial(
     .eq("id", id)
     .maybeSingle()
 
-  if (error && isMissingCommissionColumnError(error.message) && columns.includes("commission_percentage")) {
-    hasCommissionColumn = false
+  if (error && handleSelectColumnFallback(error.message)) {
     const fallback = await client
       .from("erp_comerciales")
-      .select(ERP_COMERCIAL_SELECT_BASE)
+      .select(selectColumns())
       .eq("id", id)
       .maybeSingle()
     if (fallback.error) return { data: null, error: fallback.error }
@@ -178,6 +207,12 @@ export interface UpdateErpComercialPatch {
   full_name?: string
   email?: string | null
   commission_percentage?: number
+  dni?: string | null
+  direccion?: string | null
+  ciudad?: string | null
+  codigo_postal?: string | null
+  telefono?: string | null
+  iban?: string | null
 }
 
 export async function updateErpComercial(
@@ -198,6 +233,14 @@ export async function updateErpComercial(
   if (patch.commission_percentage !== undefined && hasCommissionColumn !== false) {
     row.commission_percentage = patch.commission_percentage
   }
+  if (patch.dni !== undefined && hasFiscalColumns !== false) row.dni = patch.dni
+  if (patch.direccion !== undefined && hasFiscalColumns !== false) row.direccion = patch.direccion
+  if (patch.ciudad !== undefined && hasFiscalColumns !== false) row.ciudad = patch.ciudad
+  if (patch.codigo_postal !== undefined && hasFiscalColumns !== false) {
+    row.codigo_postal = patch.codigo_postal
+  }
+  if (patch.telefono !== undefined && hasFiscalColumns !== false) row.telefono = patch.telefono
+  if (patch.iban !== undefined && hasFiscalColumns !== false) row.iban = patch.iban
 
   const { error: updateError } = await client.from("erp_comerciales").update(row).eq("id", id)
   if (updateError) {
@@ -207,6 +250,16 @@ export async function updateErpComercial(
     ) {
       hasCommissionColumn = false
       delete row.commission_percentage
+      const retry = await client.from("erp_comerciales").update(row).eq("id", id)
+      if (retry.error) return mapError(retry.error)
+    } else if (isMissingFiscalColumnError(updateError.message) && hasFiscalColumns !== false) {
+      hasFiscalColumns = false
+      delete row.dni
+      delete row.direccion
+      delete row.ciudad
+      delete row.codigo_postal
+      delete row.telefono
+      delete row.iban
       const retry = await client.from("erp_comerciales").update(row).eq("id", id)
       if (retry.error) return mapError(retry.error)
     } else {
@@ -271,22 +324,87 @@ export async function insertErpComercial(
   return { ok: true, data }
 }
 
-export async function deleteErpComercial(id: string): Promise<ErpComercialResult<null>> {
+export async function deactivateErpComercial(
+  id: string
+): Promise<ErpComercialResult<ErpComercialRow>> {
   const clientOrError = requireClient()
   if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
     return clientOrError
   }
 
-  const { error } = await (clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>)
-    .from("erp_comerciales")
-    .delete()
-    .eq("id", id)
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const row: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  }
 
+  if (hasActivoColumn !== false) {
+    row.activo = false
+  }
+
+  const { error: updateError } = await client.from("erp_comerciales").update(row).eq("id", id)
+
+  if (updateError) {
+    if (isMissingActivoColumnError(updateError.message)) {
+      hasActivoColumn = false
+      return {
+        ok: false,
+        message:
+          "Columna activo no existe en erp_comerciales. Aplica la migración 20260825000006_erp_comerciales_activo.sql.",
+      }
+    }
+    return mapError(updateError)
+  }
+
+  const { data, error } = await querySingleErpComercial(client, id, selectColumns())
   if (error) return mapError(error)
+  if (!data) return { ok: false, message: "Usuario no encontrado tras desactivar" }
+  return { ok: true, data }
+}
+
+/** @deprecated Usa deactivateErpComercial — conserva historial comercial */
+export async function deleteErpComercial(id: string): Promise<ErpComercialResult<null>> {
+  const result = await deactivateErpComercial(id)
+  if (!result.ok) return result
   return { ok: true, data: null }
+}
+
+export async function isErpComercialLoginAllowed(
+  email: string,
+  comercialId?: string
+): Promise<ErpComercialResult<boolean>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return { ok: true, data: true }
+  }
+
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const normalizedEmail = email.trim().toLowerCase()
+
+  let query = client.from("erp_comerciales").select("activo")
+  if (comercialId) {
+    query = query.eq("id", comercialId)
+  } else {
+    query = query.ilike("email", normalizedEmail)
+  }
+
+  const { data, error } = await query.maybeSingle()
+
+  if (error) {
+    if (isMissingActivoColumnError(error.message)) {
+      hasActivoColumn = false
+      return { ok: true, data: true }
+    }
+    return mapError(error)
+  }
+
+  if (!data) return { ok: true, data: true }
+  hasActivoColumn = true
+  return { ok: true, data: data.activo !== false }
 }
 
 /** Para tests o reset tras migración remota */
 export function resetErpComercialesSchemaCache(): void {
   hasCommissionColumn = null
+  hasActivoColumn = null
+  hasFiscalColumns = null
 }

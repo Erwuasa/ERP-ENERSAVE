@@ -8,6 +8,7 @@ import { ComercialRenovacionesCard } from './components/ComercialRenovacionesCar
 import { ComercialContratosEstadoKpis } from './components/ComercialContratosEstadoKpis';
 import type { ContractEstadoKpiFilter } from './lib/contract-estado-kpis';
 import { LiquidacionesInternasPanel } from './components/LiquidacionesInternasPanel';
+import { PerfilComercialModal } from './components/PerfilComercialModal';
 import { LiquidacionesConsolidadasSuperadminSection } from './components/LiquidacionesConsolidadasSuperadminSection';
 import type { LiquidacionesConsolidadasView } from './lib/liquidaciones-consolidadas';
 import { CashflowPanel } from './components/CashflowPanel';
@@ -67,10 +68,11 @@ import {
   Package,
   HardDrive,
   Loader2,
+  Megaphone,
 } from 'lucide-react';
 import { UserControlSheet } from './components/admin/UserControlSheet';
 import {
-  deleteErpComercial,
+  deactivateErpComercial,
   insertErpComercial,
   listErpComerciales,
   updateErpComercial,
@@ -79,7 +81,15 @@ import {
 import { MarcoRetributivoPanel } from './components/MarcoRetributivoPanel';
 import { ProductosPanel } from './components/ProductosPanel';
 import { FtpPanel } from './components/FtpPanel';
+import { AvisosModal } from './components/AvisosModal';
+import { AvisosPanel } from './components/AvisosPanel';
+import { CalendarioPanel } from './components/calendario/CalendarioPanel';
+import { ProximosEventosWidget } from './components/calendario/ProximosEventosWidget';
 import { ComparadorOfferCard } from './components/ComparadorOfferCard';
+import { ComparadorSortToggle } from './components/comparador/ComparadorSortToggle';
+import { ComparadorProposalFilters } from './components/comparador/ComparadorProposalFilters';
+import { ComparadorIaUpload } from './components/comparador/ComparadorIaUpload';
+import { EmailPropuestaModal } from './components/comparador/EmailPropuestaModal';
 import { AppUpdateBanner } from './components/AppUpdateBanner';
 import { useAppVersionCheck } from './hooks/use-app-version-check';
 import {
@@ -87,9 +97,10 @@ import {
   setAppUpdateSnapshotProvider,
 } from './lib/app-update';
 import {
-  canDeleteContract,
+  canUserDeleteContract,
   contractDeletionBlockedMessage,
 } from './lib/contract-deletion';
+import { isContractDeletable } from './lib/contract-registration';
 import { IncidenciasPanel } from './components/IncidenciasPanel';
 import { PipelinePage } from './components/ventas/PipelinePage';
 import { MiDiaPage } from './components/ventas/MiDiaPage';
@@ -98,6 +109,7 @@ import { ReportingPage } from './components/ventas/ReportingPage';
 import { SlaAvisosPage } from './components/ventas/SlaAvisosPage';
 import { EnersaveLeadDatabasePage } from './components/ventas/EnersaveLeadDatabasePage';
 import { GeneralDatabasePage } from './components/GeneralDatabasePage';
+import { SensitiveScreenShell } from './components/SensitiveScreenShell';
 import { RuntimeIntegrityBlockModal } from './components/RuntimeIntegrityBlockModal';
 import { createProspecto } from './lib/supabase/ventas';
 import { generalDatabaseLeadToProspectoInput } from './lib/general-database-prospecto';
@@ -121,12 +133,33 @@ import type { Client } from './types/client';
 import type { ContractOcrResult } from './lib/contract-ocr';
 import { extractContractDataFromDocument } from './lib/contract-ocr';
 import { applyComparadorOcrResult } from './lib/comparador-ocr-apply';
+import { buildComparadorCandidates } from './lib/comparador-candidates';
 import {
-  COMP_PROPOSAL_FILTER_OPTIONS,
   matchesCompProposalFilters,
-  toggleCompProposalFilter,
   type CompProposalFilterId,
 } from './lib/comparador-proposal-filters';
+import { sortComparadorOptions, type ComparadorSortMode } from './lib/comparador-sort';
+import { listMarcoRetributivo, type MarcoRetributivoRow } from './lib/supabase/marco-retributivo';
+import {
+  buildMailtoHref,
+  buildPeriodosMayorConsumo,
+  inferTarifaPrecioTipoFromNombre,
+} from './lib/ia/comparador-email-helpers';
+import { generarEmailPropuesta } from './lib/ia/email-propuesta-generator';
+import { subscribeContratosEquipoInserts } from './lib/contratos-equipo-realtime';
+import {
+  countUnreviewedTramitacionContracts,
+  formatTramitacionNuevosSummary,
+  groupInsertBufferByComercial,
+  groupUnreviewedTramitacionByComercial,
+  loadReviewedTramitacionIds,
+  pruneInsertBuffer,
+  pushInsertBufferEvent,
+  saveReviewedTramitacionIds,
+  TRAMITACION_SUMMARY_DEBOUNCE_MS,
+  TRAMITACION_SUMMARY_INTERVAL_MS,
+  type TramitacionInsertEvent,
+} from './lib/contratos-tramitacion-notifications';
 import {
   buildClientsFromContracts,
   linkContractsToClients,
@@ -155,7 +188,30 @@ import {
 } from './lib/supabase/contracts';
 import { createCliente, listClientes, updateCliente } from './lib/supabase/clientes';
 import { createIncidencia, listIncidencias, updateIncidencia } from './lib/supabase/incidencias';
-import { createSettlement, listSettlements, updateSettlement } from './lib/supabase/settlements';
+import { listAvisos, marcarVisto } from './lib/supabase/avisos';
+import { listCalendarioEventos } from './lib/supabase/calendario';
+import type { CalendarioEvento } from './types/calendario';
+import type { Aviso } from './types/aviso';
+import { createSettlement, generarLiquidacionesDelMes, generarLiquidacionesDelMesFromProfiles, listSettlements, updateSettlement } from './lib/supabase/settlements';
+import {
+  calcularLiquidacionMensualPorComercial,
+  erpComercialFromProfile as mapProfileToLiquidacionComercial,
+} from './lib/liquidaciones-mensuales';
+import {
+  erpComercialFromProfile,
+  fiscalFormFromComercial,
+  isComercialFiscalProfileComplete,
+} from './lib/comercial-fiscal-profile';
+import {
+  downloadAutofacturaPdf,
+  generateAutofacturaPdf,
+} from './lib/pdf/autofactura-pdf';
+import {
+  formatAutofacturaFecha,
+  getProximaFechaAutofactura,
+  type AutofacturaTipoCliente,
+} from './lib/autofactura-scheduler';
+import { normalizeTipoClienteSegment } from './lib/contract-segment-rules';
 import {
   applyActivationSettlements,
   buildPendingContractSettlement,
@@ -186,12 +242,14 @@ import {
 import type { ProductoTarifa } from './lib/productos-catalog';
 import { getTariffPeajeType, spreadPotenciaFromP1 } from './lib/contract-potencia';
 import type { ContractsListFilter } from './lib/contract-renewal';
+import { normalizeCups } from './lib/contract-cups-liquidacion';
+import { createNoSpacePasteHandler } from './hooks/useNoSpacePasteInput';
 import {
   aplicaRenovacionAnual,
   computeRenewalSchedule,
 } from './lib/contract-segment-rules';
 import type { IncidenciaTicket } from './lib/incidencias';
-import { isIncidenciaKanbanVisible, withIncidenciaEstado, normalizeIncidenciaTicket, generateIncidenciaCodigo, isIncidenciaAbierta } from './lib/incidencias';
+import { isIncidenciaKanbanVisible, withIncidenciaEstado, normalizeIncidenciaTicket, generateIncidenciaCodigo, isIncidenciaAbierta, appendIncidenciaEstadoHistorial, todayInputDate } from './lib/incidencias';
 import {
   generateEstudioAhorroPdf,
   generateEstudioAhorroConjuntoPdf,
@@ -215,6 +273,11 @@ import {
   dismissRecommendation,
   filterUndismissedRecommendations,
 } from './lib/recommendation-dismissed';
+import {
+  dismissRenewalAlert,
+  isRenewalAlertDismissed,
+} from './lib/renewal-alert-dismissed';
+import { isRenovacionProxima } from './lib/contract-renewal';
 import { getRetroMonths } from './lib/retro-period';
 import { canEditMarcoRetributivo } from './lib/marco-retributivo-permissions';
 import { canEditFtp } from './lib/ftp-permissions';
@@ -366,6 +429,12 @@ interface Profile {
   email: string;
   status: 'activo' | 'suspendido' | 'pendiente';
   commissionPercentage: number;
+  dni?: string;
+  direccion?: string;
+  ciudad?: string;
+  codigoPostal?: string;
+  telefono?: string;
+  iban?: string;
 }
 
 function defaultPermissionsForRole(role: UserRole): Profile['permissions'] {
@@ -401,6 +470,13 @@ function mergeErpRowsIntoProfiles(
     manager_id: string | null;
     email: string | null;
     commission_percentage?: number;
+    activo?: boolean;
+    dni?: string | null;
+    direccion?: string | null;
+    ciudad?: string | null;
+    codigo_postal?: string | null;
+    telefono?: string | null;
+    iban?: string | null;
   }>,
   current: Profile[]
 ): Profile[] {
@@ -410,18 +486,27 @@ function mergeErpRowsIntoProfiles(
   const fromSupabase = rows.map((row) => {
     const existing = byId.get(row.id);
     const role = row.role as UserRole;
+    const isActiveInSupabase = row.activo !== false;
     return {
       id: row.id,
       fullName: row.full_name,
       role,
       managerId: row.manager_id,
       email: row.email ?? existing?.email ?? '',
-      status: existing?.status ?? 'activo',
+      status: isActiveInSupabase
+        ? (existing?.status === 'suspendido' ? 'activo' : existing?.status ?? 'activo')
+        : ('suspendido' as const),
       commissionPercentage:
         row.commission_percentage ??
         existing?.commissionPercentage ??
         defaultCommissionForRole(role),
       permissions: existing?.permissions ?? defaultPermissionsForRole(role),
+      dni: row.dni ?? existing?.dni ?? '',
+      direccion: row.direccion ?? existing?.direccion ?? '',
+      ciudad: row.ciudad ?? existing?.ciudad ?? '',
+      codigoPostal: row.codigo_postal ?? existing?.codigoPostal ?? '',
+      telefono: row.telefono ?? existing?.telefono ?? '',
+      iban: row.iban ?? existing?.iban ?? '',
     };
   });
 
@@ -663,17 +748,52 @@ export default function App() {
   const [clientsSource, setClientsSource] = useState<DataSource>('local');
   const [incidenciasSource, setIncidenciasSource] = useState<DataSource>('local');
   const [settlementsSource, setSettlementsSource] = useState<DataSource>('local');
+  const [avisosSource, setAvisosSource] = useState<DataSource>('local');
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [avisosModalOpen, setAvisosModalOpen] = useState(false);
+  const [calendarioEventos, setCalendarioEventos] = useState<CalendarioEvento[]>([]);
 
   // Dual switch view state for Superadmin
   const [superadminViewMode, setSuperadminViewMode] = useState<'tramitacion' | 'comercial'>('tramitacion');
+
+  const activeUser =
+    profiles.find((p) => p.id === activeUserId) ||
+    profiles[0] || {
+      id: 'usr-1',
+      fullName: 'Usuario',
+      role: 'superadmin' as UserRole,
+      managerId: null,
+      permissions: defaultPermissionsForRole('superadmin'),
+      email: '',
+      status: 'activo' as const,
+      commissionPercentage: 100,
+    };
+  const activeRole = activeUser.role;
+  const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
+  const canEditMarcoEntries = canEditMarcoRetributivo(activeRole, { superadminViewMode });
+  const canEditFtpEntries = canEditFtp(activeRole);
+  const canPublishAvisos = activeRole === 'superadmin' || activeRole === 'tramitacion';
+
+  // #region agent log
+  fetch('http://127.0.0.1:7489/ingest/2416dbc4-98bc-4197-b745-304a4bc1acc9',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4795b9'},body:JSON.stringify({sessionId:'4795b9',location:'App.tsx:activeUser-init',message:'activeRole initialized early',data:{activeRole,activeUserId},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
+  // #endregion
 
   // Interactive filters for Clients database views
   const [clientesSearchQuery, setClientesSearchQuery] = useState('');
   const [contractsSearchQuery, setContractsSearchQuery] = useState('');
   const [contractsListFilter, setContractsListFilter] = useState<ContractsListFilter>('all');
   const [contractsUserFilterId, setContractsUserFilterId] = useState<string>('all');
+  const [perfilComercialOpen, setPerfilComercialOpen] = useState(false);
   const [highlightContractId, setHighlightContractId] = useState<string | null>(null);
   const [recommendationDismissVersion, setRecommendationDismissVersion] = useState(0);
+  const [renewalDismissVersion, setRenewalDismissVersion] = useState(0);
+  const [reviewedContractIds, setReviewedContractIds] = useState<Set<string>>(() =>
+    loadReviewedTramitacionIds()
+  );
+  const [tramitacionInsertBuffer, setTramitacionInsertBuffer] = useState<
+    TramitacionInsertEvent[]
+  >([]);
+  const tramitacionSummaryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const marcoEntries = useMemo(() => getFallbackMarcoCatalog(), []);
 
@@ -738,6 +858,7 @@ export default function App() {
   const [compTipo, setCompTipo] = useState<'luz' | 'gas'>('luz');
   const [compConsumo, setCompConsumo] = useState<number>(30000);
   const [compTarifaActual, setCompTarifaActual] = useState('Fija Cara');
+  const [compCompaniaActual, setCompCompaniaActual] = useState('');
   const [matchingRate, setMatchingRate] = useState<{ name: string; cost: number; savings: number; profitCompany: number; profitAgent: number } | null>(null);
   
   // High fidelity period variables mimicking the Next.js active form
@@ -751,8 +872,22 @@ export default function App() {
   const [compSummary, setCompSummary] = useState<any | null>(null);
   const [compLoading, setCompLoading] = useState<boolean>(false);
   const [compProposalFilters, setCompProposalFilters] = useState<CompProposalFilterId[]>([]);
+  const [compSortMode, setCompSortMode] = useState<ComparadorSortMode>('ahorro');
   const [compOcrLoading, setCompOcrLoading] = useState(false);
   const [compOcrProgress, setCompOcrProgress] = useState<string | null>(null);
+  const [marcoRowsForComparador, setMarcoRowsForComparador] = useState<MarcoRetributivoRow[]>([]);
+  const [emailPropuestaOpen, setEmailPropuestaOpen] = useState(false);
+  const [emailPropuestaLoading, setEmailPropuestaLoading] = useState(false);
+  const [emailPropuestaGeneratingId, setEmailPropuestaGeneratingId] = useState<string | null>(null);
+  const [emailPropuestaDestino, setEmailPropuestaDestino] = useState('');
+  const [emailPropuestaAsunto, setEmailPropuestaAsunto] = useState('');
+  const [emailPropuestaCuerpo, setEmailPropuestaCuerpo] = useState('');
+
+  useEffect(() => {
+    void listMarcoRetributivo().then((result) => {
+      if (result.ok) setMarcoRowsForComparador(result.data);
+    });
+  }, []);
 
   const [newContractForm, setNewContractForm] = useState<NewContractFormState>({
     ...EMPTY_NEW_CONTRACT_FORM,
@@ -937,13 +1072,16 @@ export default function App() {
   const [isConsolidating, setIsConsolidating] = useState<boolean>(false);
   const [isBajaOpen, setIsBajaOpen] = useState<boolean>(false);
   const [selectedContractForBaja, setSelectedContractForBaja] = useState<Contract | null>(null);
-  const [bajaDate, setBajaDate] = useState<string>('2026-05-28');
+  const [bajaDate, setBajaDate] = useState<string>(() => todayInputDate());
+  const [bajaMotivo, setBajaMotivo] = useState<string>('');
 
   // Contract Activation and Commission Distribution states
   const [isActivateOpen, setIsActivateOpen] = useState<boolean>(false);
   const [selectedContractForActivation, setSelectedContractForActivation] = useState<Contract | null>(null);
   const [activatePowerKw, setActivatePowerKw] = useState<number>(15);
   const [activateConsumoKwh, setActivateConsumoKwh] = useState<number>(25000);
+  const [activateEffectiveDate, setActivateEffectiveDate] = useState<string>(() => todayInputDate());
+  const [activateMotivo, setActivateMotivo] = useState<string>('');
 
   // Historial de Comparativas state
   const [comparisonsHistory, setComparisonsHistory] = useState<any[]>([
@@ -1029,6 +1167,11 @@ export default function App() {
       setLoginError('Perfil demo no encontrado.');
       return;
     }
+    if (matches.status === 'suspendido') {
+      setLoginLoading(false);
+      setLoginError('La cuenta de este agente se encuentra suspendida temporalmente por administración.');
+      return;
+    }
     setLoginEmail(matches.email);
     if (!await ensureSupabaseForProfile(matches, DEFAULT_DEV_PASSWORD)) {
       setLoginLoading(false);
@@ -1104,12 +1247,14 @@ export default function App() {
     let cancelled = false;
 
     void (async () => {
-      const [contractsResult, clientsResult, incidenciasResult, settlementsResult] =
+      const [contractsResult, clientsResult, incidenciasResult, settlementsResult, avisosResult, calendarioResult] =
         await Promise.all([
           listTeamContracts(),
           listClientes(),
           listIncidencias(),
           listSettlements(),
+          listAvisos(),
+          listCalendarioEventos(),
         ]);
       if (cancelled) return;
 
@@ -1155,6 +1300,23 @@ export default function App() {
         setSettlementsSource('supabase');
       }
 
+      if (avisosResult.ok) {
+        setAvisos(avisosResult.data);
+        setAvisosSource('supabase');
+      } else {
+        const failure = avisosResult as SupabaseFailure;
+        if (failure.reason === 'table_missing') missingTables.push('avisos');
+        else errors.push(`avisos: ${failure.message}`);
+      }
+
+      if (calendarioResult.ok) {
+        setCalendarioEventos(calendarioResult.data);
+      } else {
+        const failure = calendarioResult as SupabaseFailure;
+        if (failure.reason === 'table_missing') missingTables.push('calendario_eventos');
+        else errors.push(`calendario_eventos: ${failure.message}`);
+      }
+
       if (missingTables.length > 0) {
         toast.warning(
           `Faltan tablas en Supabase (${missingTables.join(', ')}). Se muestran los datos de demostración.`
@@ -1170,6 +1332,40 @@ export default function App() {
     // como valor de respaldo y no deben reactivar la carga.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
+
+  const unviewedAvisos = useMemo(
+    () => avisos.filter((aviso) => !aviso.vistoPor.includes(activeUserId)),
+    [avisos, activeUserId]
+  );
+
+  useEffect(() => {
+    if (!isLoggedIn || activeModule !== 'erp') return;
+    if (unviewedAvisos.length > 0) setAvisosModalOpen(true);
+  }, [isLoggedIn, activeModule, unviewedAvisos.length]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isSupabaseConfigured()) return;
+    if (activeRole !== 'tramitacion' && activeRole !== 'superadmin') return;
+
+    const unsubscribe = subscribeContratosEquipoInserts(({ contract, comercialId, comercialName }) => {
+      setContracts((prev) => {
+        if (prev.some((item) => item.id === contract.id)) return prev;
+        return [contract, ...prev];
+      });
+      setTramitacionInsertBuffer((prev) =>
+        pushInsertBufferEvent(prev, {
+          contractId: contract.id,
+          comercialId,
+          comercialName,
+          insertedAt: Date.now(),
+        })
+      );
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [isLoggedIn, activeRole]);
 
   /**
    * Refleja en Supabase un cambio ya aplicado al estado local. No-op con datos de
@@ -1285,108 +1481,22 @@ export default function App() {
       potenciaBoe: boolean;
     }
 
-    let testProfiles: SetupTariff[] = [];
+    const candidateProfiles = buildComparadorCandidates({
+      accessTariff: compAccessTariff,
+      segment: compSegment,
+      tipo: compTipo,
+      marcoRows: marcoRowsForComparador.length > 0 ? marcoRowsForComparador : undefined,
+    });
 
-    if (compAccessTariff === "2.0TD") {
-      testProfiles = [
-        {
-          companyName: "EnerLuz",
-          tariffName: "EnerLuz Inteligente Indexada",
-          potRates: [0.071, 0.022],
-          conRates: [0.145, 0.125, 0.101],
-          pricingType: "indexado",
-          sinSva: true,
-          potenciaBoe: false,
-        },
-        {
-          companyName: "Iberdrola",
-          tariffName: "Iberdrola Plan Estable Luz",
-          potRates: [0.082, 0.029],
-          conRates: [0.178, 0.178, 0.178],
-          pricingType: "fijo",
-          sinSva: false,
-          potenciaBoe: true,
-        },
-        {
-          companyName: "Endesa",
-          tariffName: "Endesa One Luz 3 Periodos",
-          potRates: [0.079, 0.026],
-          conRates: [0.165, 0.139, 0.118],
-          pricingType: "fijo",
-          sinSva: true,
-          potenciaBoe: false,
-        },
-        {
-          companyName: "Naturgy",
-          tariffName: "Naturgy Tarifa Por Uso",
-          potRates: [0.081, 0.027],
-          conRates: [0.169, 0.149, 0.121],
-          pricingType: "indexado",
-          sinSva: true,
-          potenciaBoe: true,
-        },
-      ];
-    } else if (compAccessTariff === "3.0TD") {
-      testProfiles = [
-        {
-          companyName: "EnerLuz",
-          tariffName: "EnerLuz MultiPYME Indexada 6P",
-          potRates: [0.102, 0.085, 0.045, 0.038, 0.022, 0.015],
-          conRates: [0.129, 0.118, 0.105, 0.098, 0.091, 0.082],
-          pricingType: "indexado",
-          sinSva: true,
-          potenciaBoe: false,
-        },
-        {
-          companyName: "Endesa",
-          tariffName: "Endesa Negocio Fórmula Variable",
-          potRates: [0.115, 0.095, 0.052, 0.044, 0.028, 0.018],
-          conRates: [0.149, 0.138, 0.122, 0.115, 0.108, 0.095],
-          pricingType: "indexado",
-          sinSva: false,
-          potenciaBoe: true,
-        },
-        {
-          companyName: "Iberdrola",
-          tariffName: "Iberdrola Plan 3 Grabaciones PYME",
-          potRates: [0.119, 0.098, 0.055, 0.045, 0.029, 0.019],
-          conRates: [0.155, 0.141, 0.128, 0.119, 0.112, 0.099],
-          pricingType: "fijo",
-          sinSva: true,
-          potenciaBoe: true,
-        },
-      ];
-    } else {
-      testProfiles = [
-        {
-          companyName: "EnerLuz",
-          tariffName: "EnerLuz Industrial Pool Max 6.0",
-          potRates: [0.095, 0.078, 0.042, 0.034, 0.019, 0.012],
-          conRates: [0.111, 0.099, 0.092, 0.085, 0.078, 0.069],
-          pricingType: "indexado",
-          sinSva: true,
-          potenciaBoe: false,
-        },
-        {
-          companyName: "Iberdrola",
-          tariffName: "Iberdrola Alta Tensión a Medida",
-          potRates: [0.112, 0.091, 0.049, 0.041, 0.024, 0.016],
-          conRates: [0.132, 0.119, 0.109, 0.102, 0.094, 0.084],
-          pricingType: "fijo",
-          sinSva: false,
-          potenciaBoe: true,
-        },
-        {
-          companyName: "Naturgy",
-          tariffName: "Naturgy Gas & Luz Industrial Alianza",
-          potRates: [0.106, 0.086, 0.046, 0.038, 0.022, 0.014],
-          conRates: [0.125, 0.112, 0.103, 0.096, 0.088, 0.078],
-          pricingType: "indexado",
-          sinSva: true,
-          potenciaBoe: true,
-        },
-      ];
-    }
+    let testProfiles: SetupTariff[] = candidateProfiles.map((profile) => ({
+      companyName: profile.companyName,
+      tariffName: profile.tariffName,
+      potRates: profile.potRates,
+      conRates: profile.conRates,
+      pricingType: profile.pricingType,
+      sinSva: profile.sinSva,
+      potenciaBoe: profile.potenciaBoe,
+    }));
 
     testProfiles = testProfiles.filter((profile) =>
       matchesCompProposalFilters(profile, compProposalFilters)
@@ -1467,13 +1577,20 @@ export default function App() {
       };
     });
 
-    finalOptions.sort((a, b) => b.savingsAnnual - a.savingsAnnual);
+    const totalConsumoAnual =
+      Number(compConsumos.p1 || 0) +
+      Number(compConsumos.p2 || 0) +
+      Number(compConsumos.p3 || 0) +
+      Number(compConsumos.p4 || 0) +
+      Number(compConsumos.p5 || 0) +
+      Number(compConsumos.p6 || 0);
 
-    const topSavings = finalOptions[0]?.savingsAnnual ?? 0;
-    const markedOptions = finalOptions.map((opt, index) => ({
-      ...opt,
-      isBestOption: index === 0 && topSavings > 0,
-    }));
+    const markedOptions = sortComparadorOptions(finalOptions, compSortMode, {
+      accessTariff: compAccessTariff,
+      commissionPercentage: activeUser.commissionPercentage,
+      consumoAnual: totalConsumoAnual > 0 ? totalConsumoAnual : compConsumo,
+      formatCurrency,
+    });
 
     const topOptions = markedOptions.slice(0, 3);
     const best = topOptions[0] ?? markedOptions[0];
@@ -1599,6 +1716,10 @@ export default function App() {
     compRentMeter,
     compCurrentBill,
     compProposalFilters,
+    compSortMode,
+    compTipo,
+    marcoRowsForComparador,
+    activeUser.commissionPercentage,
   ]);
 
   // Open the detailed contract modal from comparator offer card
@@ -1610,23 +1731,77 @@ export default function App() {
       const applied = applyComparadorOcrResult(ocr, {
         setCompCups,
         setCompTipo,
+        setCompCompaniaActual,
         setCompTarifaActual,
         setCompAccessTariff,
         setCompPotencias,
+        setCompConsumos,
+        setCompCurrentBill,
         setCompProposalFilters,
       });
-      if (applied === 0) {
-        toast.error('No se pudieron extraer datos útiles de la factura.');
-        return;
+      if (applied > 0) {
+        toast.success(
+          applied === 1
+            ? 'Dato de la factura aplicado al comparador.'
+            : `${applied} datos de la factura aplicados al comparador.`
+        );
+      } else {
+        toast.message('Factura leída. Completa manualmente los campos que falten.');
       }
-      toast.success('Datos de la factura aplicados al comparador.');
     } catch (error) {
       console.error(error);
-      toast.error('No se pudo procesar la factura con IA/OCR.');
+      toast.error('No se pudo procesar la factura. Puedes rellenar el formulario a mano.');
     } finally {
       setCompOcrLoading(false);
       setCompOcrProgress(null);
     }
+  }
+
+  async function handleGenerarEmailPropuesta(option: {
+    id: string
+    companyName: string
+    tariffName: string
+    savingsAnnual: number
+    savingsPercentage?: number
+  }) {
+    setEmailPropuestaGeneratingId(option.id);
+    setEmailPropuestaOpen(true);
+    setEmailPropuestaLoading(true);
+    setEmailPropuestaDestino('');
+    setEmailPropuestaAsunto('');
+    setEmailPropuestaCuerpo('');
+
+    const tarifaActualCompania = compCompaniaActual.trim() || 'su compañía actual';
+    const result = await generarEmailPropuesta({
+      clienteNombre: compClient.trim() || 'cliente',
+      contactoNombre: compClient.trim() || undefined,
+      empresaNombre: compSegment === 'pyme' ? compClient.trim() || undefined : undefined,
+      tarifaActual: {
+        compania: tarifaActualCompania,
+        tipo: inferTarifaPrecioTipoFromNombre(compTarifaActual),
+      },
+      tarifaPropuesta: {
+        compania: option.companyName,
+        tipo: inferTarifaPrecioTipoFromNombre(option.tariffName),
+      },
+      ahorroAnualEur: option.savingsAnnual,
+      ahorroPct: option.savingsPercentage ?? 0,
+      periodosMayorConsumo: buildPeriodosMayorConsumo(compConsumos),
+    });
+
+    setEmailPropuestaAsunto(result.asunto);
+    setEmailPropuestaCuerpo(result.cuerpo);
+    setEmailPropuestaLoading(false);
+    setEmailPropuestaGeneratingId(null);
+  }
+
+  function handleOpenEmailPropuestaMailClient() {
+    window.location.href = buildMailtoHref(
+      emailPropuestaDestino,
+      emailPropuestaAsunto,
+      emailPropuestaCuerpo
+    );
+    setEmailPropuestaOpen(false);
   }
 
   const openNewContractModal = (opt: any) => {
@@ -2172,14 +2347,26 @@ export default function App() {
     const formSnapshot =
       editingContractId === contractId ? newContractForm : undefined;
 
-    if (!canDeleteContract(contract, formSnapshot)) {
+    if (
+      !isContractDeletable(contract, {
+        documentosPorTipo: formSnapshot?.documentosPorTipo,
+      }) ||
+      !canUserDeleteContract(contract, activeRole, activeUserId, formSnapshot)
+    ) {
       toast.error(contractDeletionBlockedMessage());
       return;
     }
 
     const supabaseResult = await deleteTeamContract(contractId);
-    if (supabaseResult.ok === false && supabaseResult.reason !== 'not_configured') {
-      toast.warning(`Eliminado en la app. Supabase: ${supabaseResult.message}`);
+    if (supabaseResult.ok === false) {
+      if (supabaseResult.reason === 'not_configured') {
+        // Sin Supabase: eliminación solo local
+      } else if (supabaseResult.reason === 'rls_denied') {
+        toast.error('No tienes permiso para eliminar este contrato o ya no está en borrador.');
+        return;
+      } else {
+        toast.warning(`Eliminado en la app. Supabase: ${supabaseResult.message}`);
+      }
     }
 
     setContracts((prev) => prev.filter((item) => item.id !== contractId));
@@ -2283,16 +2470,26 @@ export default function App() {
   async function handleDeleteUserFromSupabase(userId: string) {
     const user = profiles.find((p) => p.id === userId);
     if (!user) return;
-    if (!confirm(`¿Eliminar ${user.fullName} de erp_comerciales?`)) return;
+    if (
+      !confirm(
+        `¿Desactivar el acceso de ${user.fullName}? Se conservará su historial de contratos y liquidaciones.`
+      )
+    ) {
+      return;
+    }
 
-    const result = await deleteErpComercial(userId);
+    const result = await deactivateErpComercial(userId);
     if (!result.ok) {
       toast.error(result.message);
       return;
     }
-    setProfiles((prev) => prev.filter((p) => p.id !== userId));
-    setActiveUserForSheet(null);
-    toast.success('Usuario eliminado de Supabase');
+    setProfiles((prev) =>
+      prev.map((p) => (p.id === userId ? { ...p, status: 'suspendido' as const } : p))
+    );
+    setActiveUserForSheet((prev) =>
+      prev?.id === userId ? { ...prev, status: 'suspendido' } : prev
+    );
+    toast.success('Acceso desactivado en Supabase');
   }
 
   // Toggle Settlement payout state (simulating admin action)
@@ -2345,7 +2542,7 @@ export default function App() {
         }
       }
 
-      const today = new Date().toISOString().split('T')[0];
+      const activationDate = activateEffectiveDate;
 
       const activationSettlementResult = applyActivationSettlements(settlements, {
         contract,
@@ -2355,10 +2552,9 @@ export default function App() {
         jefeShare,
         managerId,
         managerName: managerProfile?.fullName ?? null,
-        activationDate: today,
+        activationDate,
       });
 
-      const activationDate = today;
       const renewalSchedule = aplicaRenovacionAnual(contract)
         ? computeRenewalSchedule(activationDate)
         : { estadoRenovacion: 'No aplica' as const };
@@ -2366,6 +2562,8 @@ export default function App() {
       const activationPatch: Partial<Contract> = {
         estado: 'ACTIVADO',
         createdAt: activationDate,
+        estadoEfectivoDesde: activationDate,
+        motivoCambioEstado: activateMotivo.trim() || undefined,
         consumoAnual: consumoKwh,
         potenciaContratada: potenciaKw,
         montoInterno: totalCom,
@@ -2435,6 +2633,8 @@ export default function App() {
       const bajaPatch: Partial<Contract> = {
         estado: 'Dado de Baja',
         fechaBaja: bajaDate,
+        estadoEfectivoDesde: bajaDate,
+        motivoCambioEstado: bajaMotivo.trim() || undefined,
         retrocomisionClawback: clawbackAmountRounded,
       };
 
@@ -2540,22 +2740,34 @@ export default function App() {
     [contracts, clients]
   );
 
-  const activeUser =
-    profiles.find((p) => p.id === activeUserId) ||
-    profiles[0] || {
-      id: 'usr-1',
-      fullName: 'Usuario',
-      role: 'superadmin' as UserRole,
-      managerId: null,
-      permissions: defaultPermissionsForRole('superadmin'),
-      email: '',
-      status: 'activo' as const,
-      commissionPercentage: 100,
-    };
-  const activeRole = activeUser.role;
-  const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
-  const canEditMarcoEntries = canEditMarcoRetributivo(activeRole, { superadminViewMode });
-  const canEditFtpEntries = canEditFtp(activeRole);
+  const handleMarcarAvisosVistos = useCallback(
+    async (avisoIds: string[]) => {
+      for (const avisoId of avisoIds) {
+        if (isSupabaseConfigured() && avisosSource === 'supabase') {
+          const result = await marcarVisto(avisoId, activeUserId);
+          if (result.ok) {
+            setAvisos((prev) => prev.map((aviso) => (aviso.id === avisoId ? result.data : aviso)));
+          }
+          continue;
+        }
+
+        setAvisos((prev) =>
+          prev.map((aviso) =>
+            aviso.id === avisoId && !aviso.vistoPor.includes(activeUserId)
+              ? { ...aviso, vistoPor: [...aviso.vistoPor, activeUserId] }
+              : aviso
+          )
+        );
+      }
+    },
+    [activeUserId, avisosSource]
+  );
+
+  const resolveAvisoPublisherName = useCallback(
+    (userId: string) => profiles.find((profile) => profile.id === userId)?.fullName ?? userId,
+    [profiles]
+  );
+
   const incidenciasRef = useRef(incidencias);
   incidenciasRef.current = incidencias;
 
@@ -2711,6 +2923,9 @@ export default function App() {
         setCurrentMenuTab('Contratos');
         toast.info('Contratos propios con oportunidad de mejora tarifaria');
         break;
+      case 'renovaciones_proximas':
+        navigateToRenovacionProxima();
+        break;
       default:
         break;
     }
@@ -2724,6 +2939,9 @@ export default function App() {
   }
 
   function openContractWizardForEdit(contract: Contract) {
+    if (showTramitacionNotifications) {
+      markContractReviewedByTramitacion(contract.id);
+    }
     const comercial = profiles.find((p) => p.id === contract.comercialId);
     const jefe = comercial?.managerId
       ? profiles.find((p) => p.id === comercial.managerId)
@@ -2885,6 +3103,12 @@ export default function App() {
     toast.message('Recomendación descartada durante 30 días');
   }
 
+  function handleDismissRenewalAlert(contractId: string) {
+    dismissRenewalAlert(contractId);
+    setRenewalDismissVersion((v) => v + 1);
+    toast.message('Renovación marcada como gestionada durante 30 días');
+  }
+
   function openContractWizardForProspecto(prospecto: Prospecto) {
     const user = profiles.find((p) => p.id === activeUserId) || profiles[0];
     const jefe = profiles.find((p) => p.id === user.managerId);
@@ -2960,6 +3184,14 @@ export default function App() {
     recommendationDismissVersion,
   ]);
 
+  const renovacionesProximasCount = useMemo(
+    () =>
+      contracts.filter(
+        (c) => isRenovacionProxima(c) && !isRenewalAlertDismissed(c.id)
+      ).length,
+    [contracts, renewalDismissVersion]
+  );
+
   useEffect(() => {
     if (!canViewTarifaRecommendations && contractsListFilter === 'con_recomendacion') {
       setContractsListFilter('all');
@@ -2969,6 +3201,100 @@ export default function App() {
   const showContractsUserFilter =
     activeRole === 'tramitacion' ||
     (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
+
+  const showTramitacionNotifications = showContractsUserFilter;
+
+  const tramitacionUnreviewedCount = useMemo(
+    () => countUnreviewedTramitacionContracts(contracts, reviewedContractIds),
+    [contracts, reviewedContractIds]
+  );
+
+  const tramitacionUnreviewedGroups = useMemo(
+    () => groupUnreviewedTramitacionByComercial(contracts, reviewedContractIds),
+    [contracts, reviewedContractIds]
+  );
+
+  const tramitacionRecentSummary = useMemo(() => {
+    const groups = groupInsertBufferByComercial(
+      pruneInsertBuffer(tramitacionInsertBuffer)
+    );
+    return formatTramitacionNuevosSummary(groups);
+  }, [tramitacionInsertBuffer]);
+
+  const markContractReviewedByTramitacion = useCallback((contractId: string) => {
+    setReviewedContractIds((prev) => {
+      if (prev.has(contractId)) return prev;
+      const next = new Set(prev);
+      next.add(contractId);
+      saveReviewedTramitacionIds(next);
+      return next;
+    });
+  }, []);
+
+  const flushTramitacionInsertSummary = useCallback((clearAfterToast = true) => {
+    setTramitacionInsertBuffer((current) => {
+      const pruned = pruneInsertBuffer(current);
+      const summary = formatTramitacionNuevosSummary(
+        groupInsertBufferByComercial(pruned)
+      );
+      if (summary) toast.info(summary, { duration: 6000 });
+      return clearAfterToast ? [] : pruned;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!showTramitacionNotifications || tramitacionInsertBuffer.length === 0) return;
+
+    if (tramitacionSummaryTimeoutRef.current) {
+      clearTimeout(tramitacionSummaryTimeoutRef.current);
+    }
+
+    tramitacionSummaryTimeoutRef.current = setTimeout(() => {
+      flushTramitacionInsertSummary(true);
+    }, TRAMITACION_SUMMARY_DEBOUNCE_MS);
+
+    return () => {
+      if (tramitacionSummaryTimeoutRef.current) {
+        clearTimeout(tramitacionSummaryTimeoutRef.current);
+      }
+    };
+  }, [
+    showTramitacionNotifications,
+    tramitacionInsertBuffer,
+    flushTramitacionInsertSummary,
+  ]);
+
+  useEffect(() => {
+    if (!showTramitacionNotifications) return;
+
+    const intervalId = window.setInterval(() => {
+      setTramitacionInsertBuffer((current) => {
+        const pruned = pruneInsertBuffer(current);
+        if (pruned.length === 0) return current;
+        const summary = formatTramitacionNuevosSummary(
+          groupInsertBufferByComercial(pruned)
+        );
+        if (summary) toast.info(summary, { duration: 6000 });
+        return [];
+      });
+    }, TRAMITACION_SUMMARY_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [showTramitacionNotifications]);
+
+  function handleTramitacionSelectComercial(comercialId: string) {
+    setContractsListFilter('nuevos_sin_revisar');
+    setContractsUserFilterId(comercialId);
+    setCurrentMenuTab('Contratos');
+    setActiveModule('erp');
+  }
+
+  function handleTramitacionShowAllUnreviewed() {
+    setContractsListFilter('nuevos_sin_revisar');
+    setContractsUserFilterId('all');
+    setCurrentMenuTab('Contratos');
+    setActiveModule('erp');
+  }
 
   const opsAdminContracts = useMemo(() => {
     if (!showContractsUserFilter || contractsUserFilterId === 'all') return contracts;
@@ -3038,22 +3364,34 @@ export default function App() {
     toast.success('Incidencia actualizada.');
   };
 
-  const handleMoveIncidencia = (id: string, newEstado: IncidenciaTicket['estado']) => {
+  const handleMoveIncidencia = (
+    id: string,
+    newEstado: IncidenciaTicket['estado'],
+    meta: { fecha: string; motivo?: string }
+  ) => {
     if (!isErpOpsAdmin) return;
     const moved = incidencias.find(i => i.id === id);
-    setIncidencias(prev =>
-      prev.map(i => (i.id === id ? withIncidenciaEstado(i, newEstado) : i))
+    if (!moved) return;
+    const updated = appendIncidenciaEstadoHistorial(
+      moved,
+      newEstado,
+      activeUserId,
+      meta.fecha,
+      meta.motivo
     );
-    if (moved) {
-      const { estado, estadoAt } = withIncidenciaEstado(moved, newEstado);
-      persistIncidenciaPatch(id, { estado, estadoAt });
-    }
+    setIncidencias(prev => prev.map(i => (i.id === id ? updated : i)));
+    persistIncidenciaPatch(id, {
+      estado: updated.estado,
+      estadoAt: updated.estadoAt,
+      historialEstados: updated.historialEstados,
+    });
   };
 
   // New clean, unified Menu items lists based on allowed roles in the exact ordered sequence
   const sidebarItemsConfig = [
     { name: 'Dashboard', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: LayoutDashboard },
-    { name: 'Liquidaciones internas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial'], icon: WalletCards },
+    { name: 'Calendario', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: CalendarDays },
+    { name: 'Liquidaciones internas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: WalletCards },
     { name: 'Liquidaciones externas', allowedRoles: ['superadmin', 'tramitacion'], icon: WalletCards },
     { name: 'Usuarios', allowedRoles: ['superadmin', 'tramitacion'], icon: Users },
     { name: 'Cashflow', allowedRoles: ['superadmin'], icon: DollarSign },
@@ -3066,6 +3404,7 @@ export default function App() {
     { name: 'Tarifas', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Package },
     { name: 'Marco Retributivo', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Coins },
     { name: 'Incidencias', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: AlertTriangle },
+    { name: 'Comunicaciones', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: Megaphone },
     { name: 'FTP', allowedRoles: ['superadmin', 'jefe_comercial', 'comercial', 'tramitacion'], icon: HardDrive },
   ];
 
@@ -3090,7 +3429,162 @@ export default function App() {
   const canViewInternalLiquidaciones =
     activeRole === 'comercial' ||
     activeRole === 'jefe_comercial' ||
-    activeRole === 'superadmin';
+    activeRole === 'superadmin' ||
+    activeRole === 'tramitacion';
+
+  const canGenerateMonthlyLiquidaciones =
+    activeRole === 'tramitacion' ||
+    (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
+
+  const handleGenerateMonthlyLiquidaciones = useCallback(async () => {
+    const now = new Date();
+    const mes = now.getMonth() + 1;
+    const año = now.getFullYear();
+
+    if (isSupabaseConfigured() && settlementsSource === 'supabase') {
+      const result = await generarLiquidacionesDelMes(mes, año, {
+        contracts,
+        existingSettlements: settlements,
+        formatCurrency,
+      });
+      if (result.ok === false) {
+        toast.error(result.message);
+        return null;
+      }
+      if (result.data.settlements.length > 0) {
+        setSettlements((prev) => [...result.data.settlements, ...prev]);
+      }
+      return {
+        count: result.data.count,
+        totalComisionado: result.data.totalComisionado,
+      };
+    }
+
+    const localResult = await generarLiquidacionesDelMesFromProfiles(
+      mes,
+      año,
+      contracts,
+      profiles,
+      settlements,
+      formatCurrency
+    );
+    if (localResult.settlements.length > 0) {
+      setSettlements((prev) => [...localResult.settlements, ...prev]);
+      persistNewSettlements(localResult.settlements);
+    }
+    return {
+      count: localResult.count,
+      totalComisionado: localResult.totalComisionado,
+    };
+  }, [
+    contracts,
+    settlements,
+    profiles,
+    settlementsSource,
+    persistNewSettlements,
+  ]);
+
+  const canEditFiscalProfile =
+    activeRole === 'comercial' ||
+    activeRole === 'jefe_comercial' ||
+    (activeRole === 'superadmin' && superadminViewMode === 'comercial');
+
+  const canGenerateAutofactura = canEditFiscalProfile;
+
+  const activeUserFiscalComplete = useMemo(
+    () => isComercialFiscalProfileComplete(erpComercialFromProfile(activeUser)),
+    [activeUser]
+  );
+
+  const autofacturaTipoCliente = useMemo((): AutofacturaTipoCliente => {
+    const mine = contracts.filter((c) => c.comercialId === activeUserId);
+    if (mine.length === 0) return 'residencial';
+    let pymeCount = 0;
+    for (const contract of mine) {
+      const segment = normalizeTipoClienteSegment({
+        tipoCliente: contract.tipoCliente,
+        compania: contract.compania,
+        clientName: contract.clientName,
+        nif: contract.nif,
+      });
+      if (segment === 'pyme' || segment === 'autonomo') pymeCount += 1;
+    }
+    return pymeCount > mine.length / 2 ? 'pyme' : 'residencial';
+  }, [contracts, activeUserId]);
+
+  const handleSaveFiscalProfile = useCallback(
+    (form: {
+      dni: string;
+      direccion: string;
+      ciudad: string;
+      codigoPostal: string;
+      telefono: string;
+      iban: string;
+    }) => {
+      setProfiles((prev) =>
+        prev.map((profile) =>
+          profile.id === activeUserId
+            ? {
+                ...profile,
+                dni: form.dni,
+                direccion: form.direccion,
+                ciudad: form.ciudad,
+                codigoPostal: form.codigoPostal,
+                telefono: form.telefono,
+                iban: form.iban,
+              }
+            : profile
+        )
+      );
+    },
+    [activeUserId]
+  );
+
+  const handleGenerateAutofactura = useCallback(async () => {
+    const now = new Date();
+    const mes = now.getMonth() + 1;
+    const año = now.getFullYear();
+    const comerciales = profiles
+      .filter(
+        (profile) =>
+          profile.role === 'comercial' ||
+          profile.role === 'jefe_comercial' ||
+          profile.role === 'superadmin'
+      )
+      .map((profile) =>
+        mapProfileToLiquidacionComercial({
+          id: profile.id,
+          fullName: profile.fullName,
+          commissionPercentage: profile.commissionPercentage,
+          status: profile.status,
+        })
+      );
+
+    const liquidacion = calcularLiquidacionMensualPorComercial(
+      contracts,
+      activeUserId,
+      mes,
+      año,
+      comerciales,
+      formatCurrency
+    );
+
+    if (liquidacion.desglosePorContrato.length === 0) {
+      toast.info('No hay comisiones activadas este mes para autofacturar.');
+      return;
+    }
+
+    const comercial = erpComercialFromProfile(activeUser);
+    const blob = await generateAutofacturaPdf(comercial, liquidacion, {
+      mes,
+      año,
+      proximaFechaEmisionLabel: formatAutofacturaFecha(
+        getProximaFechaAutofactura(autofacturaTipoCliente)
+      ),
+    });
+    downloadAutofacturaPdf(blob, comercial.fullName, mes, año);
+    toast.success('Autofactura generada correctamente.');
+  }, [contracts, profiles, activeUser, activeUserId, autofacturaTipoCliente]);
 
   const currentMenuOptions =
     activeModule === 'ventas'
@@ -3109,6 +3603,7 @@ export default function App() {
             if (superadminViewMode === 'comercial') {
               const comercialTabs = [
                 'Dashboard',
+                'Calendario',
                 'Liquidaciones internas',
                 'Mis Clientes',
                 'Contratos',
@@ -3118,18 +3613,22 @@ export default function App() {
                 'Tarifas',
                 'Marco Retributivo',
                 'Incidencias',
+                'Comunicaciones',
                 'FTP',
               ];
               return comercialTabs.includes(item.name);
             }
             const superadminTramitacionTabs = [
               'Dashboard',
+              'Calendario',
+              'Liquidaciones internas',
               'Liquidaciones externas',
               'Usuarios',
               'Cashflow',
               'Contratos',
               'Tarifas',
               'Incidencias',
+              'Comunicaciones',
               'FTP',
             ];
             return superadminTramitacionTabs.includes(item.name);
@@ -3137,6 +3636,8 @@ export default function App() {
           if (activeRole === 'tramitacion') {
             const tramitacionTabs = [
               'Dashboard',
+              'Calendario',
+              'Liquidaciones internas',
               'Liquidaciones externas',
               'Usuarios',
               'Contratos',
@@ -3146,6 +3647,7 @@ export default function App() {
               'Tarifas',
               'Marco Retributivo',
               'Incidencias',
+              'Comunicaciones',
               'FTP',
             ];
             return tramitacionTabs.includes(item.name);
@@ -3597,18 +4099,48 @@ export default function App() {
                   )}
 
                   {!sidebarCollapsed && (
-                    <div className="p-3 bg-brand-panel rounded-xl border border-brand-border flex items-center space-x-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-amber-500 flex items-center justify-center text-slate-950 font-bold text-xs uppercase shadow">
-                        {activeUser.fullName.charAt(0)}
-                      </div>
-                      <div className="overflow-hidden">
-                        <span className="block text-[11px] font-bold text-brand-text truncate leading-tight">
-                          {activeUser.fullName}
-                        </span>
-                        <span className="block text-[9px] font-mono text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mt-0.5 leading-none">
-                          {activeUser.role === 'superadmin' ? 'Superadmin' : activeUser.role === 'jefe_comercial' ? 'Director' : 'Asesor'}
-                        </span>
-                      </div>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => canEditFiscalProfile && setPerfilComercialOpen(true)}
+                        disabled={!canEditFiscalProfile}
+                        className={`w-full p-3 bg-brand-panel rounded-xl border border-brand-border flex items-center space-x-2.5 text-left transition-colors ${
+                          canEditFiscalProfile
+                            ? 'hover:border-cyan-500/30 cursor-pointer'
+                            : 'opacity-80 cursor-default'
+                        }`}
+                        title={canEditFiscalProfile ? 'Editar perfil fiscal' : undefined}
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-amber-500 flex items-center justify-center text-slate-950 font-bold text-xs uppercase shadow shrink-0">
+                          {activeUser.fullName.charAt(0)}
+                        </div>
+                        <div className="overflow-hidden min-w-0">
+                          <span className="block text-[11px] font-bold text-brand-text truncate leading-tight">
+                            {activeUser.fullName}
+                          </span>
+                          <span className="block text-[9px] font-mono text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mt-0.5 leading-none">
+                            {activeUser.role === 'superadmin'
+                              ? 'Superadmin'
+                              : activeUser.role === 'jefe_comercial'
+                                ? 'Director'
+                                : 'Asesor'}
+                          </span>
+                          {canEditFiscalProfile && !activeUserFiscalComplete ? (
+                            <span className="block text-[8px] text-amber-600 dark:text-amber-400 mt-1">
+                              Perfil fiscal incompleto
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                      {canEditFiscalProfile ? (
+                        <button
+                          type="button"
+                          onClick={() => setPerfilComercialOpen(true)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold text-brand-subtext hover:text-brand-text hover:border-cyan-500/30 transition-colors cursor-pointer"
+                        >
+                          Perfil fiscal
+                        </button>
+                      ) : null}
                     </div>
                   )}
 
@@ -3639,6 +4171,11 @@ export default function App() {
 
                 {currentMenuTab === 'Dashboard' && activeModule === 'erp' && (
                   <div className="space-y-8">
+                    <ProximosEventosWidget
+                      eventos={calendarioEventos}
+                      activeUserId={activeUserId}
+                      onOpenCalendario={() => setCurrentMenuTab('Calendario')}
+                    />
                     
                     {/* PROFILE: SUPERADMIN (EXECUTIVE CONTROL BOARD) */}
                     {(activeRole === 'tramitacion' ||
@@ -3658,6 +4195,12 @@ export default function App() {
                           id: c.id,
                           date: c.date,
                         }))}
+                        oportunidadesMejora={
+                          canViewTarifaRecommendations
+                            ? tarifaRecommendations.size
+                            : undefined
+                        }
+                        renovacionesProximas={renovacionesProximasCount}
                         onNavigate={handleDashboardNavigate}
                       />
                     )}
@@ -4157,6 +4700,8 @@ export default function App() {
                     formatCurrency={formatCurrency}
                     cashflowScenario={cashflowScenario}
                     setCashflowScenario={setCashflowScenario}
+                    settlements={settlements}
+                    contracts={contracts}
                   />
                 )}
                  {/* VIEW: CONTRATOS */}
@@ -4191,11 +4736,14 @@ export default function App() {
                       setSelectedContractForActivation(c);
                       setActivateConsumoKwh(c.consumoAnual);
                       setActivatePowerKw(15.5);
+                      setActivateEffectiveDate(todayInputDate());
+                      setActivateMotivo('');
                       setIsActivateOpen(true);
                     }}
                     onBajaContract={(c) => {
                       setSelectedContractForBaja(c);
-                      setBajaDate(new Date().toISOString().split('T')[0]);
+                      setBajaDate(todayInputDate());
+                      setBajaMotivo('');
                       setIsBajaOpen(true);
                     }}
                     handleCreateContract={handleCreateContract}
@@ -4227,6 +4775,8 @@ export default function App() {
                     onDismissRecommendation={
                       canViewTarifaRecommendations ? handleDismissRecommendation : undefined
                     }
+                    renewalDismissVersion={renewalDismissVersion}
+                    onDismissRenewalAlert={handleDismissRenewalAlert}
                     onDownloadJointRecommendationPdf={
                       canViewTarifaRecommendations
                         ? handleDownloadJointContractsPdf
@@ -4235,6 +4785,13 @@ export default function App() {
                     isGeneratingJointPdf={isGeneratingJointPdf}
                     onEditContract={openContractWizardForEdit}
                     onDeleteContract={(contract) => void handleDeleteContract(contract.id)}
+                    showTramitacionNotifications={showTramitacionNotifications}
+                    tramitacionUnreviewedCount={tramitacionUnreviewedCount}
+                    tramitacionUnreviewedGroups={tramitacionUnreviewedGroups}
+                    tramitacionRecentSummary={tramitacionRecentSummary}
+                    reviewedContractIds={reviewedContractIds}
+                    onTramitacionSelectComercial={handleTramitacionSelectComercial}
+                    onTramitacionShowAllUnreviewed={handleTramitacionShowAllUnreviewed}
                   />
                 )}
 
@@ -4247,6 +4804,8 @@ export default function App() {
                         ? superadminViewMode === 'comercial'
                           ? 'comercial'
                           : 'superadmin'
+                        : activeRole === 'tramitacion'
+                          ? 'tramitacion'
                         : (activeRole as 'jefe_comercial' | 'comercial')
                     }
                     activeUserId={activeUserId}
@@ -4255,6 +4814,13 @@ export default function App() {
                     contracts={contracts}
                     profiles={profiles}
                     formatCurrency={formatCurrency}
+                    canGenerateMonthlyLiquidaciones={canGenerateMonthlyLiquidaciones}
+                    onGenerateMonthlyLiquidaciones={handleGenerateMonthlyLiquidaciones}
+                    canGenerateAutofactura={canGenerateAutofactura}
+                    fiscalProfileComplete={activeUserFiscalComplete}
+                    autofacturaTipoCliente={autofacturaTipoCliente}
+                    onGenerateAutofactura={handleGenerateAutofactura}
+                    onOpenFiscalProfile={() => setPerfilComercialOpen(true)}
                   />
                 )}
 
@@ -4936,7 +5502,9 @@ export default function App() {
                 )}
 
                 {currentMenuTab === 'Base EnerSave' && activeModule === 'ventas' && (
-                  <EnersaveLeadDatabasePage />
+                  <SensitiveScreenShell userLabel={ventasActor.comercialName}>
+                    <EnersaveLeadDatabasePage />
+                  </SensitiveScreenShell>
                 )}
 
                 {currentMenuTab === 'Reporting' && activeModule === 'ventas' && (
@@ -5006,27 +5574,11 @@ export default function App() {
                       
                       {/* Left: Input controls */}
                       <div className="lg:col-span-5 bg-brand-panel p-6 sm:p-8 rounded-3xl border border-brand-border space-y-6 relative shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]">
-                        <div className="rounded-2xl border border-brand-border bg-brand-surface/40 overflow-hidden">
-                          <FileDropZone
-                            comparadorLayout
-                            className="border-0 bg-transparent rounded-2xl"
-                            accept="image/*,.pdf,.png,.jpg,.jpeg,.webp"
-                            multiple={false}
-                            disabled={compOcrLoading}
-                            label={compOcrLoading ? "Procesando factura…" : undefined}
-                            onFiles={(files) => {
-                              const file = files[0];
-                              if (file) void handleComparadorInvoiceOcr(file);
-                            }}
-                          />
-
-                          {compOcrProgress && (
-                            <p className="text-[10px] font-mono text-brand-subtext flex items-center gap-2 px-4 pb-3">
-                              <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                              {compOcrProgress}
-                            </p>
-                          )}
-                        </div>
+                        <ComparadorIaUpload
+                          loading={compOcrLoading}
+                          progress={compOcrProgress}
+                          onFile={(file) => void handleComparadorInvoiceOcr(file)}
+                        />
 
                         <div className="space-y-5 pt-1">
                           {/* Client field */}
@@ -5041,6 +5593,33 @@ export default function App() {
                               placeholder="Ferretería García S.L."
                               className="w-full px-3.5 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-505 focus:outline-none text-xs text-brand-text font-medium"
                             />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
+                                Compañía actual
+                              </label>
+                              <input
+                                type="text"
+                                value={compCompaniaActual}
+                                onChange={(e) => setCompCompaniaActual(e.target.value)}
+                                placeholder="Endesa, Iberdrola…"
+                                className="w-full px-3.5 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
+                                Tarifa actual
+                              </label>
+                              <input
+                                type="text"
+                                value={compTarifaActual}
+                                onChange={(e) => setCompTarifaActual(e.target.value)}
+                                placeholder="Indexada, fija…"
+                                className="w-full px-3.5 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
+                              />
+                            </div>
                           </div>
 
                           {/* Segment selection */}
@@ -5249,35 +5828,13 @@ export default function App() {
                       </div>
 
                       {/* Right: Results comparison with visual cards list */}
-                      <div className="lg:col-span-7 space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
-                          <span className="text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider sm:mr-1">
-                            Tipo de propuesta comparativa
-                          </span>
-                          <div className="flex flex-wrap gap-2 sm:justify-end">
-                            {COMP_PROPOSAL_FILTER_OPTIONS.map((filter) => {
-                              const active = compProposalFilters.includes(filter.id);
-                              return (
-                                <button
-                                  key={filter.id}
-                                  type="button"
-                                  onClick={() =>
-                                    setCompProposalFilters((prev) =>
-                                      toggleCompProposalFilter(prev, filter.id)
-                                    )
-                                  }
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors cursor-pointer ${
-                                    active
-                                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                      : 'bg-brand-surface text-brand-subtext border-brand-border hover:border-blue-500/40 hover:text-brand-text'
-                                  }`}
-                                >
-                                  {filter.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
+                      <div className="lg:col-span-7 space-y-4">
+                        <ComparadorProposalFilters
+                          value={compProposalFilters}
+                          onChange={setCompProposalFilters}
+                        />
+
+                        <ComparadorSortToggle value={compSortMode} onChange={setCompSortMode} />
 
                         <AnimatePresence mode="wait">
                           {compLoading ? (
@@ -5329,9 +5886,16 @@ export default function App() {
                                   key={opt.id}
                                   option={opt}
                                   segment={compSegment}
+                                  sortMode={compSortMode}
                                   renderCompaniaLogo={renderCompaniaLogo}
                                   onContract={() => openNewContractModal(opt)}
                                   onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}
+                                  onSendEmail={
+                                    opt.savingsAnnual > 0
+                                      ? () => void handleGenerarEmailPropuesta(opt)
+                                      : undefined
+                                  }
+                                  sendingEmail={emailPropuestaGeneratingId === opt.id}
                                 />
                               ))}
 
@@ -5364,6 +5928,19 @@ export default function App() {
                       </div>
 
                     </div>
+
+                    <EmailPropuestaModal
+                      open={emailPropuestaOpen}
+                      loading={emailPropuestaLoading}
+                      emailDestino={emailPropuestaDestino}
+                      asunto={emailPropuestaAsunto}
+                      cuerpo={emailPropuestaCuerpo}
+                      onEmailDestinoChange={setEmailPropuestaDestino}
+                      onAsuntoChange={setEmailPropuestaAsunto}
+                      onCuerpoChange={setEmailPropuestaCuerpo}
+                      onClose={() => setEmailPropuestaOpen(false)}
+                      onOpenMailClient={handleOpenEmailPropuestaMailClient}
+                    />
 
                   </div>
                 )}
@@ -5545,12 +6122,20 @@ export default function App() {
                 )}
 
                 {currentMenuTab === 'Base de Datos' && activeModule === 'erp' && (
-                  <GeneralDatabasePage
-                    importedLeadIds={generalDbImportedLeadIds}
-                    highlightLeadId={generalDbHighlightLeadId}
-                    onConvertToProspecto={convertGeneralDatabaseLeadToProspecto}
-                    onOpenProspecto={openVentasFromGeneralDatabase}
-                  />
+                  <SensitiveScreenShell
+                    userLabel={
+                      [activeUser.fullName.trim(), activeUser.email]
+                        .filter(Boolean)
+                        .join(' · ') || 'Usuario'
+                    }
+                  >
+                    <GeneralDatabasePage
+                      importedLeadIds={generalDbImportedLeadIds}
+                      highlightLeadId={generalDbHighlightLeadId}
+                      onConvertToProspecto={convertGeneralDatabaseLeadToProspecto}
+                      onOpenProspecto={openVentasFromGeneralDatabase}
+                    />
+                  </SensitiveScreenShell>
                 )}
 
                 {/* VIEW: TARIFAS */}
@@ -5595,6 +6180,32 @@ export default function App() {
 
                 {currentMenuTab === 'FTP' && activeModule === 'erp' && (
                   <FtpPanel canEdit={canEditFtpEntries} activeUserId={activeUserId} />
+                )}
+
+                {currentMenuTab === 'Calendario' && activeModule === 'erp' && (
+                  <CalendarioPanel
+                    activeRole={
+                      activeRole === 'superadmin'
+                        ? superadminViewMode === 'comercial'
+                          ? 'comercial'
+                          : 'superadmin'
+                        : (activeRole as 'jefe_comercial' | 'comercial' | 'tramitacion')
+                    }
+                    activeUserId={activeUserId}
+                    profiles={profiles}
+                    eventos={calendarioEventos}
+                    onEventosChange={setCalendarioEventos}
+                  />
+                )}
+
+                {currentMenuTab === 'Comunicaciones' && activeModule === 'erp' && (
+                  <AvisosPanel
+                    avisos={avisos}
+                    activeUserId={activeUserId}
+                    canPublish={canPublishAvisos}
+                    resolvePublisherName={resolveAvisoPublisherName}
+                    onAvisoCreated={(aviso) => setAvisos((prev) => [aviso, ...prev])}
+                  />
                 )}
 
 
@@ -5676,6 +6287,33 @@ export default function App() {
                               value={activatePowerKw}
                               onChange={(e) => setActivatePowerKw(Math.max(0, Number(e.target.value)))}
                               className="w-full bg-brand-surface border border-brand-border rounded-lg p-2 font-mono text-brand-text text-xs focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 text-xs">
+                          <div>
+                            <label className="block text-[9px] font-mono text-brand-subtext uppercase tracking-widest mb-1">
+                              Fecha de efecto (activación)
+                            </label>
+                            <input
+                              type="date"
+                              required
+                              value={activateEffectiveDate}
+                              onChange={(e) => setActivateEffectiveDate(e.target.value)}
+                              className="w-full bg-brand-surface border border-brand-border rounded-lg p-2 font-mono text-brand-text text-xs focus:border-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[9px] font-mono text-brand-subtext uppercase tracking-widest mb-1">
+                              Motivo del cambio (opcional)
+                            </label>
+                            <textarea
+                              value={activateMotivo}
+                              onChange={(e) => setActivateMotivo(e.target.value)}
+                              rows={2}
+                              placeholder="Ej. activación confirmada por comercializadora"
+                              className="w-full bg-brand-surface border border-brand-border rounded-lg p-2 text-brand-text text-xs resize-none focus:border-emerald-500 focus:outline-none"
                             />
                           </div>
                         </div>
@@ -5837,17 +6475,31 @@ export default function App() {
                         </div>
 
                         {/* Date input area */}
-                        <div className="space-y-1.5 text-xs">
-                          <label className="block text-[9px] font-mono text-brand-subtext tracking-widest uppercase font-bold">
-                            Fecha Oficial de Baja de Suministro
-                          </label>
-                          <input
-                            type="date"
-                            required
-                            value={bajaDate}
-                            onChange={(e) => setBajaDate(e.target.value)}
-                            className="w-full bg-brand-surface border border-brand-border rounded-lg p-2.5 font-mono text-brand-text text-xs text-center focus:border-rose-500 focus:outline-none"
-                          />
+                        <div className="space-y-3 text-xs">
+                          <div className="space-y-1.5">
+                            <label className="block text-[9px] font-mono text-brand-subtext tracking-widest uppercase font-bold">
+                              Fecha Oficial de Baja de Suministro
+                            </label>
+                            <input
+                              type="date"
+                              required
+                              value={bajaDate}
+                              onChange={(e) => setBajaDate(e.target.value)}
+                              className="w-full bg-brand-surface border border-brand-border rounded-lg p-2.5 font-mono text-brand-text text-xs text-center focus:border-rose-500 focus:outline-none"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[9px] font-mono text-brand-subtext tracking-widest uppercase font-bold">
+                              Motivo del cambio (opcional)
+                            </label>
+                            <textarea
+                              value={bajaMotivo}
+                              onChange={(e) => setBajaMotivo(e.target.value)}
+                              rows={2}
+                              placeholder="Ej. cliente cambió de comercializadora antes del plazo"
+                              className="w-full bg-brand-surface border border-brand-border rounded-lg p-2.5 text-brand-text text-xs resize-none focus:border-rose-500 focus:outline-none"
+                            />
+                          </div>
                         </div>
 
                         {/* Proportional live clawback computation */}
@@ -6148,6 +6800,11 @@ export default function App() {
                                   required
                                   value={modalNif}
                                   onChange={(e) => setModalNif(e.target.value.toUpperCase())}
+                                  onPaste={createNoSpacePasteHandler(
+                                    modalNif,
+                                    (v) => setModalNif(v.toUpperCase()),
+                                    { transform: (s) => s.toUpperCase() }
+                                  )}
                                   placeholder="Ej: B12345678"
                                   className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono uppercase"
                                 />
@@ -6164,6 +6821,7 @@ export default function App() {
                                     required
                                     value={modalTelefono}
                                     onChange={(e) => setModalTelefono(e.target.value)}
+                                    onPaste={createNoSpacePasteHandler(modalTelefono, setModalTelefono)}
                                     placeholder="Ej: 612345678"
                                     className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                   />
@@ -6177,6 +6835,7 @@ export default function App() {
                                     required
                                     value={modalEmail}
                                     onChange={(e) => setModalEmail(e.target.value)}
+                                    onPaste={createNoSpacePasteHandler(modalEmail, setModalEmail)}
                                     placeholder="Ej: comercial@empresa.com"
                                     className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-medium"
                                   />
@@ -6193,6 +6852,11 @@ export default function App() {
                                   required
                                   value={modalIban}
                                   onChange={(e) => setModalIban(e.target.value.toUpperCase())}
+                                  onPaste={createNoSpacePasteHandler(
+                                    modalIban,
+                                    (v) => setModalIban(v.toUpperCase()),
+                                    { transform: (s) => s.toUpperCase() }
+                                  )}
                                   placeholder="ES21 0000 0000 0000..."
                                   className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono uppercase"
                                 />
@@ -6258,6 +6922,11 @@ export default function App() {
                                   required
                                   value={modalCups}
                                   onChange={(e) => setModalCups(e.target.value.toUpperCase())}
+                                  onPaste={createNoSpacePasteHandler(
+                                    modalCups,
+                                    (v) => setModalCups(v.toUpperCase()),
+                                    { transform: normalizeCups }
+                                  )}
                                   placeholder="ES0021000000000000XX"
                                   className="w-full px-3.5 py-2.5 bg-brand-surface border border-slate-250 dark:border-white/10 rounded-xl focus:outline-none text-xs text-slate-800 dark:text-white font-mono font-bold uppercase tracking-wider"
                                 />
@@ -6511,6 +7180,26 @@ export default function App() {
         <RuntimeIntegrityBlockModal
           userName={activeUser.fullName}
           findings={integrityFindings}
+        />
+      ) : null}
+      {isLoggedIn && canEditFiscalProfile ? (
+        <PerfilComercialModal
+          open={perfilComercialOpen}
+          onClose={() => setPerfilComercialOpen(false)}
+          comercialId={activeUserId}
+          fullName={activeUser.fullName}
+          email={activeUser.email}
+          initialForm={fiscalFormFromComercial(erpComercialFromProfile(activeUser))}
+          onSaved={handleSaveFiscalProfile}
+        />
+      ) : null}
+      {isLoggedIn && activeModule === 'erp' ? (
+        <AvisosModal
+          open={avisosModalOpen}
+          avisos={avisos}
+          activeUserId={activeUserId}
+          onClose={() => setAvisosModalOpen(false)}
+          onMarcarVistos={handleMarcarAvisosVistos}
         />
       ) : null}
     </div>

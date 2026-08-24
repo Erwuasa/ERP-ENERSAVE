@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Briefcase,
+  Clock,
   FileText,
   Lightbulb,
   ScanSearch,
@@ -50,6 +51,7 @@ export type DashboardNavigateTarget =
   | "comerciales"
   | "contratos"
   | "oportunidades_mejora"
+  | "renovaciones_proximas"
 
 interface SuperadminDashboardProps {
   welcomeName: string
@@ -59,6 +61,7 @@ interface SuperadminDashboardProps {
   comerciales: DashboardComercial[]
   comparativas: ComparativaEntry[]
   oportunidadesMejora?: number
+  renovacionesProximas?: number
   onNavigate?: (target: DashboardNavigateTarget) => void
 }
 
@@ -146,6 +149,7 @@ export function SuperadminDashboard({
   comerciales,
   comparativas,
   oportunidadesMejora,
+  renovacionesProximas,
   onNavigate,
 }: SuperadminDashboardProps) {
   const defaultDateRangeValue = useMemo(() => defaultDateRange(), [])
@@ -300,6 +304,17 @@ export function SuperadminDashboard({
             icon={Lightbulb}
             iconClass="text-amber-500"
             onOpen={() => onNavigate?.("oportunidades_mejora")}
+          />
+        )}
+        {renovacionesProximas != null && (
+          <KpiCard
+            title="Renovaciones próximas"
+            value={renovacionesProximas}
+            suffix="contratos"
+            subtitle="≤30 días · ventana de renovación"
+            icon={Clock}
+            iconClass="text-orange-500"
+            onOpen={() => onNavigate?.("renovaciones_proximas")}
           />
         )}
         <KpiCard

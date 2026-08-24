@@ -78,6 +78,42 @@ export async function listClientes(): Promise<SupabaseResult<Client[]>> {
   return { ok: true, data: (data ?? []).map((row) => mapRowToClient(row as Row)) }
 }
 
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&")
+}
+
+/** Búsqueda en cartera del comercial (debounce en el cliente, ~250ms). */
+export async function searchClientes(options: {
+  query?: string
+  comercialId: string
+  limit?: number
+}): Promise<SupabaseResult<Client[]>> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const { query = "", comercialId, limit = 8 } = options
+  const trimmed = query.trim()
+
+  let request = resolved.client
+    .from(TABLE)
+    .select("*")
+    .eq("comercial_id", comercialId)
+    .order("nombre", { ascending: true })
+    .limit(limit)
+
+  if (trimmed) {
+    const pattern = `%${escapeIlikePattern(trimmed)}%`
+    request = request.or(
+      `nombre.ilike.${pattern},nif_cif.ilike.${pattern},email.ilike.${pattern}`
+    )
+  }
+
+  const { data, error } = await request
+  if (error) return toFailure(error)
+
+  return { ok: true, data: (data ?? []).map((row) => mapRowToClient(row as Row)) }
+}
+
 /**
  * El id local (`cli-<timestamp>`) no es un uuid válido, así que se descarta y
  * se deja que Postgres genere el definitivo. El llamante debe reconciliar el

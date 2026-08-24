@@ -26,7 +26,11 @@ interface IncidenciasPanelProps {
   canEdit: boolean
   canDrag: boolean
   onSave: (updated: IncidenciaTicket) => void
-  onMove: (id: string, estado: IncidenciaTicket["estado"]) => void
+  onMove: (
+    id: string,
+    estado: IncidenciaTicket["estado"],
+    meta: { fecha: string; motivo?: string }
+  ) => void
   createForm?: ReactNode
 }
 

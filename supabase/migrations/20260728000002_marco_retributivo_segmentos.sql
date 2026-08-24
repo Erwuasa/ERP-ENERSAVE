@@ -1,5 +1,14 @@
 -- Segmentos del marco: residencial | pyme | autonomo | comunidades (sin "ambos")
+-- Requiere: 20260722000001_marco_retributivo_table.sql
+
 begin;
+
+do $$
+begin
+  if to_regclass('public.marco_retributivo') is null then
+    raise exception 'Falta public.marco_retributivo. Ejecuta primero 20260722000001_marco_retributivo_table.sql';
+  end if;
+end $$;
 
 alter table public.marco_retributivo drop constraint if exists marco_retributivo_segmento_check;
 

@@ -1,4 +1,6 @@
 import type { NewContractFormState } from "../lib/contract-registration"
+import { createNoSpacePasteHandler } from "../hooks/useNoSpacePasteInput"
+import { normalizeCups } from "../lib/contract-cups-liquidacion"
 
 interface NewContractFormFieldsProps {
   form: NewContractFormState
@@ -10,6 +12,20 @@ const inputClass =
 const labelClass = "block text-[10px] font-mono text-brand-subtext uppercase"
 
 export function NewContractFormFields({ form, onChange }: NewContractFormFieldsProps) {
+  const pasteCups = createNoSpacePasteHandler(form.cups, (cups) => onChange({ cups }), {
+    transform: normalizeCups,
+  })
+  const pasteNif = createNoSpacePasteHandler(form.nif, (nif) => onChange({ nif }), {
+    transform: (v) => v.toUpperCase(),
+  })
+  const pasteTelefono = createNoSpacePasteHandler(form.telefono, (telefono) =>
+    onChange({ telefono })
+  )
+  const pasteEmail = createNoSpacePasteHandler(form.email, (email) => onChange({ email }))
+  const pasteIban = createNoSpacePasteHandler(form.iban, (iban) => onChange({ iban }), {
+    transform: (v) => v.toUpperCase(),
+  })
+
   return (
     <>
       <div className="space-y-1">
@@ -35,6 +51,7 @@ export function NewContractFormFields({ form, onChange }: NewContractFormFieldsP
           required
           value={form.cups}
           onChange={(e) => onChange({ cups: e.target.value.toUpperCase() })}
+          onPaste={pasteCups}
           placeholder="ES0021000000..."
           className={`${inputClass} font-mono`}
         />
@@ -49,6 +66,7 @@ export function NewContractFormFields({ form, onChange }: NewContractFormFieldsP
           required
           value={form.nif}
           onChange={(e) => onChange({ nif: e.target.value.toUpperCase() })}
+          onPaste={pasteNif}
           className={`${inputClass} font-mono uppercase`}
         />
       </div>
@@ -62,6 +80,7 @@ export function NewContractFormFields({ form, onChange }: NewContractFormFieldsP
           required
           value={form.telefono}
           onChange={(e) => onChange({ telefono: e.target.value })}
+          onPaste={pasteTelefono}
           className={inputClass}
         />
       </div>
@@ -75,6 +94,7 @@ export function NewContractFormFields({ form, onChange }: NewContractFormFieldsP
           required
           value={form.email}
           onChange={(e) => onChange({ email: e.target.value })}
+          onPaste={pasteEmail}
           className={inputClass}
         />
       </div>
@@ -88,6 +108,7 @@ export function NewContractFormFields({ form, onChange }: NewContractFormFieldsP
           required
           value={form.iban}
           onChange={(e) => onChange({ iban: e.target.value.toUpperCase() })}
+          onPaste={pasteIban}
           className={`${inputClass} font-mono`}
         />
       </div>

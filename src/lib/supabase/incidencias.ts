@@ -1,6 +1,7 @@
 import {
   generateIncidenciaCodigoFromId,
   migrateLegacyEstado,
+  type IncidenciaEstadoHistorialEntry,
   type IncidenciaOrigen,
   type IncidenciaPrioridad,
   type IncidenciaTicket,
@@ -30,6 +31,20 @@ const PRIORIDADES: IncidenciaPrioridad[] = ["critica", "alta", "media", "baja"]
 
 const ORIGENES: IncidenciaOrigen[] = ["manual", "comercial", "sistema", "cliente"]
 
+function parseHistorialEstados(raw: unknown): IncidenciaEstadoHistorialEntry[] {
+  if (!Array.isArray(raw)) return []
+
+  return raw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .map((entry) => ({
+      estado: migrateLegacyEstado(String(entry.estado ?? "")),
+      fecha: String(entry.fecha ?? ""),
+      cambiadoPor: String(entry.cambiadoPor ?? entry.cambiado_por ?? ""),
+      ...(entry.motivo ? { motivo: String(entry.motivo) } : {}),
+    }))
+    .filter((entry) => entry.fecha.length > 0 && entry.cambiadoPor.length > 0)
+}
+
 function toFailure(error: { code?: string; message: string }) {
   return toSupabaseFailure(error, TABLE)
 }
@@ -57,6 +72,7 @@ export function mapRowToIncidencia(row: Row): IncidenciaTicket {
     canal: str(row.canal),
     createdAt: str(row.created_at),
     estadoAt: str(row.estado_at),
+    historialEstados: parseHistorialEstados(row.historial_estados),
   }
 }
 
@@ -72,6 +88,7 @@ const PATCH_COLUMNS: Partial<Record<keyof IncidenciaTicket, string>> = {
   asignadoA: "asignado_a",
   canal: "canal",
   estadoAt: "estado_at",
+  historialEstados: "historial_estados",
 }
 
 export function buildIncidenciaPatch(patch: Partial<IncidenciaTicket>): Row {

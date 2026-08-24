@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { DEFAULT_MONTHLY_GOALS } from "./monthly-goals"
-import { buildMiDiaKpiSnapshot } from "./mi-dia-kpis"
-import type { Prospecto, TareaVenta } from "./types"
+import { buildDailyBrief, buildMiDiaKpiSnapshot, buildWeeklyBrief } from "./mi-dia-kpis"
+import type { ActividadVenta, Prospecto, TareaVenta } from "./types"
 
 function prospecto(
   partial: Partial<Prospecto> & Pick<Prospecto, "id" | "fase">
@@ -31,6 +31,69 @@ function tarea(partial: Partial<TareaVenta> & Pick<TareaVenta, "id" | "prospecto
     ...partial,
   } as TareaVenta
 }
+
+function actividad(
+  partial: Partial<ActividadVenta> & Pick<ActividadVenta, "id" | "prospectoId" | "tipo">
+): ActividadVenta {
+  return {
+    comercialId: "c1",
+    createdAt: new Date().toISOString(),
+    ...partial,
+  } as ActividadVenta
+}
+
+describe("buildDailyBrief", () => {
+  it("builds resumen from contratos, contactos and pendientes", () => {
+    const fecha = new Date("2026-08-25T12:00:00")
+    const iso = fecha.toISOString()
+    const prospectos = [
+      prospecto({ id: "p1", fase: "activado", faseChangedAt: iso }),
+      prospecto({ id: "p2", fase: "contactado", createdAt: iso }),
+    ]
+    const actividades = [
+      actividad({ id: "a1", prospectoId: "p2", tipo: "llamada", createdAt: iso }),
+      actividad({ id: "a2", prospectoId: "p3", tipo: "llamada", createdAt: iso }),
+      actividad({ id: "a3", prospectoId: "p4", tipo: "whatsapp", createdAt: iso }),
+      actividad({ id: "a4", prospectoId: "p5", tipo: "whatsapp", createdAt: iso }),
+      actividad({ id: "a5", prospectoId: "p6", tipo: "whatsapp", createdAt: iso }),
+    ]
+    const tareas = [
+      tarea({ id: "t1", prospectoId: "p1", fechaObjetivo: "2026-08-25" }),
+      tarea({ id: "t2", prospectoId: "p2", fechaObjetivo: "2026-08-25" }),
+      tarea({ id: "t3", prospectoId: "p3", fechaObjetivo: "2026-08-24" }),
+    ]
+
+    const brief = buildDailyBrief(prospectos, actividades, tareas, fecha)
+
+    expect(brief.resumenTexto).toContain("cerrado 1 contrato")
+    expect(brief.resumenTexto).toContain("contactado a 5 leads")
+    expect(brief.resumenTexto).toContain("3 tareas pendientes")
+    expect(brief.pendientesHoy).toBe(3)
+    expect(brief.logros.some((l) => l.includes("Cerraste 1 contrato"))).toBe(true)
+  })
+})
+
+describe("buildWeeklyBrief", () => {
+  it("compares current week against previous week", () => {
+    const fecha = new Date("2026-08-27T12:00:00")
+    const thisWeek = new Date("2026-08-26T10:00:00").toISOString()
+    const prevWeek = new Date("2026-08-19T10:00:00").toISOString()
+
+    const actividades = [
+      actividad({ id: "w1", prospectoId: "p1", tipo: "llamada", createdAt: thisWeek }),
+      actividad({ id: "w2", prospectoId: "p2", tipo: "llamada", createdAt: thisWeek }),
+      actividad({ id: "p1", prospectoId: "p3", tipo: "llamada", createdAt: prevWeek }),
+    ]
+
+    const brief = buildWeeklyBrief([], actividades, [], fecha)
+    const leadsCmp = brief.comparaciones.find((c) => c.label === "Leads contactados")
+
+    expect(leadsCmp?.actual).toBe(2)
+    expect(leadsCmp?.anterior).toBe(1)
+    expect(leadsCmp?.tendencia).toBe("mejor")
+    expect(brief.resumenTexto).toContain("Esta semana")
+  })
+})
 
 describe("buildMiDiaKpiSnapshot", () => {
   it("counts SLA breach and warning", () => {

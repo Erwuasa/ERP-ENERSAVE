@@ -1,4 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
+import { isErpComercialLoginAllowed } from "./erp-comerciales"
 
 export interface AuthProfileBridge {
   comercialId: string
@@ -39,6 +40,25 @@ function mapSessionProfile(user: {
   return { comercialId, role, fullName }
 }
 
+const DEACTIVATED_ACCOUNT_MESSAGE =
+  "La cuenta de este agente se encuentra suspendida temporalmente por administración."
+
+async function assertComercialLoginAllowed(
+  email: string,
+  profile?: AuthProfileBridge
+): Promise<AuthSessionResult> {
+  const access = await isErpComercialLoginAllowed(email, profile?.comercialId)
+  if (!access.ok) {
+    return { ok: false, message: access.message }
+  }
+  if (!access.data) {
+    const supabase = getSupabaseClient()
+    if (supabase) await supabase.auth.signOut()
+    return { ok: false, message: DEACTIVATED_ACCOUNT_MESSAGE }
+  }
+  return { ok: true }
+}
+
 export async function getAuthSessionStatus(): Promise<AuthSessionStatus> {
   if (!isSupabaseConfigured()) {
     return { ok: false, reason: "not_configured" }
@@ -54,6 +74,11 @@ export async function getAuthSessionStatus(): Promise<AuthSessionStatus> {
 
   const profile = mapSessionProfile(data.session.user)
   if (!profile) {
+    return { ok: false, reason: "no_session" }
+  }
+
+  const access = await assertComercialLoginAllowed(data.session.user.email, profile)
+  if (!access.ok) {
     return { ok: false, reason: "no_session" }
   }
 
@@ -86,7 +111,11 @@ export async function syncSupabaseSession(
     password,
   })
 
-  if (!signIn.error) return { ok: true }
+  if (!signIn.error) {
+    const access = await assertComercialLoginAllowed(normalizedEmail, profile)
+    if (!access.ok) return access
+    return { ok: true }
+  }
 
   const canAutoRegister =
     profile &&
@@ -116,7 +145,11 @@ export async function syncSupabaseSession(
       password,
     })
 
-    if (!retry.error) return { ok: true }
+    if (!retry.error) {
+      const access = await assertComercialLoginAllowed(normalizedEmail, profile)
+      if (!access.ok) return access
+      return { ok: true }
+    }
 
     if (retry.error.message.toLowerCase().includes("email not confirmed")) {
       return {

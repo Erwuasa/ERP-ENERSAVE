@@ -1,13 +1,15 @@
-import { useState, type FormEvent } from "react"
+import { useRef, useState, type FormEvent } from "react"
 import { motion, AnimatePresence } from "motion/react"
 import { AlertTriangle, GripVertical, X } from "lucide-react"
 import {
   INCIDENCIA_ESTADOS,
+  todayInputDate,
   type IncidenciaEstado,
   type IncidenciaOrigen,
   type IncidenciaTicket,
   type IncidenciaTipo,
 } from "../lib/incidencias"
+import { FloatingPanelPortal } from "./ui/FloatingPanelPortal"
 
 export type { IncidenciaEstado, IncidenciaTicket, IncidenciaTipo }
 
@@ -74,7 +76,16 @@ interface IncidenciasKanbanProps {
   canEdit: boolean
   canDrag: boolean
   onSave: (updated: IncidenciaTicket) => void
-  onMove: (id: string, estado: IncidenciaEstado) => void
+  onMove: (
+    id: string,
+    estado: IncidenciaEstado,
+    meta: { fecha: string; motivo?: string }
+  ) => void
+}
+
+interface PendingMove {
+  inc: IncidenciaTicket
+  targetEstado: IncidenciaEstado
 }
 
 function prioridadBadgeClass(prioridad: IncidenciaTicket["prioridad"]) {
@@ -160,6 +171,10 @@ export function IncidenciasKanban({
   const [editingIncidencia, setEditingIncidencia] = useState<IncidenciaTicket | null>(null)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<IncidenciaEstado | null>(null)
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
+  const [moveFecha, setMoveFecha] = useState(todayInputDate())
+  const [moveMotivo, setMoveMotivo] = useState("")
+  const dropAnchorRef = useRef<HTMLElement | null>(null)
 
   function openEdit(inc: IncidenciaTicket) {
     if (!canEdit) return
@@ -173,13 +188,42 @@ export function IncidenciasKanban({
     setEditingIncidencia(null)
   }
 
-  function handleDrop(columnId: IncidenciaEstado, incidentId: string | null) {
-    if (!canDrag || !incidentId) return
-    const inc = incidencias.find((i) => i.id === incidentId)
-    if (!inc || inc.estado === columnId) return
-    onMove(incidentId, columnId)
+  function openMoveConfirm(
+    inc: IncidenciaTicket,
+    targetEstado: IncidenciaEstado,
+    anchorEl: HTMLElement
+  ) {
+    dropAnchorRef.current = anchorEl
+    setPendingMove({ inc, targetEstado })
+    setMoveFecha(todayInputDate())
+    setMoveMotivo("")
+  }
+
+  function cancelPendingMove() {
+    setPendingMove(null)
+    setMoveMotivo("")
     setDraggedId(null)
     setDragOverColumn(null)
+  }
+
+  function confirmPendingMove() {
+    if (!pendingMove) return
+    onMove(pendingMove.inc.id, pendingMove.targetEstado, {
+      fecha: moveFecha,
+      ...(moveMotivo.trim() ? { motivo: moveMotivo.trim() } : {}),
+    })
+    cancelPendingMove()
+  }
+
+  function handleDrop(columnId: IncidenciaEstado, incidentId: string | null, anchorEl: HTMLElement) {
+    if (!canDrag || !incidentId) return
+    const inc = incidencias.find((i) => i.id === incidentId)
+    if (!inc || inc.estado === columnId) {
+      setDraggedId(null)
+      setDragOverColumn(null)
+      return
+    }
+    openMoveConfirm(inc, columnId, anchorEl)
   }
 
   return (
@@ -208,7 +252,7 @@ export function IncidenciasKanban({
                 if (!canDrag) return
                 e.preventDefault()
                 const id = e.dataTransfer.getData("text/incidencia-id") || draggedId
-                handleDrop(column.id, id)
+                handleDrop(column.id, id, e.currentTarget as HTMLElement)
               }}
             >
               <div className="px-3 py-2.5 border-b border-brand-border/60 flex items-center justify-between">
@@ -288,6 +332,68 @@ export function IncidenciasKanban({
           )
         })}
       </div>
+
+      <FloatingPanelPortal
+        open={pendingMove != null}
+        onClose={cancelPendingMove}
+        anchorRef={dropAnchorRef}
+        align="right"
+        maxWidth={320}
+        className="w-[min(100vw-1rem,320px)] rounded-xl border border-brand-border bg-brand-panel shadow-xl p-4 space-y-3"
+      >
+        {pendingMove && (
+          <>
+            <div>
+              <p className="text-[10px] font-mono uppercase text-brand-subtext font-bold">
+                Cambio de estado
+              </p>
+              <p className="text-xs font-semibold text-brand-text mt-1">
+                {pendingMove.inc.codigo} → {ESTADO_LABELS[pendingMove.targetEstado]}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-mono text-brand-subtext uppercase">
+                Fecha de efecto
+              </label>
+              <input
+                type="date"
+                required
+                value={moveFecha}
+                onChange={(e) => setMoveFecha(e.target.value)}
+                className="w-full h-8 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text font-mono"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[10px] font-mono text-brand-subtext uppercase">
+                Motivo (opcional)
+              </label>
+              <textarea
+                value={moveMotivo}
+                onChange={(e) => setMoveMotivo(e.target.value)}
+                rows={2}
+                placeholder="Ej. resuelto tras contacto con distribuidora"
+                className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text resize-none"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={cancelPendingMove}
+                className="flex-1 h-8 text-xs font-semibold text-brand-subtext border border-brand-border rounded-lg hover:bg-brand-bg"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingMove}
+                className="flex-1 h-8 text-xs font-semibold bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg"
+              >
+                Confirmar
+              </button>
+            </div>
+          </>
+        )}
+      </FloatingPanelPortal>
 
       <AnimatePresence>
         {editingIncidencia && (

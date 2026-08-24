@@ -65,7 +65,7 @@ export function ComercialRenovacionesCard({
             ))}
           </ul>
         ) : (
-          <p className="text-[9px] font-mono text-brand-subtext">Sin renovaciones en 90 días</p>
+          <p className="text-[9px] font-mono text-brand-subtext">Sin renovaciones en 30 días</p>
         )}
         <span className="text-[9px] text-brand-subtext block">Ver en contratos →</span>
       </div>

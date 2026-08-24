@@ -14,6 +14,7 @@ export type ContractsListFilter =
   | "renovacion_proxima"
   | "con_recomendacion"
   | "borrador"
+  | "nuevos_sin_revisar"
   | ContractEstadoKpiFilter
 
 export interface ContractEstadoKpiMeta {
@@ -70,6 +71,7 @@ export function matchesContractEstadoKpiFilter(
     filter === "renovacion_proxima" ||
     filter === "con_recomendacion" ||
     filter === "borrador" ||
+    filter === "nuevos_sin_revisar" ||
     !CONTRACT_ESTADO_KPI_FILTERS.includes(filter as ContractEstadoKpiFilter)
   ) {
     return true
@@ -112,6 +114,7 @@ export function contractsListFilterLabel(filter: ContractsListFilter): string {
   if (filter === "renovacion_proxima") return " · renovación próxima"
   if (filter === "con_recomendacion") return " · con recomendación"
   if (filter === "borrador") return " · borrador"
+  if (filter === "nuevos_sin_revisar") return " · nuevos sin revisar"
   const meta = CONTRACT_ESTADO_KPI_META.find((m) => m.id === filter)
   return meta ? ` · ${meta.label.toLowerCase()}` : ""
 }

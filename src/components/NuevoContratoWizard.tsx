@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import {
   ArrowLeft,
   ArrowRight,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { marcoRetributivoCatalog } from "../data/marco-retributivo-catalog"
-import { estimateMarcoCommissionEur } from "../lib/marco-commission"
+import { estimateMarcoCommissionEur, type MarcoCommissionEstimate } from "../lib/marco-commission"
 import {
   CONTRATO_DOCUMENTO_TIPOS,
   countDocumentosPorTipo,
@@ -46,9 +47,10 @@ import { lookupSpainPostalCode } from "../lib/spain-postal-code"
 import type { Client } from "../types/client"
 import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
-import { analyzeCupsLiquidacion } from "../lib/contract-cups-liquidacion"
+import { analyzeCupsLiquidacion, findActiveRetroForClientContracts, normalizeCups } from "../lib/contract-cups-liquidacion"
+import { createNoSpacePasteHandler } from "../hooks/useNoSpacePasteInput"
 import {
-  canDeleteContract,
+  canUserDeleteContract,
   contractDeletionBlockedMessage,
 } from "../lib/contract-deletion"
 import { ClientPortfolioSearch } from "./contratos/ClientPortfolioSearch"
@@ -87,6 +89,76 @@ function tipoClienteChipLabel(tipo: TipoClienteContrato): string {
   if (tipo === "autonomo") return "Autónomo"
   if (tipo === "comunidad_vecinos") return "Comunidad"
   return "Particular"
+}
+
+const COMMISSION_MOTION = {
+  initial: { opacity: 0, scale: 0.96 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.96 },
+  transition: { duration: 0.18 },
+} as const
+
+interface CommissionEstimatePanelProps {
+  estimate: MarcoCommissionEstimate
+  commissionPercentage: number
+  isRetroCommissionContext: boolean
+  formatCurrency: (val: number) => string
+  motionKey: string
+}
+
+function CommissionEstimatePanel({
+  estimate,
+  commissionPercentage,
+  isRetroCommissionContext,
+  formatCurrency,
+  motionKey,
+}: CommissionEstimatePanelProps) {
+  return (
+    <motion.div
+      key={motionKey}
+      {...COMMISSION_MOTION}
+      className={`flex items-center gap-3 p-4 rounded-xl border ${
+        isRetroCommissionContext
+          ? "border-violet-500/30 bg-violet-500/10"
+          : "border-amber-500/20 bg-amber-500/5"
+      }`}
+    >
+      <Coins
+        className={`w-8 h-8 shrink-0 ${
+          isRetroCommissionContext ? "text-violet-500" : "text-amber-500"
+        }`}
+      />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2 mb-0.5">
+          <p className="text-[10px] font-mono uppercase text-brand-subtext">
+            Comisión estimada
+          </p>
+          <span
+            className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${
+              isRetroCommissionContext
+                ? "bg-violet-600/15 text-violet-800 dark:text-violet-200"
+                : "bg-emerald-600/15 text-emerald-800 dark:text-emerald-200"
+            }`}
+          >
+            {isRetroCommissionContext ? "Retrocomisión activa" : "Venta nueva"}
+          </span>
+        </div>
+        <p
+          className={`text-lg font-black font-mono ${
+            isRetroCommissionContext
+              ? "text-violet-700 dark:text-violet-300"
+              : "text-amber-600 dark:text-amber-400"
+          }`}
+        >
+          {formatCurrency(estimate.amountEur)}
+        </p>
+        <p className="text-[10px] text-brand-subtext mt-1 leading-relaxed">
+          Basado en tu % de comisionado actual ({commissionPercentage}%) y el consumo
+          introducido
+        </p>
+      </div>
+    </motion.div>
+  )
 }
 
 interface ProfileOption {
@@ -149,11 +221,52 @@ export function NuevoContratoWizard({
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
 
+  const pasteNif = createNoSpacePasteHandler(form.nif, (nif) => onChange({ nif }), {
+    transform: (v) => v.toUpperCase(),
+  })
+  const pasteTelefono = createNoSpacePasteHandler(form.telefono, (telefono) =>
+    onChange({ telefono })
+  )
+  const pasteEmail = createNoSpacePasteHandler(form.email, (email) => onChange({ email }))
+  const pasteCups = createNoSpacePasteHandler(form.cups, (cups) => onChange({ cups }), {
+    transform: normalizeCups,
+  })
+  const pasteIban = createNoSpacePasteHandler(form.iban, (iban) => onChange({ iban }), {
+    transform: (v) => v.toUpperCase(),
+  })
+
   const readOnlyFieldClass =
     "w-full px-3 py-2 bg-slate-100 dark:bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text font-medium cursor-default"
 
   function goToTab(tab: Exclude<WizardStep, 1>) {
     onChange({ wizardStep: tab })
+  }
+
+  function goToCompanyStep() {
+    onChange({ wizardStep: 1 })
+  }
+
+  function handleCompaniaChange(
+    nuevaCompania: string,
+    options?: { advanceToCliente?: boolean }
+  ) {
+    const companiaChanged = form.compania !== nuevaCompania
+    const hadTariffSelection = Boolean(form.marcoEntryId || form.tarifa)
+
+    if (companiaChanged && hadTariffSelection) {
+      toast.message("Tarifa y comisión reiniciadas al cambiar de compañía")
+    }
+
+    onChange({
+      compania: nuevaCompania,
+      wizardSegment: segment,
+      ...(options?.advanceToCliente ? { wizardStep: "cliente" } : {}),
+      ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
+    })
+  }
+
+  function selectCompany(compania: string) {
+    handleCompaniaChange(compania, { advanceToCliente: true })
   }
 
   function setSegment(next: ContractWizardSegment) {
@@ -233,6 +346,20 @@ export function NuevoContratoWizard({
     [form.cups, contracts, settlements, editingContractId, formatCurrency]
   )
 
+  const activeClientRetro = useMemo(
+    () =>
+      findActiveRetroForClientContracts(
+        { nif: form.nif, clientName: form.clientName },
+        contracts,
+        editingContractId ?? undefined
+      ),
+    [form.nif, form.clientName, contracts, editingContractId]
+  )
+
+  const isRetroCommissionContext = activeClientRetro != null || cupsLiquidacion.hasRetroRisk
+
+  const commissionMotionKey = `${form.marcoEntryId}-${commissionEstimate?.amountEur ?? 0}-${form.consumoAnual}`
+
   const editingContract = useMemo(
     () =>
       editingContractId
@@ -242,7 +369,12 @@ export function NuevoContratoWizard({
   )
 
   const canDeleteEditingContract = editingContract
-    ? canDeleteContract(editingContract, form)
+    ? canUserDeleteContract(
+        editingContract,
+        activeUserRole as "superadmin" | "jefe_comercial" | "comercial" | "tramitacion",
+        activeUserId,
+        form
+      )
     : false
 
   const tarifaChipLabel = useMemo(() => {
@@ -337,16 +469,6 @@ export function NuevoContratoWizard({
     setIncompleteMissing([])
     setNewComment("")
     onClose()
-  }
-
-  function selectCompany(compania: string) {
-    const companiaChanged = form.compania !== compania
-    onChange({
-      compania,
-      wizardSegment: segment,
-      wizardStep: "cliente",
-      ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
-    })
   }
 
   function selectTariff(entryId: string, tarifa: string) {
@@ -493,7 +615,7 @@ export function NuevoContratoWizard({
               <div className="px-6 py-3 border-b border-brand-border flex items-center gap-3 shrink-0 flex-wrap">
                 <button
                   type="button"
-                  onClick={() => onChange({ wizardStep: 1 })}
+                  onClick={goToCompanyStep}
                   className="inline-flex items-center gap-1 text-[10px] font-mono text-brand-subtext hover:text-brand-text cursor-pointer"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
@@ -524,9 +646,10 @@ export function NuevoContratoWizard({
                 {activeTab === "cliente" && (
                   <>
                     <ClientPortfolioSearch
-                      clients={clients}
+                      fallbackClients={clients}
                       contracts={contracts}
                       activeUserId={activeUserId}
+                      editingContractId={editingContractId}
                       onSelectClient={onChange}
                     />
 
@@ -561,6 +684,7 @@ export function NuevoContratoWizard({
                             onChange={(e) =>
                               onChange({ nif: e.target.value.toUpperCase() })
                             }
+                            onPaste={pasteNif}
                             className={`${inputClass} font-mono uppercase`}
                           />
                         </div>
@@ -634,6 +758,7 @@ export function NuevoContratoWizard({
                             type="tel"
                             value={form.telefono}
                             onChange={(e) => onChange({ telefono: e.target.value })}
+                            onPaste={pasteTelefono}
                             className={inputClass}
                           />
                         </div>
@@ -643,6 +768,7 @@ export function NuevoContratoWizard({
                             type="email"
                             value={form.email}
                             onChange={(e) => onChange({ email: e.target.value })}
+                            onPaste={pasteEmail}
                             className={inputClass}
                           />
                         </div>
@@ -774,6 +900,7 @@ export function NuevoContratoWizard({
                           onChange={(e) =>
                             onChange({ cups: e.target.value.toUpperCase() })
                           }
+                          onPaste={pasteCups}
                           className={`${inputClass} font-mono`}
                         />
                         {cupsLiquidacion.lines.length > 0 && (
@@ -800,14 +927,41 @@ export function NuevoContratoWizard({
                           </div>
                         )}
                         {commissionEstimate && (
-                          <p className="text-[10px] font-mono text-cyan-700 dark:text-cyan-300 mt-2">
-                            Liquidación estimada del nuevo contrato:{" "}
-                            <span className="font-bold">
-                              {formatCurrency(commissionEstimate.amountEur)}
-                            </span>
-                            {" · "}
-                            {commissionEstimate.label}
-                          </p>
+                          <div
+                            className={`mt-2 rounded-xl border px-3 py-2 ${
+                              isRetroCommissionContext
+                                ? "border-violet-500/35 bg-violet-500/10"
+                                : "border-amber-500/25 bg-amber-500/5"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span
+                                className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wide ${
+                                  isRetroCommissionContext
+                                    ? "bg-violet-600/15 text-violet-800 dark:text-violet-200"
+                                    : "bg-emerald-600/15 text-emerald-800 dark:text-emerald-200"
+                                }`}
+                              >
+                                {isRetroCommissionContext
+                                  ? "Retrocomisión activa"
+                                  : "Venta nueva"}
+                              </span>
+                            </div>
+                            <p
+                              className={`text-[10px] font-mono ${
+                                isRetroCommissionContext
+                                  ? "text-violet-800 dark:text-violet-200"
+                                  : "text-cyan-700 dark:text-cyan-300"
+                              }`}
+                            >
+                              Liquidación estimada del nuevo contrato:{" "}
+                              <span className="font-bold">
+                                {formatCurrency(commissionEstimate.amountEur)}
+                              </span>
+                              {" · "}
+                              {commissionEstimate.label}
+                            </p>
+                          </div>
                         )}
                       </div>
                       <div>
@@ -844,6 +998,7 @@ export function NuevoContratoWizard({
                           onChange={(e) =>
                             onChange({ iban: e.target.value.toUpperCase() })
                           }
+                          onPaste={pasteIban}
                           className={`${inputClass} font-mono`}
                         />
                       </div>
@@ -912,19 +1067,17 @@ export function NuevoContratoWizard({
                       </div>
                     </div>
 
-                    {commissionEstimate && (
-                      <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
-                        <Coins className="w-8 h-8 text-amber-500 shrink-0" />
-                        <div>
-                          <p className="text-[10px] font-mono uppercase text-brand-subtext">
-                            Comisión estimada
-                          </p>
-                          <p className="text-lg font-black font-mono text-amber-600 dark:text-amber-400">
-                            {formatCurrency(commissionEstimate.amountEur)}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <AnimatePresence mode="wait">
+                      {commissionEstimate ? (
+                        <CommissionEstimatePanel
+                          estimate={commissionEstimate}
+                          commissionPercentage={commissionPercentage}
+                          isRetroCommissionContext={isRetroCommissionContext}
+                          formatCurrency={formatCurrency}
+                          motionKey={commissionMotionKey}
+                        />
+                      ) : null}
+                    </AnimatePresence>
 
                     <div className="border border-brand-border rounded-xl p-4 space-y-3">
                       <div className="flex items-center gap-2">
@@ -1014,7 +1167,7 @@ export function NuevoContratoWizard({
               <div className="px-6 py-4 border-t border-brand-border flex gap-3 shrink-0">
                 <button
                   type="button"
-                  onClick={() => onChange({ wizardStep: 1 })}
+                  onClick={goToCompanyStep}
                   className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-brand-subtext hover:text-brand-text border border-brand-border rounded-lg cursor-pointer"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -1032,7 +1185,11 @@ export function NuevoContratoWizard({
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => {
-                      if (!window.confirm("¿Eliminar este borrador de contrato?")) return
+                      if (!window.confirm(
+                        "¿Eliminar este contrato en borrador? Esta acción no se puede deshacer."
+                      )) {
+                        return
+                      }
                       onDeleteContract()
                     }}
                     className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-rose-600 hover:text-rose-500 border border-rose-500/30 rounded-lg cursor-pointer disabled:opacity-50"

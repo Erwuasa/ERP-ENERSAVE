@@ -1,7 +1,6 @@
 import {
   aplicaRenovacionAnual,
   getRenewalSchedule,
-  RENOVACION_PROXIMA_DIAS,
   type ContractSegmentContext,
 } from "./contract-segment-rules"
 
@@ -14,12 +13,12 @@ export interface ContractRenewalRow extends ContractSegmentContext {
   fechaRenovacion?: string
 }
 
-/** Contratos con renovación anual aplicable y próxima ventana (≤90 días). */
+/** Ventana de aviso en Contratos / KPI (≤30 días). */
+export const RENOVACION_ALERTA_DIAS = 30
+
+/** Contratos con renovación anual aplicable y ≤30 días hasta fechaRenovacion. */
 export function isRenovacionProxima(contract: ContractRenewalRow): boolean {
   if (!aplicaRenovacionAnual(contract)) return false
   const schedule = getRenewalSchedule(contract)
-  return (
-    schedule.estadoRenovacion === "Renovacion proxima" ||
-    (schedule.diasRenovacion != null && schedule.diasRenovacion <= RENOVACION_PROXIMA_DIAS)
-  )
+  return schedule.diasRenovacion != null && schedule.diasRenovacion <= RENOVACION_ALERTA_DIAS
 }

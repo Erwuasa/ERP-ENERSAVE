@@ -1,5 +1,6 @@
-import { Download, Star } from "lucide-react"
+import { Download, Mail, Star } from "lucide-react"
 import type { ReactNode } from "react"
+import type { ComparadorSortMode } from "../lib/comparador-sort"
 
 export interface ComparadorOfferOption {
   id: string
@@ -10,15 +11,20 @@ export interface ComparadorOfferOption {
   potenciaBreakdown: number
   consumoBreakdown: number
   savingsAnnual: number
+  savingsPercentage?: number
+  commissionEur?: number
   isBestOption?: boolean
 }
 
 interface ComparadorOfferCardProps {
   option: ComparadorOfferOption
   segment: "residencial" | "pyme"
+  sortMode?: ComparadorSortMode
   renderCompaniaLogo: (brandName: string) => ReactNode
   onContract: () => void
   onDownloadPdf: () => void
+  onSendEmail?: () => void
+  sendingEmail?: boolean
 }
 
 function inferPricingLabel(tariffName: string): "Fijo" | "Indexado" {
@@ -52,10 +58,14 @@ function savingsTone(savingsAnnual: number): "positive" | "neutral" | "negative"
 export function ComparadorOfferCard({
   option,
   segment,
+  sortMode = "ahorro",
   renderCompaniaLogo,
   onContract,
   onDownloadPdf,
+  onSendEmail,
+  sendingEmail = false,
 }: ComparadorOfferCardProps) {
+  const bestLabel = sortMode === "comision" ? "Top comisión" : "Top ahorro"
   const potenciaMonthly = option.potenciaBreakdown / 12
   const energiaMonthly = option.consumoBreakdown / 12
   const ahorroMonthly = option.savingsAnnual / 12
@@ -99,10 +109,10 @@ export function ComparadorOfferCard({
           {option.isBestOption ? (
             <span
               className="inline-flex items-center gap-0.5 text-amber-500"
-              title="Top ahorro"
+              title={bestLabel}
             >
               <Star className="h-4 w-4 fill-amber-400 text-amber-500" aria-hidden />
-              <span className="sr-only">Top ahorro</span>
+              <span className="sr-only">{bestLabel}</span>
             </span>
           ) : null}
         </h3>
@@ -157,6 +167,18 @@ export function ComparadorOfferCard({
       >
         Contratar
       </button>
+
+      {tone === "positive" && onSendEmail ? (
+        <button
+          type="button"
+          onClick={onSendEmail}
+          disabled={sendingEmail}
+          className="mt-2 w-full py-2.5 rounded-xl border border-brand-border bg-brand-surface hover:bg-brand-elevated text-brand-text text-xs font-bold transition-colors cursor-pointer disabled:opacity-60 inline-flex items-center justify-center gap-2"
+        >
+          <Mail className="h-3.5 w-3.5" />
+          {sendingEmail ? "Generando email…" : "Enviar propuesta por email"}
+        </button>
+      ) : null}
     </article>
   )
 }

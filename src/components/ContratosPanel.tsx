@@ -10,6 +10,7 @@ import {
   Loader2,
   Pencil,
   Search,
+  Clock,
   Trash2,
   Upload,
   X,
@@ -27,7 +28,8 @@ import { ContractsExcelImportModal } from "./contratos/ContractsExcelImportModal
 import { EstadoFilterDropdown } from "./contratos/EstadoFilterDropdown"
 import { CompaniaFilterDropdown } from "./contratos/CompaniaFilterDropdown"
 import { UserFilterDropdown } from "./contratos/UserFilterDropdown"
-import { canDeleteContract } from "../lib/contract-deletion"
+import { canUserDeleteContract } from "../lib/contract-deletion"
+import { ConfirmDeleteContractModal } from "./contratos/ConfirmDeleteContractModal"
 import {
   calcularPenalizacion,
   formatPenalizacionDisplay,
@@ -45,7 +47,14 @@ import {
 } from "../lib/contract-renewal"
 import type { TarifaRecommendation } from "../lib/tarifa-recommendation"
 import { TarifaRecommendationPopover } from "./TarifaRecommendationPopover"
+import { RenovacionProximaPopover } from "./RenovacionProximaPopover"
+import { isRenewalAlertDismissed } from "../lib/renewal-alert-dismissed"
 import { ContractQuickActionButton } from "./contratos/ContractQuickActionButton"
+import { ContratosTramitacionBell } from "./contratos/ContratosTramitacionBell"
+import {
+  isContractPendingTramitacionReview,
+  type TramitacionComercialGroup,
+} from "../lib/contratos-tramitacion-notifications"
 import {
   contractsListFilterLabel,
   countContractsByEstadoUi,
@@ -270,10 +279,19 @@ interface ContratosPanelProps {
     recommendation: TarifaRecommendation
   ) => void
   onDismissRecommendation?: (contractId: string) => void
+  renewalDismissVersion?: number
+  onDismissRenewalAlert?: (contractId: string) => void
   onDownloadJointRecommendationPdf?: (contracts: Contract[]) => void | Promise<void>
   isGeneratingJointPdf?: boolean
   onEditContract?: (contract: Contract) => void
-  onDeleteContract?: (contract: Contract) => void
+  onDeleteContract?: (contract: Contract) => void | Promise<void>
+  showTramitacionNotifications?: boolean
+  tramitacionUnreviewedCount?: number
+  tramitacionUnreviewedGroups?: TramitacionComercialGroup[]
+  tramitacionRecentSummary?: string | null
+  reviewedContractIds?: ReadonlySet<string>
+  onTramitacionSelectComercial?: (comercialId: string) => void
+  onTramitacionShowAllUnreviewed?: () => void
 }
 
 export function ContratosPanel({
@@ -311,10 +329,19 @@ export function ContratosPanel({
   onCreateContractFromRecommendation,
   onDownloadRecommendationPdf,
   onDismissRecommendation,
+  renewalDismissVersion = 0,
+  onDismissRenewalAlert,
   onDownloadJointRecommendationPdf,
   isGeneratingJointPdf = false,
   onEditContract,
   onDeleteContract,
+  showTramitacionNotifications = false,
+  tramitacionUnreviewedCount = 0,
+  tramitacionUnreviewedGroups = [],
+  tramitacionRecentSummary = null,
+  reviewedContractIds,
+  onTramitacionSelectComercial,
+  onTramitacionShowAllUnreviewed,
 }: ContratosPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
@@ -338,7 +365,10 @@ export function ContratosPanel({
   const [excelImportOpen, setExcelImportOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [openRecommendationId, setOpenRecommendationId] = useState<string | null>(null)
+  const [openRenewalId, setOpenRenewalId] = useState<string | null>(null)
   const [selectedContractIds, setSelectedContractIds] = useState<string[]>([])
+  const [contractPendingDelete, setContractPendingDelete] = useState<Contract | null>(null)
+  const [isDeletingContract, setIsDeletingContract] = useState(false)
   const PAGE_SIZE = 10
 
   const canEditEstado = canEditContractEstado
@@ -484,7 +514,17 @@ export function ContratosPanel({
     if (contractsListFilter === "borrador" && !isContractBorrador(c.estado)) {
       return false
     }
-    if (contractsListFilter === "renovacion_proxima" && !isRenovacionProxima(c)) {
+    if (
+      contractsListFilter === "nuevos_sin_revisar" &&
+      (!reviewedContractIds ||
+        !isContractPendingTramitacionReview(c, reviewedContractIds))
+    ) {
+      return false
+    }
+    if (
+      contractsListFilter === "renovacion_proxima" &&
+      (!isRenovacionProxima(c) || isRenewalAlertDismissed(c.id))
+    ) {
       return false
     }
     if (
@@ -582,6 +622,7 @@ export function ContratosPanel({
       companiaFilterUI,
       fechaDesde,
       fechaHasta,
+      renewalDismissVersion,
     ]
   )
 
@@ -646,6 +687,17 @@ export function ContratosPanel({
       toast.success("Excel de penalización descargado")
     } else {
       toast.message("Este contrato no genera penalización exportable")
+    }
+  }
+
+  async function confirmDeleteContract() {
+    if (!contractPendingDelete || !onDeleteContract) return
+    setIsDeletingContract(true)
+    try {
+      await onDeleteContract(contractPendingDelete)
+      setContractPendingDelete(null)
+    } finally {
+      setIsDeletingContract(false)
     }
   }
 
@@ -715,6 +767,17 @@ export function ContratosPanel({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {showTramitacionNotifications &&
+            onTramitacionSelectComercial &&
+            onTramitacionShowAllUnreviewed ? (
+              <ContratosTramitacionBell
+                badgeCount={tramitacionUnreviewedCount}
+                groups={tramitacionUnreviewedGroups}
+                recentSummary={tramitacionRecentSummary}
+                onSelectComercial={onTramitacionSelectComercial}
+                onShowAllUnreviewed={onTramitacionShowAllUnreviewed}
+              />
+            ) : null}
             <button
               type="button"
               onClick={handleExportExcel}
@@ -774,6 +837,9 @@ export function ContratosPanel({
                 ? [{ id: "con_recomendacion" as const, label: "Con recomendación" }]
                 : []),
               { id: "borrador", label: "Borrador" },
+              ...(showTramitacionNotifications
+                ? [{ id: "nuevos_sin_revisar" as const, label: "Nuevos sin revisar" }]
+                : []),
             ]}
             onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
             minWidthClass="min-w-[140px]"
@@ -922,6 +988,15 @@ export function ContratosPanel({
 
                 const isHighlighted = highlightContractId === c.id
                 const actionRowClass = getContractActionRowClass(c.estado)
+                const hasRecommendation =
+                  showTarifaRecommendations && Boolean(tarifaRecommendations?.has(c.id))
+                const hasRenewalAlert =
+                  isRenovacionProxima(c) && !isRenewalAlertDismissed(c.id)
+                const insightRowClass = hasRecommendation
+                  ? "bg-amber-500/10 dark:bg-amber-500/12 border-l-4 border-l-amber-500 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]"
+                  : hasRenewalAlert
+                    ? "bg-orange-500/10 dark:bg-orange-500/12 border-l-4 border-l-orange-500 shadow-[inset_0_0_0_1px_rgba(249,115,22,0.12)]"
+                    : ""
 
                 return (
                   <tr
@@ -934,9 +1009,11 @@ export function ContratosPanel({
                         ? "ring-2 ring-inset ring-cyan-500/50 bg-cyan-500/5"
                         : actionRowClass
                           ? actionRowClass
-                          : selectedContractIds.includes(c.id)
-                            ? "bg-cyan-500/5"
-                            : ""
+                          : insightRowClass
+                            ? insightRowClass
+                            : selectedContractIds.includes(c.id)
+                              ? "bg-cyan-500/5"
+                              : ""
                     }`}
                   >
                     <td className={CONTRACTS_SEL}>
@@ -1022,11 +1099,16 @@ export function ContratosPanel({
                           ) : (
                             <p className="text-[9px] font-mono text-brand-subtext mt-1.5">—</p>
                           )}
-                          {aplicaRenovacion && renewal.estadoRenovacion === "Renovacion proxima" && (
+                          {hasRenewalAlert && c.fechaRenovacion ? (
+                            <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-orange-500/10 text-orange-700 dark:text-orange-300">
+                              Renovación próxima
+                            </span>
+                          ) : aplicaRenovacion &&
+                            renewal.estadoRenovacion === "Renovacion proxima" ? (
                             <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-violet-500/10 text-violet-700 dark:text-violet-300">
                               Próxima
                             </span>
-                          )}
+                          ) : null}
                         </>
                       ) : (
                         <>
@@ -1100,21 +1182,13 @@ export function ContratosPanel({
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </ContractQuickActionButton>
-                        {canDeleteContract(c) && onDeleteContract ? (
+                        {canUserDeleteContract(c, activeRole, activeUserId) &&
+                        onDeleteContract ? (
                           <ContractQuickActionButton
-                            tone="penalty"
+                            tone="danger"
                             title="Eliminar borrador"
                             ariaLabel={`Eliminar borrador ${c.clientName}`}
-                            onClick={() => {
-                              if (
-                                !window.confirm(
-                                  `¿Eliminar el borrador de ${c.clientName}?`
-                                )
-                              ) {
-                                return
-                              }
-                              onDeleteContract(c)
-                            }}
+                            onClick={() => setContractPendingDelete(c)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </ContractQuickActionButton>
@@ -1155,6 +1229,35 @@ export function ContratosPanel({
                             disabled
                           >
                             <Lightbulb className="w-3.5 h-3.5" />
+                          </ContractQuickActionButton>
+                        )}
+                        {hasRenewalAlert && c.fechaRenovacion ? (
+                          <RenovacionProximaPopover
+                            contract={c}
+                            fechaRenovacion={formatActivationDate(c.fechaRenovacion)}
+                            diasRestantes={renewal.diasRenovacion ?? 0}
+                            open={openRenewalId === c.id}
+                            onToggle={() =>
+                              setOpenRenewalId((prev) => (prev === c.id ? null : c.id))
+                            }
+                            onClose={() => setOpenRenewalId(null)}
+                            onDismiss={() => {
+                              onDismissRenewalAlert?.(c.id)
+                              setOpenRenewalId(null)
+                            }}
+                          />
+                        ) : (
+                          <ContractQuickActionButton
+                            tone="renewal"
+                            title={
+                              isRenovacionProxima(c)
+                                ? "Renovación gestionada o descartada"
+                                : "Sin renovación próxima"
+                            }
+                            ariaLabel="Sin renovación próxima"
+                            disabled
+                          >
+                            <Clock className="w-3.5 h-3.5" />
                           </ContractQuickActionButton>
                         )}
                         <ContractQuickActionButton
@@ -1234,6 +1337,8 @@ export function ContratosPanel({
                 ? "No hay contratos con renovación próxima."
                 : contractsListFilter === "borrador"
                   ? "No hay contratos en borrador."
+                : contractsListFilter === "nuevos_sin_revisar"
+                  ? "No hay contratos nuevos sin revisar."
                 : showTarifaRecommendations && contractsListFilter === "con_recomendacion"
                   ? "No hay contratos con recomendación activa."
                 : isContractEstadoKpiFilter(contractsListFilter)
@@ -1275,6 +1380,16 @@ export function ContratosPanel({
           </div>
         )}
       </div>
+
+      <ConfirmDeleteContractModal
+        open={contractPendingDelete != null}
+        loading={isDeletingContract}
+        onCancel={() => {
+          if (isDeletingContract) return
+          setContractPendingDelete(null)
+        }}
+        onConfirm={() => void confirmDeleteContract()}
+      />
 
       <ContractsExcelImportModal
         open={excelImportOpen}

@@ -7,6 +7,9 @@ export interface ContractOcrResult {
   tipoPrecio?: "fijo" | "mercado"
   potenciaContratada?: string
   precioFijoConsumo?: number
+  consumoAnualKwh?: number
+  facturaImporteEur?: number
+  facturaEsMensual?: boolean
   nif?: string
   iban?: string
   direccionSuministro?: string
@@ -116,6 +119,26 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
   )
   if (dirMatch) {
     result.direccionSuministro = dirMatch[1].trim().slice(0, 120)
+  }
+
+  const consumoAnualMatch =
+    text.match(/consumo\s+anual[^\d]{0,25}(\d[\d.,]*)\s*kWh/i) ||
+    text.match(/(\d[\d.,]*)\s*kWh\s*(?:\/\s*año|anual)/i)
+  if (consumoAnualMatch) {
+    const raw = consumoAnualMatch[1].replace(/\./g, "").replace(",", ".")
+    const value = Number.parseFloat(raw)
+    if (Number.isFinite(value) && value > 0) result.consumoAnualKwh = Math.round(value)
+  }
+
+  const facturaMatch =
+    text.match(/total\s+(?:factura|importe|a\s+pagar)[^\d]{0,20}(\d+[,.]?\d*)\s*€/i) ||
+    text.match(/(\d+[,.]?\d*)\s*€[^\n]{0,30}(?:total|importe)/i)
+  if (facturaMatch) {
+    const value = Number.parseFloat(facturaMatch[1].replace(",", "."))
+    if (Number.isFinite(value) && value > 0) {
+      result.facturaImporteEur = value
+      result.facturaEsMensual = !/anual|año|12\s*meses/i.test(facturaMatch[0])
+    }
   }
 
   return result

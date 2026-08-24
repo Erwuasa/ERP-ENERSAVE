@@ -15,13 +15,38 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react"
+import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts"
 import { toast } from "sonner"
+import {
+  buildContractsById,
+  calcularCashflow16Semanas,
+  DEFAULT_GASTOS_FIJOS_MENSUALES,
+  DEFAULT_UMBRAL_LIQUIDEZ,
+  findSemanasEnRiesgo,
+  partitionSettlementsForCashflow,
+} from "../lib/cashflow-forecast"
+import { exportCashflowForecastToExcel } from "../lib/cashflow-forecast-export"
+import type { Contract } from "../types/contract"
+import type { Settlement } from "../types/settlement"
 
 interface CashflowPanelProps {
   activeRole: string
   formatCurrency: (val: number) => string
   cashflowScenario: "optimista" | "realista" | "pesimista"
   setCashflowScenario: (val: "optimista" | "realista" | "pesimista") => void
+  settlements?: Settlement[]
+  contracts?: Contract[]
+  saldoActual?: number
 }
 
 const TIMELINE_ITEMS = [
@@ -125,12 +150,120 @@ export function CashflowPanel({
   formatCurrency,
   cashflowScenario,
   setCashflowScenario,
+  settlements = [],
+  contracts = [],
+  saldoActual: saldoActualProp,
 }: CashflowPanelProps) {
   const [projectionOpen, setProjectionOpen] = useState(true)
+  const [horizonWeeks, setHorizonWeeks] = useState<8 | 16>(16)
+  const [umbralLiquidez, setUmbralLiquidez] = useState(DEFAULT_UMBRAL_LIQUIDEZ)
   const [canalSearch, setCanalSearch] = useState("")
   const [selectedContraparte, setSelectedContraparte] = useState<string | null>(null)
 
-  const kpi = useMemo(() => getKpiValues(cashflowScenario), [cashflowScenario])
+  const { liquidacionesPendientesCobro, comisionesPendientesPago, settlementsPagados } =
+    useMemo(() => partitionSettlementsForCashflow(settlements), [settlements])
+
+  const saldoActual = useMemo(() => {
+    if (saldoActualProp != null) return saldoActualProp
+    const baseTesoreria = 42_000
+    const cobrado = settlementsPagados.reduce(
+      (sum, settlement) => sum + Math.max(0, settlement.montoInterno ?? 0),
+      0
+    )
+    const pagado = settlementsPagados.reduce(
+      (sum, settlement) => sum + Math.max(0, settlement.montoExterno ?? 0),
+      0
+    )
+    return baseTesoreria + cobrado - pagado
+  }, [saldoActualProp, settlementsPagados])
+
+  const semanasCashflow = useMemo(
+    () =>
+      calcularCashflow16Semanas(
+        saldoActual,
+        liquidacionesPendientesCobro,
+        comisionesPendientesPago,
+        DEFAULT_GASTOS_FIJOS_MENSUALES,
+        new Date(),
+        {
+          contractsById: buildContractsById(contracts),
+          settlementsPagados,
+          scenario: cashflowScenario,
+          semanasTotal: horizonWeeks,
+        }
+      ),
+    [
+      saldoActual,
+      liquidacionesPendientesCobro,
+      comisionesPendientesPago,
+      contracts,
+      settlementsPagados,
+      cashflowScenario,
+      horizonWeeks,
+    ]
+  )
+
+  const semanasEnRiesgo = useMemo(
+    () => findSemanasEnRiesgo(semanasCashflow, umbralLiquidez),
+    [semanasCashflow, umbralLiquidez]
+  )
+
+  const chartData = useMemo(
+    () =>
+      semanasCashflow.map((semana) => ({
+        label: `S${semana.numeroSemana}`,
+        rango: `${semana.fechaInicio.slice(5).replace("-", "/")}`,
+        saldoFinal: semana.saldoFinal,
+        saldoReal: semana.esProyeccion ? null : semana.saldoFinal,
+        saldoProyeccion: semana.esProyeccion ? semana.saldoFinal : null,
+        enRiesgo:
+          semana.saldoFinal < 0 ||
+          (semana.esProyeccion && semana.saldoFinal < umbralLiquidez),
+        esProyeccion: semana.esProyeccion,
+      })),
+    [semanasCashflow, umbralLiquidez]
+  )
+
+  const kpi = useMemo(() => {
+    const base = getKpiValues(cashflowScenario)
+    const porCobrar = liquidacionesPendientesCobro.reduce(
+      (sum, settlement) => sum + Math.max(0, settlement.montoInterno ?? 0),
+      0
+    )
+    const porPagar = comisionesPendientesPago.reduce(
+      (sum, settlement) => sum + Math.max(0, settlement.montoExterno ?? 0),
+      0
+    )
+    const pagadoHistorico = settlementsPagados.reduce(
+      (sum, settlement) =>
+        sum + Math.max(0, settlement.montoInterno ?? 0) + Math.max(0, settlement.montoExterno ?? 0),
+      0
+    )
+
+    if (settlements.length === 0) return base
+
+    const ultimaSemana = semanasCashflow[semanasCashflow.length - 1]
+    return {
+      ...base,
+      porPagar: porPagar || base.porPagar,
+      porCobrar: porCobrar || base.porCobrar,
+      pagadoHistorico: pagadoHistorico || base.pagadoHistorico,
+      proyeccionAcumulada: ultimaSemana?.saldoFinal ?? base.proyeccionAcumulada,
+      entradasPrevistas: semanasCashflow
+        .filter((semana) => semana.esProyeccion)
+        .reduce((sum, semana) => sum + semana.totalEntradas, 0),
+      gastosComisiones: -semanasCashflow
+        .filter((semana) => semana.esProyeccion)
+        .reduce((sum, semana) => sum + semana.totalSalidas, 0),
+    }
+  }, [
+    cashflowScenario,
+    liquidacionesPendientesCobro,
+    comisionesPendientesPago,
+    settlementsPagados,
+    settlements.length,
+    semanasCashflow,
+  ])
 
   const pendientesPorCanal: { id: string; nombre: string; importe: number }[] = []
   const liquidacionesConsolidadas: { id: string; nombre: string; importe: number }[] = []
@@ -149,16 +282,17 @@ export function CashflowPanel({
   return (
     <div className="space-y-6 animate-fade-in text-brand-text font-sans">
       {/* Export action */}
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
         <button
           type="button"
-          onClick={() =>
-            toast.success("Proyecciones de tesorería exportadas a formato Excel (.xlsx)")
-          }
+          onClick={() => {
+            exportCashflowForecastToExcel(semanasCashflow)
+            toast.success("Previsión de cashflow exportada (.xlsx)")
+          }}
           className="flex items-center space-x-1.5 px-3 py-1.5 bg-white dark:bg-brand-surface hover:bg-slate-50 dark:hover:bg-brand-panel text-brand-text border border-brand-border rounded-xl text-xs font-semibold font-mono tracking-tight cursor-pointer transition-all shadow-xs"
         >
           <Download className="w-3.5 h-3.5" />
-          <span>Exportar Reporte</span>
+          <span>Exportar previsión a Excel</span>
         </button>
       </div>
 
@@ -235,7 +369,7 @@ export function CashflowPanel({
           <div className="px-5 pb-5 space-y-6 border-t border-brand-border pt-5">
             {/* Scenario selector & parameters */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-5 bg-slate-50 dark:bg-brand-surface/60 border border-brand-border rounded-2xl">
-              <div className="space-y-1">
+              <div className="space-y-3">
                 <span className="block text-[10px] font-mono tracking-wider uppercase text-brand-subtext font-bold">
                   Modulador de Proyección Temporal
                 </span>
@@ -246,7 +380,7 @@ export function CashflowPanel({
                       type="button"
                       onClick={() => {
                         setCashflowScenario(scen)
-                        toast.info(`Cargando escenario financiero: ${scen.toUpperCase()}`)
+                        toast.info(`Escenario financiero: ${scen.toUpperCase()}`)
                       }}
                       className={`px-4 py-1.5 rounded-lg text-xs font-extrabold uppercase font-mono transition-all cursor-pointer ${
                         cashflowScenario === scen
@@ -266,27 +400,53 @@ export function CashflowPanel({
                     </button>
                   ))}
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[9px] font-mono uppercase text-brand-subtext font-bold">
+                    Horizonte
+                  </span>
+                  {([8, 16] as const).map((weeks) => (
+                    <button
+                      key={weeks}
+                      type="button"
+                      onClick={() => setHorizonWeeks(weeks)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-mono font-bold border transition-colors cursor-pointer ${
+                        horizonWeeks === weeks
+                          ? "bg-cyan-600 text-white border-cyan-600"
+                          : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
+                      }`}
+                    >
+                      {weeks} semanas
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-4 text-xs font-mono">
                 <div className="p-3 bg-white dark:bg-brand-panel rounded-xl border border-brand-border px-4 py-2 flex flex-col justify-center min-w-[140px]">
                   <span className="text-[9px] text-brand-subtext uppercase tracking-widest block font-semibold">
-                    Tasa Descuento
+                    Saldo actual
                   </span>
-                  <strong className="text-brand-text text-sm mt-0.5">3.5% (WACC anual)</strong>
+                  <strong className="text-brand-text text-sm mt-0.5">{formatCurrency(saldoActual)}</strong>
                 </div>
                 <div className="p-3 bg-white dark:bg-brand-panel rounded-xl border border-brand-border px-4 py-2 flex flex-col justify-center min-w-[140px]">
                   <span className="text-[9px] text-brand-subtext uppercase tracking-widest block font-semibold">
-                    Cierre Período
+                    Umbral liquidez
                   </span>
-                  <strong className="text-brand-text text-sm mt-0.5">30-abr-2026</strong>
+                  <input
+                    type="number"
+                    min={0}
+                    step={500}
+                    value={umbralLiquidez}
+                    onChange={(event) => setUmbralLiquidez(Number(event.target.value) || 0)}
+                    className="mt-0.5 w-full bg-transparent text-brand-text text-sm font-bold outline-none"
+                  />
                 </div>
                 <div className="p-3 bg-white dark:bg-brand-panel rounded-xl border border-brand-border px-4 py-2 justify-center flex flex-col min-w-[140px]">
                   <span className="text-[9px] text-brand-subtext uppercase tracking-widest block font-semibold">
-                    Auditoría
+                    Método
                   </span>
                   <strong className="text-emerald-500 text-sm mt-0.5 flex items-center gap-1">
-                    Conforme <CheckCircle className="w-3.5 h-3.5" />
+                    Directo 16s <CheckCircle className="w-3.5 h-3.5" />
                   </strong>
                 </div>
               </div>
@@ -362,87 +522,117 @@ export function CashflowPanel({
                 </div>
               </div>
 
-              <div className="lg:col-span-5 bg-white dark:bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-5 flex flex-col justify-between">
+              <div className="lg:col-span-5 bg-white dark:bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-5 flex flex-col">
                 <div className="space-y-1">
                   <h3 className="text-xs font-bold uppercase tracking-wider font-mono">
-                    Proyecciones: Tendencia de Caja Mensual
+                    Cashflow {horizonWeeks} semanas · método directo
                   </h3>
                   <p className="text-[10px] text-brand-subtext leading-normal">
-                    Gráfica de liquidez real acumulada e impacto del escenario{" "}
-                    <span className="text-blue-600 dark:text-cyan-400 font-bold underline capitalize">
-                      {cashflowScenario}
-                    </span>
-                    .
+                    Saldo encadenado semana a semana. Área sólida = dato cerrado; área clara =
+                    proyección ({cashflowScenario}).
                   </p>
                 </div>
 
-                <div className="relative w-full h-[220px] bg-slate-50 dark:bg-brand-surface/80 border border-brand-border rounded-xl p-3 flex flex-col justify-between">
-                  <div className="absolute top-2 left-2 flex items-center space-x-3 text-[8px] font-mono shrink-0 select-none">
-                    <div className="flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                      <span className="text-brand-subtext">Patrimonio Real</span>
-                    </div>
-                    <div className="flex items-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                      <span className="text-brand-subtext">Provisión Scen</span>
-                    </div>
+                {semanasEnRiesgo.length > 0 ? (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/25 space-y-1">
+                    <p className="text-[10px] font-bold uppercase text-red-600 dark:text-red-400 font-mono">
+                      Semanas de riesgo de liquidez
+                    </p>
+                    <ul className="text-[10px] text-brand-text space-y-0.5">
+                      {semanasEnRiesgo.map((semana) => (
+                        <li key={semana.numeroSemana}>
+                          Semana {semana.numeroSemana} ({semana.fechaInicio} → {semana.fechaFin}):{" "}
+                          <span className="font-mono font-bold text-red-600 dark:text-red-400">
+                            {formatCurrency(semana.saldoFinal)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-700 dark:text-emerald-300">
+                    Sin semanas por debajo del umbral de {formatCurrency(umbralLiquidez)} en el
+                    horizonte seleccionado.
+                  </div>
+                )}
 
-                  <svg viewBox="0 0 400 180" className="w-full h-full text-slate-300 dark:text-slate-800 animate-fade-in" fill="none">
-                    <line x1="30" y1="20" x2="380" y2="20" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
-                    <line x1="30" y1="60" x2="380" y2="60" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
-                    <line x1="30" y1="100" x2="380" y2="100" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
-                    <line x1="30" y1="140" x2="380" y2="140" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2,2" />
-
-                    <text x="5" y="24" className="fill-slate-500 text-[8px] font-mono font-medium">60k</text>
-                    <text x="5" y="64" className="fill-slate-500 text-[8px] font-mono font-medium">40k</text>
-                    <text x="5" y="104" className="fill-slate-500 text-[8px] font-mono font-medium">20k</text>
-                    <text x="5" y="144" className="fill-slate-500 text-[8px] font-mono font-medium">0k</text>
-
-                    <path d="M30 130 Q 80 110, 130 100 T 230 60" stroke="#3b82f6" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-                    <circle cx="230" cy="60" r="4.5" fill="#3b82f6" stroke="white" strokeWidth="1.5" />
-
-                    {cashflowScenario === "optimista" && (
-                      <path d="M230 60 L 280 45 L 330 30 L 380 15" stroke="#fb923c" strokeWidth="3" strokeLinecap="round" strokeDasharray="4,4" fill="none" />
-                    )}
-                    {cashflowScenario === "realista" && (
-                      <path d="M230 60 L 280 65 L 330 75 L 380 80" stroke="#fb923c" strokeWidth="3" strokeLinecap="round" strokeDasharray="4,4" fill="none" />
-                    )}
-                    {cashflowScenario === "pesimista" && (
-                      <path d="M230 60 L 280 85 L 330 115 L 380 135" stroke="#ef4444" strokeWidth="3" strokeLinecap="round" strokeDasharray="4,4" fill="none" />
-                    )}
-
-                    {cashflowScenario === "optimista" && <circle cx="380" cy="15" r="4.5" fill="#10b981" />}
-                    {cashflowScenario === "realista" && <circle cx="380" cy="80" r="4.5" fill="#f59e0b" />}
-                    {cashflowScenario === "pesimista" && <circle cx="380" cy="135" r="4.5" fill="#ef4444" />}
-
-                    <text x="30" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Sep</text>
-                    <text x="80" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Oct</text>
-                    <text x="130" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Nov</text>
-                    <text x="180" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Dic</text>
-                    <text x="230" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Ene</text>
-                    <text x="280" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Feb</text>
-                    <text x="330" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Mar</text>
-                    <text x="380" y="165" className="fill-slate-500 text-[8px] font-mono text-center">Abr</text>
-                  </svg>
+                <div className="relative w-full h-[260px] bg-slate-50 dark:bg-brand-surface/80 border border-brand-border rounded-xl p-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-brand-border/60" />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 9, fill: "currentColor" }}
+                        className="text-brand-subtext"
+                      />
+                      <YAxis
+                        tick={{ fontSize: 9, fill: "currentColor" }}
+                        tickFormatter={(value: number) =>
+                          value >= 1000 ? `${Math.round(value / 1000)}k` : String(value)
+                        }
+                        className="text-brand-subtext"
+                      />
+                      <Tooltip
+                        formatter={(value: number) => formatCurrency(value)}
+                        labelFormatter={(_, payload) => {
+                          const item = payload?.[0]?.payload as (typeof chartData)[number] | undefined
+                          return item ? `${item.label} · ${item.rango}` : ""
+                        }}
+                        contentStyle={{
+                          fontSize: 11,
+                          borderRadius: 12,
+                          border: "1px solid var(--brand-border, #e2e8f0)",
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 10 }} />
+                      <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
+                      <ReferenceLine
+                        y={umbralLiquidez}
+                        stroke="#f59e0b"
+                        strokeDasharray="3 3"
+                        label={{ value: "Umbral", fontSize: 9, fill: "#f59e0b" }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="saldoReal"
+                        name="Saldo real"
+                        stroke="#2563eb"
+                        fill="#2563eb"
+                        fillOpacity={0.35}
+                        connectNulls={false}
+                        strokeWidth={2.5}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="saldoProyeccion"
+                        name="Saldo proyectado"
+                        stroke="#60a5fa"
+                        fill="#93c5fd"
+                        fillOpacity={0.2}
+                        strokeDasharray="6 4"
+                        connectNulls={false}
+                        strokeWidth={2}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
 
                 <div className="p-4 rounded-xl bg-brand-surface/40 border border-brand-border space-y-3 font-mono text-[11px]">
                   <span className="font-extrabold uppercase text-[9px] tracking-wider text-indigo-500 block">
-                    Estadísticas Agregadas Mensual
+                    Resumen horizonte {horizonWeeks}s
                   </span>
                   <div className="flex justify-between border-b border-brand-border/40 pb-1.5">
-                    <span className="text-brand-subtext">Entradas Previstas:</span>
+                    <span className="text-brand-subtext">Entradas proyectadas:</span>
                     <span className="font-bold text-emerald-500">+{formatCurrency(kpi.entradasPrevistas)}</span>
                   </div>
                   <div className="flex justify-between border-b border-brand-border/40 pb-1.5">
-                    <span className="text-brand-subtext">Gastos & Comisiones:</span>
+                    <span className="text-brand-subtext">Salidas proyectadas:</span>
                     <span className="font-bold text-red-500">{formatCurrency(kpi.gastosComisiones)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-brand-subtext">Proyección Acumulada:</span>
+                    <span className="text-brand-subtext">Saldo final semana {horizonWeeks}:</span>
                     <span className="font-bold text-blue-600 dark:text-cyan-400">
-                      {formatCurrency(kpi.proyeccionAcumulada)}
+                      {formatCurrency(semanasCashflow[semanasCashflow.length - 1]?.saldoFinal ?? 0)}
                     </span>
                   </div>
                 </div>

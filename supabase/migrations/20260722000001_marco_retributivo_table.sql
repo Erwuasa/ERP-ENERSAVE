@@ -1,6 +1,38 @@
 -- Marco retributivo: catálogo de comisiones por compañía/tarifa (ERP)
+-- Requiere helpers: 20260721000000_erp_supabase_bootstrap_helpers.sql (incluidos abajo por idempotencia).
 
 begin;
+
+create schema if not exists private;
+
+grant usage on schema private to postgres, authenticated, service_role;
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create or replace function private.jwt_user_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select lower(coalesce(
+    auth.jwt() ->> 'user_role',
+    auth.jwt() -> 'app_metadata' ->> 'user_role',
+    auth.jwt() -> 'user_metadata' ->> 'user_role',
+    auth.jwt() -> 'app_metadata' ->> 'role',
+    auth.jwt() -> 'user_metadata' ->> 'role',
+    ''
+  ));
+$$;
 
 create table if not exists public.marco_retributivo (
   id uuid primary key default gen_random_uuid(),
@@ -27,7 +59,7 @@ create table if not exists public.marco_retributivo (
   activo boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  updated_by text references public.erp_comerciales (id)
+  updated_by text
 );
 
 create index if not exists marco_retributivo_compania_idx on public.marco_retributivo (compania);
@@ -48,12 +80,17 @@ create trigger trg_marco_retributivo_updated_at
 
 create or replace function private.is_marco_retributivo_manager()
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public, auth
 as $$
-  select private.jwt_user_role() in ('superadmin', 'tramitacion');
+begin
+  if to_regprocedure('private.jwt_user_role()') is null then
+    return false;
+  end if;
+  return private.jwt_user_role() in ('superadmin', 'tramitacion', 'jefe_comercial');
+end;
 $$;
 
 alter table public.marco_retributivo enable row level security;

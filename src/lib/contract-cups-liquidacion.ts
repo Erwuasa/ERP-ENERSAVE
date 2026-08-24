@@ -1,10 +1,80 @@
-import { getDiasRestantesRetro, getRetroMonths } from "./retro-period"
+import { stripWhitespaceOnPaste } from "./paste-format"
+import { getDiasRestantesRetro, getFechaFinRetro, getRetroMonths } from "./retro-period"
 import { isRetrocomisionSettlement } from "./liquidaciones-internas"
 import { isContractActivado } from "./contract-estado"
 import { splitClientNameToParts, type NewContractFormState } from "./contract-registration"
 import type { Client } from "../types/client"
 import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
+
+export interface ActiveRetroContext {
+  contract: Contract
+  diasRestantes: number
+  fechaFin: Date
+}
+
+export interface ClientContractMatchInput {
+  clientId?: string
+  nif?: string
+  clientName?: string
+}
+
+function normalizeMatchText(value: string | undefined): string {
+  return (value ?? "").trim().toUpperCase()
+}
+
+export function findRelatedContractsForClient(
+  input: ClientContractMatchInput,
+  contracts: Contract[],
+  excludeContractId?: string
+): Contract[] {
+  const nif = normalizeMatchText(input.nif)
+  const name = normalizeMatchText(input.clientName)
+
+  return contracts
+    .filter((contract) => {
+      if (excludeContractId && contract.id === excludeContractId) return false
+      if (input.clientId && contract.clientId === input.clientId) return true
+      if (nif && normalizeMatchText(contract.nif) === nif) return true
+      if (name && normalizeMatchText(contract.clientName) === name) return true
+      return false
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+}
+
+export function findActiveRetroForClientContracts(
+  input: ClientContractMatchInput,
+  contracts: Contract[],
+  excludeContractId?: string
+): ActiveRetroContext | null {
+  for (const contract of findRelatedContractsForClient(
+    input,
+    contracts,
+    excludeContractId
+  )) {
+    if (!isContractActivado(contract.estado)) continue
+    const diasRestantes = getDiasRestantesRetro(contract)
+    if (diasRestantes <= 0) continue
+    return {
+      contract,
+      diasRestantes,
+      fechaFin: getFechaFinRetro(contract),
+    }
+  }
+  return null
+}
+
+export function formatRetroFinDate(fecha: Date): string {
+  return fecha.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
+}
+
+export function activeRetroWarningMessage(context: ActiveRetroContext): string {
+  return `Este cliente tiene un contrato en periodo de retrocomisión hasta el ${formatRetroFinDate(context.fechaFin)} — el nuevo contrato se liquidará como retrocomisión activa, no como venta nueva.`
+}
 
 export interface CupsLiquidacionLine {
   id: string
@@ -18,8 +88,8 @@ export interface CupsLiquidacionAnalysis {
   hasRetroRisk: boolean
 }
 
-function normalizeCups(cups: string): string {
-  return cups.trim().toUpperCase()
+export function normalizeCups(cups: string): string {
+  return stripWhitespaceOnPaste(cups).toUpperCase()
 }
 
 export function findContractsByCups(
@@ -121,15 +191,14 @@ export function buildClientContractAutofillPatch(
   client: Client,
   contracts: Contract[]
 ): Partial<NewContractFormState> {
-  const related = contracts
-    .filter(
-      (contract) =>
-        contract.clientId === client.id ||
-        (client.documento &&
-          contract.nif?.toUpperCase() === client.documento.toUpperCase()) ||
-        contract.clientName.trim().toUpperCase() === client.nombre.trim().toUpperCase()
-    )
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const related = findRelatedContractsForClient(
+    {
+      clientId: client.id,
+      nif: client.documento,
+      clientName: client.nombre,
+    },
+    contracts
+  )
 
   const latest = related[0]
   const { clientNombre, clientApellidos } = splitClientNameToParts(client.nombre)

@@ -1,4 +1,5 @@
 import type { Contract } from "../types/contract"
+import { normalizeContractEstado } from "./contract-estado"
 
 export type FormaPago =
   | "al_contado"
@@ -413,4 +414,31 @@ export function contractRegistrationErrorMessage(missingLabels: string[]): strin
     return `Falta el campo obligatorio: ${missingLabels[0]}.`
   }
   return `Faltan ${missingLabels.length} campos obligatorios: ${missingLabels.join(", ")}.`
+}
+
+const DELETABLE_ESTADO_UI = new Set(["Borrador", "PTE DE TRAMITACIÓN"])
+
+function contractHasUploadedDocuments(
+  contract: Contract,
+  documentosPorTipo?: DocumentosPorTipo
+): boolean {
+  if ((contract.documentos?.length ?? 0) > 0) return true
+  if (!documentosPorTipo) return false
+  return Object.values(documentosPorTipo).some((files) => files.length > 0)
+}
+
+function isDeletableContractEstado(estado: string): boolean {
+  const raw = estado.trim().toLowerCase()
+  if (raw === "pendiente de info." || raw === "pendiente de información") return true
+  return DELETABLE_ESTADO_UI.has(normalizeContractEstado(estado))
+}
+
+/** Solo borradores sin documentos adjuntos (Pendiente de info. / Borrador / PTE DE TRAMITACIÓN). */
+export function isContractDeletable(
+  contract: Contract,
+  opts?: { documentosPorTipo?: DocumentosPorTipo }
+): boolean {
+  if (!isDeletableContractEstado(contract.estado)) return false
+  if (contractHasUploadedDocuments(contract, opts?.documentosPorTipo)) return false
+  return true
 }

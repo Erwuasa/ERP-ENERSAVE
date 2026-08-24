@@ -25,4 +25,15 @@ describe("contract-renewal", () => {
       })
     ).toBe(false)
   })
+
+  it("returns false when more than 30 days remain", () => {
+    expect(
+      isRenovacionProxima({
+        compania: "Endesa",
+        tipoCliente: "pyme",
+        createdAt: "2025-04-07",
+        diasRenovacion: 31,
+      })
+    ).toBe(false)
+  })
 })

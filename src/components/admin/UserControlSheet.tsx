@@ -232,7 +232,7 @@ export function UserControlSheet({
           </div>
         </div>
 
-        {onDelete && (
+        {onDelete && user.status !== 'suspendido' && (
           <footer className="p-5 border-t border-brand-border shrink-0">
             <button
               type="button"
@@ -240,8 +240,11 @@ export function UserControlSheet({
               className="w-full py-2.5 text-xs font-bold rounded-xl border border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex items-center justify-center gap-2"
             >
               <Trash2 className="w-4 h-4" />
-              Eliminar en Supabase
+              Desactivar acceso en Supabase
             </button>
+            <p className="mt-2 text-[10px] text-brand-subtext text-center">
+              Conserva contratos y liquidaciones; revoca login y permisos RLS.
+            </p>
           </footer>
         )}
       </motion.aside>
