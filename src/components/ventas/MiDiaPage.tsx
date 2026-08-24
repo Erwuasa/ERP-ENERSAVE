@@ -20,7 +20,7 @@ import {
   type FidelizacionCadenciaMeses,
   type FidelizacionRow,
 } from "../../lib/ventas/mi-dia-cockpit"
-import { buildMiDiaKpiSnapshot } from "../../lib/ventas/mi-dia-kpis"
+import { buildMiDiaKpiSnapshot, buildDailyBrief, buildWeeklyBrief } from "../../lib/ventas/mi-dia-kpis"
 import { buildSlaAlertsFromProspectos } from "../../lib/ventas/sla-alerts"
 import { useReducedMotion } from "../../lib/ventas/motion-prefs"
 import { buildQuickWinTasks } from "../../lib/ventas/quick-wins"
@@ -31,6 +31,7 @@ import {
   MiDiaPageSkeleton,
 } from "../ui/skeletons/VentasSkeletons"
 import { MiDiaCockpitHeader } from "./MiDiaCockpitHeader"
+import { MiDiaBriefCard } from "./MiDiaBriefCard"
 import { MiDiaContratosActivacion } from "./MiDiaContratosActivacion"
 import { MiDiaMonthlyGoals } from "./MiDiaMonthlyGoals"
 import { MiDiaFidelizacionPanel, recalcProximoContacto } from "./MiDiaFidelizacionPanel"
@@ -116,6 +117,15 @@ export function MiDiaPage({
   const kpiSnapshot = useMemo(
     () => buildMiDiaKpiSnapshot(prospectos, tareas, goalProgress),
     [prospectos, tareas, goalProgress]
+  )
+
+  const dailyBrief = useMemo(
+    () => buildDailyBrief(prospectos, actividades, tareas),
+    [prospectos, actividades, tareas]
+  )
+  const weeklyBrief = useMemo(
+    () => buildWeeklyBrief(prospectos, actividades, tareas),
+    [prospectos, actividades, tareas]
   )
 
   const slaAlerts = useMemo(
@@ -314,6 +324,8 @@ export function MiDiaPage({
               onTileTap={handleKpiTileTap}
             />
           )}
+
+          <MiDiaBriefCard dailyBrief={dailyBrief} weeklyBrief={weeklyBrief} />
 
           {/* Pendientes (izq) + Objetivos (der) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">

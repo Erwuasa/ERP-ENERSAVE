@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   AlertTriangle,
   BarChart3,
+  BookUser,
   Calculator,
   CalendarDays,
   Coins,
@@ -9,9 +10,11 @@ import {
   DollarSign,
   FileClock,
   FileSpreadsheet,
+  HardDrive,
   Inbox,
   LayoutDashboard,
   LayoutGrid,
+  Megaphone,
   Package,
   ShieldAlert,
   UserSquare2,
@@ -41,6 +44,10 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Tarifas", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Package },
   { name: "Marco Retributivo", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Coins },
   { name: "Incidencias", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: AlertTriangle },
+  { name: "Calendario", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: CalendarDays },
+  { name: "Base de Datos", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: BookUser },
+  { name: "FTP", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: HardDrive },
+  { name: "Comunicaciones", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Megaphone },
 ]
 
 export const VENTAS_SIDEBAR_ITEMS: SidebarMenuItem[] = [
@@ -102,6 +109,10 @@ export function getVisibleSidebarItems({
           "Tarifas",
           "Marco Retributivo",
           "Incidencias",
+          "Calendario",
+          "Base de Datos",
+          "FTP",
+          "Comunicaciones",
         ]
         return comercialTabs.includes(item.name)
       }
@@ -113,6 +124,10 @@ export function getVisibleSidebarItems({
         "Contratos",
         "Tarifas",
         "Incidencias",
+        "Calendario",
+        "Base de Datos",
+        "FTP",
+        "Comunicaciones",
       ]
       return superadminTramitacionTabs.includes(item.name)
     }
@@ -128,6 +143,10 @@ export function getVisibleSidebarItems({
         "Tarifas",
         "Marco Retributivo",
         "Incidencias",
+        "Calendario",
+        "Base de Datos",
+        "FTP",
+        "Comunicaciones",
       ]
       return tramitacionTabs.includes(item.name)
     }

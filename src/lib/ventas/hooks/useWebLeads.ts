@@ -97,7 +97,7 @@ export function useWebLeads() {
       const result = await convertWebLeadToProspecto(leadId)
       if (result.ok === false) return { ok: false, message: result.message }
       setLeads((prev) => prev.filter((lead) => lead.id !== leadId))
-      return result
+      return { ok: true, lead: result.data.lead, prospecto: result.data.prospecto }
     },
     []
   )

@@ -19,6 +19,10 @@ export type ErpTabId =
   | "Comparador"
   | "Tarifas"
   | "Marco Retributivo"
+  | "Calendario"
+  | "FTP"
+  | "Base de Datos"
+  | "Comunicaciones"
   | "Nuevo contrato"
 
 export type VentasTabId =
@@ -47,6 +51,10 @@ const ERP_TAB_SLUGS: Record<string, string> = {
   "Historial de Comparativas": "historial-comparativas",
   Tarifas: "tarifas",
   "Marco Retributivo": "marco-retributivo",
+  Calendario: "calendario",
+  FTP: "ftp",
+  "Base de Datos": "base-datos",
+  Comunicaciones: "comunicaciones",
   "Mi Equipo": "mi-equipo",
   "Nuevo contrato": "contratos/nuevo",
 }
@@ -120,6 +128,10 @@ export const ERP_TABS: readonly ErpTabId[] = [
   "Comparador",
   "Tarifas",
   "Marco Retributivo",
+  "Calendario",
+  "FTP",
+  "Base de Datos",
+  "Comunicaciones",
 ] as const
 
 export const VENTAS_TABS: readonly VentasTabId[] = [
@@ -153,6 +165,10 @@ export const ROUTES = {
     comparador: "/erp/comparador",
     tarifas: "/erp/tarifas",
     marcoRetributivo: "/erp/marco-retributivo",
+    calendario: "/erp/calendario",
+    ftp: "/erp/ftp",
+    baseDatos: "/erp/base-datos",
+    comunicaciones: "/erp/comunicaciones",
     nuevoContrato: "/erp/contratos/nuevo",
   },
   ventas: {

@@ -15,6 +15,7 @@ import {
   X,
   Zap,
 } from "lucide-react"
+import { SidebarMenuBadge } from "@/components/SidebarMenuBadge"
 import { EnersaveBrandMark } from "@/components/common/EnersaveLogo"
 import { LogoutConfirmModal } from "@/components/layout/LogoutConfirmModal"
 import { NavLink } from "react-router-dom"
@@ -23,6 +24,9 @@ import { menuTabToPath } from "@/constants/navigation"
 import { sidebar } from "@/constants/styles"
 import { useIsMobileSidebar } from "@/hooks/useMediaQuery"
 import { getVisibleSidebarItems } from "@/lib/navigation/sidebar-items"
+import { buildSidebarActionBadges } from "@/lib/sidebar-action-badges"
+import { useErpData } from "@/providers/ErpDataProvider"
+import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
 import type { Profile, UserRole } from "@/types/profile"
 
 export interface AppShellProps {
@@ -108,6 +112,8 @@ export function AppShell({
     }
   }, [isMobile, mobileOpen])
 
+  const { contracts, settlements } = useErpData()
+  const { incidencias } = useIncidenciasContext()
   const menuOptions = useMemo(
     () =>
       getVisibleSidebarItems({
@@ -116,6 +122,19 @@ export function AppShell({
         superadminViewMode,
       }),
     [activeModule, activeRole, superadminViewMode]
+  )
+  const sidebarBadges = useMemo(
+    () =>
+      buildSidebarActionBadges(
+        menuOptions.map((item) => item.name),
+        {
+          contracts,
+          incidencias,
+          settlements,
+          activeUserId: activeUser.id,
+        }
+      ),
+    [menuOptions, contracts, incidencias, settlements, activeUser.id]
   )
 
   const initials = activeUser.fullName
@@ -320,6 +339,7 @@ export function AppShell({
               {menuOptions.map((opt) => {
                 const Icon = opt.icon
                 const to = menuTabToPath(activeModule, opt.name)
+                const badge = sidebarBadges[opt.name]
                 return (
                   <NavLink
                     key={opt.name}
@@ -329,7 +349,7 @@ export function AppShell({
                       if (isMobile) setMobileOpen(false)
                     }}
                     className={({ isActive }) =>
-                      `w-full flex items-center shrink-0 space-x-3 px-3 py-2.5 rounded-xl text-left transition-all ${
+                      `relative w-full flex items-center shrink-0 space-x-3 px-3 py-2.5 rounded-xl text-left transition-all ${
                         isActive
                           ? "bg-blue-600 text-white shadow-md shadow-blue-500/10 dark:bg-cyan-500/12 dark:text-cyan-200 dark:border dark:border-cyan-500/25 dark:shadow-none"
                           : "text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-brand-elevated/40"
@@ -346,6 +366,7 @@ export function AppShell({
                             {opt.name}
                           </span>
                         )}
+                        <SidebarMenuBadge badge={badge} collapsed={!isExpanded} />
                       </>
                     )}
                   </NavLink>

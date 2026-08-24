@@ -77,6 +77,9 @@ export interface MarcoRetributivoRow {
   potencia_p4: number | null
   potencia_p5: number | null
   potencia_p6: number | null
+  tipo_precio?: "fijo" | "indexado" | string | null
+  incluye_sva?: boolean | null
+  potencia_boe?: boolean | null
 }
 
 export type MarcoRetributivoResult<T> =
@@ -103,7 +106,7 @@ export interface MarcoEntryInput {
 export type NewMarcoEntryInput = MarcoEntryInput
 
 const MARCO_SELECT =
-  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6"
+  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6, tipo_precio, incluye_sva, potencia_boe"
 
 function mapError(error: { message: string }): MarcoRetributivoResult<never> {
   return { ok: false, message: error.message }
@@ -146,6 +149,8 @@ function mapRow(row: MarcoRetributivoRow): MarcoRetributivoRow {
     potencia_p4: numeric(row.potencia_p4),
     potencia_p5: numeric(row.potencia_p5),
     potencia_p6: numeric(row.potencia_p6),
+    incluye_sva: row.incluye_sva == null ? null : Boolean(row.incluye_sva),
+    potencia_boe: row.potencia_boe == null ? null : Boolean(row.potencia_boe),
   }
 }
 

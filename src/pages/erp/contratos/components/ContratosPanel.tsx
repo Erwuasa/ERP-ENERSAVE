@@ -1,8 +1,9 @@
-import type { Dispatch, FormEvent, ReactNode, SetStateAction } from "react"
+import { useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react"
 import type { Contract } from "@/types/contract"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { ContractsExcelImportModal } from "@/components/contratos/ContractsExcelImportModal"
+import { ConfirmDeleteContractModal } from "@/components/contratos/ConfirmDeleteContractModal"
 import { ContratosOcrModal } from "@/pages/erp/contratos/components/ContratosOcrModal"
 import { ContratosPanelFicha } from "@/pages/erp/contratos/components/ContratosPanelFicha"
 import { ContratosPanelPagination } from "@/pages/erp/contratos/components/ContratosPanelPagination"
@@ -12,6 +13,7 @@ import { ContratosPanelToolbar } from "@/pages/erp/contratos/components/Contrato
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
+import type { TramitacionComercialGroup } from "@/lib/contratos-tramitacion-notifications"
 
 export interface ContratosPanelProps {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
@@ -26,6 +28,7 @@ export interface ContratosPanelProps {
   setContractsListFilter: (value: ContractsListFilter) => void
   onActivateContract: (contract: Contract) => void
   onBajaContract: (contract: Contract) => void
+  onDeleteContract?: (contractId: string) => void | Promise<void>
   handleCreateContract: (
     e: FormEvent,
     onSuccess?: () => void,
@@ -45,6 +48,13 @@ export interface ContratosPanelProps {
   showUserFilter?: boolean
   userFilterId?: string
   onUserFilterChange?: (userId: string) => void
+  showTramitacionNotifications?: boolean
+  tramitacionUnreviewedCount?: number
+  tramitacionUnreviewedGroups?: TramitacionComercialGroup[]
+  tramitacionRecentSummary?: string | null
+  reviewedContractIds?: ReadonlySet<string>
+  onTramitacionSelectComercial?: (comercialId: string) => void
+  onTramitacionShowAllUnreviewed?: () => void
 }
 
 export function ContratosPanel({
@@ -60,6 +70,7 @@ export function ContratosPanel({
   setContractsListFilter,
   onActivateContract,
   onBajaContract,
+  onDeleteContract,
   newContractForm,
   onResetNewContractForm,
   applyOcrToNewContractForm,
@@ -71,8 +82,17 @@ export function ContratosPanel({
   showUserFilter = false,
   userFilterId = "all",
   onUserFilterChange,
+  showTramitacionNotifications = false,
+  tramitacionUnreviewedCount = 0,
+  tramitacionUnreviewedGroups = [],
+  tramitacionRecentSummary = null,
+  reviewedContractIds,
+  onTramitacionSelectComercial,
+  onTramitacionShowAllUnreviewed,
 }: ContratosPanelProps) {
   const canViewComisionDesglose = activeRole === "superadmin" || activeRole === "tramitacion"
+  const [contractPendingDelete, setContractPendingDelete] = useState<Contract | null>(null)
+  const [isDeletingContract, setIsDeletingContract] = useState(false)
 
   const vm = useContratosPanel({
     canEditContractEstado,
@@ -86,6 +106,7 @@ export function ContratosPanel({
     onOpenNewContract,
     highlightContractId,
     userFilterId,
+    reviewedContractIds,
   })
 
   return (
@@ -109,6 +130,12 @@ export function ContratosPanel({
           onExportExcel={vm.handleExportExcel}
           onOpenExcelImport={() => vm.setExcelImportOpen(true)}
           onOpenWizard={vm.openWizard}
+          showTramitacionNotifications={showTramitacionNotifications}
+          tramitacionUnreviewedCount={tramitacionUnreviewedCount}
+          tramitacionUnreviewedGroups={tramitacionUnreviewedGroups}
+          tramitacionRecentSummary={tramitacionRecentSummary}
+          onTramitacionSelectComercial={onTramitacionSelectComercial}
+          onTramitacionShowAllUnreviewed={onTramitacionShowAllUnreviewed}
         />
 
         <ContratosPanelSearchRow
@@ -120,6 +147,7 @@ export function ContratosPanel({
 
         <ContratosPanelTable
           activeRole={activeRole}
+          activeUserId={activeUserId}
           canViewComisionDesglose={canViewComisionDesglose}
           paginated={vm.paginated}
           filtered={vm.filtered}
@@ -132,6 +160,7 @@ export function ContratosPanel({
           setSelectedContractId={vm.setSelectedContractId}
           onActivateContract={onActivateContract}
           onBajaContract={onBajaContract}
+          onRequestDelete={onDeleteContract ? setContractPendingDelete : undefined}
         />
 
         <ContratosPanelPagination
@@ -152,6 +181,23 @@ export function ContratosPanel({
           onClose={() => vm.setSelectedContractId(null)}
         />
       )}
+
+      <ConfirmDeleteContractModal
+        open={contractPendingDelete != null}
+        loading={isDeletingContract}
+        onCancel={() => {
+          if (isDeletingContract) return
+          setContractPendingDelete(null)
+        }}
+        onConfirm={() => {
+          if (!contractPendingDelete || !onDeleteContract) return
+          setIsDeletingContract(true)
+          void Promise.resolve(onDeleteContract(contractPendingDelete.id)).finally(() => {
+            setIsDeletingContract(false)
+            setContractPendingDelete(null)
+          })
+        }}
+      />
 
       <ContractsExcelImportModal
         open={vm.excelImportOpen}

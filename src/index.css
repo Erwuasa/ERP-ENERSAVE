@@ -316,3 +316,102 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.32);
 }
+
+/* react-big-calendar — tema EnerSave */
+.calendario-rbc-theme .rbc-calendar {
+  font-family: var(--font-sans);
+  color: var(--brand-text);
+}
+
+.calendario-rbc-theme .rbc-toolbar button {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  border-radius: 8px;
+  border: 1px solid var(--brand-border);
+  color: var(--brand-text);
+  background: var(--brand-surface);
+}
+
+.calendario-rbc-theme .rbc-toolbar button.rbc-active,
+.calendario-rbc-theme .rbc-toolbar button:hover {
+  background: color-mix(in srgb, var(--color-primary-500) 15%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary-500) 40%, transparent);
+}
+
+.calendario-rbc-theme .rbc-header,
+.calendario-rbc-theme .rbc-time-header-content,
+.calendario-rbc-theme .rbc-time-content,
+.calendario-rbc-theme .rbc-month-view,
+.calendario-rbc-theme .rbc-agenda-view {
+  border-color: var(--brand-border);
+}
+
+.calendario-rbc-theme .rbc-off-range-bg {
+  background: color-mix(in srgb, var(--brand-surface) 60%, transparent);
+}
+
+.calendario-rbc-theme .rbc-today {
+  background: color-mix(in srgb, var(--color-primary-500) 8%, transparent);
+}
+
+.calendario-rbc-theme .rbc-event {
+  border: none !important;
+}
+
+.calendario-rbc-theme .rbc-time-slot,
+.calendario-rbc-theme .rbc-day-bg + .rbc-day-bg,
+.calendario-rbc-theme .rbc-month-row + .rbc-month-row {
+  border-color: var(--brand-border);
+}
+
+.sensitive-screen-root {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sensitive-screen-root input,
+.sensitive-screen-root textarea,
+.sensitive-screen-root select,
+.sensitive-screen-root [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sensitive-screen-watermark {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3.5rem 2rem;
+  padding: 2rem 1rem;
+  opacity: 0.045;
+}
+
+.sensitive-screen-watermark-tile {
+  transform: rotate(-24deg);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--brand-text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sensitive-screen-devtools-notice {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  z-index: 60;
+  max-width: min(90vw, 28rem);
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--brand-border) 80%, transparent);
+  background: color-mix(in srgb, var(--brand-surface) 92%, transparent);
+  padding: 0.45rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--brand-text) 75%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--brand-text) 8%, transparent);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+

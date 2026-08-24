@@ -46,7 +46,7 @@ export async function listOwnCustomerLeads(): Promise<CustomerLeadsResult> {
 
   if (error) return { ok: false, message: error.message }
 
-  const rows = (data ?? []) as Array<{
+  const rows = (data ?? []) as unknown as Array<{
     id: string
     created_at: string
     nombre: string

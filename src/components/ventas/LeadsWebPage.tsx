@@ -116,7 +116,7 @@ export function LeadsWebPage({ actor, profiles, onOpenFicha }: LeadsWebPageProps
       profiles.filter(
         (p) =>
           p.status === "activo" &&
-          assignableComercialRoles().includes(p.role as (typeof assignableComercialRoles)[number])
+          assignableComercialRoles().includes(p.role as ReturnType<typeof assignableComercialRoles>[number])
       ),
     [profiles]
   )

@@ -154,7 +154,7 @@ export function filterSettlementsForRole(
     ])
     return settlements.filter((s) => teamIds.has(s.comercialId))
   }
-  if (role === "superadmin") {
+  if (role === "superadmin" || role === "tramitacion") {
     return settlements
   }
   return []

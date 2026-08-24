@@ -25,6 +25,13 @@ import {
   buildOcrFormPatch,
   buildResetNewContractForm,
 } from "@/lib/erp/new-contract-form-utils"
+import { deleteTeamContract } from "@/lib/supabase/contracts"
+import {
+  canUserDeleteContract,
+  contractDeletionBlockedMessage,
+  type ContractDeleteRole,
+} from "@/lib/contract-deletion"
+import { isContractDeletable } from "@/lib/contract-registration"
 
 export interface UseContractActionsOptions {}
 
@@ -331,6 +338,52 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     ]
   )
 
+  const handleDeleteContract = useCallback(
+    async (contractId: string) => {
+      const contract = contracts.find((item) => item.id === contractId)
+      if (!contract) {
+        toast.error("Contrato no encontrado.")
+        return
+      }
+
+      const role = activeRole as ContractDeleteRole
+      if (
+        !isContractDeletable(contract, {
+          documentosPorTipo: newContractForm.documentosPorTipo,
+        }) ||
+        !canUserDeleteContract(contract, role, activeUserId, newContractForm)
+      ) {
+        toast.error(contractDeletionBlockedMessage())
+        return
+      }
+
+      const supabaseResult = await deleteTeamContract(contractId)
+      if (supabaseResult.ok === false) {
+        if (supabaseResult.reason === "rls_denied") {
+          toast.error(
+            "No tienes permiso para eliminar este contrato o ya no está en borrador."
+          )
+          return
+        }
+        if (supabaseResult.reason !== "not_configured") {
+          toast.warning(`Eliminado en la app. Supabase: ${supabaseResult.message}`)
+        }
+      }
+
+      setContracts((prev) => prev.filter((item) => item.id !== contractId))
+      setSettlements((prev) => prev.filter((item) => item.contractId !== contractId))
+      toast.success("Contrato eliminado.")
+    },
+    [
+      contracts,
+      activeRole,
+      activeUserId,
+      newContractForm,
+      setContracts,
+      setSettlements,
+    ]
+  )
+
   return {
     newContractForm,
     patchNewContractForm,
@@ -362,6 +415,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     openBajaModal,
     closeBajaModal,
     handleCancelContract,
+    handleDeleteContract,
   }
 }
 

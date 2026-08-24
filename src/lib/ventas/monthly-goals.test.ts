@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest"
 import {
+  buildAccomplishmentMessage,
   computeMonthlyGoalProgress,
+  computeOverallGoalPercent,
   DEFAULT_MONTHLY_GOALS,
+  getCrossedMilestones,
   isInCurrentMonth,
+  projectProgressAfterTaskComplete,
 } from "./monthly-goals"
 import type { ActividadVenta, TareaVenta } from "./types"
 
@@ -89,5 +93,40 @@ describe("isInCurrentMonth", () => {
   it("returns true for dates in the same calendar month", () => {
     expect(isInCurrentMonth(monthStart, now)).toBe(true)
     expect(isInCurrentMonth(lastMonth, now)).toBe(false)
+  })
+})
+
+describe("goal accomplishment helpers", () => {
+  it("detects crossed milestones", () => {
+    expect(getCrossedMilestones(20, 30)).toEqual([25])
+    expect(getCrossedMilestones(45, 80)).toEqual([50, 75])
+  })
+
+  it("projects progress after contact task completion", () => {
+    const base = computeMonthlyGoalProgress([], [], now)
+    const projected = projectProgressAfterTaskComplete(base, {
+      id: "t-new",
+      prospectoId: "p1",
+      comercialId: "c1",
+      tipo: "primer_contacto",
+      estado: "pendiente",
+      prioridad: "media",
+      createdAt: monthStart,
+      updatedAt: monthStart,
+    })
+    expect(projected.contactos).toBe(base.contactos + 1)
+  })
+
+  it("builds data-driven accomplishment message near target", () => {
+    const progress = {
+      contactos: 18,
+      propuestas: 9,
+      visitas: 14,
+      targets: DEFAULT_MONTHLY_GOALS,
+    }
+    expect(buildAccomplishmentMessage(progress)).toBe(
+      "Estás a 1 propuestas de tu meta del mes"
+    )
+    expect(computeOverallGoalPercent(progress)).toBeGreaterThan(70)
   })
 })

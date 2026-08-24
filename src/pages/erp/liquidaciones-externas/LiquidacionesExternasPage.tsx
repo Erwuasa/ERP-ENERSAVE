@@ -1,7 +1,7 @@
 import { LiquidacionesExternasPanel } from "@/pages/erp/liquidaciones-externas/components/LiquidacionesExternasPanel"
 import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
-import type { LiquidacionesRole } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
+import type { LiquidacionesProfile, LiquidacionesRole } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
 
 type Props = { ws: ErpWorkspaceContext }
 
@@ -32,7 +32,7 @@ export function LiquidacionesExternasPage({ ws }: Props) {
       activeRole={activeRole as LiquidacionesRole}
       activeUserId={activeUserId}
       leaderCommissionPercentage={activeUser.commissionPercentage}
-      profiles={profiles}
+      profiles={profiles as LiquidacionesProfile[]}
       contracts={contracts}
       settlements={settlements}
       pendingContracts={pendingContracts}

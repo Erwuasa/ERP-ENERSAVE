@@ -20,6 +20,16 @@ export interface MonthlyGoalProgress {
   targets: MonthlyGoalTargets
 }
 
+export const MONTHLY_GOAL_MILESTONES = [25, 50, 75, 100] as const
+
+export type MonthlyGoalMilestone = (typeof MONTHLY_GOAL_MILESTONES)[number]
+
+export interface AccomplishmentContext {
+  weeklyContactos?: number
+  weeklyContratos?: number
+  semanaMejorQueAnterior?: boolean
+}
+
 const CONTACTO_ACTIVIDAD_TIPOS = new Set(["llamada", "whatsapp"])
 const CONTACTO_TAREA_TIPOS = new Set<TareaTipo>([
   "primer_contacto",
@@ -93,5 +103,84 @@ export function mapTareaTipoToGoalActividad(
 ): "llamada" | "propuesta_enviada" | null {
   if (CONTACTO_TAREA_TIPOS.has(tipo)) return "llamada"
   if (tipo === PROPUESTA_TAREA_TIPO) return "propuesta_enviada"
+  return null
+}
+
+export function computeOverallGoalPercent(progress: MonthlyGoalProgress): number {
+  const current = progress.contactos + progress.propuestas + progress.visitas
+  const target =
+    progress.targets.contactos + progress.targets.propuestas + progress.targets.visitas
+  if (target <= 0) return 0
+  return Math.min(100, Math.round((current / target) * 100))
+}
+
+export function getCrossedMilestones(
+  previousPercent: number,
+  currentPercent: number
+): MonthlyGoalMilestone[] {
+  return MONTHLY_GOAL_MILESTONES.filter(
+    (milestone) => previousPercent < milestone && currentPercent >= milestone
+  )
+}
+
+export function projectProgressAfterTaskComplete(
+  progress: MonthlyGoalProgress,
+  tarea: TareaVenta
+): MonthlyGoalProgress {
+  if (tarea.estado === "completada") return progress
+  const mapped = mapTareaTipoToGoalActividad(tarea.tipo)
+  if (!mapped) return progress
+
+  return {
+    ...progress,
+    contactos: mapped === "llamada" ? progress.contactos + 1 : progress.contactos,
+    propuestas: mapped === "propuesta_enviada" ? progress.propuestas + 1 : progress.propuestas,
+  }
+}
+
+export function buildAccomplishmentMessage(
+  progress: MonthlyGoalProgress,
+  context: AccomplishmentContext = {}
+): string | null {
+  const gaps = [
+    {
+      label: "contactos",
+      remaining: progress.targets.contactos - progress.contactos,
+    },
+    {
+      label: "propuestas",
+      remaining: progress.targets.propuestas - progress.propuestas,
+    },
+    {
+      label: "visitas",
+      remaining: progress.targets.visitas - progress.visitas,
+    },
+  ].filter((item) => item.remaining > 0)
+
+  gaps.sort((a, b) => a.remaining - b.remaining)
+
+  if (gaps.length > 0 && gaps[0].remaining <= 3) {
+    const { remaining, label } = gaps[0]
+    return `Estás a ${remaining} ${label} de tu meta del mes`
+  }
+
+  const weeklyPaceContactos = Math.ceil(progress.targets.contactos / 4)
+  if (
+    context.weeklyContactos != null &&
+    context.weeklyContactos >= weeklyPaceContactos &&
+    weeklyPaceContactos > 0
+  ) {
+    return `¡Vas muy bien esta semana! Llevas ${context.weeklyContactos} contactos (ritmo objetivo: ${weeklyPaceContactos})`
+  }
+
+  if (context.semanaMejorQueAnterior && (context.weeklyContratos ?? 0) > 0) {
+    return `¡Semana en alza! Ya cerraste ${context.weeklyContratos} ${context.weeklyContratos === 1 ? "contrato" : "contratos"}`
+  }
+
+  const overall = computeOverallGoalPercent(progress)
+  if (overall >= 75 && overall < 100) {
+    return `Meta mensual al ${overall}% — un último empujón`
+  }
+
   return null
 }

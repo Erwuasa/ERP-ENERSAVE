@@ -18,8 +18,11 @@ export interface Client {
   documento?: string
   telefono?: string
   email?: string
+  direccion?: string
   codigoPostal?: string
   ciudad?: string
+  provincia?: string
+  esMoroso?: boolean
   tipoCliente: ClienteTipo
   comercialId: string
   archivos: ClienteArchivo[]

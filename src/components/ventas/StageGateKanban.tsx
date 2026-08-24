@@ -1,8 +1,6 @@
 import { useState } from "react"
-import { getFaseConfig } from "../../lib/ventas/pipeline"
+import { canTransition, getFaseConfig } from "../../lib/ventas/pipeline"
 import {
-  canStageGateAdvance,
-  getNextStageGateFase,
   STAGE_GATE_KANBAN_COLUMNS,
   type StageGateFase,
 } from "../../lib/ventas/stage-gate"
@@ -41,12 +39,12 @@ export function StageGateKanban({
   function isValidDropTarget(columnFase: ProspectoFase): boolean {
     if (!canDrag || !draggedProspecto) return false
     if (columnFase === "activado") return false
-    return canStageGateAdvance(draggedProspecto.fase, columnFase)
+    return canTransition(draggedProspecto.fase, columnFase)
   }
 
   function handleDrop(columnId: ProspectoFase) {
     if (!canDrag || !draggedProspecto || columnId === "activado") return
-    if (!canStageGateAdvance(draggedProspecto.fase, columnId)) return
+    if (!canTransition(draggedProspecto.fase, columnId)) return
 
     onRequestAdvance({
       prospectoId: draggedProspecto.id,
@@ -64,10 +62,8 @@ export function StageGateKanban({
         const columnItems = prospectos.filter((p) => p.fase === fase)
         const isActivadoColumn = fase === "activado"
         const isDropTarget = dragOverColumn === fase && isValidDropTarget(fase)
-        const nextAllowed =
-          draggedProspecto && !isActivadoColumn
-            ? getNextStageGateFase(draggedProspecto.fase)
-            : null
+        const isAllowedTarget =
+          Boolean(draggedProspecto) && !isActivadoColumn && isValidDropTarget(fase)
 
         return (
           <div
@@ -75,7 +71,7 @@ export function StageGateKanban({
             className={`rounded-lg border ${config.columnAccent} min-w-[172px] w-[172px] shrink-0 flex flex-col h-[min(400px,calc(100vh-280px))] max-h-[400px] transition-all ${
               isDropTarget
                 ? "ring-2 ring-cyan-500/50 ring-offset-1 ring-offset-brand-bg"
-                : nextAllowed === fase && draggedId
+                : isAllowedTarget && draggedId
                   ? "ring-1 ring-dashed ring-cyan-500/40"
                   : ""
             } ${isActivadoColumn ? "opacity-95" : ""}`}
@@ -120,7 +116,9 @@ export function StageGateKanban({
                     canDrag={
                       canDrag &&
                       !isActivadoColumn &&
-                      getNextStageGateFase(prospecto.fase) !== null
+                      STAGE_GATE_KANBAN_COLUMNS.some(
+                        (col) => col !== prospecto.fase && canTransition(prospecto.fase, col)
+                      )
                     }
                     isDragging={draggedId === prospecto.id}
                     onOpenCentroMando={onOpenCentroMando}

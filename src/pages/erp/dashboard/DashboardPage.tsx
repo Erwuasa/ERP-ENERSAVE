@@ -3,9 +3,11 @@ import { ComercialCommissionsChart } from '@/components/ComercialCommissionsChar
 import { ComercialCompaniaChart } from '@/components/ComercialCompaniaChart';
 import { ComercialRenovacionesCard } from '@/components/ComercialRenovacionesCard';
 import { ComercialContratosEstadoKpis } from '@/components/ComercialContratosEstadoKpis';
+import { ProximosEventosWidget } from '@/components/calendario/ProximosEventosWidget';
 import { isContractActivado, getContractEstadoBadgeClass } from '@/lib/contract-estado';
 import { isIncidenciaAbierta } from '@/lib/incidencias';
 import { useErpWorkspaceContext } from '@/pages/erp/providers/ErpWorkspaceProvider';
+import { useStaffFeeds } from '@/pages/erp/providers/StaffFeedsProvider';
 
 export function DashboardPage() {
   const ws = useErpWorkspaceContext();
@@ -15,9 +17,15 @@ export function DashboardPage() {
     visibleIncidencias, navigateToRenovacionProxima, navigateToContratosEstadoKpi,
     handleDashboardNavigate, setLiquidacionesSearchQuery, navigateToTab, formatCurrency
   } = ws;
+  const { calendarioEventos } = useStaffFeeds();
 
   return (
                       <div className="space-y-8">
+                        <ProximosEventosWidget
+                          eventos={calendarioEventos}
+                          activeUserId={activeUserId}
+                          onOpenCalendario={() => navigateToTab('erp', 'Calendario')}
+                        />
                         
                         {/* PROFILE: SUPERADMIN (EXECUTIVE CONTROL BOARD) */}
                         {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
@@ -186,7 +194,7 @@ export function DashboardPage() {
                         {activeRole === 'comercial' && (
                           <div className="space-y-4 animate-fade-in">
                             <ComercialCommissionsChart
-                              contracts={contracts}
+                              settlements={settlements}
                               activeUserId={activeUserId}
                               selectedPeriod={selectedPeriod}
                               onPeriodChange={setSelectedPeriod}

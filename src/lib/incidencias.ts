@@ -25,6 +25,14 @@ export type IncidenciaTipo =
   | "Error de CUPS"
   | "Reclamación Distribuidora"
   | "Incidencia Cartera"
+  | "Riesgo de Seguridad"
+
+export interface IncidenciaEstadoHistorialEntry {
+  estado: IncidenciaEstado
+  fecha: string
+  motivo?: string
+  cambiadoPor: string
+}
 
 export interface IncidenciaTicket {
   id: string
@@ -41,6 +49,12 @@ export interface IncidenciaTicket {
   canal?: string
   createdAt?: string
   estadoAt?: string
+  historialEstados: IncidenciaEstadoHistorialEntry[]
+}
+
+export function todayInputDate(referenceDate?: Date): string {
+  const ref = referenceDate instanceof Date ? referenceDate : new Date()
+  return ref.toISOString().slice(0, 10)
 }
 
 const TERMINAL_ESTADO_VISIBLE_MS = 7 * 24 * 60 * 60 * 1000
@@ -62,21 +76,19 @@ export function migrateLegacyEstado(estado: string): IncidenciaEstado {
 }
 
 export function normalizeIncidenciaTicket(
-  inc: Omit<IncidenciaTicket, "estado" | "codigo" | "origen" | "tipo" | "prioridad"> & {
+  inc: Omit<IncidenciaTicket, "estado" | "codigo" | "origen" | "historialEstados"> & {
     estado: string
     codigo?: string
-    origen?: IncidenciaOrigen | string
-    tipo?: IncidenciaTipo | string
-    prioridad?: IncidenciaPrioridad | string
+    origen?: IncidenciaOrigen
+    historialEstados?: IncidenciaEstadoHistorialEntry[]
   }
 ): IncidenciaTicket {
   return {
     ...inc,
     codigo: inc.codigo ?? generateIncidenciaCodigoFromId(inc.id),
-    origen: (inc.origen ?? "comercial") as IncidenciaOrigen,
+    origen: inc.origen ?? "comercial",
     estado: migrateLegacyEstado(inc.estado),
-    tipo: inc.tipo as IncidenciaTipo,
-    prioridad: inc.prioridad as IncidenciaPrioridad | undefined,
+    historialEstados: inc.historialEstados ?? [],
   }
 }
 
@@ -111,18 +123,41 @@ export function isIncidenciaKanbanVisible(
 
 export function withIncidenciaEstado(
   inc: IncidenciaTicket,
-  estado: IncidenciaEstado
+  estado: IncidenciaEstado,
+  effectiveDate?: string
 ): IncidenciaTicket {
   if (isIncidenciaAbierta(estado)) {
     return { ...inc, estado, estadoAt: undefined }
   }
+  const fecha = effectiveDate ?? todayInputDate()
+  const estadoAtFromDate = new Date(`${fecha}T12:00:00.000Z`).toISOString()
   return {
     ...inc,
     estado,
     estadoAt:
-      inc.estado === estado && inc.estadoAt
+      inc.estado === estado && inc.estadoAt && !effectiveDate
         ? inc.estadoAt
-        : new Date().toISOString(),
+        : estadoAtFromDate,
+  }
+}
+
+export function appendIncidenciaEstadoHistorial(
+  inc: IncidenciaTicket,
+  estado: IncidenciaEstado,
+  cambiadoPor: string,
+  fecha: string,
+  motivo?: string
+): IncidenciaTicket {
+  const entry: IncidenciaEstadoHistorialEntry = {
+    estado,
+    fecha,
+    cambiadoPor,
+    ...(motivo?.trim() ? { motivo: motivo.trim() } : {}),
+  }
+  const historialEstados = [...(inc.historialEstados ?? []), entry]
+  return {
+    ...withIncidenciaEstado(inc, estado, fecha),
+    historialEstados,
   }
 }
 

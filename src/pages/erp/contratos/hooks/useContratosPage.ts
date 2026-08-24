@@ -1,11 +1,12 @@
 import { useMemo } from "react"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
-import type { UserRole } from "@/types/profile"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useContractActionsContext } from "@/providers/ContractActionsProvider"
 import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { formatCurrency } from "@/lib/erp/format-currency"
+import type { ContratosPanelProps } from "@/pages/erp/contratos/components/ContratosPanel"
+import { useContratosTramitacionNotifications } from "@/pages/erp/contratos/hooks/useContratosTramitacionNotifications"
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
@@ -43,13 +44,16 @@ export function useContratosPage({
     openContractWizardBlank,
     openActivateModal,
     openBajaModal,
+    handleDeleteContract,
   } = useContractActionsContext()
 
-  const activeRole = activeUser.role as UserRole
+  const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
 
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
     (activeRole === "superadmin" && superadminViewMode === "tramitacion")
+
+  const tramitacion = useContratosTramitacionNotifications(showContractsUserFilter)
 
   const teamMemberIds = useMemo(
     () => profiles.filter((p) => p.managerId === activeUserId).map((p) => p.id),
@@ -115,6 +119,7 @@ export function useContratosPage({
       setContractsListFilter,
       onActivateContract: openActivateModal,
       onBajaContract: openBajaModal,
+      onDeleteContract: handleDeleteContract,
       handleCreateContract,
       isCreatingContract,
       newContractForm,
@@ -133,6 +138,13 @@ export function useContratosPage({
       commissionPercentage: activeUser.commissionPercentage,
       formatCurrency,
       renderCompaniaLogo,
+      showTramitacionNotifications: showContractsUserFilter,
+      tramitacionUnreviewedCount: tramitacion.tramitacionUnreviewedCount,
+      tramitacionUnreviewedGroups: tramitacion.tramitacionUnreviewedGroups,
+      tramitacionRecentSummary: tramitacion.tramitacionRecentSummary,
+      reviewedContractIds: tramitacion.reviewedContractIds,
+      onTramitacionSelectComercial: tramitacion.selectComercial,
+      onTramitacionShowAllUnreviewed: tramitacion.showAllUnreviewed,
     },
   }
 }

@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
 import type { Contract } from "@/types/contract"
-import type { UserRole } from "@/types/profile"
+import type { MisClientesPanelProps } from "@/pages/erp/clientes/components/MisClientesPanel"
 
 export interface UseClientesPageOptions {
   clientesSearchQuery: string
@@ -17,7 +17,7 @@ export function useClientesPage({
   const { profiles, activeUserId, activeUser } = useAuth()
   const { clients, setClients, contracts } = useErpData()
 
-  const activeRole = activeUser.role as UserRole
+  const activeRole = activeUser.role as MisClientesPanelProps["activeRole"]
 
   return {
     panelProps: {

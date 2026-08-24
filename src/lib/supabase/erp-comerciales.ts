@@ -10,6 +10,13 @@ export interface ErpComercialRow {
   manager_id: string | null
   email: string | null
   commission_percentage: number
+  activo?: boolean
+  dni?: string | null
+  direccion?: string | null
+  ciudad?: string | null
+  codigo_postal?: string | null
+  telefono?: string | null
+  iban?: string | null
 }
 
 export type ErpComercialResult<T> =
@@ -17,7 +24,7 @@ export type ErpComercialResult<T> =
   | { ok: false; message: string }
 
 const STAFF_SELECT =
-  "id, full_name, role, manager_id, email, commission_percentage"
+  "id, full_name, role, manager_id, email, commission_percentage, activo, dni, direccion, ciudad, codigo_postal, telefono, iban"
 
 function isStaffRole(value: string): value is ErpComercialRole {
   return (
@@ -38,6 +45,13 @@ function mapRow(row: Record<string, unknown>): ErpComercialRow {
     manager_id: (row.manager_id as string | null) ?? null,
     email: (row.email as string | null) ?? null,
     commission_percentage: Number(row.commission_percentage ?? 70),
+    activo: row.activo !== false,
+    dni: (row.dni as string | null) ?? null,
+    direccion: (row.direccion as string | null) ?? null,
+    ciudad: (row.ciudad as string | null) ?? null,
+    codigo_postal: (row.codigo_postal as string | null) ?? null,
+    telefono: (row.telefono as string | null) ?? null,
+    iban: (row.iban as string | null) ?? null,
   }
 }
 
@@ -107,4 +121,31 @@ export async function updateErpComercial(
   const row = data as Record<string, unknown> | null
   if (!row) return { ok: false, message: "Usuario no encontrado tras actualizar" }
   return { ok: true, data: mapRow(row) }
+}
+
+export async function updateErpComercialFiscal(
+  id: string,
+  patch: {
+    dni?: string | null
+    direccion?: string | null
+    ciudad?: string | null
+    codigo_postal?: string | null
+    telefono?: string | null
+    iban?: string | null
+  }
+): Promise<ErpComercialResult<ErpComercialRow>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return clientOrError
+  }
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { data, error } = await client
+    .from("user_profiles")
+    .update(patch)
+    .eq("id", id)
+    .select(STAFF_SELECT)
+    .maybeSingle()
+  if (error) return mapError(error)
+  if (!data) return { ok: false, message: "Usuario no encontrado tras actualizar" }
+  return { ok: true, data: mapRow(data as Record<string, unknown>) }
 }

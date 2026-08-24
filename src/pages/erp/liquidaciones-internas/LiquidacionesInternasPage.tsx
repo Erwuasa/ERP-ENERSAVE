@@ -1,4 +1,5 @@
 import { LiquidacionesInternasPanel } from "@/components/LiquidacionesInternasPanel"
+import { SensitiveScreenShell } from "@/components/SensitiveScreenShell"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 
 export function LiquidacionesInternasPage() {
@@ -15,7 +16,8 @@ export function LiquidacionesInternasPage() {
   } = ws
 
   return (
-    <LiquidacionesInternasPanel
+    <SensitiveScreenShell userLabel={activeUser.fullName}>
+      <LiquidacionesInternasPanel
       activeRole={
         activeRole === "superadmin"
           ? superadminViewMode === "comercial"
@@ -30,5 +32,6 @@ export function LiquidacionesInternasPage() {
       profiles={profiles}
       formatCurrency={formatCurrency}
     />
+    </SensitiveScreenShell>
   )
 }

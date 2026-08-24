@@ -1,7 +1,7 @@
 import { mapProspectoRow } from "./ventas-prospectos"
 import type { Prospecto } from "../ventas/types"
 import type { WebLead } from "../ventas/web-leads"
-import { mapSupabaseError, requireSupabase, type VentasResult } from "./ventas-shared"
+import { isVentasFailure, mapSupabaseError, requireSupabase, type VentasResult } from "./ventas-shared"
 import type { ProspectoRow } from "./ventas-types"
 import { signFacturaPaths } from "./facturas-storage"
 
@@ -76,7 +76,7 @@ function mapRow(row: WebLeadRow): WebLead {
 
 export async function listWebLeadsInbox(): Promise<VentasResult<WebLead[]>> {
   const client = requireSupabase()
-  if ("ok" in client && client.ok === false) return client
+  if (isVentasFailure(client)) return client
 
   const { data, error } = await client
     .from("leads")
@@ -103,7 +103,7 @@ export async function assignWebLead(
   comercialId: string
 ): Promise<VentasResult<WebLead>> {
   const client = requireSupabase()
-  if ("ok" in client && client.ok === false) return client
+  if (isVentasFailure(client)) return client
 
   const { data, error } = await client.rpc("assign_web_lead_v1", {
     p_lead_id: leadId,
@@ -118,7 +118,7 @@ export async function convertWebLeadToProspecto(
   leadId: string
 ): Promise<VentasResult<{ lead: WebLead; prospecto: Prospecto }>> {
   const client = requireSupabase()
-  if ("ok" in client && client.ok === false) return client
+  if (isVentasFailure(client)) return client
 
   const { data, error } = await client.rpc("convert_web_lead_to_prospecto_v1", {
     p_lead_id: leadId,

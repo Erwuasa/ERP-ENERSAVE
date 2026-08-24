@@ -24,6 +24,8 @@ import {
   normalizeContractEstado,
 } from "@/lib/contract-estado"
 import type { useEditableCell } from "@/hooks/use-editable-cell"
+import { canUserDeleteContract } from "@/lib/contract-deletion"
+import { ContractQuickActionButton } from "@/components/contratos/ContractQuickActionButton"
 import {
   CONTRACTS_TD,
   CONTRACTS_TH,
@@ -37,6 +39,7 @@ export const CONTRATOS_PAGE_SIZE = 10
 
 type Props = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+  activeUserId: string
   canViewComisionDesglose: boolean
   paginated: Contract[]
   filtered: Contract[]
@@ -49,10 +52,12 @@ type Props = {
   setSelectedContractId: Dispatch<SetStateAction<string | null>>
   onActivateContract: (contract: Contract) => void
   onBajaContract: (contract: Contract) => void
+  onRequestDelete?: (contract: Contract) => void
 }
 
 export function ContratosPanelTable({
   activeRole,
+  activeUserId,
   canViewComisionDesglose,
   paginated,
   filtered,
@@ -65,6 +70,7 @@ export function ContratosPanelTable({
   setSelectedContractId,
   onActivateContract,
   onBajaContract,
+  onRequestDelete,
 }: Props) {
   return (
     <div className="overflow-x-auto rounded-xl border border-brand-border/60 bg-brand-surface/30">
@@ -177,7 +183,20 @@ export function ContratosPanelTable({
                 }`}
               >
                 <td className={`${CONTRACTS_TD} text-center`}>
-                  <div className="flex justify-center items-start">{renderEstadoCell(c)}</div>
+                  <div className="flex justify-center items-start gap-1">
+                    {renderEstadoCell(c)}
+                    {onRequestDelete &&
+                    canUserDeleteContract(c, activeRole, activeUserId) ? (
+                      <ContractQuickActionButton
+                        tone="danger"
+                        title="Eliminar borrador"
+                        ariaLabel={`Eliminar borrador ${c.clientName}`}
+                        onClick={() => onRequestDelete(c)}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </ContractQuickActionButton>
+                    ) : null}
+                  </div>
                 </td>
                 <td className={CONTRACTS_TD}>
                   <p className="font-semibold text-brand-text leading-snug break-words">

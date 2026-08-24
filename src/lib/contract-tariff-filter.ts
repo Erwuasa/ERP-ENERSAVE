@@ -1,5 +1,6 @@
 import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 import { marcoRetributivoCatalog } from "../data/marco-retributivo-catalog"
+import type { PeajeSegment } from "./contract-potencia"
 
 export type ContractWizardSegment = "residencial" | "pyme"
 export type TipoClienteWizard =
@@ -48,6 +49,7 @@ export function filterMarcoTariffs(params: {
   segment: ContractWizardSegment
   tipo: "luz" | "gas"
   tipoCliente?: TipoClienteWizard
+  peajeSegment?: PeajeSegment | ""
   search?: string
 }): MarcoRetributivoEntry[] {
   const segment = params.tipoCliente
@@ -59,6 +61,9 @@ export function filterMarcoTariffs(params: {
     if (entry.compania !== params.compania) return false
     if (entry.tipo !== params.tipo) return false
     if (!isMarcoEntryForSegment(entry, segment)) return false
+    if (params.peajeSegment) {
+      if (!entry.peaje.includes(params.peajeSegment)) return false
+    }
     if (q && !entry.tarifa.toLowerCase().includes(q) && !entry.peaje.toLowerCase().includes(q)) {
       return false
     }

@@ -12,6 +12,9 @@ export interface Contract {
   montoInterno: number
   montoExterno: number
   estado: ContractEstado
+  /** Fecha en que el estado actual entró en vigor (activación, baja, etc.) */
+  estadoEfectivoDesde?: string
+  motivoCambioEstado?: string
   comercialId: string
   comercialName: string
   createdAt: string

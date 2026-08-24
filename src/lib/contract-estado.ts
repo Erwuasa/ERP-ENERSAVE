@@ -1,5 +1,5 @@
 export const CONTRACT_ESTADOS = [
-  "Pendiente de info.",
+  "Borrador",
   "PTE DE TRAMITACIÓN",
   "PTE DE FIRMA",
   "FIRMA CADUCADA",
@@ -12,7 +12,8 @@ export const CONTRACT_ESTADOS = [
 export type ContractEstado = (typeof CONTRACT_ESTADOS)[number]
 
 export const CONTRACT_ESTADO_INICIAL: ContractEstado = "PTE DE TRAMITACIÓN"
-export const CONTRACT_ESTADO_INCOMPLETO: ContractEstado = "Pendiente de info."
+export const CONTRACT_ESTADO_BORRADOR: ContractEstado = "Borrador"
+export const CONTRACT_ESTADO_INCOMPLETO: ContractEstado = CONTRACT_ESTADO_BORRADOR
 
 const LEGACY_ESTADO_MAP: Record<string, ContractEstado> = {
   activo: "ACTIVADO",
@@ -25,6 +26,9 @@ const LEGACY_ESTADO_MAP: Record<string, ContractEstado> = {
   ko: "INCIDENCIA ADMINISTRATIVA",
   incidencia: "INCIDENCIA ADMINISTRATIVA",
   activado: "ACTIVADO",
+  borrador: "Borrador",
+  "pendiente de info.": "Borrador",
+  "pendiente de información": "Borrador",
 }
 
 export function normalizeContractEstado(value: string): ContractEstado {
@@ -37,7 +41,7 @@ export function normalizeContractEstado(value: string): ContractEstado {
 
 export function getContractEstadoBadgeClass(estado: string): string {
   switch (normalizeContractEstado(estado)) {
-    case "Pendiente de info.":
+    case "Borrador":
       return "bg-slate-400/20 text-slate-600 dark:text-slate-300 border border-slate-400/30"
     case "PTE DE TRAMITACIÓN":
       return "bg-[#f4f4f5] text-slate-700 dark:bg-slate-700/80 dark:text-slate-200 border border-slate-300/60 dark:border-slate-500/40"
@@ -69,6 +73,10 @@ export function canBajaContract(estado: string): boolean {
 
 export function isContractActivado(estado: string): boolean {
   return normalizeContractEstado(estado) === "ACTIVADO"
+}
+
+export function isContractBorrador(estado: string): boolean {
+  return normalizeContractEstado(estado) === CONTRACT_ESTADO_BORRADOR
 }
 
 export function isContractTerminal(estado: string): boolean {

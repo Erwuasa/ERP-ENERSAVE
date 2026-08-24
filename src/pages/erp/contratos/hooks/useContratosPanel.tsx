@@ -29,6 +29,7 @@ import {
 import type { NewContractFormState } from "@/lib/contract-registration"
 import { matchesCreatedAtRange, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { CONTRATOS_PAGE_SIZE } from "@/pages/erp/contratos/components/ContratosPanelTable"
+import { isContractPendingTramitacionReview } from "@/lib/contratos-tramitacion-notifications"
 
 type Options = {
   canEditContractEstado: boolean
@@ -42,6 +43,7 @@ type Options = {
   onOpenNewContract?: () => void
   highlightContractId?: string | null
   userFilterId?: string
+  reviewedContractIds?: ReadonlySet<string>
 }
 
 export function useContratosPanel({
@@ -56,6 +58,7 @@ export function useContratosPanel({
   onOpenNewContract,
   highlightContractId,
   userFilterId = "all",
+  reviewedContractIds,
 }: Options) {
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const [ocrLoading, setOcrLoading] = useState(false)
@@ -206,6 +209,9 @@ export function useContratosPanel({
 
   function matchesListFilter(c: Contract): boolean {
     if (contractsListFilter === "renovacion_proxima" && !isRenovacionProxima(c)) return false
+    if (contractsListFilter === "nuevos_sin_revisar") {
+      return isContractPendingTramitacionReview(c, reviewedContractIds ?? new Set())
+    }
     if (
       isContractEstadoKpiFilter(contractsListFilter) &&
       !matchesContractEstadoKpiFilter(c.estado, contractsListFilter)
@@ -234,12 +240,12 @@ export function useContratosPanel({
 
   const poolForEstadoCounts = useMemo(
     () => applyPanelFilters(visibleContracts, { skipEstado: true }),
-    [visibleContracts, contractsSearchQuery, contractsListFilter, companiaFilterUI, fechaDesde, fechaHasta]
+    [visibleContracts, contractsSearchQuery, contractsListFilter, companiaFilterUI, fechaDesde, fechaHasta, reviewedContractIds]
   )
 
   const poolForCompaniaCounts = useMemo(
     () => applyPanelFilters(visibleContracts, { skipCompania: true }),
-    [visibleContracts, contractsSearchQuery, contractsListFilter, estadoFilterUI, fechaDesde, fechaHasta]
+    [visibleContracts, contractsSearchQuery, contractsListFilter, estadoFilterUI, fechaDesde, fechaHasta, reviewedContractIds]
   )
 
   const estadoCounts = useMemo(
@@ -267,6 +273,7 @@ export function useContratosPanel({
       companiaFilterUI,
       fechaDesde,
       fechaHasta,
+      reviewedContractIds,
     ]
   )
 

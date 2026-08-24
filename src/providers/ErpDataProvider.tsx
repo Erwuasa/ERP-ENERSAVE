@@ -13,6 +13,13 @@ import type { Client } from "@/types/client"
 import type { Settlement } from "@/types/settlement"
 import { syncClientEstados } from "@/lib/clients"
 import { INITIAL_CRM } from "@/lib/erp/initial-crm-state"
+import { buildClientsFromContracts, linkContractsToClients } from "@/lib/clients"
+import { listTeamContracts } from "@/lib/supabase/contracts"
+import { listClientes } from "@/lib/supabase/clientes"
+import { listSettlements } from "@/lib/supabase/settlements"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
+import type { SupabaseFailure, SupabaseResult } from "@/lib/supabase/result"
+import { toast } from "sonner"
 
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { ClawbackPendingContract } from "@/lib/erp/contract-clawback"
@@ -172,6 +179,58 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => setHighlightContractId(null), 10000)
     return () => clearTimeout(timer)
   }, [highlightContractId])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+    let cancelled = false
+
+    void (async () => {
+      const [contractsResult, clientsResult, settlementsResult] = await Promise.all([
+        listTeamContracts(),
+        listClientes(),
+        listSettlements(),
+      ])
+      if (cancelled) return
+
+      const missing: string[] = []
+      const errors: string[] = []
+
+      function unwrap<T>(result: SupabaseResult<T[]>, table: string): T[] | null {
+        if (result.ok === true) return result.data.length > 0 ? result.data : null
+        const failure = result as SupabaseFailure
+        if (failure.reason === "table_missing") missing.push(table)
+        else errors.push(`${table}: ${failure.message}`)
+        return null
+      }
+
+      const loadedContracts = unwrap(contractsResult, "contratos_equipo")
+      const loadedClients = unwrap(clientsResult, "clientes")
+      const loadedSettlements = unwrap(settlementsResult, "settlements")
+      const effectiveClients =
+        loadedClients ?? (loadedContracts ? buildClientsFromContracts(loadedContracts) : null)
+
+      if (effectiveClients) {
+        setClients(syncClientEstados(effectiveClients, loadedContracts ?? contracts))
+      }
+      if (loadedContracts) {
+        setContracts(linkContractsToClients(loadedContracts, effectiveClients ?? clients))
+      }
+      if (loadedSettlements) setSettlements(loadedSettlements)
+
+      if (missing.length > 0) {
+        toast.warning(
+          `Faltan tablas en Supabase (${missing.join(", ")}). Se muestran los datos de demostración.`
+        )
+      }
+      if (errors.length > 0) toast.warning(`No se pudieron cargar algunos datos. ${errors.join(" · ")}`)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // Carga inicial de sesión; no reaccionar a mutations locales.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const value = useMemo(
     () => ({

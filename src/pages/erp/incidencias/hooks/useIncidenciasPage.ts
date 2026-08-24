@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import type { UserRole } from "@/types/profile"
 import type { IncidenciaTicket } from "@/lib/incidencias"
@@ -9,6 +9,8 @@ import {
   generateIncidenciaCodigo,
 } from "@/lib/incidencias"
 import { INCIDENCIAS_SEED } from "@/pages/erp/hooks/workspace/incidencias-seed"
+import { listIncidencias } from "@/lib/supabase/incidencias"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
 
 type Ticket = IncidenciaTicket
 
@@ -30,6 +32,18 @@ export function useIncidenciasPage({
   const [incidencias, setIncidencias] = useState<Ticket[]>(() =>
     INCIDENCIAS_SEED.map((inc) => normalizeIncidenciaTicket(inc))
   )
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+    let cancelled = false
+    void listIncidencias().then((result) => {
+      if (cancelled || !result.ok || result.data.length === 0) return
+      setIncidencias(result.data.map((inc) => normalizeIncidenciaTicket(inc)))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const [newIncClientName, setNewIncClientName] = useState("")
   const [newIncTipo, setNewIncTipo] = useState<Ticket["tipo"]>("Incidencia Cartera")
@@ -97,6 +111,7 @@ export function useIncidenciasPage({
 
   return {
     incidencias,
+    setIncidencias,
     newIncClientName,
     setNewIncClientName,
     newIncTipo,

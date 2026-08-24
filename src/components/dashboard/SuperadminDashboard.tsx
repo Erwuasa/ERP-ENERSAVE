@@ -3,7 +3,9 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Briefcase,
+  Clock,
   FileText,
+  Lightbulb,
   ScanSearch,
   TrendingDown,
   TrendingUp,
@@ -48,6 +50,8 @@ export type DashboardNavigateTarget =
   | "comparativas"
   | "comerciales"
   | "contratos"
+  | "oportunidades_mejora"
+  | "renovaciones_proximas"
 
 interface SuperadminDashboardProps {
   welcomeName: string
@@ -56,6 +60,8 @@ interface SuperadminDashboardProps {
   incidencias: IncidenciaTicket[]
   comerciales: DashboardComercial[]
   comparativas: ComparativaEntry[]
+  oportunidadesMejora?: number
+  renovacionesProximas?: number
   onNavigate?: (target: DashboardNavigateTarget) => void
 }
 
@@ -142,6 +148,8 @@ export function SuperadminDashboard({
   incidencias,
   comerciales,
   comparativas,
+  oportunidadesMejora,
+  renovacionesProximas,
   onNavigate,
 }: SuperadminDashboardProps) {
   const defaultDateRangeValue = useMemo(() => defaultDateRange(), [])
@@ -242,7 +250,7 @@ export function SuperadminDashboard({
         />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
         <KpiCard
           title="Contratos activos"
           value={activos}
@@ -287,6 +295,28 @@ export function SuperadminDashboard({
           variation={comparativasCount.percentChange}
           onOpen={() => onNavigate?.("comparativas")}
         />
+        {oportunidadesMejora != null && (
+          <KpiCard
+            title="Oportunidades de mejora"
+            value={oportunidadesMejora}
+            suffix="contratos"
+            subtitle="retro elegible · tarifa alternativa"
+            icon={Lightbulb}
+            iconClass="text-amber-500"
+            onOpen={() => onNavigate?.("oportunidades_mejora")}
+          />
+        )}
+        {renovacionesProximas != null && (
+          <KpiCard
+            title="Renovaciones próximas"
+            value={renovacionesProximas}
+            suffix="contratos"
+            subtitle="≤30 días · ventana de renovación"
+            icon={Clock}
+            iconClass="text-orange-500"
+            onOpen={() => onNavigate?.("renovaciones_proximas")}
+          />
+        )}
         <KpiCard
           title="Comerciales"
           value={comercialesTotal}

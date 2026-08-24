@@ -1,8 +1,9 @@
-import { AppShell } from '@/components/layout/AppShell'
-import { Outlet } from 'react-router-dom'
-import { useErpWorkspaceContext } from '@/pages/erp/providers/erp-workspace-context'
-import { ErpWorkspaceModals } from '@/pages/erp/workspace/ErpWorkspaceModals'
-import { VentasFichaOverlay } from '@/pages/ventas/overlays/VentasFichaOverlay'
+import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome"
+import { AppShell } from "@/components/layout/AppShell"
+import { Outlet } from "react-router-dom"
+import { useErpWorkspaceContext } from "@/pages/erp/providers/erp-workspace-context"
+import { ErpWorkspaceModals } from "@/pages/erp/workspace/ErpWorkspaceModals"
+import { VentasFichaOverlay } from "@/pages/ventas/overlays/VentasFichaOverlay"
 
 export function ErpWorkspaceShell() {
   const ws = useErpWorkspaceContext()
@@ -33,6 +34,7 @@ export function ErpWorkspaceShell() {
       <Outlet />
       <VentasFichaOverlay />
       <ErpWorkspaceModals />
+      <WorkspaceChrome />
     </AppShell>
   )
 }

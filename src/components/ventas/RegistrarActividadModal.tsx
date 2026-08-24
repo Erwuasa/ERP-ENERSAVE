@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from "react"
 import { X } from "lucide-react"
 import { createActividad } from "../../lib/supabase/ventas"
-import type { ActividadTipo } from "../../lib/ventas/types"
+import type { CreateActividadInput } from "../../lib/ventas/types"
 
-const TIPO_OPTIONS: { id: ActividadTipo; label: string }[] = [
+const TIPO_OPTIONS: { id: CreateActividadInput["tipo"]; label: string }[] = [
   { id: "llamada", label: "Llamada" },
   { id: "visita", label: "Visita" },
   { id: "email", label: "Email" },
@@ -30,7 +30,7 @@ export function RegistrarActividadModal({
   onClose,
   onSuccess,
 }: RegistrarActividadModalProps) {
-  const [tipo, setTipo] = useState<ActividadTipo>("llamada")
+  const [tipo, setTipo] = useState<CreateActividadInput["tipo"]>("llamada")
   const [descripcion, setDescripcion] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,7 +95,7 @@ export function RegistrarActividadModal({
             </label>
             <select
               value={tipo}
-              onChange={(e) => setTipo(e.target.value as ActividadTipo)}
+              onChange={(e) => setTipo(e.target.value as CreateActividadInput["tipo"])}
               className="w-full h-9 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text"
             >
               {TIPO_OPTIONS.map((o) => (

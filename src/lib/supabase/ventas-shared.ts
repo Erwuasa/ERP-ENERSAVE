@@ -2,15 +2,15 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import type { ProspectoRow } from "./ventas-types"
 
-export type VentasResult<T> =
-  | { ok: true; data: T }
-  | {
-      ok: false
-      reason: "not_configured" | "table_missing" | "rls_denied" | "error"
-      message: string
-    }
+export type VentasFailure = {
+  ok: false
+  reason: "not_configured" | "table_missing" | "rls_denied" | "error"
+  message: string
+}
 
-export function mapSupabaseError(error: { code?: string; message: string }): VentasResult<never> {
+export type VentasResult<T> = { ok: true; data: T; message?: undefined } | VentasFailure
+
+export function mapSupabaseError(error: { code?: string; message: string }): VentasFailure {
   const isMissingTable =
     error.code === "42P01" || error.message.toLowerCase().includes("does not exist")
   const isRls =
@@ -23,12 +23,12 @@ export function mapSupabaseError(error: { code?: string; message: string }): Ven
 }
 
 export function isVentasFailure(
-  value: SupabaseClient | VentasResult<never>
-): value is VentasResult<never> {
+  value: SupabaseClient | VentasFailure
+): value is VentasFailure {
   return typeof value === "object" && value !== null && "ok" in value && value.ok === false
 }
 
-export function requireSupabase(): SupabaseClient | VentasResult<never> {
+export function requireSupabase(): SupabaseClient | VentasFailure {
   if (!isSupabaseConfigured()) {
     return {
       ok: false,

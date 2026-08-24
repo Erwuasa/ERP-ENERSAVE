@@ -4,8 +4,10 @@ import { DateRangePicker } from "@/components/ui/DateRangePicker"
 import { EstadoFilterDropdown } from "@/components/contratos/EstadoFilterDropdown"
 import { CompaniaFilterDropdown } from "@/components/contratos/CompaniaFilterDropdown"
 import { UserFilterDropdown } from "@/components/contratos/UserFilterDropdown"
+import { ContratosTramitacionBell } from "@/components/contratos/ContratosTramitacionBell"
 import type { ContractEstadoUiFilter } from "@/lib/contract-estado-kpis"
 import type { DateRangePickerValue } from "@/lib/date-range"
+import type { TramitacionComercialGroup } from "@/lib/contratos-tramitacion-notifications"
 import { profileRoleLabel, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 
 type Props = {
@@ -26,6 +28,12 @@ type Props = {
   onExportExcel: () => void
   onOpenExcelImport: () => void
   onOpenWizard: () => void
+  showTramitacionNotifications?: boolean
+  tramitacionUnreviewedCount?: number
+  tramitacionUnreviewedGroups?: TramitacionComercialGroup[]
+  tramitacionRecentSummary?: string | null
+  onTramitacionSelectComercial?: (comercialId: string) => void
+  onTramitacionShowAllUnreviewed?: () => void
 }
 
 export function ContratosPanelToolbar({
@@ -46,6 +54,12 @@ export function ContratosPanelToolbar({
   onExportExcel,
   onOpenExcelImport,
   onOpenWizard,
+  showTramitacionNotifications = false,
+  tramitacionUnreviewedCount = 0,
+  tramitacionUnreviewedGroups = [],
+  tramitacionRecentSummary = null,
+  onTramitacionSelectComercial,
+  onTramitacionShowAllUnreviewed,
 }: Props) {
   return (
     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -80,6 +94,17 @@ export function ContratosPanelToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 shrink-0">
+        {showTramitacionNotifications &&
+        onTramitacionSelectComercial &&
+        onTramitacionShowAllUnreviewed ? (
+          <ContratosTramitacionBell
+            badgeCount={tramitacionUnreviewedCount}
+            groups={tramitacionUnreviewedGroups}
+            recentSummary={tramitacionRecentSummary}
+            onSelectComercial={onTramitacionSelectComercial}
+            onShowAllUnreviewed={onTramitacionShowAllUnreviewed}
+          />
+        ) : null}
         <button
           type="button"
           onClick={onExportExcel}
