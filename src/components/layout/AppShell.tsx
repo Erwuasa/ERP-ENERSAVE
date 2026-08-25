@@ -12,6 +12,7 @@ import {
   Moon,
   SlidersHorizontal,
   Sun,
+  UserCircle2,
   X,
   Zap,
 } from "lucide-react"
@@ -40,6 +41,8 @@ export interface AppShellProps {
   onSwitchModule: (module: AppModule) => void
   onToggleSuperadminMode: () => void
   onLogout: () => void
+  onOpenFiscalProfile?: () => void
+  fiscalProfileIncomplete?: boolean
 }
 
 function roleLabel(role: UserRole): string {
@@ -73,6 +76,8 @@ export function AppShell({
   onSwitchModule,
   onToggleSuperadminMode,
   onLogout,
+  onOpenFiscalProfile,
+  fiscalProfileIncomplete = false,
 }: AppShellProps) {
   const { setTheme, resolvedTheme } = useTheme()
   const location = useLocation()
@@ -425,6 +430,16 @@ export function AppShell({
                   >
                     {roleLabel(activeRole)}
                   </span>
+                  {onOpenFiscalProfile ? (
+                    <button
+                      type="button"
+                      onClick={onOpenFiscalProfile}
+                      className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-mono text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                    >
+                      <UserCircle2 className="w-3 h-3" />
+                      {fiscalProfileIncomplete ? "Completar perfil fiscal" : "Perfil fiscal"}
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>

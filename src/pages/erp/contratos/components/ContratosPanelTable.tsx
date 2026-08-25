@@ -1,4 +1,4 @@
-import type { Dispatch, MutableRefObject, ReactNode, SetStateAction } from "react"
+import { useState, type Dispatch, MutableRefObject, ReactNode, SetStateAction } from "react"
 import { Flame, Info, Lightbulb, Trash2, Zap } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import {
@@ -13,6 +13,7 @@ import {
   getRenewalSchedule,
 } from "@/lib/contract-segment-rules"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
+import { isRenovacionProxima } from "@/lib/contract-renewal"
 import {
   contractsListFilterLabel,
   isContractEstadoKpiFilter,
@@ -26,6 +27,10 @@ import {
 import type { useEditableCell } from "@/hooks/use-editable-cell"
 import { canUserDeleteContract } from "@/lib/contract-deletion"
 import { ContractQuickActionButton } from "@/components/contratos/ContractQuickActionButton"
+import { TarifaRecommendationPopover } from "@/components/TarifaRecommendationPopover"
+import { RenovacionProximaPopover } from "@/components/RenovacionProximaPopover"
+import { contractHasActiveRenewalAlert } from "@/lib/renewal-alert-dismissed"
+import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import {
   CONTRACTS_TD,
   CONTRACTS_TH,
@@ -53,6 +58,13 @@ type Props = {
   onActivateContract: (contract: Contract) => void
   onBajaContract: (contract: Contract) => void
   onRequestDelete?: (contract: Contract) => void
+  formatCurrency?: (val: number) => string
+  showTarifaRecommendations?: boolean
+  tarifaRecommendations?: Map<string, TarifaRecommendation>
+  onCreateFromRecommendation?: (contract: Contract, recommendation: TarifaRecommendation) => void
+  onDownloadRecommendationPdf?: (contract: Contract, recommendation: TarifaRecommendation) => void
+  onDismissRecommendation?: (contractId: string) => void
+  onDismissRenewalAlert?: (contractId: string) => void
 }
 
 export function ContratosPanelTable({
@@ -71,7 +83,17 @@ export function ContratosPanelTable({
   onActivateContract,
   onBajaContract,
   onRequestDelete,
+  formatCurrency = (val) =>
+    new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(val),
+  showTarifaRecommendations = false,
+  tarifaRecommendations,
+  onCreateFromRecommendation,
+  onDownloadRecommendationPdf,
+  onDismissRecommendation,
+  onDismissRenewalAlert,
 }: Props) {
+  const [openRecId, setOpenRecId] = useState<string | null>(null)
+  const [openRenewalId, setOpenRenewalId] = useState<string | null>(null)
   return (
     <div className="overflow-x-auto rounded-xl border border-brand-border/60 bg-brand-surface/30">
       <table className="w-full min-w-[1240px] table-fixed text-left text-xs">
@@ -183,7 +205,7 @@ export function ContratosPanelTable({
                 }`}
               >
                 <td className={`${CONTRACTS_TD} text-center`}>
-                  <div className="flex justify-center items-start gap-1">
+                  <div className="flex justify-center items-start gap-1 flex-wrap">
                     {renderEstadoCell(c)}
                     {onRequestDelete &&
                     canUserDeleteContract(c, activeRole, activeUserId) ? (
@@ -195,6 +217,47 @@ export function ContratosPanelTable({
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </ContractQuickActionButton>
+                    ) : null}
+                    {showTarifaRecommendations && tarifaRecommendations?.has(c.id) ? (
+                      <TarifaRecommendationPopover
+                        contract={c}
+                        recommendation={tarifaRecommendations.get(c.id)!}
+                        open={openRecId === c.id}
+                        onToggle={() => setOpenRecId((prev) => (prev === c.id ? null : c.id))}
+                        onClose={() => setOpenRecId(null)}
+                        onCreateContract={() => {
+                          const rec = tarifaRecommendations.get(c.id)
+                          if (!rec) return
+                          setOpenRecId(null)
+                          onCreateFromRecommendation?.(c, rec)
+                        }}
+                        onDownloadPdf={() => {
+                          const rec = tarifaRecommendations.get(c.id)
+                          if (!rec) return
+                          void onDownloadRecommendationPdf?.(c, rec)
+                        }}
+                        onDismiss={() => {
+                          setOpenRecId(null)
+                          onDismissRecommendation?.(c.id)
+                        }}
+                        formatCurrency={formatCurrency}
+                      />
+                    ) : null}
+                    {contractHasActiveRenewalAlert(c.id, isRenovacionProxima(c)) ? (
+                      <RenovacionProximaPopover
+                        contract={c}
+                        fechaRenovacion={renewal.fechaRenovacion ?? "—"}
+                        diasRestantes={dias}
+                        open={openRenewalId === c.id}
+                        onToggle={() =>
+                          setOpenRenewalId((prev) => (prev === c.id ? null : c.id))
+                        }
+                        onClose={() => setOpenRenewalId(null)}
+                        onDismiss={() => {
+                          setOpenRenewalId(null)
+                          onDismissRenewalAlert?.(c.id)
+                        }}
+                      />
                     ) : null}
                   </div>
                 </td>
@@ -425,6 +488,8 @@ export function ContratosPanelTable({
         <p className="text-center text-xs text-brand-subtext py-8 font-mono">
           {contractsListFilter === "renovacion_proxima"
             ? "No hay contratos con renovación próxima."
+            : contractsListFilter === "con_recomendacion"
+              ? "No hay contratos con recomendación tarifaria."
             : isContractEstadoKpiFilter(contractsListFilter)
               ? `No hay contratos en estado «${contractsListFilterLabel(contractsListFilter).replace(/^ · /, "")}».`
               : "No hay contratos que coincidan con la búsqueda."}

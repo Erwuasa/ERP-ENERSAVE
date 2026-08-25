@@ -14,6 +14,7 @@ import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-p
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 import type { TramitacionComercialGroup } from "@/lib/contratos-tramitacion-notifications"
+import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 
 export interface ContratosPanelProps {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
@@ -55,6 +56,12 @@ export interface ContratosPanelProps {
   reviewedContractIds?: ReadonlySet<string>
   onTramitacionSelectComercial?: (comercialId: string) => void
   onTramitacionShowAllUnreviewed?: () => void
+  showTarifaRecommendations?: boolean
+  tarifaRecommendations?: Map<string, TarifaRecommendation>
+  onCreateFromRecommendation?: (contract: Contract, recommendation: TarifaRecommendation) => void
+  onDownloadRecommendationPdf?: (contract: Contract, recommendation: TarifaRecommendation) => void
+  onDismissRecommendation?: (contractId: string) => void
+  onDismissRenewalAlert?: (contractId: string) => void
 }
 
 export function ContratosPanel({
@@ -89,6 +96,12 @@ export function ContratosPanel({
   reviewedContractIds,
   onTramitacionSelectComercial,
   onTramitacionShowAllUnreviewed,
+  showTarifaRecommendations = false,
+  tarifaRecommendations,
+  onCreateFromRecommendation,
+  onDownloadRecommendationPdf,
+  onDismissRecommendation,
+  onDismissRenewalAlert,
 }: ContratosPanelProps) {
   const canViewComisionDesglose = activeRole === "superadmin" || activeRole === "tramitacion"
   const [contractPendingDelete, setContractPendingDelete] = useState<Contract | null>(null)
@@ -107,6 +120,7 @@ export function ContratosPanel({
     highlightContractId,
     userFilterId,
     reviewedContractIds,
+    tarifaRecommendations,
   })
 
   return (
@@ -143,6 +157,7 @@ export function ContratosPanel({
           setContractsSearchQuery={setContractsSearchQuery}
           contractsListFilter={contractsListFilter}
           setContractsListFilter={setContractsListFilter}
+          showTarifaRecommendations={showTarifaRecommendations}
         />
 
         <ContratosPanelTable
@@ -161,6 +176,13 @@ export function ContratosPanel({
           onActivateContract={onActivateContract}
           onBajaContract={onBajaContract}
           onRequestDelete={onDeleteContract ? setContractPendingDelete : undefined}
+          formatCurrency={formatCurrency}
+          showTarifaRecommendations={showTarifaRecommendations}
+          tarifaRecommendations={tarifaRecommendations}
+          onCreateFromRecommendation={onCreateFromRecommendation}
+          onDownloadRecommendationPdf={onDownloadRecommendationPdf}
+          onDismissRecommendation={onDismissRecommendation}
+          onDismissRenewalAlert={onDismissRenewalAlert}
         />
 
         <ContratosPanelPagination

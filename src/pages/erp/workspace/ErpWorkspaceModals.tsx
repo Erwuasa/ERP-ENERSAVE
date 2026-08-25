@@ -1,5 +1,6 @@
 import { AnimatePresence } from "motion/react"
 import { UserControlSheet } from "@/components/admin/UserControlSheet"
+import { PerfilComercialModal } from "@/components/PerfilComercialModal"
 import { ComparadorContractModal } from "@/pages/erp/workspace/modals/ComparadorContractModal"
 import { CreateUserModal } from "@/pages/erp/workspace/modals/CreateUserModal"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
@@ -15,6 +16,13 @@ export function ErpWorkspaceModals() {
     handleSaveUserRoleToSupabase,
     togglePermission,
     handleDeleteUserFromSupabase,
+    activeUser,
+    activeUserId,
+    perfilComercialOpen,
+    closeFiscalProfile,
+    fiscalForm,
+    canEditFiscalProfile,
+    handleSaveFiscalProfile,
   } = ws
 
   return (
@@ -54,6 +62,18 @@ export function ErpWorkspaceModals() {
           />
         )}
       </AnimatePresence>
+
+      {canEditFiscalProfile ? (
+        <PerfilComercialModal
+          open={perfilComercialOpen}
+          onClose={closeFiscalProfile}
+          comercialId={activeUserId}
+          fullName={activeUser.fullName}
+          email={activeUser.email}
+          initialForm={fiscalForm}
+          onSaved={handleSaveFiscalProfile}
+        />
+      ) : null}
 
       <ComparadorContractModal ws={ws} />
     </>

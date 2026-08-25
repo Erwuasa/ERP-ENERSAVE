@@ -15,6 +15,7 @@ import { useErpLiquidacionesDemo } from './workspace/useErpLiquidacionesDemo';
 import { useIncidenciasContext } from '@/pages/erp/incidencias/IncidenciasProvider';
 import { useErpUsuarios } from './workspace/useErpUsuarios';
 import { useErpComparador } from './workspace/useErpComparador';
+import { useErpFiscalProfile } from './workspace/useErpFiscalProfile';
 
 export function useErpWorkspace() {
   const { profiles, setProfiles, activeUserId, setActiveUserId, activeUser, logout } = useAuth();
@@ -62,6 +63,16 @@ export function useErpWorkspace() {
     setProfiles,
     activeRole,
     currentMenuTab,
+  });
+  const fiscal = useErpFiscalProfile({
+    activeUser,
+    activeUserId,
+    activeRole,
+    superadminViewMode,
+    contracts,
+    profiles,
+    setProfiles,
+    formatCurrency,
   });
 
   const [cashflowScenario, setCashflowScenario] = useState<'optimista' | 'realista' | 'pesimista'>(
@@ -226,6 +237,7 @@ export function useErpWorkspace() {
     ...incidenciasState,
     ...comparador,
     ...usuarios,
+    ...fiscal,
     selectedPeriod,
     setSelectedPeriod,
     handleToggleSuperadminMode,

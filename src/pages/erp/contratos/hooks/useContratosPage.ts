@@ -7,6 +7,7 @@ import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { formatCurrency } from "@/lib/erp/format-currency"
 import type { ContratosPanelProps } from "@/pages/erp/contratos/components/ContratosPanel"
 import { useContratosTramitacionNotifications } from "@/pages/erp/contratos/hooks/useContratosTramitacionNotifications"
+import { useContratosRecommendations } from "@/pages/erp/contratos/hooks/useContratosRecommendations"
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
@@ -45,6 +46,7 @@ export function useContratosPage({
     openActivateModal,
     openBajaModal,
     handleDeleteContract,
+    openContractWizardFromRecommendation,
   } = useContractActionsContext()
 
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
@@ -54,6 +56,11 @@ export function useContratosPage({
     (activeRole === "superadmin" && superadminViewMode === "tramitacion")
 
   const tramitacion = useContratosTramitacionNotifications(showContractsUserFilter)
+
+  const canViewTarifaRecommendations =
+    activeRole === "comercial" ||
+    activeRole === "jefe_comercial" ||
+    (activeRole === "superadmin" && superadminViewMode === "comercial")
 
   const teamMemberIds = useMemo(
     () => profiles.filter((p) => p.managerId === activeUserId).map((p) => p.id),
@@ -102,6 +109,26 @@ export function useContratosPage({
     isErpOpsAdmin &&
     (activeRole === "tramitacion" || superadminViewMode === "tramitacion")
 
+  const profileOptions = useMemo(
+    () =>
+      profiles.map((p) => ({
+        id: p.id,
+        fullName: p.fullName,
+        role: p.role,
+        managerId: p.managerId,
+        commissionPercentage: p.commissionPercentage,
+      })),
+    [profiles]
+  )
+
+  const recommendations = useContratosRecommendations({
+    visibleContracts,
+    profiles: profileOptions,
+    formatCurrency,
+    enabled: canViewTarifaRecommendations,
+    onCreateFromRecommendation: openContractWizardFromRecommendation,
+  })
+
   return {
     panelProps: {
       activeRole,
@@ -128,13 +155,7 @@ export function useContratosPage({
       applyOcrToNewContractForm,
       onOpenNewContract: openContractWizardBlank,
       highlightContractId,
-      profiles: profiles.map((p) => ({
-        id: p.id,
-        fullName: p.fullName,
-        role: p.role,
-        managerId: p.managerId,
-        commissionPercentage: p.commissionPercentage,
-      })),
+      profiles: profileOptions,
       commissionPercentage: activeUser.commissionPercentage,
       formatCurrency,
       renderCompaniaLogo,
@@ -145,6 +166,12 @@ export function useContratosPage({
       reviewedContractIds: tramitacion.reviewedContractIds,
       onTramitacionSelectComercial: tramitacion.selectComercial,
       onTramitacionShowAllUnreviewed: tramitacion.showAllUnreviewed,
+      showTarifaRecommendations: canViewTarifaRecommendations,
+      tarifaRecommendations: recommendations.tarifaRecommendations,
+      onCreateFromRecommendation: recommendations.handleCreateFromRecommendation,
+      onDownloadRecommendationPdf: recommendations.handleDownloadRecommendationPdf,
+      onDismissRecommendation: recommendations.handleDismissRecommendation,
+      onDismissRenewalAlert: recommendations.handleDismissRenewal,
     },
   }
 }

@@ -22,6 +22,12 @@ export interface Profile {
   email: string
   status: "activo" | "suspendido" | "pendiente"
   commissionPercentage: number
+  dni?: string
+  direccion?: string
+  ciudad?: string
+  codigoPostal?: string
+  telefono?: string
+  iban?: string
 }
 
 export function mapVentasRole(
@@ -96,6 +102,13 @@ export function profileFromDirectoryRow(row: {
   manager_id: string | null
   email: string | null
   commission_percentage?: number
+  activo?: boolean
+  dni?: string | null
+  direccion?: string | null
+  ciudad?: string | null
+  codigo_postal?: string | null
+  telefono?: string | null
+  iban?: string | null
 }): Profile {
   return {
     id: row.id,
@@ -103,10 +116,16 @@ export function profileFromDirectoryRow(row: {
     role: row.role,
     managerId: row.manager_id,
     email: row.email ?? "",
-    status: "activo",
+    status: row.activo === false ? "suspendido" : "activo",
     commissionPercentage:
       row.commission_percentage ?? defaultCommissionForRole(row.role),
     permissions: defaultPermissionsForRole(row.role),
+    dni: row.dni ?? undefined,
+    direccion: row.direccion ?? undefined,
+    ciudad: row.ciudad ?? undefined,
+    codigoPostal: row.codigo_postal ?? undefined,
+    telefono: row.telefono ?? undefined,
+    iban: row.iban ?? undefined,
   }
 }
 

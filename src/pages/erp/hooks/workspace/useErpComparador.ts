@@ -23,8 +23,16 @@ import type { ComparadorSortMode } from '@/lib/comparador-sort';
 import { applyComparadorOcrResult } from '@/lib/comparador-ocr-apply';
 import { extractContractDataFromDocument } from '@/lib/contract-ocr';
 import { listMarcoRetributivo, type MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
-import { mapComparadorToEstudioAhorro } from '@/lib/pdf/map-comparador-estudio-ahorro';
-import { downloadEstudioAhorroPdf, generateEstudioAhorroPdf } from '@/lib/pdf/estudio-ahorro-pdf';
+import {
+  mapComparadorHistoryListToEstudioAhorroConjunto,
+  mapComparadorHistoryToEstudioAhorro,
+  mapComparadorToEstudioAhorro,
+} from '@/lib/pdf/map-comparador-estudio-ahorro';
+import {
+  downloadEstudioAhorroPdf,
+  generateEstudioAhorroConjuntoPdf,
+  generateEstudioAhorroPdf,
+} from '@/lib/pdf/estudio-ahorro-pdf';
 import { generarEmailPropuesta } from '@/lib/ia/email-propuesta-generator';
 import {
   buildMailtoHref,
@@ -32,7 +40,7 @@ import {
   inferTarifaPrecioTipoFromNombre,
 } from '@/lib/ia/comparador-email-helpers';
 
-interface ComparisonHistoryEntry {
+export interface ComparisonHistoryEntry {
   id: string;
   clientName: string;
   cups: string;
@@ -129,6 +137,8 @@ export function useErpComparador({
   const [modalSegment, setModalSegment] = useState<'residencial' | 'pyme'>('residencial');
   const [modalAccessTariff, setModalAccessTariff] = useState<ComparadorAccessTariff>('2.0TD');
   const [modalFiles, setModalFiles] = useState<{ name: string; size: string }[]>([]);
+  const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
+  const [isGeneratingJointPdf, setIsGeneratingJointPdf] = useState(false);
 
   const [comparisonsHistory, setComparisonsHistory] = useState<ComparisonHistoryEntry[]>([
     {
@@ -274,6 +284,60 @@ export function useErpComparador({
     } catch (error) {
       console.error(error);
       toast.error('No se pudo generar el PDF. Inténtalo de nuevo.');
+    }
+  }
+
+  async function handleDownloadHistoryPdf(item: ComparisonHistoryEntry) {
+    try {
+      const input = mapComparadorHistoryToEstudioAhorro({
+        clientName: item.clientName,
+        cups: item.cups,
+        accessTariff: item.accessTariff,
+        currentAnnualExpense: item.currentAnnualExpense,
+        maxAnnualSavings: item.maxAnnualSavings,
+        bestTariffName: item.bestTariffName,
+      });
+      const blob = await generateEstudioAhorroPdf(input);
+      downloadEstudioAhorroPdf(blob, item.clientName);
+      toast.success('Estudio de ahorro descargado correctamente.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el PDF. Inténtalo de nuevo.');
+    }
+  }
+
+  function toggleComparisonSelection(id: string) {
+    setSelectedComparisonIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  async function handleDownloadJointHistoryPdf() {
+    const selected = comparisonsHistory.filter((item) => selectedComparisonIds.includes(item.id));
+    if (selected.length < 2) {
+      toast.error('Selecciona al menos 2 comparativas para generar el estudio conjunto.');
+      return;
+    }
+    setIsGeneratingJointPdf(true);
+    try {
+      const input = mapComparadorHistoryListToEstudioAhorroConjunto(
+        selected.map((item) => ({
+          clientName: item.clientName,
+          cups: item.cups,
+          accessTariff: item.accessTariff,
+          currentAnnualExpense: item.currentAnnualExpense,
+          maxAnnualSavings: item.maxAnnualSavings,
+          bestTariffName: item.bestTariffName,
+        }))
+      );
+      const blob = await generateEstudioAhorroConjuntoPdf(input);
+      downloadEstudioAhorroPdf(blob, `estudio-ahorro-conjunto-${selected.length}-cups.pdf`);
+      toast.success(`Estudio conjunto generado con ${selected.length} propuestas.`);
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el estudio conjunto. Inténtalo de nuevo.');
+    } finally {
+      setIsGeneratingJointPdf(false);
     }
   }
 
@@ -542,6 +606,11 @@ export function useErpComparador({
     compHistorySearch,
     setCompHistorySearch,
     comparisonsHistory,
+    selectedComparisonIds,
+    isGeneratingJointPdf,
+    toggleComparisonSelection,
+    handleDownloadHistoryPdf,
+    handleDownloadJointHistoryPdf,
     isContractModalOpen,
     setIsContractModalOpen,
     modalClientName,

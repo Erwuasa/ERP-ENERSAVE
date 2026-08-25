@@ -8,6 +8,7 @@ type Props = {
   setContractsSearchQuery: (value: string) => void
   contractsListFilter: ContractsListFilter
   setContractsListFilter: (value: ContractsListFilter) => void
+  showTarifaRecommendations?: boolean
 }
 
 export function ContratosPanelSearchRow({
@@ -15,6 +16,7 @@ export function ContratosPanelSearchRow({
   setContractsSearchQuery,
   contractsListFilter,
   setContractsListFilter,
+  showTarifaRecommendations = false,
 }: Props) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -46,6 +48,9 @@ export function ContratosPanelSearchRow({
         options={[
           { id: "all", label: "Todos" },
           { id: "renovacion_proxima", label: "Renovación próxima" },
+          ...(showTarifaRecommendations
+            ? [{ id: "con_recomendacion" as const, label: "Con recomendación" }]
+            : []),
           ...CONTRACT_ESTADO_KPI_META.map((m) => ({ id: m.id, label: m.label })),
         ]}
         onChange={(next) => setContractsListFilter(next as ContractsListFilter)}

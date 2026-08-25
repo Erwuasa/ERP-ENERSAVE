@@ -145,6 +145,13 @@ export async function resolveWorkspaceAfterAuth(
       manager_id: item.manager_id,
       email: item.email,
       commission_percentage: item.commission_percentage,
+      activo: item.activo,
+      dni: item.dni,
+      direccion: item.direccion,
+      ciudad: item.ciudad,
+      codigo_postal: item.codigo_postal,
+      telefono: item.telefono,
+      iban: item.iban,
     })
   )
   const self = directory.find((p) => p.id === row.id)

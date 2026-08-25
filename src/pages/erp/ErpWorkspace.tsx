@@ -18,6 +18,9 @@ export function ErpWorkspaceShell() {
     switchAppModule,
     handleToggleSuperadminMode,
     logout,
+    canEditFiscalProfile,
+    openFiscalProfile,
+    activeUserFiscalComplete,
   } = ws
 
   return (
@@ -32,6 +35,8 @@ export function ErpWorkspaceShell() {
         onSwitchModule={switchAppModule}
         onToggleSuperadminMode={handleToggleSuperadminMode}
         onLogout={logout}
+        onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
+        fiscalProfileIncomplete={canEditFiscalProfile && !activeUserFiscalComplete}
       >
         <Outlet />
         <VentasFichaOverlay />

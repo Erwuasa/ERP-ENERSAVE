@@ -13,6 +13,7 @@ import { getTariffPeajeType, spreadPotenciaFromP1 } from "@/lib/contract-potenci
 import { buildNewContractFormFromProspecto } from "@/lib/ventas/prospecto-to-contract"
 import type { ProductoTarifa } from "@/lib/productos-catalog"
 import type { Prospecto } from "@/lib/ventas/types"
+import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import type { Settlement } from "@/types/settlement"
 import { formatCurrency } from "@/lib/erp/format-currency"
 import {
@@ -142,6 +143,41 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       setContractWizardOpen(true)
     },
     [profiles, activeUserId, patchNewContractForm]
+  )
+
+  const openContractWizardFromRecommendation = useCallback(
+    (contract: Contract, recommendation: TarifaRecommendation) => {
+      const user = profiles.find((p) => p.id === activeUserId) || profiles[0]
+      const jefe = profiles.find((p) => p.id === user.managerId)
+      const consumo = contract.consumoAnualManual ?? contract.consumoAnual
+      resetNewContractForm()
+      patchNewContractForm({
+        clientName: contract.clientName,
+        cups: contract.cups,
+        tipo: contract.tipo,
+        nif: contract.nif ?? "",
+        telefono: contract.telefono ?? "",
+        email: contract.email ?? "",
+        iban: contract.iban ?? "",
+        direccionSuministro: contract.direccionSuministro ?? contract.direccionCompleta ?? "",
+        consumoAnual: consumo && consumo > 0 ? consumo : "",
+        potenciaContratada:
+          contract.potenciaContratada != null ? String(contract.potenciaContratada) : "",
+        precioFijoConsumo:
+          contract.precioFijoConsumo != null ? String(contract.precioFijoConsumo) : "",
+        compania: recommendation.companiaRecomendada,
+        tarifa: recommendation.tarifaRecomendadaNombre,
+        marcoEntryId: recommendation.tarifaRecomendadaId,
+        tipoPrecio: inferTipoPrecioFromTarifa(recommendation.tarifaRecomendadaNombre),
+        wizardStep: "cliente",
+        nombreComercial: user.fullName,
+        jefeEquipo: jefe?.fullName ?? "",
+      })
+      setContractWizardProspectoId(null)
+      setContractWizardOpen(true)
+      toast.success(`Wizard prellenado con ${recommendation.companiaRecomendada}`)
+    },
+    [profiles, activeUserId, resetNewContractForm, patchNewContractForm]
   )
 
   const closeContractWizard = useCallback(() => {
@@ -395,6 +431,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     openContractWizardBlank,
     openContractWizardFromProducto,
     openContractWizardForProspecto,
+    openContractWizardFromRecommendation,
     handleCreateContract,
     isCreatingContract,
     isActivateOpen,
