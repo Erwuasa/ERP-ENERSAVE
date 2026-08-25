@@ -1265,12 +1265,22 @@ export default function App() {
     let cancelled = false;
     void (async () => {
       const result = await listErpComerciales();
+<<<<<<< Updated upstream
       if (!cancelled && result.ok && result.data.length > 0) {
         setProfiles(mergeErpRowsIntoProfiles(result.data, []));
+=======
+      if (cancelled) return;
+
+      let loadedProfiles = profiles;
+      if (result.ok && result.data.length > 0) {
+        loadedProfiles = mergeErpRowsIntoProfiles(result.data, []);
+        setProfiles(loadedProfiles);
+>>>>>>> Stashed changes
       }
 
       const status = await getAuthSessionStatus();
       if (cancelled || !status.ok) return;
+<<<<<<< Updated upstream
 
       const erpLookup = await getErpComercialByEmail(status.email);
       let profile: Profile;
@@ -1283,10 +1293,19 @@ export default function App() {
 
       if (profile.status === 'suspendido') return;
       applyLoginProfile(profile);
+=======
+      const matches = loadedProfiles.find(
+        (p) => p.email.toLowerCase() === status.email.toLowerCase()
+      );
+      if (!matches || matches.status === 'suspendido') return;
+      applyLoginProfile(matches);
+>>>>>>> Stashed changes
     })();
     return () => {
       cancelled = true;
     };
+    // Solo al montar: cargar usuarios reales e intentar restaurar sesión Auth
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Carga los datos reales una vez hay sesión: todas las policies son
