@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent, type Dispatch, type SetStateAction } from 'react';
+import { useState, useEffect, useCallback, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import type { Profile } from '@/types/profile';
 import type { Contract } from '@/types/contract';
@@ -11,12 +11,26 @@ import {
 } from '@/lib/contract-registration';
 import { companiesTariffsCatalog } from '@/data/tarifas-catalog';
 import {
-  computeComparadorRates,
   type ComparadorAccessTariff,
   type ComparadorPeriodValues,
   type ComparadorRateOption,
   type ComparadorRateSummary,
 } from '@/lib/erp/comparador-rates';
+import { computeComparadorOffers } from '@/lib/erp/comparador-offers';
+import { formatCurrency } from '@/lib/erp/format-currency';
+import type { CompProposalFilterId } from '@/lib/comparador-proposal-filters';
+import type { ComparadorSortMode } from '@/lib/comparador-sort';
+import { applyComparadorOcrResult } from '@/lib/comparador-ocr-apply';
+import { extractContractDataFromDocument } from '@/lib/contract-ocr';
+import { listMarcoRetributivo, type MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
+import { mapComparadorToEstudioAhorro } from '@/lib/pdf/map-comparador-estudio-ahorro';
+import { downloadEstudioAhorroPdf, generateEstudioAhorroPdf } from '@/lib/pdf/estudio-ahorro-pdf';
+import { generarEmailPropuesta } from '@/lib/ia/email-propuesta-generator';
+import {
+  buildMailtoHref,
+  buildPeriodosMayorConsumo,
+  inferTarifaPrecioTipoFromNombre,
+} from '@/lib/ia/comparador-email-helpers';
 
 interface ComparisonHistoryEntry {
   id: string;
@@ -57,7 +71,10 @@ export function useErpComparador({
   navigateToTab,
 }: UseErpComparadorParams) {
   const [compClient, setCompClient] = useState('');
+  const [compCups, setCompCups] = useState('');
   const [compTipo, setCompTipo] = useState<'luz' | 'gas'>('luz');
+  const [compTarifaActual, setCompTarifaActual] = useState('');
+  const [compCompaniaActual, setCompCompaniaActual] = useState('');
   const [compSegment, setCompSegment] = useState<'residencial' | 'pyme'>('residencial');
   const [compAccessTariff, setCompAccessTariff] = useState<ComparadorAccessTariff>('2.0TD');
   const [compPotencias, setCompPotencias] = useState<ComparadorPeriodValues>({
@@ -81,6 +98,17 @@ export function useErpComparador({
   const [compResults, setCompResults] = useState<ComparadorRateOption[] | null>(null);
   const [compSummary, setCompSummary] = useState<ComparadorRateSummary | null>(null);
   const [compLoading] = useState<boolean>(false);
+  const [compProposalFilters, setCompProposalFilters] = useState<CompProposalFilterId[]>([]);
+  const [compSortMode, setCompSortMode] = useState<ComparadorSortMode>('ahorro');
+  const [compOcrLoading, setCompOcrLoading] = useState(false);
+  const [compOcrProgress, setCompOcrProgress] = useState<string | null>(null);
+  const [marcoRowsForComparador, setMarcoRowsForComparador] = useState<MarcoRetributivoRow[]>([]);
+  const [emailPropuestaOpen, setEmailPropuestaOpen] = useState(false);
+  const [emailPropuestaLoading, setEmailPropuestaLoading] = useState(false);
+  const [emailPropuestaGeneratingId, setEmailPropuestaGeneratingId] = useState<string | null>(null);
+  const [emailPropuestaDestino, setEmailPropuestaDestino] = useState('');
+  const [emailPropuestaAsunto, setEmailPropuestaAsunto] = useState('');
+  const [emailPropuestaCuerpo, setEmailPropuestaCuerpo] = useState('');
   const [compHistorySearch, setCompHistorySearch] = useState<string>('');
 
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
@@ -135,29 +163,46 @@ export function useErpComparador({
     },
   ]);
 
-  const handleCompareRates = () => {
-    const { results, summary } = computeComparadorRates({
+  const handleCompareRates = useCallback(() => {
+    const { results, summary } = computeComparadorOffers({
       accessTariff: compAccessTariff,
+      segment: compSegment,
+      tipo: compTipo,
       potencias: compPotencias,
       consumos: compConsumos,
       rentMeter: compRentMeter,
       currentBill: compCurrentBill,
+      proposalFilters: compProposalFilters,
+      sortMode: compSortMode,
+      commissionPercentage: activeUser.commissionPercentage,
+      formatCurrency,
+      marcoRows: marcoRowsForComparador,
     });
     setCompResults(results);
     setCompSummary(summary);
-  };
-
-  useEffect(() => {
-    handleCompareRates();
   }, [
-    compClient,
-    compSegment,
     compAccessTariff,
+    compSegment,
+    compTipo,
     compPotencias,
     compConsumos,
     compRentMeter,
     compCurrentBill,
+    compProposalFilters,
+    compSortMode,
+    activeUser.commissionPercentage,
+    marcoRowsForComparador,
   ]);
+
+  useEffect(() => {
+    void listMarcoRetributivo().then((result) => {
+      if (result.ok) setMarcoRowsForComparador(result.data);
+    });
+  }, []);
+
+  useEffect(() => {
+    handleCompareRates();
+  }, [handleCompareRates]);
 
   useEffect(() => {
     if (
@@ -167,7 +212,111 @@ export function useErpComparador({
     ) {
       handleCompareRates();
     }
-  }, [currentMenuTab]);
+  }, [currentMenuTab, compResults, compLoading, handleCompareRates]);
+
+  async function handleComparadorInvoiceOcr(file: File) {
+    setCompOcrLoading(true);
+    setCompOcrProgress('Leyendo factura…');
+    try {
+      const ocr = await extractContractDataFromDocument(file, setCompOcrProgress);
+      const applied = applyComparadorOcrResult(ocr, {
+        setCompCups,
+        setCompTipo,
+        setCompCompaniaActual,
+        setCompTarifaActual,
+        setCompAccessTariff,
+        setCompPotencias,
+        setCompConsumos,
+        setCompCurrentBill,
+        setCompProposalFilters,
+      });
+      if (applied > 0) {
+        toast.success(
+          applied === 1
+            ? 'Dato de la factura aplicado al comparador.'
+            : `${applied} datos de la factura aplicados al comparador.`
+        );
+      } else {
+        toast.message('Factura leída. Completa manualmente los campos que falten.');
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo procesar la factura. Puedes rellenar el formulario a mano.');
+    } finally {
+      setCompOcrLoading(false);
+      setCompOcrProgress(null);
+    }
+  }
+
+  async function handleDownloadComparadorPdf(option?: ComparadorRateOption) {
+    if (!compResults || !compSummary) {
+      toast.error('Ejecuta la comparativa antes de descargar el PDF.');
+      return;
+    }
+    const best = option ?? compResults.find((o) => o.isBestOption) ?? compResults[0];
+    try {
+      const input = mapComparadorToEstudioAhorro({
+        clienteNombre: compClient || 'Cliente',
+        cups: compCups,
+        accessTariff: compAccessTariff,
+        tarifaActualNombre: compTarifaActual,
+        comercializadoraActual: compCompaniaActual,
+        potencias: compPotencias,
+        consumos: compConsumos,
+        rentMeterMonthly: compRentMeter,
+        currentBillMonthly: compCurrentBill,
+        bestOption: best,
+        summary: compSummary,
+      });
+      const blob = await generateEstudioAhorroPdf(input);
+      downloadEstudioAhorroPdf(blob, compClient || 'cliente');
+      toast.success('Estudio de ahorro descargado correctamente.');
+    } catch (error) {
+      console.error(error);
+      toast.error('No se pudo generar el PDF. Inténtalo de nuevo.');
+    }
+  }
+
+  async function handleGenerarEmailPropuesta(option: ComparadorRateOption) {
+    setEmailPropuestaGeneratingId(option.id);
+    setEmailPropuestaOpen(true);
+    setEmailPropuestaLoading(true);
+    setEmailPropuestaDestino(modalEmail);
+    setEmailPropuestaAsunto('');
+    setEmailPropuestaCuerpo('');
+
+    const tarifaActualCompania = compCompaniaActual.trim() || 'su compañía actual';
+    const result = await generarEmailPropuesta({
+      clienteNombre: compClient.trim() || 'cliente',
+      contactoNombre: compClient.trim() || undefined,
+      empresaNombre: compSegment === 'pyme' ? compClient.trim() || undefined : undefined,
+      tarifaActual: {
+        compania: tarifaActualCompania,
+        tipo: inferTarifaPrecioTipoFromNombre(compTarifaActual),
+      },
+      tarifaPropuesta: {
+        compania: option.companyName,
+        tipo: inferTarifaPrecioTipoFromNombre(option.tariffName),
+      },
+      ahorroAnualEur: option.savingsAnnual,
+      ahorroPct: option.savingsPercentage ?? 0,
+      periodosMayorConsumo: buildPeriodosMayorConsumo(compConsumos),
+    });
+
+    setEmailPropuestaAsunto(result.asunto);
+    setEmailPropuestaCuerpo(result.cuerpo);
+    setEmailPropuestaLoading(false);
+    setEmailPropuestaGeneratingId(null);
+  }
+
+  function handleOpenEmailPropuestaMailClient() {
+    window.location.href = buildMailtoHref(
+      emailPropuestaDestino,
+      emailPropuestaAsunto,
+      emailPropuestaCuerpo
+    );
+    setEmailPropuestaOpen(false);
+  }
 
   const openNewContractModal = (opt: ComparadorRateOption) => {
     setModalClientName(compClient || '');
@@ -355,6 +504,8 @@ export function useErpComparador({
   return {
     compClient,
     setCompClient,
+    compCups,
+    setCompCups,
     compTipo,
     setCompTipo,
     compSegment,
@@ -372,6 +523,22 @@ export function useErpComparador({
     compResults,
     compSummary,
     compLoading,
+    compProposalFilters,
+    setCompProposalFilters,
+    compSortMode,
+    setCompSortMode,
+    compOcrLoading,
+    compOcrProgress,
+    emailPropuestaOpen,
+    setEmailPropuestaOpen,
+    emailPropuestaLoading,
+    emailPropuestaGeneratingId,
+    emailPropuestaDestino,
+    setEmailPropuestaDestino,
+    emailPropuestaAsunto,
+    setEmailPropuestaAsunto,
+    emailPropuestaCuerpo,
+    setEmailPropuestaCuerpo,
     compHistorySearch,
     setCompHistorySearch,
     comparisonsHistory,
@@ -412,5 +579,9 @@ export function useErpComparador({
     openNewContractModal,
     appendModalFiles,
     handleCreateContractFromModal,
+    handleComparadorInvoiceOcr,
+    handleDownloadComparadorPdf,
+    handleGenerarEmailPropuesta,
+    handleOpenEmailPropuestaMailClient,
   };
 }

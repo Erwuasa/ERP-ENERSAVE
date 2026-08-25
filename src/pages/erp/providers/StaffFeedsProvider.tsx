@@ -1,14 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import { listAvisos, marcarVisto } from "@/lib/supabase/avisos"
 import { listCalendarioEventos } from "@/lib/supabase/calendario"
@@ -17,17 +7,10 @@ import type { SupabaseFailure } from "@/lib/supabase/result"
 import { useAuth } from "@/hooks/useAuth"
 import type { Aviso } from "@/types/aviso"
 import type { CalendarioEvento } from "@/types/calendario"
+import { StaffFeedsContext } from "@/pages/erp/providers/staff-feeds-context"
 
-interface StaffFeedsContextValue {
-  avisos: Aviso[]
-  setAvisos: Dispatch<SetStateAction<Aviso[]>>
-  calendarioEventos: CalendarioEvento[]
-  setCalendarioEventos: Dispatch<SetStateAction<CalendarioEvento[]>>
-  unviewedAvisos: Aviso[]
-  markAvisosVistos: () => Promise<void>
-}
-
-const StaffFeedsContext = createContext<StaffFeedsContextValue | null>(null)
+export { useStaffFeeds } from "@/pages/erp/providers/staff-feeds-context"
+export type { StaffFeedsContextValue } from "@/pages/erp/providers/staff-feeds-context"
 
 export function StaffFeedsProvider({ children }: { children: ReactNode }) {
   const { isLoggedIn, activeUserId } = useAuth()
@@ -89,10 +72,4 @@ export function StaffFeedsProvider({ children }: { children: ReactNode }) {
   )
 
   return <StaffFeedsContext.Provider value={value}>{children}</StaffFeedsContext.Provider>
-}
-
-export function useStaffFeeds(): StaffFeedsContextValue {
-  const ctx = useContext(StaffFeedsContext)
-  if (!ctx) throw new Error("useStaffFeeds debe usarse dentro de StaffFeedsProvider")
-  return ctx
 }

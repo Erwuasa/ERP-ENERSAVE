@@ -7,7 +7,7 @@ import { ProximosEventosWidget } from '@/components/calendario/ProximosEventosWi
 import { isContractActivado, getContractEstadoBadgeClass } from '@/lib/contract-estado';
 import { isIncidenciaAbierta } from '@/lib/incidencias';
 import { useErpWorkspaceContext } from '@/pages/erp/providers/ErpWorkspaceProvider';
-import { useStaffFeeds } from '@/pages/erp/providers/StaffFeedsProvider';
+import { useStaffFeeds } from '@/pages/erp/providers/staff-feeds-context';
 
 export function DashboardPage() {
   const ws = useErpWorkspaceContext();

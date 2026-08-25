@@ -29,6 +29,9 @@ export interface ComparadorRateOption {
   isBestOption: boolean
   savingsAnnual: number
   savingsPercentage: number
+  commissionEur?: number
+  potRates?: number[]
+  conRates?: number[]
 }
 
 export interface ComparadorRateSummary {

@@ -2,14 +2,29 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Calculator, User, Building2, Zap, Coins, Sparkles } from 'lucide-react';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useErpWorkspaceContext } from '@/pages/erp/providers/ErpWorkspaceProvider';
+import { ComparadorIaUpload } from '@/components/comparador/ComparadorIaUpload';
+import { ComparadorProposalFilters } from '@/components/comparador/ComparadorProposalFilters';
+import { ComparadorSortToggle } from '@/components/comparador/ComparadorSortToggle';
+import { ComparadorOfferCard } from '@/components/ComparadorOfferCard';
+import { EmailPropuestaModal } from '@/components/comparador/EmailPropuestaModal';
+import { renderCompaniaLogo } from '@/lib/erp/render-compania-logo';
 
 export function ComparadorPage() {
   const ws = useErpWorkspaceContext();
   const {
-    compClient, setCompClient, compSegment, setCompSegment,
+    compClient, setCompClient, compCups, setCompCups,
+    compSegment, setCompSegment,
     compAccessTariff, setCompAccessTariff, compPotencias, setCompPotencias,
     compConsumos, setCompConsumos, compRentMeter, setCompRentMeter,
     compCurrentBill, setCompCurrentBill, compLoading, compResults, compSummary,
+    compProposalFilters, setCompProposalFilters, compSortMode, setCompSortMode,
+    compOcrLoading, compOcrProgress, handleComparadorInvoiceOcr,
+    handleDownloadComparadorPdf, handleGenerarEmailPropuesta,
+    emailPropuestaOpen, emailPropuestaLoading, emailPropuestaGeneratingId,
+    emailPropuestaDestino, setEmailPropuestaDestino,
+    emailPropuestaAsunto, setEmailPropuestaAsunto,
+    emailPropuestaCuerpo, setEmailPropuestaCuerpo,
+    setEmailPropuestaOpen, handleOpenEmailPropuestaMailClient,
     openNewContractModal
   } = ws;
 
@@ -21,6 +36,12 @@ export function ComparadorPage() {
                           
                           {/* Left: Input controls */}
                           <div className="lg:col-span-5 bg-brand-panel p-6 sm:p-8 rounded-3xl border border-brand-border space-y-6 relative shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]">
+                            <ComparadorIaUpload
+                              loading={compOcrLoading}
+                              progress={compOcrProgress}
+                              onFile={(file) => void handleComparadorInvoiceOcr(file)}
+                            />
+
                             <div className="flex items-center space-x-3 pb-3 border-b border-brand-border">
                               <Calculator className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                               <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
@@ -39,6 +60,19 @@ export function ComparadorPage() {
                                   onChange={(e) => setCompClient(e.target.value)}
                                   placeholder="Ferretería García S.L."
                                   className="w-full px-3.5 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-505 focus:outline-none text-xs text-brand-text font-medium"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
+                                  CUPS
+                                </label>
+                                <input
+                                  type="text"
+                                  value={compCups}
+                                  onChange={(e) => setCompCups(e.target.value.toUpperCase())}
+                                  placeholder="ES0021..."
+                                  className="w-full px-3.5 py-2.5 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-505 focus:outline-none text-xs text-brand-text font-medium font-mono"
                                 />
                               </div>
 
@@ -248,7 +282,12 @@ export function ComparadorPage() {
                           </div>
 
                           {/* Right: Results comparison with visual cards list */}
-                          <div className="lg:col-span-7 space-y-6">
+                          <div className="lg:col-span-7 space-y-4">
+                            <ComparadorProposalFilters
+                              value={compProposalFilters}
+                              onChange={setCompProposalFilters}
+                            />
+                            <ComparadorSortToggle value={compSortMode} onChange={setCompSortMode} />
                             <AnimatePresence mode="wait">
                               {compLoading ? (
                                 <motion.div
@@ -258,7 +297,6 @@ export function ComparadorPage() {
                                   exit={{ opacity: 0 }}
                                   className="space-y-6"
                                 >
-                                  {/* Tarjeta de Resumen de Ahorros Skeleton */}
                                   <div className="p-6 bg-brand-panel border border-brand-border rounded-2xl space-y-4">
                                     <div className="flex justify-between items-center">
                                       <Skeleton className="h-6 w-48" />
@@ -280,7 +318,7 @@ export function ComparadorPage() {
                                     </div>
                                   </div>
                                 </motion.div>
-                              ) : compResults && compSummary ? (
+                              ) : compResults && compSummary && compResults.length > 0 ? (
                                 <motion.div
                                   key="results"
                                   initial="hidden"
@@ -292,101 +330,25 @@ export function ComparadorPage() {
                                       transition: { staggerChildren: 0.1 }
                                     }
                                   }}
-                                  className="space-y-6"
+                                  className="space-y-4"
                                 >
-                                  {/* Listing Title */}
-                                  <div className="flex items-center justify-between px-2">
-                                    <span className="text-[10px] font-bold uppercase font-mono text-brand-subtext tracking-wider">Top 3 Ofertas de Comercialización</span>
-                                    <span className="text-[9px] text-brand-subtext font-mono italic">Ordenado por coste anual</span>
-                                  </div>
-
-                                  {/* Cards cascade comparison */}
-                                  {compResults.map((opt, idx) => (
-                                    <motion.div
+                                  {compResults.map((opt) => (
+                                    <ComparadorOfferCard
                                       key={opt.id}
-                                      variants={{
-                                        hidden: { opacity: 0, y: 20 },
-                                        show: { opacity: 1, y: 0 }
-                                      }}
-                                      className={`rounded-3xl p-5 border relative transition-all ${
-                                        opt.isBestOption
-                                          ? "bg-brand-panel border-blue-500/40 shadow-sm"
-                                          : "bg-brand-panel border-brand-border hover:border-slate-300"
-                                      }`}
-                                    >
-                                      {opt.isBestOption && (
-                                        <div className="absolute top-0 right-8 -translate-y-1/2 px-2.5 py-0.5 bg-yellow-400 text-blue-950 text-[9px] font-sans font-extrabold rounded-full uppercase tracking-wider scale-95 border border-yellow-500/10">
-                                          Mejor Tarifa Homologada
-                                        </div>
-                                      )}
-
-                                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                        <div>
-                                          <div className="flex items-center space-x-2">
-                                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase font-mono ${
-                                              opt.companyName === "EnerLuz" ? "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20" :
-                                              opt.companyName === "Iberdrola" ? "bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20" :
-                                              "bg-slate-100 dark:bg-brand-surface text-slate-500"
-                                            }`}>
-                                              {opt.companyName}
-                                            </span>
-                                            <span className="text-xs text-brand-subtext font-mono">
-                                              {opt.tariffName}
-                                            </span>
-                                          </div>
-
-                                          <div className="mt-2 text-brand-text">
-                                            <div className="flex items-baseline space-x-1">
-                                              <span className="text-xl font-bold font-mono text-brand-text">{opt.monthlyCost} €</span>
-                                              <span className="text-[10px] text-brand-subtext">/ mes</span>
-                                              <span className="text-[11px] text-brand-subtext font-mono ml-2">({opt.annualCost.toLocaleString("es-ES")} €/año)</span>
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="bg-brand-surface p-2 rounded-xl text-left sm:text-right border border-brand-border font-mono text-xs">
-                                          <span className="text-[9px] text-brand-subtext block font-bold leading-none mb-1">AHORRO NETO</span>
-                                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">-{opt.savingsAnnual} €/año</span>
-                                          <span className="text-[9px] text-emerald-650 dark:text-emerald-300 font-bold block bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 mt-1">
-                                            {opt.savingsPercentage}% ahorro
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {/* Period breakdown breakdown */}
-                                      <div className="mt-3.5 pt-3 border-t border-brand-border grid grid-cols-3 gap-2 text-[10px] font-mono text-brand-subtext">
-                                        <div>
-                                          <span className="text-[8px] text-brand-subtext block uppercase font-bold">P. Potencia:</span>
-                                          <span className="text-brand-text font-semibold">{opt.potenciaBreakdown} €</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-[8px] text-brand-subtext block uppercase font-bold">P. Consumo:</span>
-                                          <span className="text-brand-text font-semibold">{opt.consumoBreakdown} €</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-[8px] text-brand-subtext block uppercase font-bold">Alq. Contador:</span>
-                                          <span className="text-brand-text font-semibold">{opt.rentCostAnnual} €</span>
-                                        </div>
-                                      </div>
-
-                                      {/* Action button */}
-                                      <div className="mt-4 flex justify-between items-center bg-brand-surface p-2 rounded-xl border border-brand-border">
-                                        <span className="text-[10px] text-brand-subtext font-mono">¿Es conforme este ahorro?</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => openNewContractModal(opt)}
-                                          className={`px-4 py-2 rounded-xl text-[10px] font-bold cursor-pointer transition-all ${
-                                            opt.isBestOption
-                                              ? "bg-blue-605 hover:bg-blue-700 bg-blue-600 text-white font-extrabold shadow"
-                                              : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-brand-border"
-                                          }`}
-                                        >
-                                          Generar Contrato
-                                        </button>
-                                      </div>
-                                    </motion.div>
+                                      option={opt}
+                                      segment={compSegment}
+                                      sortMode={compSortMode}
+                                      renderCompaniaLogo={renderCompaniaLogo}
+                                      onContract={() => openNewContractModal(opt)}
+                                      onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}
+                                      onSendEmail={
+                                        opt.savingsAnnual > 0
+                                          ? () => void handleGenerarEmailPropuesta(opt)
+                                          : undefined
+                                      }
+                                      sendingEmail={emailPropuestaGeneratingId === opt.id}
+                                    />
                                   ))}
-
                                 </motion.div>
                               ) : (
                                 <motion.div
@@ -400,10 +362,14 @@ export function ComparadorPage() {
                                   </div>
                                   <div className="space-y-1">
                                     <h3 className="text-xs font-bold text-brand-text uppercase tracking-wider">
-                                      Esperando parámetros
+                                      {compProposalFilters.length > 0
+                                        ? 'Sin ofertas para los filtros seleccionados'
+                                        : 'Esperando parámetros'}
                                     </h3>
                                     <p className="text-xs text-brand-subtext max-w-sm mt-1 mx-auto leading-relaxed">
-                                      Completa el formulario de potencia contratada y consumos históricos y pincha el botón para procesar la comparativa multi-proveedor.
+                                      {compProposalFilters.length > 0
+                                        ? 'Prueba quitando algún filtro de propuesta o cambia la tarifa de acceso.'
+                                        : 'Completa el formulario de potencia contratada y consumos históricos para procesar la comparativa multi-proveedor.'}
                                     </p>
                                   </div>
                                 </motion.div>
@@ -412,6 +378,19 @@ export function ComparadorPage() {
                           </div>
 
                         </div>
+
+                    <EmailPropuestaModal
+                      open={emailPropuestaOpen}
+                      loading={emailPropuestaLoading}
+                      emailDestino={emailPropuestaDestino}
+                      asunto={emailPropuestaAsunto}
+                      cuerpo={emailPropuestaCuerpo}
+                      onEmailDestinoChange={setEmailPropuestaDestino}
+                      onAsuntoChange={setEmailPropuestaAsunto}
+                      onCuerpoChange={setEmailPropuestaCuerpo}
+                      onClose={() => setEmailPropuestaOpen(false)}
+                      onOpenMailClient={handleOpenEmailPropuestaMailClient}
+                    />
 
                       </div>
   );

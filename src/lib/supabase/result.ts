@@ -54,6 +54,8 @@ export function toSupabaseFailure(
 
   const isMissingTable =
     error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    lower.includes("schema cache") ||
     lower.includes(`relation "public.${table}" does not exist`) ||
     lower.includes(`relation "${table}" does not exist`)
 

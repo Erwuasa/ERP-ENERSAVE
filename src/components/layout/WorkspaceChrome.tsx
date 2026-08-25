@@ -13,7 +13,7 @@ import {
 } from "@/lib/runtime-integrity-incident"
 import type { IntegrityFinding } from "@/lib/runtime-integrity"
 import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
-import { useStaffFeeds } from "@/pages/erp/providers/StaffFeedsProvider"
+import { useStaffFeeds } from "@/pages/erp/providers/staff-feeds-context"
 
 export function WorkspaceChrome() {
   const { activeUser, activeUserId, isLoggedIn } = useAuth()

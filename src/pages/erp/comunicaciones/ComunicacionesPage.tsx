@@ -1,6 +1,6 @@
 import { AvisosPanel } from "@/components/AvisosPanel"
 import { useAuth } from "@/hooks/useAuth"
-import { useStaffFeeds } from "@/pages/erp/providers/StaffFeedsProvider"
+import { useStaffFeeds } from "@/pages/erp/providers/staff-feeds-context"
 
 export function ComunicacionesPage() {
   const { activeUser, profiles } = useAuth()

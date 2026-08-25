@@ -14,7 +14,6 @@ import { CustomerDashboardPage } from "@/pages/customer/CustomerDashboardPage"
 import { ErpWorkspaceShell } from "@/pages/erp/ErpWorkspace"
 import { IncidenciasProvider } from "@/pages/erp/incidencias/IncidenciasProvider"
 import { ErpWorkspaceProvider } from "@/pages/erp/providers/ErpWorkspaceProvider"
-import { StaffFeedsProvider } from "@/pages/erp/providers/StaffFeedsProvider"
 
 function WorkspaceFallback() {
   return (
@@ -47,13 +46,11 @@ function ProtectedWorkspaceLayout() {
   return (
     <ProtectedRoute area="staff">
       <IncidenciasProvider teamMemberIds={teamMemberIds} isErpOpsAdmin={isErpOpsAdmin}>
-        <StaffFeedsProvider>
-          <ErpWorkspaceProvider>
-            <Suspense fallback={<WorkspaceFallback />}>
-              <ErpWorkspaceShell />
-            </Suspense>
-          </ErpWorkspaceProvider>
-        </StaffFeedsProvider>
+        <ErpWorkspaceProvider>
+          <Suspense fallback={<WorkspaceFallback />}>
+            <ErpWorkspaceShell />
+          </Suspense>
+        </ErpWorkspaceProvider>
       </IncidenciasProvider>
     </ProtectedRoute>
   )
