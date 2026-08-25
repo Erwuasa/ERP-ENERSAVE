@@ -22,15 +22,6 @@ const KPI_META: Record<
   pipeline: { icon: GitBranch, shortLabel: "Pipeline" },
 }
 
-type KpiTheme = {
-  iconClass: string
-  iconBgClass: string
-  borderClass: string
-  panelClass: string
-  valueClass: string
-  tooltip: string
-}
-
 function KpiTile({
   id,
   icon: Icon,
@@ -46,7 +37,7 @@ function KpiTile({
   icon: LucideIcon
   shortLabel: string
   value: string
-  theme: KpiTheme
+  theme: typeof MI_DIA_KPI_THEME.alertas
   pulse?: boolean
   reducedMotion: boolean
   index: number

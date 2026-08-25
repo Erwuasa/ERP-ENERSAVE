@@ -4,7 +4,7 @@ import { ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { mfaStatusLabel } from "@/lib/admin-mfa-policy"
 import { fetchAdminMfaStatus } from "@/lib/supabase/admin-mfa"
 
-export type UserControlRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion" | "customer"
+export type UserControlRole = "superadmin" | "jefe_comercial" | "comercial"
 
 export interface UserControlProfile {
   id: string
@@ -33,6 +33,9 @@ interface UserControlSheetProps {
   managers: ManagerOption[]
   open: boolean
   saving?: boolean
+  deleting?: boolean
+  canDelete?: boolean
+  currentUserId?: string
   onClose: () => void
   onChange: (user: UserControlProfile) => void
   onSaveRole: (role: UserControlRole, managerId: string | null) => Promise<void>
@@ -62,6 +65,9 @@ export function UserControlSheet({
   managers,
   open,
   saving,
+  deleting,
+  canDelete,
+  currentUserId,
   onClose,
   onChange,
   onSaveRole,
@@ -130,7 +136,7 @@ export function UserControlSheet({
             <SlidersHorizontal className="w-4 h-4 text-cyan-600" />
             <div>
               <h3 className="text-sm font-bold text-brand-text">Panel de control</h3>
-              <p className="text-[10px] font-mono text-brand-subtext">user_profiles</p>
+              <p className="text-[10px] font-mono text-brand-subtext">erp_comerciales</p>
             </div>
           </div>
           <button
@@ -167,16 +173,12 @@ export function UserControlSheet({
               onChange={(e) => handleRoleChange(e.target.value as UserControlRole)}
               className="w-full h-9 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text font-mono font-semibold disabled:opacity-50"
             >
-              <option value="customer">customer</option>
               <option value="comercial">comercial</option>
               <option value="jefe_comercial">jefe_comercial</option>
-              <option value="tramitacion">tramitacion</option>
               <option value="superadmin">superadmin</option>
             </select>
             <p className="text-[10px] text-brand-subtext">
-              {user.role === "customer"
-                ? "Cuenta de cliente. Elige un rol de staff para darle acceso al ERP."
-                : "Al cambiar el rol se guarda en user_profiles y afecta RLS."}
+              Al cambiar el rol se guarda en <span className="font-mono">erp_comerciales</span> y afecta RLS Ventas.
             </p>
           </div>
 
@@ -314,16 +316,21 @@ export function UserControlSheet({
           </div>
         </div>
 
-        {onDelete && (
+        {canDelete && onDelete && user.id !== currentUserId && (
           <footer className="p-5 border-t border-brand-border shrink-0">
             <button
               type="button"
+              disabled={deleting}
               onClick={onDelete}
-              className="w-full py-2.5 text-xs font-bold rounded-xl border border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex items-center justify-center gap-2"
+              className="w-full py-2.5 text-xs font-bold rounded-xl border border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
-              Eliminar en Supabase
+              {deleting ? "Eliminando…" : "Eliminar usuario"}
             </button>
+            <p className="mt-2 text-[10px] text-brand-subtext text-center">
+              Borra credenciales Auth y revoca el acceso. Si tiene contratos asociados, se conserva
+              el historial sin email ni login.
+            </p>
           </footer>
         )}
       </motion.aside>

@@ -82,7 +82,6 @@ export function CualificadoChecklistModal({
                         [item.id]: {
                           checked: e.target.checked,
                           attachments: prev[item.id]?.attachments ?? [],
-                          comment: prev[item.id]?.comment ?? "",
                         },
                       }))
                     }

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useProspectos } from "../../lib/ventas/hooks/useProspectos"
 import {
   useReportingActividad,
@@ -165,14 +165,13 @@ export function ReportingPage({ actor, profiles }: ReportingPageProps) {
         ) : (
           <div className="space-y-2">
             {funnel.map((stage) => (
-              <Fragment key={stage.fase}>
-                <FunnelBar
-                  label={stage.label}
-                  count={stage.count}
-                  maxCount={Math.max(1, ...funnel.map((f) => f.count))}
-                  conversionPct={stage.conversionToNextPct}
-                />
-              </Fragment>
+              <FunnelBar
+                key={stage.fase}
+                label={stage.label}
+                count={stage.count}
+                maxCount={Math.max(1, ...funnel.map((f) => f.count))}
+                conversionPct={stage.conversionToNextPct}
+              />
             ))}
           </div>
         )}

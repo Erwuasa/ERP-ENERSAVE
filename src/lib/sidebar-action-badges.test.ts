@@ -58,7 +58,6 @@ describe("sidebar-action-badges", () => {
           comercialId: "usr-3",
           comercialName: "Test",
           descripcion: "",
-          historialEstados: [],
         },
       ],
       settlements: [],

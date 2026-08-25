@@ -7,8 +7,6 @@ import { mergeProspectoMetadata } from "../../lib/ventas/prospecto-display"
 import {
   computeCaducidadOferta5Dias,
   getPhaseChecklistItems,
-  isProspectoReadyToAdvance,
-  canCentroMandoAdvance,
   readStageProgressCompletion,
   serializeChecklistForMetadata,
 } from "../../lib/ventas/stage-gate"
@@ -56,6 +54,7 @@ interface PipelinePageProps {
   getContractCups?: (contratoEquipoId: string) => string | undefined
   openCentroMandoProspectoId?: string | null
   onCentroMandoClosed?: () => void
+  onOpenGeneralDatabase?: () => void
   contracts?: Contract[]
 }
 
@@ -74,6 +73,7 @@ export function PipelinePage({
   getContractCups,
   openCentroMandoProspectoId = null,
   onCentroMandoClosed,
+  onOpenGeneralDatabase,
   contracts = [],
 }: PipelinePageProps) {
   const { prospectos, loading, error, changeFase, createProspecto, updateProspecto, deleteProspecto } =
@@ -137,7 +137,7 @@ export function PipelinePage({
     const result = await updateProspecto(prospectoId, {
       metadata: mergeProspectoMetadata(baseProspecto, metadataPatch),
     })
-    if (result.ok === false) toast.error(result.message)
+    if (!result.ok) toast.error(result.message)
   }
 
   async function executeFaseChange(
@@ -149,7 +149,7 @@ export function PipelinePage({
     const result = await changeFase(prospectoId, from, input)
     setFaseChanging(false)
 
-    if (result.ok === false) {
+    if (!result.ok) {
       toast.error(result.message)
       return false
     }
@@ -161,9 +161,8 @@ export function PipelinePage({
     const prospecto = prospectos.find((p) => p.id === move.prospectoId)
     if (!prospecto) return
 
-    if (!isProspectoReadyToAdvance(prospecto)) {
-      setCentroMandoProspecto(prospecto)
-      toast.info("Completa checklist, notas y adjuntos antes de avanzar de fase.")
+    if (!canTransition(move.from, move.to)) {
+      toast.error("Transición de fase no permitida.")
       return
     }
 
@@ -191,18 +190,18 @@ export function PipelinePage({
     const from = centroMandoProspecto.fase
     if (to === from) return
 
-    if (!canCentroMandoAdvance(from, to)) {
-      toast.error("Solo puedes avanzar a la siguiente fase del pipeline.")
+    if (to === "activado") {
+      toast.error("La activación se registra vía sync con el ERP.")
+      return
+    }
+
+    if (!canTransition(from, to)) {
+      toast.error("Transición de fase no permitida.")
       return
     }
 
     const prospecto =
       prospectos.find((p) => p.id === centroMandoProspecto.id) ?? centroMandoProspecto
-
-    if (!isProspectoReadyToAdvance(prospecto)) {
-      toast.info("Completa todas las tareas y las notas obligatorias antes de avanzar.")
-      return
-    }
 
     const items = getPhaseChecklistItems(from)
     const completion = readStageProgressCompletion(prospecto, from, items)
@@ -228,7 +227,7 @@ export function PipelinePage({
     setDeleting(true)
     const result = await deleteProspecto(deleteTarget.id)
     setDeleting(false)
-    if (result.ok === false) {
+    if (!result.ok) {
       toast.error(result.message)
       return
     }
@@ -288,7 +287,7 @@ export function PipelinePage({
     })
     setCreating(false)
 
-    if (result.ok === false) {
+    if (!result.ok) {
       toast.error(result.message)
       return false
     }
@@ -334,6 +333,7 @@ export function PipelinePage({
           enersaveLeads={enersaveLeads}
           loading={leadsLoading}
           onImportToPipeline={importLeadToPipeline}
+          onOpenGeneralDatabase={onOpenGeneralDatabase}
         />
       ) : isInitialLoad ? (
         view === "kanban" ? (
@@ -414,7 +414,7 @@ export function PipelinePage({
         }}
         onUpdateProspecto={async (id, patch) => {
           const result = await updateProspecto(id, patch)
-          if (result.ok === false) return { ok: false, message: result.message }
+          if (!result.ok) return { ok: false, message: result.message }
           return { ok: true, data: result.data }
         }}
         onProspectoUpdated={(p) => {
@@ -423,9 +423,7 @@ export function PipelinePage({
         }}
         onDeleteProspecto={async (id) => {
           const result = await deleteProspecto(id)
-          return result.ok === false
-            ? { ok: false, message: result.message }
-            : { ok: true }
+          return result.ok ? { ok: true } : { ok: false, message: result.message }
         }}
         onNavigateToContratos={(contratoEquipoId) => {
           setCentroMandoProspecto(null)

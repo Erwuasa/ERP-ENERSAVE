@@ -1,6 +1,6 @@
-import type { ComponentPropsWithoutRef, CSSProperties } from "react"
+import type { CSSProperties, HTMLAttributes } from "react"
 
-export type SkeletonProps = ComponentPropsWithoutRef<"div"> & {
+interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
   /** Tailwind width class or arbitrary value */
   width?: string
   /** Tailwind height class */

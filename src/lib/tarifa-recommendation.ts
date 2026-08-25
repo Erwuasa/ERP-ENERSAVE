@@ -161,6 +161,7 @@ function buildRecommendationBase(
     comisionNuevaEur: Math.round(comisionNuevaEur * 100) / 100,
     mesesRetroNueva: retro.meses,
     retroPeriodoEstimado: retro.estimado,
+    score: 0,
     costeActualEstimado,
   }
 }
@@ -195,7 +196,6 @@ function scoreCandidates(
         comisionNorm,
         retroMesesNorm,
         score: Math.round(score * 1000) / 1000,
-        calculadoEn: new Date().toISOString(),
       }
     })
     .sort((a, b) => b.score - a.score)

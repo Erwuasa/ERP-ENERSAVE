@@ -32,10 +32,7 @@ describe("isContractDeletable", () => {
 
   it("allows legacy Pendiente de info.", () => {
     expect(
-      isContractDeletable({
-        ...baseContract,
-        estado: "Pendiente de info." as Contract["estado"],
-      })
+      isContractDeletable({ ...baseContract, estado: "Pendiente de info." })
     ).toBe(true)
   })
 

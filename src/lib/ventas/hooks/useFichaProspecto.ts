@@ -56,7 +56,7 @@ export function useFichaProspecto(
     if (result.ok) {
       setProspecto(result.data)
       snapshotRef.current = result.data
-    } else if (result.ok === false) {
+    } else {
       if (snapshot?.id === prospectoId) {
         setProspecto(snapshot)
         setError(null)

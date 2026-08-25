@@ -17,7 +17,7 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": [
-        "./src/*"
+        "./*"
       ],
       "sonner": ["./src/lib/sonner-silent.ts"],
       "sonner-original": ["./node_modules/sonner/dist/index.d.mts"]
@@ -26,5 +26,5 @@
     "noEmit": true
   },
   "include": ["src/**/*"],
-  "exclude": ["app"]
+  "exclude": ["app", "node_modules", "dist"]
 }

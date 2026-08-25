@@ -10,7 +10,7 @@ import type { Prospecto, TareaVenta } from "./types"
 
 const baseProspecto: Prospecto = {
   id: "p1",
-  comercialId: "staff-carlos",
+  comercialId: "usr-1",
   comercialName: "Test",
   nombre: "Cliente",
   fase: "contactado",
@@ -33,7 +33,7 @@ describe("shouldCreateQuickWinTask", () => {
     {
       id: "t1",
       prospectoId: "p1",
-      comercialId: "staff-carlos",
+      comercialId: "usr-1",
       tipo: "primer_contacto",
       estado: "pendiente",
       prioridad: "alta",
@@ -78,7 +78,7 @@ describe("buildQuickWinTasks", () => {
       {
         id: "t1",
         prospectoId: "p1",
-        comercialId: "staff-carlos",
+        comercialId: "usr-1",
         tipo: "enviar_propuesta",
         estado: "pendiente",
         prioridad: "alta",
@@ -102,7 +102,7 @@ describe("counters", () => {
     {
       id: "t1",
       prospectoId: "p1",
-      comercialId: "staff-carlos",
+      comercialId: "usr-1",
       tipo: "primer_contacto",
       estado: "pendiente",
       prioridad: "alta",
@@ -112,7 +112,7 @@ describe("counters", () => {
     {
       id: "t2",
       prospectoId: "p1",
-      comercialId: "staff-carlos",
+      comercialId: "usr-1",
       tipo: "llamada_seguimiento",
       estado: "completada",
       prioridad: "media",

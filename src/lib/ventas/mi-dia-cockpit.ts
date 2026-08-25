@@ -2,7 +2,7 @@ import { FUNNEL_ORDER, getFaseConfig, getSlaUrgencia, isTerminalFase } from "./p
 import { groupTareasForMiDia } from "./mi-dia-grouping"
 import { groupTareasByUrgencia } from "./quick-wins"
 import { getOperationalTasksForProspecto } from "./stage-gate"
-import type { Prospecto, ProspectoFase, TareaVenta } from "./types"
+import type { Prospecto, TareaVenta } from "./types"
 
 export type FidelizacionCadenciaMeses = 1 | 2 | 3
 
@@ -271,7 +271,7 @@ export interface MiDiaFaseGroup {
   prospectoSummaries: MiDiaProspectoSummary[]
 }
 
-const FASE_SORT_INDEX = new Map<ProspectoFase, number>(
+const FASE_SORT_INDEX = new Map(
   FUNNEL_ORDER.map((fase, index) => [fase, index])
 )
 

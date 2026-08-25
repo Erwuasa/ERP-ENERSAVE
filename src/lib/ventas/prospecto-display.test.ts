@@ -8,7 +8,7 @@ import type { Prospecto } from "./types"
 
 const baseProspecto: Prospecto = {
   id: "p-1",
-  comercialId: "staff-ignacio",
+  comercialId: "usr-3",
   comercialName: "Test",
   nombre: "Cliente",
   fase: "prospecto_nuevo",

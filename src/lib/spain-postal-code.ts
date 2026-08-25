@@ -74,7 +74,7 @@ export async function lookupSpainPostalCode(
 
   try {
     const res = await fetch(`https://api.zippopotam.us/es/${normalized}`)
-    if (res.ok === false) return provinceFromPrefix(normalized)
+    if (!res.ok) return provinceFromPrefix(normalized)
 
     const data = (await res.json()) as {
       places?: Array<{

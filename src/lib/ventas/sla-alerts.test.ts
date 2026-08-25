@@ -23,7 +23,7 @@ function prospecto(
 }
 
 const comercialActor: VentasActor = {
-  comercialId: "staff-ignacio",
+  comercialId: "usr-3",
   comercialName: "Ignacio",
   role: "comercial",
 }
@@ -31,7 +31,7 @@ const comercialActor: VentasActor = {
 describe("buildSlaAlerts", () => {
   it("returns breach for comercial own prospect past SLA", () => {
     const alerts = buildSlaAlerts(
-      [prospecto("a", "staff-ignacio"), prospecto("b", "staff-marta")],
+      [prospecto("a", "usr-3"), prospecto("b", "usr-4")],
       comercialActor,
       []
     )
@@ -41,14 +41,14 @@ describe("buildSlaAlerts", () => {
 
   it("includes team breaches for jefe comercial", () => {
     const jefe: VentasActor = {
-      comercialId: "staff-elena",
+      comercialId: "usr-2",
       comercialName: "Elena",
       role: "jefe_comercial",
     }
     const alerts = buildSlaAlerts(
-      [prospecto("a", "staff-ignacio"), prospecto("b", "staff-marta")],
+      [prospecto("a", "usr-3"), prospecto("b", "usr-4")],
       jefe,
-      ["staff-ignacio", "staff-marta"]
+      ["usr-3", "usr-4"]
     )
     expect(alerts.length).toBe(2)
   })
@@ -56,9 +56,9 @@ describe("buildSlaAlerts", () => {
   it("skips activado and descartado", () => {
     const alerts = buildSlaAlerts(
       [
-        prospecto("a", "staff-ignacio", "activado"),
-        prospecto("b", "staff-ignacio", "descartado"),
-        prospecto("c", "staff-ignacio", "prospecto_nuevo"),
+        prospecto("a", "usr-3", "activado"),
+        prospecto("b", "usr-3", "descartado"),
+        prospecto("c", "usr-3", "prospecto_nuevo"),
       ],
       comercialActor,
       []

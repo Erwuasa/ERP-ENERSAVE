@@ -6,7 +6,6 @@ import { mergeProspectoMetadata } from "../../lib/ventas/prospecto-display"
 import {
   buildStageProgressPatch,
   getPhaseChecklistItems,
-  isProspectoReadyToAdvanceWithDrafts,
   readSavedItemState,
   readStageProgressCompletion,
   type StageGateChecklistItemState,
@@ -78,11 +77,6 @@ export function CentroMandoModal({
     }))
   }, [prospecto, checklistItems])
 
-  const readyToAdvance = useMemo(() => {
-    if (!prospecto) return false
-    return isProspectoReadyToAdvanceWithDrafts(prospecto, commentDrafts)
-  }, [prospecto, commentDrafts])
-
   useEffect(() => {
     if (open && prospecto && checklistItems.length > 0) {
       const completion = readStageProgressCompletion(prospecto, prospecto.fase, checklistItems)
@@ -115,7 +109,7 @@ export function CentroMandoModal({
     const result = await onUpdateProspecto(prospecto.id, {
       metadata: optimisticProspecto.metadata,
     })
-    if (result.ok === false) {
+    if (!result.ok) {
       onProspectoUpdated?.(prospecto)
       toast.error(result.message)
       return
@@ -170,7 +164,7 @@ export function CentroMandoModal({
     setDeleting(true)
     const result = await onDeleteProspecto(prospecto.id)
     setDeleting(false)
-    if (result.ok === false) {
+    if (!result.ok) {
       toast.error(result.message ?? "No se pudo eliminar")
       return
     }
@@ -214,13 +208,12 @@ export function CentroMandoModal({
               prospecto={prospecto}
               actor={actor}
               cupsDisplay={linkedCups}
-              readyToAdvance={readyToAdvance}
               faseChanging={faseChanging}
               onFaseChange={handleFaseChange}
               onSaveEtiquetas={onUpdateProspecto
                 ? async (patch) => {
                     const result = await onUpdateProspecto(prospecto.id, patch)
-                    if (result.ok === false) return { ok: false, message: result.message }
+                    if (!result.ok) return { ok: false, message: result.message }
                     onProspectoUpdated?.(result.data)
                     return { ok: true }
                   }

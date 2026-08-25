@@ -23,7 +23,7 @@ export function useEnersaveLeads() {
     const result = await listEnersaveLeads()
     if (result.ok) {
       setLeads(result.data.length > 0 ? result.data : DEMO_ENERSAVE_LEADS)
-    } else if (result.ok === false) {
+    } else {
       setError(result.message)
       setLeads(DEMO_ENERSAVE_LEADS)
     }

@@ -11,7 +11,7 @@ create table if not exists public.avisos (
   contenido text not null,
   tipo text not null default 'info' check (tipo in ('info', 'importante', 'urgente')),
   frecuencia text not null default 'puntual' check (frecuencia in ('diaria', 'semanal', 'puntual')),
-  publicado_por uuid references public.user_profiles(id),
+  publicado_por text references public.erp_comerciales(id),
   visto_por text[] not null default '{}',
   created_at timestamptz not null default now()
 );

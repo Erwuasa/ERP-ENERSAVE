@@ -1,6 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
-
-export const AUTH_USER_STORAGE_KEY = "erp-auth-user-id"
+import { isErpComercialLoginAllowed } from "./erp-comerciales"
 
 export interface AuthProfileBridge {
   comercialId: string
@@ -19,7 +18,7 @@ export type AuthSessionStatus =
   | { ok: true; email: string; profile: AuthProfileBridge }
   | { ok: false; reason: "not_configured" | "no_client" | "no_session" }
 
-function mapSessionProfile(user: {
+export function parseAuthProfileBridge(user: {
   email?: string
   user_metadata?: Record<string, unknown>
   app_metadata?: Record<string, unknown>
@@ -41,6 +40,25 @@ function mapSessionProfile(user: {
   return { comercialId, role, fullName }
 }
 
+const DEACTIVATED_ACCOUNT_MESSAGE =
+  "La cuenta de este agente se encuentra suspendida temporalmente por administración."
+
+async function assertComercialLoginAllowed(
+  email: string,
+  profile?: AuthProfileBridge
+): Promise<AuthSessionResult> {
+  const access = await isErpComercialLoginAllowed(email, profile?.comercialId)
+  if (!access.ok) {
+    return { ok: false, message: access.message }
+  }
+  if (!access.data) {
+    const supabase = getSupabaseClient()
+    if (supabase) await supabase.auth.signOut()
+    return { ok: false, message: DEACTIVATED_ACCOUNT_MESSAGE }
+  }
+  return { ok: true }
+}
+
 export async function getAuthSessionStatus(): Promise<AuthSessionStatus> {
   if (!isSupabaseConfigured()) {
     return { ok: false, reason: "not_configured" }
@@ -54,34 +72,28 @@ export async function getAuthSessionStatus(): Promise<AuthSessionStatus> {
     return { ok: false, reason: "no_session" }
   }
 
-  const profile = mapSessionProfile(data.session.user)
+  const profile = parseAuthProfileBridge(data.session.user)
+  if (!profile) {
+    return { ok: false, reason: "no_session" }
+  }
+
+  const access = await assertComercialLoginAllowed(data.session.user.email, profile)
+  if (!access.ok) {
+    return { ok: false, reason: "no_session" }
+  }
 
   return {
     ok: true,
     email: data.session.user.email,
-    profile: profile ?? {
-      comercialId: "",
-      role: "",
-      fullName: data.session.user.email,
-    },
+    profile,
   }
 }
 
-function mapSignInError(message: string): string {
-  const lower = message.toLowerCase()
-  if (lower.includes("email not confirmed")) {
-    return "Email no confirmado. Confirma el usuario en Supabase → Authentication → Users."
-  }
-  if (lower.includes("invalid login") || lower.includes("invalid credentials")) {
-    return "Credenciales incorrectas."
-  }
-  return message
-}
-
-/** Establece sesión Supabase Auth. Solo login; el alta es registerSupabaseAccount. */
+/** Establece sesión Supabase Auth para que RLS ventas reconozca el comercial. */
 export async function syncSupabaseSession(
   email: string,
-  password: string
+  password: string,
+  profile?: AuthProfileBridge
 ): Promise<AuthSessionResult> {
   if (!isSupabaseConfigured()) {
     return { ok: false, message: "Supabase no configurado" }
@@ -92,14 +104,73 @@ export async function syncSupabaseSession(
     return { ok: false, message: "Cliente Supabase no disponible" }
   }
 
+  const normalizedEmail = email.trim().toLowerCase()
+
   const signIn = await supabase.auth.signInWithPassword({
-    email: email.trim().toLowerCase(),
+    email: normalizedEmail,
     password,
   })
 
-  if (!signIn.error) return { ok: true }
+  if (!signIn.error) {
+    const access = await assertComercialLoginAllowed(normalizedEmail, profile)
+    if (!access.ok) return access
+    return { ok: true }
+  }
 
-  return { ok: false, message: mapSignInError(signIn.error.message) }
+  const canAutoRegister =
+    profile &&
+    (signIn.error.message.toLowerCase().includes("invalid login") ||
+      signIn.error.message.toLowerCase().includes("invalid credentials") ||
+      signIn.error.message.toLowerCase().includes("email not confirmed"))
+
+  if (canAutoRegister) {
+    const signUp = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: {
+          comercial_id: profile.comercialId,
+          role: profile.role,
+          full_name: profile.fullName,
+        },
+      },
+    })
+
+    if (signUp.error && !signUp.error.message.toLowerCase().includes("already registered")) {
+      return { ok: false, message: signUp.error.message }
+    }
+
+    const retry = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    })
+
+    if (!retry.error) {
+      const access = await assertComercialLoginAllowed(normalizedEmail, profile)
+      if (!access.ok) return access
+      return { ok: true }
+    }
+
+    if (retry.error.message.toLowerCase().includes("email not confirmed")) {
+      return {
+        ok: false,
+        message:
+          "Cuenta creada pero el email no está confirmado. En Supabase Dashboard → Authentication → Users, confirma el usuario o desactiva «Confirm email».",
+      }
+    }
+
+    return { ok: false, message: retry.error.message }
+  }
+
+  if (signIn.error.message.toLowerCase().includes("email not confirmed")) {
+    return {
+      ok: false,
+      message:
+        "Email no confirmado en Supabase Auth. Confirma el usuario en el dashboard o desactiva la confirmación de email.",
+    }
+  }
+
+  return { ok: false, message: signIn.error.message }
 }
 
 export async function clearSupabaseSession(): Promise<void> {
@@ -114,69 +185,11 @@ export async function restoreSupabaseSession(): Promise<boolean> {
 
 export async function ensureSupabaseSession(
   email: string,
-  password: string
+  password: string,
+  profile?: AuthProfileBridge
 ): Promise<AuthSessionResult> {
   const status = await getAuthSessionStatus()
   if (status.ok) return { ok: true }
 
-  return syncSupabaseSession(email, password)
-}
-
-export interface RegisterAccountInput {
-  email: string
-  password: string
-  fullName: string
-}
-
-function mapRegisterError(message: string, code?: string): string {
-  if (code === "over_email_send_rate_limit") {
-    return "Límite de emails de Supabase alcanzado. Espera unos minutos, desactiva «Confirm email» en desarrollo, o crea el usuario manualmente en el dashboard."
-  }
-  const lower = message.toLowerCase()
-  if (lower.includes("already registered") || lower.includes("user already registered")) {
-    return "Este correo ya está registrado. Inicia sesión o usa otro email."
-  }
-  if (lower.includes("email rate limit") || lower.includes("over_email_send_rate_limit")) {
-    return "Límite de emails de Supabase alcanzado. Espera unos minutos o desactiva la confirmación de email en desarrollo."
-  }
-  if (lower.includes("password")) {
-    return "La contraseña debe tener al menos 6 caracteres."
-  }
-  return message
-}
-
-/** Alta pública ERP — entra como customer hasta que un admin asigne rol de staff. */
-export async function registerSupabaseAccount(
-  input: RegisterAccountInput
-): Promise<AuthSessionResult> {
-  if (!isSupabaseConfigured()) {
-    return { ok: false, message: "Supabase no configurado" }
-  }
-
-  const supabase = getSupabaseClient()
-  if (!supabase) {
-    return { ok: false, message: "Cliente Supabase no disponible" }
-  }
-
-  const email = input.email.trim().toLowerCase()
-  const fullName = input.fullName.trim()
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password: input.password,
-    options: {
-        data: {
-          full_name: fullName,
-          role: "customer",
-          account_status: "active",
-        },
-    },
-  })
-
-  if (error) {
-    return { ok: false, message: mapRegisterError(error.message, error.code) }
-  }
-
-  await supabase.auth.signOut()
-  return { ok: true }
+  return syncSupabaseSession(email, password, profile)
 }

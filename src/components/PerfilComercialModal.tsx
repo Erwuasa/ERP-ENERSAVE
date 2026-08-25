@@ -4,8 +4,8 @@ import { toast } from "sonner"
 import {
   isComercialFiscalProfileComplete,
   type ComercialFiscalForm,
-} from "@/lib/comercial-fiscal-profile"
-import { updateErpComercialFiscal } from "@/lib/supabase/erp-comerciales"
+} from "../lib/comercial-fiscal-profile"
+import { updateErpComercial } from "../lib/supabase/erp-comerciales"
 
 interface PerfilComercialModalProps {
   open: boolean
@@ -71,7 +71,7 @@ export function PerfilComercialModal({
     event.preventDefault()
     setSaving(true)
     try {
-      const result = await updateErpComercialFiscal(comercialId, {
+      const result = await updateErpComercial(comercialId, {
         dni: form.dni.trim() || null,
         direccion: form.direccion.trim() || null,
         ciudad: form.ciudad.trim() || null,
@@ -79,7 +79,7 @@ export function PerfilComercialModal({
         telefono: form.telefono.trim() || null,
         iban: form.iban.trim() || null,
       })
-      if (result.ok === false) {
+      if (!result.ok) {
         toast.error(result.message)
         return
       }

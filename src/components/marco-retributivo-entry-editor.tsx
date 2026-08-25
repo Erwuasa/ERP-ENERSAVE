@@ -131,18 +131,6 @@ export function MarcoRetributivoEntryEditor({
       updated_at: entry?.updated_at ?? "",
       updated_by: entry?.updated_by ?? null,
       activo: form.activo ?? true,
-      energia_p1: entry?.energia_p1 ?? null,
-      energia_p2: entry?.energia_p2 ?? null,
-      energia_p3: entry?.energia_p3 ?? null,
-      energia_p4: entry?.energia_p4 ?? null,
-      energia_p5: entry?.energia_p5 ?? null,
-      energia_p6: entry?.energia_p6 ?? null,
-      potencia_p1: entry?.potencia_p1 ?? null,
-      potencia_p2: entry?.potencia_p2 ?? null,
-      potencia_p3: entry?.potencia_p3 ?? null,
-      potencia_p4: entry?.potencia_p4 ?? null,
-      potencia_p5: entry?.potencia_p5 ?? null,
-      potencia_p6: entry?.potencia_p6 ?? null,
     }
     const formatted = formatMarcoComisionBase(marcoRowToCatalogEntry(draft))
     if (!form.comision_base && form.comision_base !== 0) return "—"

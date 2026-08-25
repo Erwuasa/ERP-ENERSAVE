@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react"
+import { useState } from "react"
 import { X } from "lucide-react"
 import type {
   Prospecto,
@@ -63,13 +63,12 @@ export function PipelineFaseChangeModal({
         </div>
 
         <div className="p-4 space-y-3">
-          <Fragment key={toFase}>
-            <FaseChangeFields
-              toFase={toFase}
-              prospecto={prospecto}
-              onChange={setInput}
-            />
-          </Fragment>
+          <FaseChangeFields
+            key={toFase}
+            toFase={toFase}
+            prospecto={prospecto}
+            onChange={setInput}
+          />
 
           <div className="flex gap-2 pt-2">
             <button

@@ -70,8 +70,8 @@ export function filterProspectos(
 export function needsFaseChangeModal(from: ProspectoFase, to: ProspectoFase): boolean {
   if (!canTransition(from, to)) return false
   const result = validateTransition(from, to, {})
-  if (result.ok === false) return CONTEXT_REQUIRED_CODES.has(result.code)
-  return false
+  if (result.ok) return false
+  return CONTEXT_REQUIRED_CODES.has(result.code)
 }
 
 export function initialsFromName(name: string): string {

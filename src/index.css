@@ -1,66 +1,15 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
-@source "./";
-@import "tw-animate-css";
 
-@variant dark (&:is(.dark *));
+/* next-themes uses class="dark" on <html> — required for Tailwind v4 dark: utilities */
+@custom-variant dark (&:where(.dark, .dark *));
 
-/*
- * Enersave ERP — Design System
- * Tailwind v4 CSS-first (misma estructura que Festiva)
- * Tokens semánticos + paleta brand-* para el workspace
- */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-@layer base {
-  @font-face {
-    font-family: "Inter";
-    font-style: normal;
-    font-weight: 100 900;
-    font-display: swap;
-    src: url("https://fonts.gstatic.com/s/inter/v18/UcCo3FwrK3iLTcvhMwY.woff2") format("woff2");
-  }
-  @font-face {
-    font-family: "JetBrains Mono";
-    font-style: normal;
-    font-weight: 400 700;
-    font-display: swap;
-    src: url("https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbV2o-flEEny0Fhs4kbiSk.woff2") format("woff2");
-  }
-}
-
-@theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-
-  /* Semánticos (shadcn-compatible) */
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-ring-offset-background: var(--background);
-
-  /* Brand Enersave (workspace ERP) */
+  --color-primary-600: #2563eb;
+  --color-primary-500: #3b82f6;
   --color-brand-bg: var(--brand-bg);
   --color-brand-panel: var(--brand-panel);
   --color-brand-surface: var(--brand-surface);
@@ -69,16 +18,9 @@
   --color-brand-text: var(--brand-text);
   --color-brand-subtext: var(--brand-subtext);
   --color-brand-accent: var(--brand-accent);
-
-  /* Alias legacy primary */
-  --color-primary-500: var(--primary-500);
-  --color-primary-600: var(--primary-600);
 }
 
 :root {
-  --radius: 0.75rem;
-
-  /* Brand Enersave — light */
   --brand-bg: #f8fafc;
   --brand-panel: #ffffff;
   --brand-surface: #f1f5f9;
@@ -89,39 +31,10 @@
   --brand-accent: #0891b2;
   --brand-glow-cyan: rgba(6, 182, 212, 0.06);
   --brand-glow-amber: rgba(245, 158, 11, 0.05);
-
-  /* Semánticos derivados de brand */
-  --background: var(--brand-bg);
-  --foreground: var(--brand-text);
-  --card: var(--brand-panel);
-  --card-foreground: var(--brand-text);
-  --popover: var(--brand-panel);
-  --popover-foreground: var(--brand-text);
-  --primary: #2563eb;
-  --primary-foreground: #ffffff;
-  --primary-500: #3b82f6;
-  --primary-600: #2563eb;
-  --secondary: var(--brand-surface);
-  --secondary-foreground: var(--brand-text);
-  --muted: var(--brand-surface);
-  --muted-foreground: var(--brand-subtext);
-  --accent: color-mix(in srgb, var(--brand-accent) 12%, white);
-  --accent-foreground: #0e7490;
-  --destructive: #e11d48;
-  --destructive-foreground: #ffffff;
-  --border: var(--brand-border);
-  --input: var(--brand-border);
-  --ring: var(--brand-accent);
-
-  --shadow-card: 0 1px 3px rgb(15 23 42 / 0.04), 0 12px 32px -12px rgb(15 23 42 / 0.08);
-  --shadow-panel: 0 20px 60px -20px rgb(8 145 178 / 0.12);
-
-  --transition-duration: 200ms;
-  --transition-easing: ease-in-out;
-  --transition-base: var(--transition-duration) var(--transition-easing);
 }
 
 .dark {
+  /* Slate-900 base — más claro que OLED (#020617), cómodo para trabajo prolongado */
   --brand-bg: #111827;
   --brand-panel: #1e293b;
   --brand-surface: #273549;
@@ -132,110 +45,22 @@
   --brand-accent: #22d3ee;
   --brand-glow-cyan: rgba(34, 211, 238, 0.05);
   --brand-glow-amber: rgba(251, 191, 36, 0.04);
-
-  --background: var(--brand-bg);
-  --foreground: var(--brand-text);
-  --card: var(--brand-panel);
-  --card-foreground: var(--brand-text);
-  --popover: var(--brand-panel);
-  --popover-foreground: var(--brand-text);
-  --primary: #38bdf8;
-  --primary-foreground: #0f172a;
-  --primary-500: #38bdf8;
-  --primary-600: #0ea5e9;
-  --secondary: var(--brand-surface);
-  --secondary-foreground: var(--brand-text);
-  --muted: var(--brand-surface);
-  --muted-foreground: var(--brand-subtext);
-  --accent: color-mix(in srgb, var(--brand-accent) 18%, #1e293b);
-  --accent-foreground: #67e8f9;
-  --destructive: #fb7185;
-  --destructive-foreground: #0f172a;
-  --border: var(--brand-border);
-  --input: var(--brand-border);
-  --ring: var(--brand-accent);
-
-  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.2), 0 12px 32px -12px rgb(0 0 0 / 0.35);
-  --shadow-panel: 0 20px 60px -20px rgb(34 211 238 / 0.08);
 }
 
-@layer base {
-  *,
-  *::before,
-  *::after {
-    border-color: var(--color-border);
-    transition-property: color, background-color, border-color, outline-color, fill, stroke, opacity, box-shadow, transform, filter;
-    transition-duration: var(--transition-duration);
-    transition-timing-function: var(--transition-easing);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      transition-duration: 0ms;
-    }
-  }
-
-  html {
-    font-family: var(--font-sans);
-    color-scheme: light;
-    -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
-  }
-
-  html.dark {
-    color-scheme: dark;
-  }
-
-  body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-feature-settings: "ss01", "cv11";
-  }
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    letter-spacing: -0.02em;
-  }
-
-  ::selection {
-    background-color: var(--color-primary);
-    color: var(--color-primary-foreground);
-  }
-
-  .dark select,
-  .dark option {
-    color-scheme: dark;
-  }
+html {
+  color-scheme: light;
 }
 
-@layer utilities {
-  .shadow-card {
-    box-shadow: var(--shadow-card);
-  }
-
-  .shadow-panel {
-    box-shadow: var(--shadow-panel);
-  }
-
-  .container-page {
-    max-width: 1200px;
-    margin-inline: auto;
-    padding-inline: 1.25rem;
-  }
-
-  @media (min-width: 768px) {
-    .container-page {
-      padding-inline: 2rem;
-    }
-  }
+html.dark {
+  color-scheme: dark;
 }
 
+body {
+  background-color: var(--brand-bg);
+  color: var(--brand-text);
+}
+
+/* Clases animadas de utilidad */
 @keyframes shimmer-ltr {
   0% {
     transform: translateX(-100%);
@@ -263,48 +88,24 @@
   animation: sla-pulse 2s ease-in-out infinite;
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.45s ease-out both;
-}
-
-.animate-fade-in-ease {
-  animation: fade-in 0.4s ease-in-out both;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .animate-sla-pulse,
-  .animate-fade-in,
-  .animate-fade-in-ease,
-  .animate-shimmer {
+  .animate-sla-pulse {
     animation: none;
   }
 }
 
+/* Personalización de barra de scroll */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.25);
   border-radius: 99px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.45);
 }
@@ -312,9 +113,14 @@
 .dark ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.18);
 }
-
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.32);
+}
+
+/* Form controls: native selects/options inherit theme in dark mode */
+.dark select,
+.dark option {
+  color-scheme: dark;
 }
 
 /* react-big-calendar — tema EnerSave */
@@ -364,6 +170,7 @@
   border-color: var(--brand-border);
 }
 
+/* Pantallas sensibles: medidas disuasorias (no garantía de seguridad). */
 .sensitive-screen-root {
   user-select: none;
   -webkit-user-select: none;
@@ -414,4 +221,3 @@
   backdrop-filter: blur(8px);
   pointer-events: none;
 }
-
