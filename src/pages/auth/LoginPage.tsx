@@ -1,8 +1,11 @@
+import { useState } from "react"
 import { Navigate, Link } from "react-router-dom"
 import { AlertCircle, ChevronRight, Lock, User } from "lucide-react"
 import { EnersaveLogo } from "@/components/common/EnersaveLogo"
+import { MfaLoginPanel } from "@/components/auth/MfaLoginPanel"
 import { getDefaultAppPath, ROUTES } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
+import { normalizeTotpCode } from "@/lib/supabase/auth-mfa"
 
 export function LoginPage() {
   const {
@@ -15,8 +18,12 @@ export function LoginPage() {
     setLoginPassword,
     loginLoading,
     loginError,
+    mfaPending,
     triggerLogin,
+    submitMfa,
+    cancelMfa,
   } = useAuth()
+  const [mfaCode, setMfaCode] = useState("")
 
   if (isBootstrapping) {
     return (
@@ -48,6 +55,25 @@ export function LoginPage() {
           </div>
         </div>
 
+        {mfaPending ? (
+          <MfaLoginPanel
+            kind={mfaPending.kind}
+            qrCode={mfaPending.kind === "enroll" ? mfaPending.qrCode : undefined}
+            secret={mfaPending.kind === "enroll" ? mfaPending.secret : undefined}
+            code={mfaCode}
+            onCodeChange={(value) => setMfaCode(normalizeTotpCode(value))}
+            onSubmit={() => {
+              void submitMfa(mfaCode)
+            }}
+            onCancel={() => {
+              setMfaCode("")
+              void cancelMfa()
+            }}
+            loading={loginLoading}
+            error={loginError}
+          />
+        ) : (
+          <>
         {loginError && (
           <div className="p-3.5 rounded-xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 flex items-start space-x-2.5">
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -114,6 +140,8 @@ export function LoginPage() {
             Regístrate
           </Link>
         </p>
+          </>
+        )}
       </div>
     </div>
   )
