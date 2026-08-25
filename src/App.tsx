@@ -1265,22 +1265,14 @@ export default function App() {
     let cancelled = false;
     void (async () => {
       const result = await listErpComerciales();
-<<<<<<< Updated upstream
-      if (!cancelled && result.ok && result.data.length > 0) {
-        setProfiles(mergeErpRowsIntoProfiles(result.data, []));
-=======
       if (cancelled) return;
 
-      let loadedProfiles = profiles;
       if (result.ok && result.data.length > 0) {
-        loadedProfiles = mergeErpRowsIntoProfiles(result.data, []);
-        setProfiles(loadedProfiles);
->>>>>>> Stashed changes
+        setProfiles(mergeErpRowsIntoProfiles(result.data, []));
       }
 
       const status = await getAuthSessionStatus();
       if (cancelled || !status.ok) return;
-<<<<<<< Updated upstream
 
       const erpLookup = await getErpComercialByEmail(status.email);
       let profile: Profile;
@@ -1293,13 +1285,6 @@ export default function App() {
 
       if (profile.status === 'suspendido') return;
       applyLoginProfile(profile);
-=======
-      const matches = loadedProfiles.find(
-        (p) => p.email.toLowerCase() === status.email.toLowerCase()
-      );
-      if (!matches || matches.status === 'suspendido') return;
-      applyLoginProfile(matches);
->>>>>>> Stashed changes
     })();
     return () => {
       cancelled = true;
