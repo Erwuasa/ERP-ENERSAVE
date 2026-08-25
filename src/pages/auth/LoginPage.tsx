@@ -21,6 +21,9 @@ export function LoginPage() {
     mfaPending,
     triggerLogin,
     submitMfa,
+    chooseMfaMethod,
+    resendEmailOtp,
+    backToMfaChoose,
     cancelMfa,
   } = useAuth()
   const [mfaCode, setMfaCode] = useState("")
@@ -58,12 +61,28 @@ export function LoginPage() {
         {mfaPending ? (
           <MfaLoginPanel
             kind={mfaPending.kind}
+            email={mfaPending.email}
             qrCode={mfaPending.kind === "enroll" ? mfaPending.qrCode : undefined}
             secret={mfaPending.kind === "enroll" ? mfaPending.secret : undefined}
             code={mfaCode}
             onCodeChange={(value) => setMfaCode(normalizeTotpCode(value))}
             onSubmit={() => {
               void submitMfa(mfaCode)
+            }}
+            onChooseTotp={() => {
+              setMfaCode("")
+              void chooseMfaMethod("totp")
+            }}
+            onChooseEmail={() => {
+              setMfaCode("")
+              void chooseMfaMethod("email")
+            }}
+            onResendEmail={() => {
+              void resendEmailOtp()
+            }}
+            onBackToChoose={() => {
+              setMfaCode("")
+              void backToMfaChoose()
             }}
             onCancel={() => {
               setMfaCode("")

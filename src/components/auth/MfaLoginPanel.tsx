@@ -1,28 +1,104 @@
-import { AlertCircle, ChevronRight, ShieldCheck } from "lucide-react"
-import { totpQrImageSrc } from "@/lib/supabase/auth-mfa"
+import { AlertCircle, ChevronRight, Mail, ShieldCheck, Smartphone } from "lucide-react"
+import { isCompleteEmailOtp, isCompleteTotpCode, maskEmail, totpQrImageSrc } from "@/lib/supabase/auth-mfa"
+
+export type MfaPanelKind = "choose" | "challenge" | "enroll" | "email"
 
 export function MfaLoginPanel({
   kind,
+  email,
   qrCode,
   secret,
   code,
   onCodeChange,
   onSubmit,
   onCancel,
+  onChooseTotp,
+  onChooseEmail,
+  onResendEmail,
+  onBackToChoose,
   loading,
   error,
 }: {
-  kind: "challenge" | "enroll"
+  kind: MfaPanelKind
+  email?: string
   qrCode?: string
   secret?: string
   code: string
   onCodeChange: (value: string) => void
   onSubmit: () => void
   onCancel: () => void
+  onChooseTotp?: () => void
+  onChooseEmail?: () => void
+  onResendEmail?: () => void
+  onBackToChoose?: () => void
   loading: boolean
   error: string | null
 }) {
   const isEnroll = kind === "enroll"
+  const isEmail = kind === "email"
+  const masked = email ? maskEmail(email) : ""
+
+  if (kind === "choose") {
+    return (
+      <div className="space-y-5">
+        <div className="text-center space-y-2">
+          <div className="mx-auto w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
+          </div>
+          <h2 className="text-lg font-black text-brand-text">Verificación</h2>
+          <p className="text-xs text-brand-subtext leading-relaxed">
+            Elige cómo quieres confirmar el acceso.
+          </p>
+        </div>
+
+        {error ? (
+          <div className="p-3.5 rounded-xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 flex items-start space-x-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-rose-700 dark:text-rose-300 leading-normal font-medium">
+              {error}
+            </p>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onChooseTotp}
+          className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-brand-surface hover:border-blue-500/40 text-left flex items-center gap-3 transition-colors disabled:opacity-50"
+        >
+          <Smartphone className="w-5 h-5 text-blue-600 dark:text-cyan-400 shrink-0" />
+          <span>
+            <span className="block text-sm font-bold text-brand-text">App autenticadora</span>
+            <span className="block text-[11px] text-brand-subtext">Google Authenticator, Authy u otra</span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onChooseEmail}
+          className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-brand-surface hover:border-blue-500/40 text-left flex items-center gap-3 transition-colors disabled:opacity-50"
+        >
+          <Mail className="w-5 h-5 text-blue-600 dark:text-cyan-400 shrink-0" />
+          <span>
+            <span className="block text-sm font-bold text-brand-text">Código al correo</span>
+            <span className="block text-[11px] text-brand-subtext">
+              {masked ? `Enviar OTP a ${masked}` : "Te enviamos un código al correo"}
+            </span>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors"
+        >
+          Cancelar e iniciar con otra cuenta
+        </button>
+      </div>
+    )
+  }
 
   return (
     <form
@@ -34,15 +110,21 @@ export function MfaLoginPanel({
     >
       <div className="text-center space-y-2">
         <div className="mx-auto w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
-          <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
+          {isEmail ? (
+            <Mail className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
+          ) : (
+            <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
+          )}
         </div>
         <h2 className="text-lg font-black text-brand-text">
-          {isEnroll ? "Activa el autenticador" : "Código de verificación"}
+          {isEnroll ? "Activa el autenticador" : isEmail ? "Código al correo" : "Código de verificación"}
         </h2>
         <p className="text-xs text-brand-subtext leading-relaxed">
           {isEnroll
             ? "Escanea el QR con Google Authenticator, Authy o similar y escribe el código de 6 dígitos."
-            : "Introduce el código de 6 dígitos de tu app autenticadora."}
+            : isEmail
+              ? `Hemos enviado un código a ${masked}. Escríbelo tal cual (6 u 8 dígitos).`
+              : "Introduce el código de 6 dígitos de tu app autenticadora."}
         </p>
       </div>
 
@@ -83,14 +165,14 @@ export function MfaLoginPanel({
           value={code}
           onChange={(event) => onCodeChange(event.target.value)}
           className="w-full px-4 py-3 bg-brand-surface border border-slate-200 dark:border-slate-800 rounded-xl focus:border-blue-500 dark:focus:border-cyan-400 focus:ring-2 focus:ring-blue-500/10 focus:outline-none text-[#0f172a] dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 transition-all text-center text-lg font-mono tracking-[0.4em]"
-          placeholder="000000"
-          maxLength={6}
+          placeholder={isEmail ? "00000000" : "000000"}
+          maxLength={isEmail ? 8 : 6}
         />
       </div>
 
       <button
         type="submit"
-        disabled={loading || code.length !== 6}
+        disabled={loading || (isEmail ? !isCompleteEmailOtp(code) : !isCompleteTotpCode(code))}
         className="relative w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-none focus:outline-none transition-all flex items-center justify-center space-x-2 border border-blue-500 group cursor-pointer overflow-hidden"
       >
         {loading ? (
@@ -102,6 +184,28 @@ export function MfaLoginPanel({
           </>
         )}
       </button>
+
+      {isEmail && onResendEmail ? (
+        <button
+          type="button"
+          onClick={onResendEmail}
+          disabled={loading}
+          className="w-full text-xs font-medium text-blue-600 dark:text-cyan-400 hover:underline disabled:opacity-50"
+        >
+          Reenviar código
+        </button>
+      ) : null}
+
+      {onBackToChoose ? (
+        <button
+          type="button"
+          onClick={onBackToChoose}
+          disabled={loading}
+          className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors"
+        >
+          Elegir otro método
+        </button>
+      ) : null}
 
       <button
         type="button"

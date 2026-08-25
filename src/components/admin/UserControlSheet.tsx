@@ -246,7 +246,9 @@ export function UserControlSheet({
                 <ShieldCheck className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-semibold text-brand-text">Autenticador MFA</p>
-                  <p className="text-[10px] text-brand-subtext">TOTP en cada login de staff</p>
+                  <p className="text-[10px] text-brand-subtext">
+                    Login: app o código al correo. Aquí reseteas el TOTP.
+                  </p>
                 </div>
               </div>
               <span

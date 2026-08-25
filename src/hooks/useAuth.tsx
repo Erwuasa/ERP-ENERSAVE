@@ -21,7 +21,9 @@ import {
   cancelTotpEnrollment,
   inspectStaffMfa,
   normalizeTotpCode,
+  sendStaffEmailOtp,
   startTotpEnrollment,
+  verifyStaffEmailOtp,
   verifyTotpCode,
 } from "@/lib/supabase/auth-mfa"
 import { resolveWorkspaceAfterAuth } from "@/lib/supabase/user-profiles"
@@ -29,21 +31,19 @@ import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
 import { EMPTY_PROFILE, isStaffRole, type Profile } from "@/types/profile"
 
+type MfaWorkspace = {
+  email: string
+  hasTotp: boolean
+  totpFactorId?: string
+  profile: Profile
+  directory: Profile[]
+}
+
 export type MfaPendingState =
-  | {
-      kind: "challenge"
-      factorId: string
-      profile: Profile
-      directory: Profile[]
-    }
-  | {
-      kind: "enroll"
-      factorId: string
-      qrCode: string
-      secret: string
-      profile: Profile
-      directory: Profile[]
-    }
+  | ({ kind: "choose" } & MfaWorkspace)
+  | ({ kind: "challenge"; factorId: string } & MfaWorkspace)
+  | ({ kind: "enroll"; factorId: string; qrCode: string; secret: string } & MfaWorkspace)
+  | ({ kind: "email" } & MfaWorkspace)
 
 interface AuthContextValue {
   isLoggedIn: boolean
@@ -62,6 +62,9 @@ interface AuthContextValue {
   mfaPending: MfaPendingState | null
   triggerLogin: (e: FormEvent) => Promise<void>
   submitMfa: (code: string) => Promise<void>
+  chooseMfaMethod: (method: "totp" | "email") => Promise<void>
+  resendEmailOtp: () => Promise<void>
+  backToMfaChoose: () => Promise<void>
   cancelMfa: () => Promise<void>
   logout: () => Promise<void>
   applyLoginProfile: (profile: Profile) => void
@@ -80,6 +83,7 @@ function clearPersistedProfile(): void {
 }
 
 async function gateStaffWorkspace(
+  email: string,
   profile: Profile,
   directory: Profile[]
 ): Promise<
@@ -91,27 +95,17 @@ async function gateStaffWorkspace(
   const inspected = await inspectStaffMfa(true)
   if (inspected.ok === false) return inspected
   if (inspected.data.step === "none") return { ok: true, pending: null }
-  if (inspected.data.step === "challenge") {
-    return {
-      ok: true,
-      pending: {
-        kind: "challenge",
-        factorId: inspected.data.factorId,
-        profile,
-        directory,
-      },
-    }
-  }
 
-  const enrolled = await startTotpEnrollment()
-  if (enrolled.ok === false) return enrolled
+  const hasTotp = inspected.data.step === "challenge"
+  const totpFactorId =
+    inspected.data.step === "challenge" ? inspected.data.factorId : undefined
   return {
     ok: true,
     pending: {
-      kind: "enroll",
-      factorId: enrolled.data.factorId,
-      qrCode: enrolled.data.qrCode,
-      secret: enrolled.data.secret,
+      kind: "choose",
+      email,
+      hasTotp,
+      totpFactorId,
       profile,
       directory,
     },
@@ -183,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const gated = await gateStaffWorkspace(
+        searchEmail,
         workspace.data.profile,
         workspace.data.directory
       )
@@ -208,11 +203,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const submitMfa = useCallback(
     async (code: string) => {
-      if (!mfaPending) return
+      if (!mfaPending || mfaPending.kind === "choose") return
       setLoginLoading(true)
       setLoginError(null)
 
-      const verified = await verifyTotpCode(mfaPending.factorId, normalizeTotpCode(code))
+      const verified =
+        mfaPending.kind === "email"
+          ? await verifyStaffEmailOtp(mfaPending.email, code)
+          : await verifyTotpCode(mfaPending.factorId, normalizeTotpCode(code))
       if (verified.ok === false) {
         setLoginLoading(false)
         setLoginError(verified.message)
@@ -226,6 +224,91 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [mfaPending, applyLoginProfile]
   )
+
+  const chooseMfaMethod = useCallback(
+    async (method: "totp" | "email") => {
+      if (!mfaPending) return
+      setLoginLoading(true)
+      setLoginError(null)
+
+      const workspace: MfaWorkspace = {
+        email: mfaPending.email,
+        hasTotp: mfaPending.hasTotp,
+        totpFactorId: mfaPending.totpFactorId,
+        profile: mfaPending.profile,
+        directory: mfaPending.directory,
+      }
+
+      if (method === "email") {
+        if (mfaPending.kind === "enroll") {
+          await cancelTotpEnrollment(mfaPending.factorId)
+        }
+        const sent = await sendStaffEmailOtp(workspace.email)
+        if (sent.ok === false) {
+          setLoginLoading(false)
+          setLoginError(sent.message)
+          return
+        }
+        setMfaPending({ kind: "email", ...workspace })
+        setLoginLoading(false)
+        return
+      }
+
+      if (workspace.hasTotp && workspace.totpFactorId) {
+        setMfaPending({
+          kind: "challenge",
+          factorId: workspace.totpFactorId,
+          ...workspace,
+        })
+        setLoginLoading(false)
+        return
+      }
+
+      const enrolled = await startTotpEnrollment()
+      if (enrolled.ok === false) {
+        setLoginLoading(false)
+        setLoginError(enrolled.message)
+        return
+      }
+      setMfaPending({
+        kind: "enroll",
+        factorId: enrolled.data.factorId,
+        qrCode: enrolled.data.qrCode,
+        secret: enrolled.data.secret,
+        ...workspace,
+      })
+      setLoginLoading(false)
+    },
+    [mfaPending]
+  )
+
+  const resendEmailOtp = useCallback(async () => {
+    if (!mfaPending || mfaPending.kind !== "email") return
+    setLoginLoading(true)
+    setLoginError(null)
+    const sent = await sendStaffEmailOtp(mfaPending.email)
+    setLoginLoading(false)
+    if (sent.ok === false) {
+      setLoginError(sent.message)
+      return
+    }
+  }, [mfaPending])
+
+  const backToMfaChoose = useCallback(async () => {
+    if (!mfaPending || mfaPending.kind === "choose") return
+    if (mfaPending.kind === "enroll") {
+      await cancelTotpEnrollment(mfaPending.factorId)
+    }
+    setLoginError(null)
+    setMfaPending({
+      kind: "choose",
+      email: mfaPending.email,
+      hasTotp: mfaPending.hasTotp,
+      totpFactorId: mfaPending.totpFactorId,
+      profile: mfaPending.profile,
+      directory: mfaPending.directory,
+    })
+  }, [mfaPending])
 
   const cancelMfa = useCallback(async () => {
     if (mfaPending?.kind === "enroll") {
@@ -262,6 +345,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const workspace = await resolveWorkspaceAfterAuth(status.email)
         if (!cancelled && workspace.ok) {
           const gated = await gateStaffWorkspace(
+            status.email,
             workspace.data.profile,
             workspace.data.directory
           )
@@ -335,6 +419,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mfaPending,
       triggerLogin,
       submitMfa,
+      chooseMfaMethod,
+      resendEmailOtp,
+      backToMfaChoose,
       cancelMfa,
       logout,
       applyLoginProfile,
@@ -352,6 +439,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mfaPending,
       triggerLogin,
       submitMfa,
+      chooseMfaMethod,
+      resendEmailOtp,
+      backToMfaChoose,
       cancelMfa,
       logout,
       applyLoginProfile,
