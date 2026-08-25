@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react"
 import { motion } from "motion/react"
-import { SlidersHorizontal, Trash2, X } from "lucide-react"
+import { ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { mfaStatusLabel } from "@/lib/admin-mfa-policy"
+import { fetchAdminMfaStatus } from "@/lib/supabase/admin-mfa"
 
 export type UserControlRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion" | "customer"
 
@@ -35,6 +38,11 @@ interface UserControlSheetProps {
   onSaveRole: (role: UserControlRole, managerId: string | null) => Promise<void>
   onTogglePermission: (key: keyof UserControlProfile["permissions"]) => void
   onDelete?: () => void
+  mfaEnrolled?: boolean
+  mfaLoading?: boolean
+  mfaResetting?: boolean
+  canResetMfa?: boolean
+  onResetMfa?: () => void
 }
 
 const PERMISSION_ITEMS: Array<{
@@ -59,7 +67,33 @@ export function UserControlSheet({
   onSaveRole,
   onTogglePermission,
   onDelete,
+  mfaEnrolled = false,
+  mfaLoading = false,
+  mfaResetting = false,
+  canResetMfa = false,
+  onResetMfa,
 }: UserControlSheetProps) {
+  const [enrolled, setEnrolled] = useState(mfaEnrolled)
+  const [statusLoading, setStatusLoading] = useState(false)
+
+  useEffect(() => {
+    setEnrolled(mfaEnrolled)
+  }, [mfaEnrolled])
+
+  useEffect(() => {
+    if (!open || user.role === "customer") return
+    let cancelled = false
+    setStatusLoading(true)
+    void fetchAdminMfaStatus(user.id).then((result) => {
+      if (cancelled) return
+      if (result.ok) setEnrolled(result.data.enrolled)
+      setStatusLoading(false)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, user.id, user.role])
+
   if (!open) return null
 
   async function handleRoleChange(role: UserControlRole) {
@@ -204,6 +238,48 @@ export function UserControlSheet({
               className="w-full accent-cyan-600"
             />
           </div>
+
+          {user.role !== "customer" ? (
+          <div className="rounded-xl border border-brand-border bg-brand-bg/50 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-cyan-600" />
+                <div>
+                  <p className="text-xs font-semibold text-brand-text">Autenticador MFA</p>
+                  <p className="text-[10px] text-brand-subtext">TOTP en cada login de staff</p>
+                </div>
+              </div>
+              <span
+                className={`inline-flex px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
+                  mfaLoading || statusLoading
+                    ? "bg-brand-border text-brand-subtext"
+                    : enrolled
+                      ? "bg-emerald-500/10 text-emerald-500"
+                      : "bg-amber-500/10 text-amber-600"
+                }`}
+              >
+                {mfaLoading || statusLoading ? "…" : mfaStatusLabel(enrolled)}
+              </span>
+            </div>
+            {canResetMfa && onResetMfa ? (
+              <button
+                type="button"
+                disabled={mfaResetting || mfaLoading || statusLoading || !enrolled}
+                onClick={onResetMfa}
+                className="w-full py-2 text-[11px] font-bold rounded-lg border border-brand-border text-brand-text hover:bg-brand-bg disabled:opacity-40"
+              >
+                {mfaResetting ? "Reseteando…" : "Resetear autenticador"}
+              </button>
+            ) : (
+              <p className="text-[10px] text-brand-subtext">
+                No puedes resetear el autenticador de este usuario.
+              </p>
+            )}
+            <p className="text-[10px] text-brand-subtext leading-relaxed">
+              Al resetear se cierran sus sesiones. En el próximo login tendrá que escanear un QR nuevo.
+            </p>
+          </div>
+          ) : null}
 
           <div className="space-y-3">
             <span className="text-[10px] font-mono uppercase text-brand-subtext font-bold block border-b border-brand-border pb-2">

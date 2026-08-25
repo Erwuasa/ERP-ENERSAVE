@@ -58,6 +58,7 @@ export function UsuariosPage() {
     isSyncingErpUsers,
     setActiveUserForSheet,
     navigateToTab,
+    mfaEnrolledIds,
   } = ws;
 
   const directory = appUsers.length > 0 ? appUsers : [];
@@ -205,6 +206,7 @@ export function UsuariosPage() {
                                       <th className="py-4 px-5 uppercase font-bold tracking-wider">Email</th>
                                       <th className="py-4 px-5 uppercase font-bold tracking-wider">Jefe / origen</th>
                                       <th className="py-4 px-5 uppercase font-bold tracking-wider">Acceso</th>
+                                      <th className="py-4 px-5 uppercase font-bold tracking-wider">MFA</th>
                                       <th className="py-4 px-5 uppercase font-bold tracking-wider text-right">Ficha</th>
                                     </tr>
                                   </thead>
@@ -293,6 +295,19 @@ export function UsuariosPage() {
                                               }`}>
                                                 {p.hasAuth ? 'cuenta' : 'sin cuenta'}
                                               </span>
+                                            </td>
+                                            <td className="py-4 px-5">
+                                              {p.role === 'customer' ? (
+                                                <span className="text-brand-subtext italic text-[10px]">N/A</span>
+                                              ) : (
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-mono font-bold tracking-widest uppercase ${
+                                                  mfaEnrolledIds.includes(p.id)
+                                                    ? 'bg-emerald-500/10 text-emerald-400'
+                                                    : 'bg-amber-500/10 text-amber-500'
+                                                }`}>
+                                                  {mfaEnrolledIds.includes(p.id) ? 'activo' : 'pendiente'}
+                                                </span>
+                                              )}
                                             </td>
                                             <td className="py-4 px-5 text-right">
                                               <button

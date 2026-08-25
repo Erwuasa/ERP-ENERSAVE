@@ -4,6 +4,7 @@ import { PerfilComercialModal } from "@/components/PerfilComercialModal"
 import { ComparadorContractModal } from "@/pages/erp/workspace/modals/ComparadorContractModal"
 import { CreateUserModal } from "@/pages/erp/workspace/modals/CreateUserModal"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
+import { canResetTargetMfa } from "@/lib/admin-mfa-policy"
 
 export function ErpWorkspaceModals() {
   const ws = useErpWorkspaceContext()
@@ -16,6 +17,7 @@ export function ErpWorkspaceModals() {
     handleSaveUserRoleToSupabase,
     togglePermission,
     handleDeleteUserFromSupabase,
+    handleResetUserMfa,
     activeUser,
     activeUserId,
     perfilComercialOpen,
@@ -59,6 +61,11 @@ export function ErpWorkspaceModals() {
               })
             }}
             onDelete={() => handleDeleteUserFromSupabase(activeUserForSheet.id)}
+            mfaEnrolled={ws.mfaEnrolledIds.includes(activeUserForSheet.id)}
+            mfaLoading={ws.isSyncingErpUsers}
+            mfaResetting={ws.mfaResettingUserId === activeUserForSheet.id}
+            canResetMfa={canResetTargetMfa(activeUser.role, activeUserForSheet.role)}
+            onResetMfa={() => handleResetUserMfa(activeUserForSheet.id)}
           />
         )}
       </AnimatePresence>

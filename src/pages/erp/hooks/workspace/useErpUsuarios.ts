@@ -9,6 +9,8 @@ import {
 } from '@/types/profile';
 import { listErpComerciales, updateErpComercial } from '@/lib/supabase/erp-comerciales';
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
+import { fetchAdminMfaSummary, resetAdminMfa } from '@/lib/supabase/admin-mfa';
+import { canResetTargetMfa } from '@/lib/admin-mfa-policy';
 
 interface UseErpUsuariosParams {
   profiles: Profile[];
@@ -37,6 +39,8 @@ export function useErpUsuarios({
   const [isSyncingErpUsers, setIsSyncingErpUsers] = useState<boolean>(false);
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [appUsersError, setAppUsersError] = useState<string | null>(null);
+  const [mfaEnrolledIds, setMfaEnrolledIds] = useState<string[]>([]);
+  const [mfaResettingUserId, setMfaResettingUserId] = useState<string | null>(null);
 
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
 
@@ -46,7 +50,11 @@ export function useErpUsuarios({
     let cancelled = false;
     async function loadErpUsers() {
       setIsSyncingErpUsers(true);
-      const [comerciales, accounts] = await Promise.all([listErpComerciales(), listAppUsers()]);
+      const [comerciales, accounts, mfaSummary] = await Promise.all([
+        listErpComerciales(),
+        listAppUsers(),
+        fetchAdminMfaSummary(),
+      ]);
       if (!cancelled && comerciales.ok) {
         setProfiles(
           comerciales.data.map((row) =>
@@ -70,6 +78,11 @@ export function useErpUsuarios({
         } else {
           setAppUsers(accounts.data);
           setAppUsersError(null);
+        }
+        if (mfaSummary.ok) {
+          setMfaEnrolledIds(mfaSummary.data);
+        } else {
+          setMfaEnrolledIds([]);
         }
         setIsSyncingErpUsers(false);
       }
@@ -209,6 +222,35 @@ export function useErpUsuarios({
     if (accounts.ok) setAppUsers(accounts.data);
   }
 
+  async function handleResetUserMfa(userId: string) {
+    const fromProfiles = profiles.find((p) => p.id === userId);
+    const fromApp = appUsers.find((u) => u.id === userId);
+    const targetRole = fromProfiles?.role ?? fromApp?.role;
+    const label = fromProfiles?.fullName ?? fromApp?.fullName ?? fromApp?.email ?? userId;
+    if (!targetRole) return;
+    if (!canResetTargetMfa(activeRole, targetRole)) {
+      toast.error('No puedes resetear el MFA de este usuario.');
+      return;
+    }
+    if (
+      !confirm(
+        `¿Resetear el autenticador de ${label}? Se cerrarán sus sesiones y en el próximo login tendrá que escanear un QR nuevo.`
+      )
+    ) {
+      return;
+    }
+
+    setMfaResettingUserId(userId);
+    const result = await resetAdminMfa(userId, activeRole, targetRole);
+    setMfaResettingUserId(null);
+    if (result.ok === false) {
+      toast.error(result.message);
+      return;
+    }
+    setMfaEnrolledIds((prev) => prev.filter((id) => id !== userId));
+    toast.success('Autenticador reseteado. El próximo login pedirá un QR nuevo.');
+  }
+
   const togglePermission = (userId: string, permKey: keyof Profile['permissions']) => {
     const user = profiles.find((p) => p.id === userId);
     const prevValue = user?.permissions[permKey];
@@ -258,6 +300,9 @@ export function useErpUsuarios({
     handleAddNewUser,
     handleSaveUserRoleToSupabase,
     handleDeleteUserFromSupabase,
+    handleResetUserMfa,
     togglePermission,
+    mfaEnrolledIds,
+    mfaResettingUserId,
   };
 }
