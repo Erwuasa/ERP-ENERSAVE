@@ -86,9 +86,10 @@ function profileFromMarcoRow(
   accessTariff: "2.0TD" | "3.0TD" | "6.0TD"
 ): ComparadorTariffProfile {
   const { potRates, conRates } = buildRatesFromMarcoRow(row, accessTariff)
-  const tipoPrecio =
-    row.tipo_precio ??
-    inferTipoPrecioFromMarcoText(row.tarifa, row.condiciones ?? "")
+  const tipoPrecio: "fijo" | "indexado" =
+    row.tipo_precio === "indexado" || row.tipo_precio === "fijo"
+      ? row.tipo_precio
+      : inferTipoPrecioFromMarcoText(row.tarifa, row.condiciones ?? "")
   const incluyeSva =
     row.incluye_sva ?? inferIncluyeSvaFromMarcoText(row.tarifa, row.condiciones ?? "")
 

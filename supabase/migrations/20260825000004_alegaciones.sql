@@ -8,7 +8,7 @@ create table if not exists public.alegaciones (
   id uuid primary key default gen_random_uuid(),
   settlement_id uuid references public.settlements(id),
   contrato_id uuid references public.contratos_equipo(id),
-  comercial_id text references public.erp_comerciales(id),
+  comercial_id uuid references public.user_profiles(id),
   estado text not null default 'abierta' check (estado in ('abierta', 'en_revision', 'resuelta')),
   mensajes jsonb not null default '[]'::jsonb,
   -- mensajes.archivosAdjuntos con sus dataUrl NO se guardan aquí, solo texto,

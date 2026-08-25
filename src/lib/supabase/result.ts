@@ -13,7 +13,7 @@ export interface SupabaseFailure {
   message: string
 }
 
-export type SupabaseResult<T> = { ok: true; data: T } | SupabaseFailure
+export type SupabaseResult<T> = { ok: true; data: T; message?: undefined } | SupabaseFailure
 
 export type ResolvedClient = { ok: true; client: SupabaseClient } | SupabaseFailure
 
@@ -54,6 +54,8 @@ export function toSupabaseFailure(
 
   const isMissingTable =
     error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    lower.includes("schema cache") ||
     lower.includes(`relation "public.${table}" does not exist`) ||
     lower.includes(`relation "${table}" does not exist`)
 

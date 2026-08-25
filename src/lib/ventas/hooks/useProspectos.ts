@@ -37,31 +37,16 @@ export type ChangeFaseResult =
   | { ok: false; code?: string; message: string }
 
 export function useProspectos(actor: VentasActor, filters?: ListProspectosFilters) {
-  const actorRole = actor.role
-  const actorComercialId = actor.comercialId
-  const filterComercialId = filters?.comercialId
-  const filterFase = filters?.fase
-
   const effectiveFilters = useMemo((): ListProspectosFilters => {
-    if (actorRole === "comercial") {
-      return {
-        ...(filterFase ? { fase: filterFase } : {}),
-        comercialId: actorComercialId,
-      }
+    if (actor.role === "comercial") {
+      return { ...filters, comercialId: actor.comercialId }
     }
-    return {
-      ...(filterComercialId ? { comercialId: filterComercialId } : {}),
-      ...(filterFase ? { fase: filterFase } : {}),
-    }
-  }, [actorRole, actorComercialId, filterComercialId, filterFase])
+    return filters ?? {}
+  }, [actor, filters])
 
   const cacheKey = useMemo(
-    () =>
-      prospectosCacheKey(
-        { role: actorRole, comercialId: actorComercialId, comercialName: actor.comercialName },
-        effectiveFilters
-      ),
-    [actorRole, actorComercialId, actor.comercialName, effectiveFilters]
+    () => prospectosCacheKey(actor, effectiveFilters),
+    [actor, effectiveFilters]
   )
 
   const [prospectos, setProspectosState] = useState<Prospecto[]>(() =>
@@ -82,12 +67,6 @@ export function useProspectos(actor: VentasActor, filters?: ListProspectosFilter
   )
 
   useEffect(() => {
-    setProspectosState(readProspectosCache(cacheKey))
-    setLoading(true)
-    setError(null)
-  }, [cacheKey])
-
-  useEffect(() => {
     return subscribeProspectosCache(cacheKey, () => {
       setProspectosState(readProspectosCache(cacheKey))
     })
@@ -106,40 +85,42 @@ export function useProspectos(actor: VentasActor, filters?: ListProspectosFilter
       setError(null)
     }
 
-    try {
-      const result = await listProspectos(effectiveFilters)
-      if (result.ok) {
-        const merged = mergeProspectosCache(cacheKey, result.data)
-        setProspectosState(merged)
-      } else if (!silent) {
-        setError(result.message)
-        // Mantener caché/localStorage — no vaciar la UI si falla la red o RLS
-        const cached = readProspectosCache(cacheKey)
-        if (cached.length > 0) {
-          setProspectosState(cached)
-        }
-      }
-    } finally {
-      if (!silent) setLoading(false)
+    if (!silent) {
+      setLoading(true)
+      setError(null)
     }
+
+    const result = await listProspectos(effectiveFilters)
+    if (result.ok) {
+      const merged = mergeProspectosCache(cacheKey, result.data)
+      setProspectosState(merged)
+    } else if (result.ok === false && !silent) {
+      setError(result.message)
+      // Mantener caché/localStorage — no vaciar la UI si falla la red o RLS
+      const cached = readProspectosCache(cacheKey)
+      if (cached.length > 0) {
+        setProspectosState(cached)
+      }
+    }
+
+    if (!silent) setLoading(false)
   }, [effectiveFilters, cacheKey])
 
-  const handleRealtime = useCallback(
-    (payload?: { eventType: string; old: Record<string, unknown> }) => {
+  useRealtimeRefresh(
+    "prospectos",
+    (payload) => {
       if (payload?.eventType === "DELETE" && typeof payload.old.id === "string") {
         removeProspectoFromCache(cacheKey, payload.old.id)
         setProspectosState((prev) => prev.filter((p) => p.id !== payload.old.id))
         return
       }
-      void refresh({ silent: true })
+      refresh({ silent: true })
     },
-    [cacheKey, refresh]
+    isSupabaseConfigured()
   )
 
-  useRealtimeRefresh("prospectos", handleRealtime, isSupabaseConfigured())
-
   useEffect(() => {
-    void refresh()
+    refresh()
   }, [refresh])
 
   async function spawnQuickWins(prospecto: Prospecto, targetFase: ProspectoFase) {
@@ -183,7 +164,7 @@ export function useProspectos(actor: VentasActor, filters?: ListProspectosFilter
       comercialName: actor.comercialName,
     })
 
-    if (!result.ok) {
+    if (result.ok === false) {
       setProspectos((prev) =>
         mergeProspectoLists(
           [

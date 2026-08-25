@@ -9,6 +9,7 @@ import {
   str,
   toSupabaseFailure,
   type Row,
+  type SupabaseFailure,
   type SupabaseFailureReason,
   type SupabaseResult,
 } from "./result"

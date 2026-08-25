@@ -1,0 +1,23 @@
+import type { ReactNode } from "react"
+
+type Props = {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}
+
+export function ClientesFilterPill({ active, onClick, children }: Props) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold transition-colors cursor-pointer ${
+        active
+          ? "bg-emerald-600 text-white border border-emerald-600"
+          : "bg-brand-surface text-brand-subtext border border-brand-border hover:text-brand-text hover:border-cyan-500/30"
+      }`}
+    >
+      {children}
+    </button>
+  )
+}

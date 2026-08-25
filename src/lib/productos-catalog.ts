@@ -1,5 +1,6 @@
 import type { TipoClienteContrato } from "./contract-registration"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
+import type { TariffCatalogRow } from "./supabase/tariffs"
 
 export type ProductoSuministroTab = "luz" | "gas" | "telefonia"
 
@@ -20,6 +21,8 @@ export type ProductoPeajeFilter =
   | "6.3TD"
   | "6.4TD"
 
+export type ProductoWebVisibilityFilter = "todas" | "publicadas" | "ocultas"
+
 export interface ProductoTarifaPrecios {
   energia: Partial<Record<`p${1 | 2 | 3 | 4 | 5 | 6}`, number>>
   potencia: Partial<Record<`p${1 | 2 | 3 | 4 | 5 | 6}`, number>>
@@ -29,6 +32,10 @@ export interface ProductoTarifa {
   id: string
   compania: string
   tarifa: string
+  catalogName: string
+  displayName: string
+  webVisible: boolean
+  webAlias: string | null
   tipo: "luz" | "gas"
   peaje: string
   segmento: MarcoRetributivoRow["segmento"]
@@ -147,12 +154,84 @@ function extractPrecios(row: MarcoRetributivoRow): ProductoTarifaPrecios {
   return { energia, potencia }
 }
 
+function inferTipoClienteFromSegment(segment: string): {
+  label: string
+  value: TipoClienteContrato
+  wizardSegment: "residencial" | "pyme"
+  segmento: MarcoRetributivoRow["segmento"]
+} {
+  if (segment === "pyme") {
+    return { label: "Empresa", value: "pyme", wizardSegment: "pyme", segmento: "pyme" }
+  }
+  return {
+    label: "Particular",
+    value: "residencial",
+    wizardSegment: "residencial",
+    segmento: "residencial",
+  }
+}
+
+function pricesFromTariffRow(row: TariffCatalogRow): ProductoTarifaPrecios {
+  if (row.prices_summary) {
+    const energia: ProductoTarifaPrecios["energia"] = {}
+    const potencia: ProductoTarifaPrecios["potencia"] = {}
+    for (const [key, value] of Object.entries(row.prices_summary.energia ?? {})) {
+      if (key.startsWith("p")) energia[key as keyof typeof energia] = Number(value)
+    }
+    for (const [key, value] of Object.entries(row.prices_summary.potencia ?? {})) {
+      if (key.startsWith("p")) potencia[key as keyof typeof potencia] = Number(value)
+    }
+    return { energia, potencia }
+  }
+
+  const energia: ProductoTarifaPrecios["energia"] = {}
+  const potencia: ProductoTarifaPrecios["potencia"] = {}
+
+  for (const price of row.tariff_prices ?? []) {
+    const match = price.period.match(/^P(\d)$/i)
+    if (!match) continue
+    const key = `p${match[1]}` as keyof ProductoTarifaPrecios["energia"]
+    energia[key] = Number(price.energy_price_kwh)
+    potencia[key] = Number(price.power_price_kw_day)
+  }
+
+  return { energia, potencia }
+}
+
+export function tariffRowToProducto(row: TariffCatalogRow): ProductoTarifa {
+  const tipo = row.supply_type === "gas" ? "gas" : "luz"
+  const tipoCliente = inferTipoClienteFromSegment(row.segment)
+  const catalogName = row.name
+  const displayName = row.web_alias?.trim() || catalogName
+
+  return {
+    id: row.id,
+    compania: row.provider?.name ?? "Sin compañía",
+    tarifa: displayName,
+    catalogName,
+    displayName,
+    webVisible: row.web_visible === true,
+    webAlias: row.web_alias,
+    tipo,
+    peaje: row.access_tariff,
+    segmento: tipoCliente.segmento,
+    tipoClienteLabel: tipoCliente.label,
+    tipoCliente: tipoCliente.value,
+    wizardSegment: tipoCliente.wizardSegment,
+    precios: pricesFromTariffRow(row),
+  }
+}
+
 export function marcoRowToProducto(row: MarcoRetributivoRow): ProductoTarifa {
   const tipoCliente = inferTipoCliente(row)
   return {
     id: row.id,
     compania: row.compania,
     tarifa: row.tarifa,
+    catalogName: row.tarifa,
+    displayName: row.tarifa,
+    webVisible: false,
+    webAlias: null,
     tipo: row.tipo,
     peaje: row.peaje,
     segmento: row.segmento,
@@ -180,7 +259,16 @@ function matchesPeajeFilter(product: ProductoTarifa, filter: ProductoPeajeFilter
   if (filter === "todos") return true
   if (filter === "2.0TD") return product.peaje.includes("2.0")
   if (filter === "3.0TD") return product.peaje.includes("3.0")
-  return product.peaje.includes(filter)
+  return product.peaje.includes(filter.replace(".", "")) || product.peaje === filter
+}
+
+function matchesWebVisibilityFilter(
+  product: ProductoTarifa,
+  filter: ProductoWebVisibilityFilter
+): boolean {
+  if (filter === "todas") return true
+  if (filter === "publicadas") return product.webVisible
+  return !product.webVisible
 }
 
 export function filterProductos(
@@ -190,6 +278,7 @@ export function filterProductos(
     compania: string
     tipoCliente: ProductoTipoClienteFilter
     peaje: ProductoPeajeFilter
+    webVisibility: ProductoWebVisibilityFilter
     search: string
   }
 ): ProductoTarifa[] {
@@ -200,10 +289,12 @@ export function filterProductos(
     if (options.compania !== "Todas" && p.compania !== options.compania) return false
     if (!matchesTipoClienteFilter(p, options.tipoCliente)) return false
     if (!matchesPeajeFilter(p, options.peaje)) return false
+    if (!matchesWebVisibilityFilter(p, options.webVisibility)) return false
     if (options.search.trim()) {
       const q = options.search.toLowerCase()
       if (
         !p.tarifa.toLowerCase().includes(q) &&
+        !p.catalogName.toLowerCase().includes(q) &&
         !p.compania.toLowerCase().includes(q) &&
         !p.peaje.toLowerCase().includes(q)
       ) {

@@ -25,18 +25,6 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const comercialId = actor.comercialId
-  const filterEstado = filters?.estado
-  const filterFechaDesde = filters?.fechaDesde
-
-  const stableFilters = useMemo((): ListTareasFilters | undefined => {
-    if (!filterEstado && !filterFechaDesde) return undefined
-    return {
-      ...(filterEstado ? { estado: filterEstado } : {}),
-      ...(filterFechaDesde ? { fechaDesde: filterFechaDesde } : {}),
-    }
-  }, [filterEstado, filterFechaDesde])
-
   const refresh = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!isSupabaseConfigured()) {
@@ -51,30 +39,24 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
         setError(null)
       }
 
-      try {
-        const result = await listTareas(comercialId, stableFilters)
-        if (result.ok) setTareas(result.data)
-        else if (!silent && result.ok === false) setError(result.message)
-      } finally {
-        if (!silent) setLoading(false)
-      }
-    },
-    [comercialId, stableFilters]
-  )
+      const result = await listTareas(actor.comercialId, filters)
+      if (result.ok) setTareas(result.data)
+      else if (!silent && result.ok === false) setError(result.message)
 
-  const handleRealtime = useCallback(() => {
-    void refresh({ silent: true })
-  }, [refresh])
+      if (!silent) setLoading(false)
+    },
+    [actor.comercialId, filters]
+  )
 
   useRealtimeRefresh(
     "tareas_ventas",
-    handleRealtime,
+    () => refresh({ silent: true }),
     isSupabaseConfigured(),
-    `comercial_id=eq.${comercialId}`
+    `comercial_id=eq.${actor.comercialId}`
   )
 
   useEffect(() => {
-    void refresh()
+    refresh()
   }, [refresh])
 
   const grupos = useMemo(() => groupTareasByUrgencia(tareas), [tareas])
@@ -90,7 +72,7 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
     }
 
     const result = await updateTarea(id, { estado: "completada" })
-    if (!result.ok) {
+    if (result.ok === false) {
       if (previous) {
         setTareas((prev) => prev.map((t) => (t.id === id ? previous : t)))
       }
@@ -128,7 +110,7 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
     }
 
     const result = await updateTarea(id, { estado: "descartada" })
-    if (!result.ok) {
+    if (result.ok === false) {
       if (previous) {
         setTareas((prev) => prev.map((t) => (t.id === id ? previous : t)))
       }
@@ -155,7 +137,7 @@ export function useTareas(actor: VentasActor, filters?: ListTareasFilters) {
     }
 
     const result = await updateTarea(id, { fechaObjetivo })
-    if (!result.ok) {
+    if (result.ok === false) {
       if (previous) {
         setTareas((prev) => prev.map((t) => (t.id === id ? previous : t)))
       }

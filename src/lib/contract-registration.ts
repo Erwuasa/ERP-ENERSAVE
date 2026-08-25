@@ -363,7 +363,7 @@ export interface ContractRegistrationInput {
   direccionSuministro: string
   potenciaContratada: string
   precioFijoConsumo: string | number
-  fechaInicio: string
+  fechaInicio?: string
   /** Solo modal comparativa */
   direccionCompleta?: string
 }

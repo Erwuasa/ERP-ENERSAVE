@@ -31,7 +31,7 @@ export interface DistributionResult {
 let mockSettlements: SettlementRecord[] = [
   {
     id: "liq-1",
-    comercialId: "usr-3",
+    comercialId: "staff-ignacio",
     comercialName: "Ignacio Ortiz",
     montoInterno: 350.00,
     montoExterno: 210.00,
@@ -42,7 +42,7 @@ let mockSettlements: SettlementRecord[] = [
   },
   {
     id: "liq-2",
-    comercialId: "usr-3",
+    comercialId: "staff-ignacio",
     comercialName: "Ignacio Ortiz",
     montoInterno: 960.00,
     montoExterno: 480.00,
@@ -53,7 +53,7 @@ let mockSettlements: SettlementRecord[] = [
   },
   {
     id: "liq-3",
-    comercialId: "usr-5",
+    comercialId: "staff-santiago",
     comercialName: "Santiago Cano",
     montoInterno: 180.00,
     montoExterno: 108.00,

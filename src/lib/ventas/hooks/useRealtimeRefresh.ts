@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { getSupabaseClient, isSupabaseConfigured } from "../../supabase/client"
 
-type VentasRealtimeTable = "prospectos" | "tareas_ventas" | "actividades_ventas"
+type VentasRealtimeTable = "prospectos" | "tareas_ventas" | "actividades_ventas" | "leads"
 
 export interface VentasRealtimePayload {
   eventType: string
@@ -15,9 +15,6 @@ export function useRealtimeRefresh(
   enabled: boolean,
   filter?: string
 ) {
-  const onRefreshRef = useRef(onRefresh)
-  onRefreshRef.current = onRefresh
-
   useEffect(() => {
     if (!enabled || !isSupabaseConfigured()) return
 
@@ -41,7 +38,7 @@ export function useRealtimeRefresh(
 
     channel
       .on("postgres_changes", changeConfig, (payload) => {
-        onRefreshRef.current({
+        onRefresh({
           eventType: payload.eventType,
           old: (payload.old ?? {}) as Record<string, unknown>,
           new: (payload.new ?? {}) as Record<string, unknown>,
@@ -52,5 +49,5 @@ export function useRealtimeRefresh(
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [table, enabled, filter])
+  }, [table, onRefresh, enabled, filter])
 }

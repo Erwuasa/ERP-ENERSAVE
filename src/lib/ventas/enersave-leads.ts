@@ -136,7 +136,7 @@ export function parseLeadsCsv(text: string): CreateEnersaveLeadInput[] {
         notas: get(["notas", "observaciones", "notes"]),
       }
     })
-    .filter((r): r is CreateEnersaveLeadInput => r !== null)
+    .filter((r) => r !== null) as CreateEnersaveLeadInput[]
 }
 
 function normalizeHeader(h: string): string {
