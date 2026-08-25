@@ -122,6 +122,8 @@ import {
   securityIncidenciaFingerprint,
 } from './lib/runtime-integrity-incident';
 import { isRuntimeIntegrityEnforced } from './lib/runtime-integrity-env';
+import { isRuntimeIntegrityBlockExempt } from './lib/runtime-integrity-exempt';
+import { recordRuntimeIntegrityBlock } from './lib/supabase/runtime-integrity-blocks';
 import type { IntegrityFinding } from './lib/runtime-integrity';
 import { SuperadminDashboard, type DashboardNavigateTarget } from './components/dashboard/SuperadminDashboard';
 import { FileDropZone } from './components/ui/FileDropZone';
@@ -436,6 +438,7 @@ interface Profile {
   codigoPostal?: string;
   telefono?: string;
   iban?: string;
+  integrityGuardBypass?: boolean;
 }
 
 function defaultPermissionsForRole(role: UserRole): Profile['permissions'] {
@@ -496,6 +499,7 @@ function mergeErpRowsIntoProfiles(
     codigo_postal?: string | null;
     telefono?: string | null;
     iban?: string | null;
+    integrity_guard_bypass?: boolean;
   }>,
   current: Profile[]
 ): Profile[] {
@@ -528,6 +532,8 @@ function mergeErpRowsIntoProfiles(
       codigoPostal: row.codigo_postal ?? existing?.codigoPostal ?? '',
       telefono: row.telefono ?? existing?.telefono ?? '',
       iban: row.iban ?? existing?.iban ?? '',
+      integrityGuardBypass:
+        row.integrity_guard_bypass === true || existing?.integrityGuardBypass === true,
     };
   });
 
@@ -2851,10 +2857,21 @@ export default function App() {
 
   const handleIntegrityBlocked = useCallback(
     (findings: IntegrityFinding[]) => {
+      if (
+        isRuntimeIntegrityBlockExempt({
+          role: activeRole,
+          integrityGuardBypass: activeUser.integrityGuardBypass,
+        })
+      ) {
+        return;
+      }
+
       const fp = securityIncidenciaFingerprint(findings);
       const storageKey = `integrity-reported-${fp}`;
       if (sessionStorage.getItem(storageKey)) return;
       sessionStorage.setItem(storageKey, new Date().toISOString());
+
+      void recordRuntimeIntegrityBlock(findings, fp);
 
       const ticket = buildSecurityIncidencia({
         userId: activeUserId,
@@ -2866,12 +2883,24 @@ export default function App() {
       persistNewIncidencia(ticket);
       toast.error('Sesión bloqueada: incidencia de seguridad enviada al superadmin.');
     },
-    [activeUserId, activeUser.fullName, persistNewIncidencia]
+    [
+      activeRole,
+      activeUser.integrityGuardBypass,
+      activeUserId,
+      activeUser.fullName,
+      persistNewIncidencia,
+    ]
   );
+
+  const integrityGuardExempt = isRuntimeIntegrityBlockExempt({
+    role: activeRole,
+    integrityGuardBypass: activeUser.integrityGuardBypass,
+  });
 
   const { blocked: integrityBlocked, findings: integrityFindings } =
     useRuntimeIntegrityGuard({
       enabled: isLoggedIn && isRuntimeIntegrityEnforced(),
+      exemptFromBlock: integrityGuardExempt,
       onBlocked: handleIntegrityBlocked,
     });
 

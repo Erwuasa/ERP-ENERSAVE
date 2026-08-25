@@ -152,6 +152,7 @@ export async function resolveWorkspaceAfterAuth(
       codigo_postal: item.codigo_postal,
       telefono: item.telefono,
       iban: item.iban,
+      integrity_guard_bypass: item.integrity_guard_bypass,
     })
   )
   const self = directory.find((p) => p.id === row.id)

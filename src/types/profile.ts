@@ -28,6 +28,8 @@ export interface Profile {
   codigoPostal?: string
   telefono?: string
   iban?: string
+  /** Bypass manual del guardián de integridad (erp_comerciales.integrity_guard_bypass) */
+  integrityGuardBypass?: boolean
 }
 
 export function mapVentasRole(
@@ -109,6 +111,7 @@ export function profileFromDirectoryRow(row: {
   codigo_postal?: string | null
   telefono?: string | null
   iban?: string | null
+  integrity_guard_bypass?: boolean
 }): Profile {
   return {
     id: row.id,
@@ -126,6 +129,7 @@ export function profileFromDirectoryRow(row: {
     codigoPostal: row.codigo_postal ?? undefined,
     telefono: row.telefono ?? undefined,
     iban: row.iban ?? undefined,
+    integrityGuardBypass: row.integrity_guard_bypass === true,
   }
 }
 

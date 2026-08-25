@@ -3,6 +3,7 @@ import { buildSecurityIncidencia } from "./runtime-integrity-incident"
 import {
   dedupeFindings,
   detectAutomationGlobals,
+  detectPrototypePollution,
   mergeIntegrityResults,
   runIntegrityScan,
 } from "./runtime-integrity"
@@ -26,6 +27,10 @@ describe("runtime-integrity", () => {
       },
     ])
     expect(findings).toHaveLength(1)
+  })
+
+  it("does not flag native Object.prototype keys as pollution", () => {
+    expect(detectPrototypePollution()).toEqual([])
   })
 
   it("does not block in non-production even with critical findings", () => {

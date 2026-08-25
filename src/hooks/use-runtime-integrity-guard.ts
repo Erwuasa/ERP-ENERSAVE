@@ -12,11 +12,14 @@ import {
 
 interface UseRuntimeIntegrityGuardOptions {
   enabled: boolean
+  /** Superadmin o bypass manual en erp_comerciales.integrity_guard_bypass */
+  exemptFromBlock?: boolean
   onBlocked: (findings: IntegrityFinding[]) => void
 }
 
 export function useRuntimeIntegrityGuard({
   enabled,
+  exemptFromBlock = false,
   onBlocked,
 }: UseRuntimeIntegrityGuardOptions) {
   const [blocked, setBlocked] = useState(false)
@@ -37,6 +40,7 @@ export function useRuntimeIntegrityGuard({
         setFindings(blockingFindings)
 
         if (blockingFindings.length === 0) return
+        if (exemptFromBlock) return
 
         setBlocked(true)
 
@@ -48,7 +52,7 @@ export function useRuntimeIntegrityGuard({
     })
 
     return stop
-  }, [enabled, onBlocked])
+  }, [enabled, exemptFromBlock, onBlocked])
 
   return { blocked, findings }
 }

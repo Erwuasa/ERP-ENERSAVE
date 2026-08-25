@@ -17,6 +17,7 @@ export interface ErpComercialRow {
   codigo_postal?: string | null
   telefono?: string | null
   iban?: string | null
+  integrity_guard_bypass?: boolean
   created_at: string
   updated_at: string
 }
@@ -29,6 +30,11 @@ export type ErpComercialResult<T> =
 let hasCommissionColumn: boolean | null = null
 let hasActivoColumn: boolean | null = null
 let hasFiscalColumns: boolean | null = null
+let hasIntegrityBypassColumn: boolean | null = null
+
+function isMissingIntegrityBypassColumnError(message: string): boolean {
+  return /integrity_guard_bypass/i.test(message)
+}
 
 function isMissingFiscalColumnError(message: string): boolean {
   return /(\bdni\b|\bdireccion\b|\bciudad\b|codigo_postal|\btelefono\b|\biban\b)/i.test(
@@ -49,6 +55,7 @@ function mapErpComercialRow(row: ErpComercialRow): ErpComercialRow {
     ...row,
     commission_percentage: Number(row.commission_percentage ?? 70),
     activo: row.activo !== false,
+    integrity_guard_bypass: row.integrity_guard_bypass === true,
   }
 }
 
@@ -72,6 +79,7 @@ function selectColumns(): string {
   if (hasFiscalColumns !== false) {
     parts.push("dni, direccion, ciudad, codigo_postal, telefono, iban")
   }
+  if (hasIntegrityBypassColumn !== false) parts.push("integrity_guard_bypass")
   parts.push("created_at, updated_at")
   return parts.join(", ")
 }
@@ -82,6 +90,7 @@ function withDefaultCommission(row: Record<string, unknown>): ErpComercialRow {
     commission_percentage:
       row.commission_percentage != null ? Number(row.commission_percentage) : 70,
     activo: row.activo !== false,
+    integrity_guard_bypass: row.integrity_guard_bypass === true,
   })
 }
 
@@ -97,6 +106,10 @@ function handleSelectColumnFallback(message: string): boolean {
   }
   if (isMissingFiscalColumnError(message) && hasFiscalColumns !== false) {
     hasFiscalColumns = false
+    retried = true
+  }
+  if (isMissingIntegrityBypassColumnError(message) && hasIntegrityBypassColumn !== false) {
+    hasIntegrityBypassColumn = false
     retried = true
   }
   return retried
@@ -191,6 +204,7 @@ export async function getErpComercialByEmail(
     if (row && row.id) {
       if (row.commission_percentage != null) hasCommissionColumn = true
       if (row.activo != null) hasActivoColumn = true
+      if (row.integrity_guard_bypass != null) hasIntegrityBypassColumn = true
       return { ok: true, data: withDefaultCommission(row) }
     }
     return { ok: true, data: null }
@@ -487,4 +501,5 @@ export function resetErpComercialesSchemaCache(): void {
   hasCommissionColumn = null
   hasActivoColumn = null
   hasFiscalColumns = null
+  hasIntegrityBypassColumn = null
 }
