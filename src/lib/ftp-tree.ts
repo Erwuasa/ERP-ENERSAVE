@@ -1,13 +1,24 @@
 import type { FtpBreadcrumbItem, FtpNode } from "../types/ftp"
 import { FTP_ROOT_LABEL } from "../data/ftp-seed-catalog"
+import {
+  FTP_AT_ROOT_ID,
+  FTP_AT_ROOT_LABEL,
+  FTP_LOCAL_ROOT_ID,
+  FTP_LOCAL_ROOT_LABEL,
+  atRutaFromId,
+  isAtFtpId,
+} from "./ftp-sources"
+
+export function sortFtpNodes(nodes: FtpNode[]): FtpNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.nodeType !== b.nodeType) return a.nodeType === "folder" ? -1 : 1
+    return a.name.localeCompare(b.name, "es")
+  })
+}
 
 export function getFtpChildren(nodes: FtpNode[], parentId: string | null): FtpNode[] {
-  return nodes
-    .filter((n) => n.parentId === parentId)
-    .sort((a, b) => {
-      if (a.nodeType !== b.nodeType) return a.nodeType === "folder" ? -1 : 1
-      return a.name.localeCompare(b.name, "es")
-    })
+  const effectiveParent = parentId === FTP_LOCAL_ROOT_ID ? null : parentId
+  return sortFtpNodes(nodes.filter((n) => n.parentId === effectiveParent))
 }
 
 export function findFtpNode(nodes: FtpNode[], id: string): FtpNode | undefined {
@@ -20,6 +31,22 @@ export function buildFtpBreadcrumb(
 ): FtpBreadcrumbItem[] {
   const crumbs: FtpBreadcrumbItem[] = [{ id: null, label: FTP_ROOT_LABEL }]
   if (!currentFolderId) return crumbs
+
+  if (isAtFtpId(currentFolderId)) {
+    crumbs.push({ id: FTP_AT_ROOT_ID, label: FTP_AT_ROOT_LABEL })
+    const ruta = atRutaFromId(currentFolderId)
+    if (!ruta) return crumbs
+    const parts = ruta.split(/[/\\]+/).filter(Boolean)
+    let acc = ""
+    for (const part of parts) {
+      acc = acc ? `${acc}/${part}` : part
+      crumbs.push({ id: `at:${acc}`, label: part })
+    }
+    return crumbs
+  }
+
+  crumbs.push({ id: FTP_LOCAL_ROOT_ID, label: FTP_LOCAL_ROOT_LABEL })
+  if (currentFolderId === FTP_LOCAL_ROOT_ID) return crumbs
 
   const chain: FtpNode[] = []
   let cursor = findFtpNode(nodes, currentFolderId)

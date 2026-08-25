@@ -29,6 +29,7 @@ export function mapRowToFtpNode(row: Row): FtpNode {
     mimeType: str(row.mime_type) ?? null,
     sizeBytes: num(row.size_bytes) ?? null,
     createdBy: str(row.created_by) ?? null,
+    source: "enersave",
     createdAt: isoDate(row.created_at) ?? new Date().toISOString(),
     updatedAt: isoDate(row.updated_at) ?? new Date().toISOString(),
   }
@@ -95,6 +96,7 @@ export async function createFtpFolder(input: {
       parentId: input.parentId,
       name: trimmed,
       nodeType: "folder",
+      source: "enersave",
       createdBy: input.createdBy ?? null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -131,6 +133,7 @@ export async function uploadFtpFile(input: {
       parentId: input.parentId,
       name: input.file.name,
       nodeType: "file",
+      source: "enersave",
       mimeType: input.file.type || null,
       sizeBytes: input.file.size,
       storagePath: null,
@@ -208,9 +211,7 @@ export async function deleteFtpNode(
   return { ok: true, data: undefined }
 }
 
-export async function getFtpFileDownloadUrl(
-  node: FtpNode
-): Promise<SupabaseResult<string>> {
+export async function downloadFtpFileBlob(node: FtpNode): Promise<SupabaseResult<Blob>> {
   if (!node.storagePath) {
     return {
       ok: false,
@@ -220,27 +221,17 @@ export async function getFtpFileDownloadUrl(
   }
 
   const resolved = resolveSupabaseClient()
-  if (resolved.ok === false) {
-    return {
-      ok: false,
-      reason: "not_configured",
-      message: "Supabase no configurado.",
-    }
-  }
+  if (resolved.ok === false) return resolved
 
-  const { data, error } = await resolved.client.storage
-    .from(STORAGE_BUCKET)
-    .createSignedUrl(node.storagePath, 3600)
-
-  if (error || !data?.signedUrl) {
+  const { data, error } = await resolved.client.storage.from(STORAGE_BUCKET).download(node.storagePath)
+  if (error || !data) {
     return {
       ok: false,
       reason: "error",
-      message: error?.message ?? "No se pudo generar el enlace de descarga.",
+      message: error?.message ?? "No se pudo obtener el archivo.",
     }
   }
-
-  return { ok: true, data: data.signedUrl }
+  return { ok: true, data }
 }
 
 export const FTP_STORAGE_BUCKET = STORAGE_BUCKET

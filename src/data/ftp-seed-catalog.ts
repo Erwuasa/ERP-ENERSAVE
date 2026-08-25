@@ -37,6 +37,7 @@ export function buildSeedFtpNodes(): FtpNode[] {
       parentId: null,
       name: FTP_OPERATIONS_FOLDER_NAME,
       nodeType: "folder",
+      source: "enersave",
       createdAt: NOW,
       updatedAt: NOW,
     },
@@ -48,6 +49,7 @@ export function buildSeedFtpNodes(): FtpNode[] {
       parentId: operationsId,
       name,
       nodeType: "folder",
+      source: "enersave",
       createdAt: NOW,
       updatedAt: NOW,
     })

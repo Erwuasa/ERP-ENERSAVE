@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest"
 import { buildSeedFtpNodes } from "../data/ftp-seed-catalog"
 import { buildFtpBreadcrumb, getFtpChildren } from "./ftp-tree"
 import { canEditFtp } from "./ftp-permissions"
+import {
+  FTP_AT_ROOT_ID,
+  FTP_LOCAL_ROOT_ID,
+  atRutaFromId,
+  canMutateFtpLocation,
+  virtualFtpRoots,
+} from "./ftp-sources"
 
 describe("canEditFtp", () => {
   it("allows superadmin and tramitacion only", () => {
@@ -31,8 +38,30 @@ describe("ftp-tree", () => {
     const crumbs = buildFtpBreadcrumb(nodes, repsol?.id ?? null)
     expect(crumbs.map((c) => c.label)).toEqual([
       "FTP común",
+      "FTP EnerSave",
       "DOCUMENTOS OPERACIONES",
       "REPSOL",
     ])
+  })
+})
+
+describe("ftp dual sources", () => {
+  it("does not allow mutations on AT or virtual roots", () => {
+    expect(canMutateFtpLocation(null)).toBe(false)
+    expect(canMutateFtpLocation(FTP_AT_ROOT_ID)).toBe(false)
+    expect(canMutateFtpLocation(FTP_LOCAL_ROOT_ID)).toBe(false)
+    expect(canMutateFtpLocation("at:REPSOL")).toBe(false)
+    expect(canMutateFtpLocation("uuid-carpeta-local")).toBe(true)
+  })
+
+  it("exposes AT and EnerSave as the explorer roots", () => {
+    const roots = virtualFtpRoots()
+    expect(roots.map((n) => n.name)).toEqual(["Archivo AT", "FTP EnerSave"])
+  })
+
+  it("builds AT breadcrumb from ruta", () => {
+    const crumbs = buildFtpBreadcrumb([], `at:REPSOL/contratos`)
+    expect(crumbs.map((c) => c.label)).toEqual(["FTP común", "Archivo AT", "REPSOL", "contratos"])
+    expect(atRutaFromId("at:REPSOL/contratos")).toBe("REPSOL/contratos")
   })
 })
