@@ -1,5 +1,5 @@
 -- Calendario interno (ERP) — preparación Fase 4
--- Visibilidad jerárquica vía RLS (manager_id en erp_comerciales)
+-- Visibilidad jerárquica vía RLS (manager_id en user_profiles)
 
 begin;
 
@@ -11,7 +11,7 @@ create table if not exists public.calendario_eventos (
   fecha_inicio timestamptz not null,
   fecha_fin timestamptz not null,
   todo_el_dia boolean not null default false,
-  usuario_id text not null references public.erp_comerciales(id),
+  usuario_id uuid not null references public.user_profiles(id),
   created_at timestamptz not null default now()
 );
 
@@ -24,7 +24,7 @@ create policy calendario_select on public.calendario_eventos
     private.current_role() in ('superadmin', 'tramitacion')
     or usuario_id = private.current_comercial_id()
     or usuario_id in (
-      select id from public.erp_comerciales
+      select id from public.user_profiles
       where manager_id = private.current_comercial_id()
     )
   );

@@ -1,7 +1,7 @@
 import {
   erpSyncResultToResponse,
   handleErpSyncWebhook,
-} from "@/src/lib/webhooks/erp-sync-handler"
+} from "@/lib/webhooks/erp-sync-handler"
 
 /**
  * Supabase Database Webhook → CRM fidelización.

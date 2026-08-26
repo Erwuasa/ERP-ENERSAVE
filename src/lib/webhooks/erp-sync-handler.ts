@@ -104,13 +104,13 @@ async function resolveAsesorId(
 
   if (record.comercial_id) {
     const { data: comercial, error } = await supabase
-      .from("erp_comerciales")
-      .select("auth_user_id")
+      .from("user_profiles")
+      .select("id")
       .eq("id", record.comercial_id)
       .maybeSingle()
 
-    if (error) throw new Error(`erp_comerciales lookup failed: ${error.message}`)
-    if (comercial?.auth_user_id) return comercial.auth_user_id as string
+    if (error) throw new Error(`user_profiles lookup failed: ${error.message}`)
+    if (comercial?.id) return comercial.id as string
   }
 
   const { data: prospecto, error: prospectoError } = await supabase
