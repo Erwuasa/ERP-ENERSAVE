@@ -33,6 +33,9 @@ interface UserControlSheetProps {
   managers: ManagerOption[]
   open: boolean
   saving?: boolean
+  deleting?: boolean
+  canDelete?: boolean
+  currentUserId?: string
   onClose: () => void
   onChange: (user: UserControlProfile) => void
   onSaveRole: (role: UserControlRole, managerId: string | null) => Promise<void>
@@ -62,6 +65,9 @@ export function UserControlSheet({
   managers,
   open,
   saving,
+  deleting,
+  canDelete,
+  currentUserId,
   onClose,
   onChange,
   onSaveRole,
@@ -314,18 +320,23 @@ export function UserControlSheet({
           </div>
         </div>
 
-        {onDelete && (
+        {canDelete && onDelete && user.id !== currentUserId ? (
           <footer className="p-5 border-t border-brand-border shrink-0">
             <button
               type="button"
+              disabled={deleting}
               onClick={onDelete}
-              className="w-full py-2.5 text-xs font-bold rounded-xl border border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex items-center justify-center gap-2"
+              className="w-full py-2.5 text-xs font-bold rounded-xl border border-rose-500/30 text-rose-600 hover:bg-rose-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Trash2 className="w-4 h-4" />
-              Eliminar en Supabase
+              {deleting ? "Eliminando…" : "Eliminar usuario"}
             </button>
+            <p className="mt-2 text-[10px] text-brand-subtext text-center">
+              Borra credenciales Auth y revoca el acceso. Si tiene contratos asociados, se
+              conserva el historial sin email ni login.
+            </p>
           </footer>
-        )}
+        ) : null}
       </motion.aside>
     </div>
   )

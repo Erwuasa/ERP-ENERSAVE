@@ -149,3 +149,63 @@ export async function updateErpComercialFiscal(
   if (!data) return { ok: false, message: "Usuario no encontrado tras actualizar" }
   return { ok: true, data: mapRow(data as Record<string, unknown>) }
 }
+
+export type DeleteStaffUserResult = {
+  mode: "deleted" | "revoked"
+  comercial_id: string
+  auth_removed: boolean
+  message?: string
+}
+
+export async function deleteStaffUser(
+  userId: string
+): Promise<ErpComercialResult<DeleteStaffUserResult>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return clientOrError
+  }
+
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { data, error } = await client.rpc("delete_staff_user_v1", {
+    p_user_id: userId,
+  })
+
+  if (error) {
+    const message =
+      error.message.includes("not authorized") || error.code === "42501"
+        ? "Solo el superadmin puede eliminar usuarios."
+        : error.message.includes("cannot delete own account")
+          ? "No puedes eliminar tu propia cuenta."
+          : error.message.includes("user not found")
+            ? "Usuario no encontrado."
+            : error.message
+    return { ok: false, message }
+  }
+
+  const payload = data as DeleteStaffUserResult | null
+  if (!payload?.comercial_id) {
+    return { ok: false, message: "Respuesta inválida al eliminar usuario." }
+  }
+
+  return { ok: true, data: payload }
+}
+
+export async function isStaffLoginAllowed(
+  userId: string
+): Promise<ErpComercialResult<boolean>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return { ok: true, data: true }
+  }
+
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { data, error } = await client
+    .from("user_profiles")
+    .select("activo")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (error) return mapError(error)
+  if (!data) return { ok: true, data: true }
+  return { ok: true, data: data.activo !== false }
+}
