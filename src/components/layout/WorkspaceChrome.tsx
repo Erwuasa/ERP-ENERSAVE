@@ -7,6 +7,8 @@ import { useRuntimeIntegrityGuard } from "@/hooks/use-runtime-integrity-guard"
 import { useAuth } from "@/hooks/useAuth"
 import { createIncidencia } from "@/lib/supabase/incidencias"
 import { isRuntimeIntegrityEnforced } from "@/lib/runtime-integrity-env"
+import { isRuntimeIntegrityBlockExempt } from "@/lib/runtime-integrity-exempt"
+import { recordRuntimeIntegrityBlock } from "@/lib/supabase/runtime-integrity-blocks"
 import {
   buildSecurityIncidencia,
   securityIncidenciaFingerprint,
@@ -29,9 +31,19 @@ export function WorkspaceChrome() {
 
   const onBlocked = useCallback(
     (findings: IntegrityFinding[]) => {
+      if (
+        isRuntimeIntegrityBlockExempt({
+          role: activeUser.role,
+          integrityGuardBypass: activeUser.integrityGuardBypass,
+        })
+      ) {
+        return
+      }
+
       const fingerprint = securityIncidenciaFingerprint(findings)
       if (fingerprint === reportedFingerprint) return
       setReportedFingerprint(fingerprint)
+      void recordRuntimeIntegrityBlock(findings, fingerprint)
       const ticket = buildSecurityIncidencia({
         userId: activeUserId,
         userName: activeUser.fullName,
@@ -41,11 +53,25 @@ export function WorkspaceChrome() {
       setIncidencias((prev) => [ticket, ...prev])
       void createIncidencia(ticket)
     },
-    [activeUser.fullName, activeUserId, incidencias, reportedFingerprint, setIncidencias]
+    [
+      activeUser.fullName,
+      activeUser.integrityGuardBypass,
+      activeUser.role,
+      activeUserId,
+      incidencias,
+      reportedFingerprint,
+      setIncidencias,
+    ]
   )
+
+  const integrityGuardExempt = isRuntimeIntegrityBlockExempt({
+    role: activeUser.role,
+    integrityGuardBypass: activeUser.integrityGuardBypass,
+  })
 
   const { blocked, findings } = useRuntimeIntegrityGuard({
     enabled: isLoggedIn && isRuntimeIntegrityEnforced(),
+    exemptFromBlock: integrityGuardExempt,
     onBlocked,
   })
 

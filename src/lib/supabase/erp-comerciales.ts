@@ -17,6 +17,7 @@ export interface ErpComercialRow {
   codigo_postal?: string | null
   telefono?: string | null
   iban?: string | null
+  integrity_guard_bypass?: boolean
 }
 
 export type ErpComercialResult<T> =
@@ -24,7 +25,7 @@ export type ErpComercialResult<T> =
   | { ok: false; message: string }
 
 const STAFF_SELECT =
-  "id, full_name, role, manager_id, email, commission_percentage, activo, dni, direccion, ciudad, codigo_postal, telefono, iban"
+  "id, full_name, role, manager_id, email, commission_percentage, activo, dni, direccion, ciudad, codigo_postal, telefono, iban, integrity_guard_bypass"
 
 function isStaffRole(value: string): value is ErpComercialRole {
   return (
@@ -52,6 +53,7 @@ function mapRow(row: Record<string, unknown>): ErpComercialRow {
     codigo_postal: (row.codigo_postal as string | null) ?? null,
     telefono: (row.telefono as string | null) ?? null,
     iban: (row.iban as string | null) ?? null,
+    integrity_guard_bypass: row.integrity_guard_bypass === true,
   }
 }
 

@@ -181,19 +181,32 @@ export function detectAutomationGlobals(): IntegrityFinding[] {
   return findings
 }
 
+const STANDARD_OBJECT_PROTO_KEYS = new Set([
+  "constructor",
+  "toString",
+  "valueOf",
+  "hasOwnProperty",
+  "isPrototypeOf",
+  "propertyIsEnumerable",
+  "toLocaleString",
+  "__defineGetter__",
+  "__defineSetter__",
+  "__lookupGetter__",
+  "__lookupSetter__",
+  "__proto__",
+])
+
 export function detectPrototypePollution(): IntegrityFinding[] {
-  const suspiciousKeys = ["polluted", "__proto__", "constructor"]
-  for (const key of suspiciousKeys) {
-    if (Object.prototype.hasOwnProperty.call(Object.prototype, key)) {
-      return [
-        finding(
-          "prototype_pollution",
-          "critical",
-          "Posible contaminación del prototipo Object",
-          key
-        ),
-      ]
-    }
+  for (const key of Object.getOwnPropertyNames(Object.prototype)) {
+    if (STANDARD_OBJECT_PROTO_KEYS.has(key)) continue
+    return [
+      finding(
+        "prototype_pollution",
+        "critical",
+        "Posible contaminación del prototipo Object",
+        key
+      ),
+    ]
   }
   return []
 }

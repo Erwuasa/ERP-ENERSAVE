@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
+import { isRuntimeIntegrityBlockExempt } from "./runtime-integrity-exempt"
 import { buildSecurityIncidencia } from "./runtime-integrity-incident"
 import {
   dedupeFindings,
   detectAutomationGlobals,
+  detectPrototypePollution,
   mergeIntegrityResults,
   runIntegrityScan,
 } from "./runtime-integrity"
@@ -26,6 +28,10 @@ describe("runtime-integrity", () => {
       },
     ])
     expect(findings).toHaveLength(1)
+  })
+
+  it("does not flag native Object.prototype keys as pollution", () => {
+    expect(detectPrototypePollution()).toEqual([])
   })
 
   it("does not block in non-production even with critical findings", () => {
@@ -80,5 +86,13 @@ describe("runtime-integrity browser checks", () => {
   it("does not flag webdriver when absent", () => {
     if (typeof navigator === "undefined") return
     expect(detectAutomationGlobals()).toEqual([])
+  })
+})
+
+describe("isRuntimeIntegrityBlockExempt", () => {
+  it("exempts superadmin and manual bypass", () => {
+    expect(isRuntimeIntegrityBlockExempt({ role: "superadmin" })).toBe(true)
+    expect(isRuntimeIntegrityBlockExempt({ role: "comercial", integrityGuardBypass: true })).toBe(true)
+    expect(isRuntimeIntegrityBlockExempt({ role: "comercial" })).toBe(false)
   })
 })
