@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
 import { motion } from "motion/react"
 import { ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
-import { mfaStatusLabel } from "../../lib/admin-mfa-policy"
-import { fetchAdminMfaStatus } from "../../lib/supabase/admin-mfa"
+import { mfaStatusLabel } from "@/lib/admin-mfa-policy"
+import { fetchAdminMfaStatus } from "@/lib/supabase/admin-mfa"
 
 export type UserControlRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion" | "customer"
 
