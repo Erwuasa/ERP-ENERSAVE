@@ -40,6 +40,9 @@ export function ErpWorkspaceModals() {
               .map((p) => ({ id: p.id, fullName: p.fullName }))}
             open
             saving={isSavingUserSheet}
+            deleting={ws.isDeletingUserId === activeUserForSheet.id}
+            canDelete={activeUser.role === "superadmin"}
+            currentUserId={activeUserId}
             onClose={() => setActiveUserForSheet(null)}
             onChange={(updated) => {
               setProfiles((prev) =>

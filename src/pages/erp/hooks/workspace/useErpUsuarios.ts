@@ -7,7 +7,7 @@ import {
   type Profile,
   type UserRole,
 } from '@/types/profile';
-import { listErpComerciales, updateErpComercial } from '@/lib/supabase/erp-comerciales';
+import { listErpComerciales, updateErpComercial, deleteStaffUser } from '@/lib/supabase/erp-comerciales';
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 import { fetchAdminMfaSummary, resetAdminMfa } from '@/lib/supabase/admin-mfa';
 import { canResetTargetMfa } from '@/lib/admin-mfa-policy';
@@ -41,6 +41,7 @@ export function useErpUsuarios({
   const [appUsersError, setAppUsersError] = useState<string | null>(null);
   const [mfaEnrolledIds, setMfaEnrolledIds] = useState<string[]>([]);
   const [mfaResettingUserId, setMfaResettingUserId] = useState<string | null>(null);
+  const [isDeletingUserId, setIsDeletingUserId] = useState<string | null>(null);
 
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
 
@@ -208,6 +209,36 @@ export function useErpUsuarios({
     const fromApp = appUsers.find((u) => u.id === userId);
     if (!fromProfiles && !fromApp) return;
     const label = fromProfiles?.fullName ?? fromApp?.fullName ?? fromApp?.email ?? userId;
+
+    if (activeRole === 'superadmin') {
+      if (
+        !confirm(
+          `¿Eliminar a ${label}? Se borrarán sus credenciales de acceso en Supabase Auth y no podrá volver a entrar.`
+        )
+      ) {
+        return;
+      }
+
+      setIsDeletingUserId(userId);
+      const result = await deleteStaffUser(userId);
+      setIsDeletingUserId(null);
+      if (result.ok === false) {
+        toast.error(result.message);
+        return;
+      }
+      setProfiles((prev) => prev.filter((p) => p.id !== userId));
+      setActiveUserForSheet(null);
+      toast.success(
+        result.data.message ??
+          (result.data.mode === 'deleted'
+            ? 'Usuario eliminado correctamente.'
+            : 'Acceso revocado; historial comercial conservado.')
+      );
+      const accounts = await listAppUsers();
+      if (accounts.ok) setAppUsers(accounts.data);
+      return;
+    }
+
     if (!confirm(`¿Quitar el acceso staff de ${label}? Seguirá existiendo como cliente.`)) return;
 
     const result = await updateErpComercial(userId, { role: 'customer', manager_id: null });
@@ -304,5 +335,6 @@ export function useErpUsuarios({
     togglePermission,
     mfaEnrolledIds,
     mfaResettingUserId,
+    isDeletingUserId,
   };
 }

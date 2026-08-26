@@ -1,7 +1,6 @@
 import { ChevronDown, Mail, Phone, FileText } from "lucide-react"
 import { toast } from "sonner"
 import {
-  canTransition,
   getProspectoFaseBadgeClass,
   getSlaBadgeClass,
   getSlaUrgencia,
@@ -12,7 +11,10 @@ import {
 import { getSubtipoBadgeClass } from "../../lib/ventas/ui-badges"
 import type { VentasActor } from "../../lib/ventas/hooks/types"
 import type { Prospecto, ProspectoFase, UpdateProspectoPatch } from "../../lib/ventas/types"
-import { readCaducidadOferta } from "../../lib/ventas/stage-gate"
+import {
+  getNextCentroMandoFase,
+  readCaducidadOferta,
+} from "../../lib/ventas/stage-gate"
 import { slaDisplayLabel } from "./ventas-ui"
 import { FichaEtiquetasInline } from "./FichaEtiquetasInline"
 
@@ -23,6 +25,7 @@ interface CentroMandoProspectoSectionProps {
   prospecto: Prospecto
   actor: VentasActor
   cupsDisplay?: string
+  readyToAdvance?: boolean
   faseChanging?: boolean
   onFaseChange?: (to: ProspectoFase) => void
   onSaveEtiquetas?: (
@@ -35,6 +38,7 @@ export function CentroMandoProspectoSection({
   prospecto,
   actor,
   cupsDisplay,
+  readyToAdvance = false,
   faseChanging = false,
   onFaseChange,
   onSaveEtiquetas,
@@ -54,17 +58,18 @@ export function CentroMandoProspectoSection({
   const linkedContractId = prospecto.contratoEquipoId
   const cups =
     cupsDisplay?.trim() || prospecto.cups?.trim() || undefined
+  const nextFase = getNextCentroMandoFase(prospecto.fase)
   const funnelFases = FUNNEL_ORDER.filter((f) => f !== "activado")
 
   function handleFaseSelect(next: ProspectoFase) {
     if (next === prospecto.fase) return
     if (!onFaseChange) return
-    if (next === "activado") {
-      toast.info("La activación se registra vía sync con el ERP.")
+    if (next !== nextFase) {
+      toast.info("Solo puedes avanzar a la siguiente fase del pipeline.")
       return
     }
-    if (!canTransition(prospecto.fase, next)) {
-      toast.info("Transición no permitida desde esta fase.")
+    if (!readyToAdvance) {
+      toast.info("Completa todas las tareas y las notas obligatorias antes de avanzar.")
       return
     }
     onFaseChange(next)
@@ -90,12 +95,17 @@ export function CentroMandoProspectoSection({
             disabled={faseChanging}
             onChange={(e) => handleFaseSelect(e.target.value as ProspectoFase)}
             aria-label="Cambiar fase del prospecto"
-            title="Cambiar fase del prospecto"
+            title={
+              readyToAdvance && nextFase
+                ? `Avanzar a ${getFaseConfig(nextFase).label}`
+                : "Completa tareas y notas para avanzar de fase"
+            }
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           >
             {funnelFases.map((fase) => {
               const isCurrent = fase === prospecto.fase
-              const optionDisabled = !isCurrent && !canTransition(prospecto.fase, fase)
+              const isNext = fase === nextFase
+              const optionDisabled = !isCurrent && (!isNext || !readyToAdvance)
               return (
                 <option key={fase} value={fase} disabled={optionDisabled}>
                   {getFaseConfig(fase).label}

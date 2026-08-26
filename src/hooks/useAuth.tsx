@@ -27,6 +27,7 @@ import {
   verifyTotpCode,
 } from "@/lib/supabase/auth-mfa"
 import { resolveWorkspaceAfterAuth } from "@/lib/supabase/user-profiles"
+import { isStaffLoginAllowed } from "@/lib/supabase/erp-comerciales"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
 import { EMPTY_PROFILE, isStaffRole, type Profile } from "@/types/profile"
@@ -80,6 +81,23 @@ function persistLoggedInProfile(profileId: string): void {
 function clearPersistedProfile(): void {
   if (typeof sessionStorage === "undefined") return
   sessionStorage.removeItem(AUTH_USER_STORAGE_KEY)
+}
+
+const SUSPENDED_ACCOUNT_MESSAGE =
+  "La cuenta de este agente se encuentra suspendida temporalmente por administración."
+
+async function assertActiveStaffAccount(
+  profile: Profile
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!isStaffRole(profile.role)) return { ok: true }
+  if (profile.status === "suspendido") {
+    return { ok: false, message: SUSPENDED_ACCOUNT_MESSAGE }
+  }
+  const access = await isStaffLoginAllowed(profile.id)
+  if (access.ok && access.data === false) {
+    return { ok: false, message: SUSPENDED_ACCOUNT_MESSAGE }
+  }
+  return { ok: true }
 }
 
 async function gateStaffWorkspace(
@@ -173,6 +191,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearSupabaseSession()
         setLoginLoading(false)
         setLoginError(workspace.message)
+        return
+      }
+
+      const activeAccount = await assertActiveStaffAccount(workspace.data.profile)
+      if (activeAccount.ok === false) {
+        await clearSupabaseSession()
+        setLoginLoading(false)
+        setLoginError(activeAccount.message)
         return
       }
 
@@ -344,6 +370,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!cancelled && status.ok) {
         const workspace = await resolveWorkspaceAfterAuth(status.email)
         if (!cancelled && workspace.ok) {
+          const activeAccount = await assertActiveStaffAccount(workspace.data.profile)
+          if (activeAccount.ok === false) {
+            await clearSupabaseSession()
+            if (cancelled) return
+            setLoginError(activeAccount.message)
+            setIsBootstrapping(false)
+            return
+          }
           const gated = await gateStaffWorkspace(
             status.email,
             workspace.data.profile,

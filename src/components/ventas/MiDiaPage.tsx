@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Plus } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -6,13 +6,7 @@ import {
   listTareasByProspecto,
 } from "../../lib/supabase/ventas"
 import type { ProspectoImportSource } from "../../lib/ventas/prospecto-import-sources"
-import {
-  buildAccomplishmentMessage,
-  computeMonthlyGoalProgress,
-  computeOverallGoalPercent,
-  getCrossedMilestones,
-  projectProgressAfterTaskComplete,
-} from "../../lib/ventas/monthly-goals"
+import { computeMonthlyGoalProgress } from "../../lib/ventas/monthly-goals"
 import { useActividadesComercial } from "../../lib/ventas/hooks/useActividadesComercial"
 import { useProspectos } from "../../lib/ventas/hooks/useProspectos"
 import { useTareas } from "../../lib/ventas/hooks/useTareas"
@@ -26,12 +20,7 @@ import {
   type FidelizacionCadenciaMeses,
   type FidelizacionRow,
 } from "../../lib/ventas/mi-dia-cockpit"
-import {
-  buildDailyBrief,
-  buildMiDiaKpiSnapshot,
-  buildWeeklyBrief,
-  collectBriefMetricsForRange,
-} from "../../lib/ventas/mi-dia-kpis"
+import { buildMiDiaKpiSnapshot, buildDailyBrief, buildWeeklyBrief } from "../../lib/ventas/mi-dia-kpis"
 import { buildSlaAlertsFromProspectos } from "../../lib/ventas/sla-alerts"
 import { useReducedMotion } from "../../lib/ventas/motion-prefs"
 import { buildQuickWinTasks } from "../../lib/ventas/quick-wins"
@@ -41,9 +30,8 @@ import {
   MiDiaKpiStripSkeleton,
   MiDiaPageSkeleton,
 } from "../ui/skeletons/VentasSkeletons"
-import { MiDiaAccomplishmentBurst } from "./MiDiaAccomplishmentBurst"
-import { MiDiaBriefCard } from "./MiDiaBriefCard"
 import { MiDiaCockpitHeader } from "./MiDiaCockpitHeader"
+import { MiDiaBriefCard } from "./MiDiaBriefCard"
 import { MiDiaContratosActivacion } from "./MiDiaContratosActivacion"
 import { MiDiaMonthlyGoals } from "./MiDiaMonthlyGoals"
 import { MiDiaFidelizacionPanel, recalcProximoContacto } from "./MiDiaFidelizacionPanel"
@@ -109,11 +97,6 @@ export function MiDiaPage({
     prospectoNombre: string
   } | null>(null)
   const [fidelizacionRows, setFidelizacionRows] = useState<FidelizacionRow[]>([])
-  const [accomplishmentBurst, setAccomplishmentBurst] = useState<{
-    open: boolean
-    message: string
-  }>({ open: false, message: "" })
-  const goalPercentRef = useRef(0)
 
   const prospectosById = useMemo(
     () => new Map(prospectos.map((p) => [p.id, p])),
@@ -140,51 +123,10 @@ export function MiDiaPage({
     () => buildDailyBrief(prospectos, actividades, tareas),
     [prospectos, actividades, tareas]
   )
-
   const weeklyBrief = useMemo(
     () => buildWeeklyBrief(prospectos, actividades, tareas),
     [prospectos, actividades, tareas]
   )
-
-  const reinforcementMessage = useMemo(() => {
-    const now = new Date()
-    const weekStart = new Date(now)
-    weekStart.setHours(0, 0, 0, 0)
-    const day = weekStart.getDay()
-    const diff = day === 0 ? -6 : 1 - day
-    weekStart.setDate(weekStart.getDate() + diff)
-    const weekEnd = new Date(weekStart)
-    weekEnd.setDate(weekEnd.getDate() + 7)
-    const prevWeekStart = new Date(weekStart)
-    prevWeekStart.setDate(prevWeekStart.getDate() - 7)
-
-    const weekMetrics = collectBriefMetricsForRange(
-      prospectos,
-      actividades,
-      tareas,
-      weekStart,
-      weekEnd
-    )
-    const prevWeekMetrics = collectBriefMetricsForRange(
-      prospectos,
-      actividades,
-      tareas,
-      prevWeekStart,
-      weekStart
-    )
-
-    return buildAccomplishmentMessage(goalProgress, {
-      weeklyContactos: weekMetrics.leadsContactados,
-      weeklyContratos: weekMetrics.contratosCerrados,
-      semanaMejorQueAnterior:
-        weekMetrics.contratosCerrados + weekMetrics.leadsContactados >
-        prevWeekMetrics.contratosCerrados + prevWeekMetrics.leadsContactados,
-    })
-  }, [goalProgress, prospectos, actividades, tareas])
-
-  useEffect(() => {
-    goalPercentRef.current = computeOverallGoalPercent(goalProgress)
-  }, [goalProgress])
 
   const slaAlerts = useMemo(
     () => buildSlaAlertsFromProspectos(prospectos),
@@ -309,32 +251,12 @@ export function MiDiaPage({
   }
 
   async function handleHecho(tarea: TareaVenta) {
-    const prevPercent = goalPercentRef.current
-    const projectedProgress = projectProgressAfterTaskComplete(goalProgress, tarea)
-
+    toast.success("Tarea completada")
     const result = await completeTarea(tarea.id)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return
     }
-
-    const newPercent = computeOverallGoalPercent(projectedProgress)
-    const milestones = getCrossedMilestones(prevPercent, newPercent)
-    goalPercentRef.current = newPercent
-
-    if (milestones.length > 0) {
-      const milestone = milestones[milestones.length - 1]
-      setAccomplishmentBurst({
-        open: true,
-        message: `¡Meta mensual al ${milestone}%!`,
-      })
-    } else {
-      setAccomplishmentBurst({
-        open: true,
-        message: "Tarea completada — sigue así",
-      })
-    }
-
     const prospecto = prospectosById.get(tarea.prospectoId)
     if (prospecto) await spawnQuickWinsIfNeeded(prospecto)
     await refreshTareas({ silent: true })
@@ -344,7 +266,7 @@ export function MiDiaPage({
   async function handlePosponer(tarea: TareaVenta) {
     toast.success("Tarea pospuesta")
     const result = await postponeTarea(tarea.id)
-    if (!result.ok) toast.error(result.message)
+    if (result.ok === false) toast.error(result.message)
   }
 
   async function handleCreateProspecto(data: NuevoProspectoFormData) {
@@ -362,7 +284,7 @@ export function MiDiaPage({
       metadata: data.canalOrigen ? { canal_origen: data.canalOrigen } : undefined,
     })
     setCreating(false)
-    if (!result.ok) {
+    if (result.ok === false) {
       toast.error(result.message)
       return false
     }
@@ -403,6 +325,8 @@ export function MiDiaPage({
             />
           )}
 
+          <MiDiaBriefCard dailyBrief={dailyBrief} weeklyBrief={weeklyBrief} />
+
           {/* Pendientes (izq) + Objetivos (der) */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
             <div className="lg:col-span-5 min-h-0">
@@ -434,12 +358,6 @@ export function MiDiaPage({
               )}
             </div>
           </div>
-
-          <MiDiaBriefCard
-            dailyBrief={dailyBrief}
-            weeklyBrief={weeklyBrief}
-            reinforcementMessage={reinforcementMessage}
-          />
 
           <div className="space-y-3">
             <MiDiaTaskQueue
@@ -488,13 +406,6 @@ export function MiDiaPage({
           </div>
         </>
       )}
-
-      <MiDiaAccomplishmentBurst
-        open={accomplishmentBurst.open}
-        message={accomplishmentBurst.message}
-        reducedMotion={reducedMotion}
-        onDone={() => setAccomplishmentBurst((prev) => ({ ...prev, open: false }))}
-      />
 
       <button
         type="button"

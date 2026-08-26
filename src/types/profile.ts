@@ -28,7 +28,7 @@ export interface Profile {
   codigoPostal?: string
   telefono?: string
   iban?: string
-  /** Bypass manual del guardián de integridad (erp_comerciales.integrity_guard_bypass) */
+  /** Bypass manual del guardián de integridad (user_profiles.integrity_guard_bypass) */
   integrityGuardBypass?: boolean
 }
 

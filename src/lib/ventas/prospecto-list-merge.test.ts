@@ -5,7 +5,7 @@ import type { Prospecto } from "./types"
 function prospecto(id: string, updatedAt: string, fase: Prospecto["fase"] = "prospecto_nuevo"): Prospecto {
   return {
     id,
-    comercialId: "usr-3",
+    comercialId: "staff-ignacio",
     comercialName: "Test",
     nombre: `Prospecto ${id}`,
     fase,

@@ -12,7 +12,7 @@ import {
 
 interface UseRuntimeIntegrityGuardOptions {
   enabled: boolean
-  /** Superadmin o bypass manual en erp_comerciales.integrity_guard_bypass */
+  /** Superadmin o bypass manual en user_profiles.integrity_guard_bypass */
   exemptFromBlock?: boolean
   onBlocked: (findings: IntegrityFinding[]) => void
 }

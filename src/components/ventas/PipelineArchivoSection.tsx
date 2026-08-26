@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { Fragment, useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { ARCHIVO_FASES, getFaseConfig } from "../../lib/ventas/pipeline"
 import type { Prospecto, ProspectoFase } from "../../lib/ventas/types"
@@ -101,22 +101,23 @@ export function PipelineArchivoSection({
                     <p className="text-[10px] text-brand-subtext text-center py-6 font-mono">—</p>
                   ) : (
                     columnItems.map((prospecto) => (
-                      <ProspectoKanbanCard
-                        key={prospecto.id}
-                        prospecto={prospecto}
-                        canDrag={canDrag}
-                        isDragging={draggedId === prospecto.id}
-                        onOpenFicha={onOpenFicha}
-                        onDragStart={(e, id) => {
-                          setDraggedId(id)
-                          e.dataTransfer.setData("text/prospecto-id", id)
-                          e.dataTransfer.effectAllowed = "move"
-                        }}
-                        onDragEnd={() => {
-                          setDraggedId(null)
-                          setDragOverColumn(null)
-                        }}
-                      />
+                      <Fragment key={prospecto.id}>
+                        <ProspectoKanbanCard
+                          prospecto={prospecto}
+                          canDrag={canDrag}
+                          isDragging={draggedId === prospecto.id}
+                          onOpenFicha={onOpenFicha}
+                          onDragStart={(e, id) => {
+                            setDraggedId(id)
+                            e.dataTransfer.setData("text/prospecto-id", id)
+                            e.dataTransfer.effectAllowed = "move"
+                          }}
+                          onDragEnd={() => {
+                            setDraggedId(null)
+                            setDragOverColumn(null)
+                          }}
+                        />
+                      </Fragment>
                     ))
                   )}
                 </KanbanColumnBody>
