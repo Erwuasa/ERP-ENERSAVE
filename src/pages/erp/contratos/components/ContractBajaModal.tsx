@@ -99,8 +99,9 @@ export function ContractBajaModal({
         </div>
 
         {clawback.isInvalidDate ? (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-450 text-[10px] rounded-lg font-mono">
-            ⚠️ Error: La fecha de baja no puede ser anterior a la de activación.
+          <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-450 text-[10px] rounded-lg font-mono inline-flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            Error: La fecha de baja no puede ser anterior a la de activación.
           </div>
         ) : clawback.isSecure ? (
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-md text-xs font-mono">

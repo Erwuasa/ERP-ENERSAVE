@@ -1,4 +1,4 @@
-import { Lock, Search, Filter, UserPlus, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Lock, Search, Filter, UserPlus, ChevronRight } from 'lucide-react';
 import { useErpWorkspaceContext } from '@/pages/erp/providers/ErpWorkspaceProvider';
 import type { AppUser } from '@/lib/supabase/app-users';
 import {
@@ -284,7 +284,10 @@ export function UsuariosPage() {
                                               ) : mgr ? (
                                                 <span className="font-medium text-brand-text">{mgr.fullName}</span>
                                               ) : (
-                                                <span className="text-rose-400/80 bg-rose-500/5 border border-rose-500/10 px-2 py-0.5 rounded text-[10px] font-mono">⚠️ No asignado</span>
+                                                <span className="inline-flex items-center gap-1 text-rose-400/80 bg-rose-500/5 border border-rose-500/10 px-2 py-0.5 rounded text-[10px] font-mono">
+                                                  <AlertTriangle className="w-3 h-3" />
+                                                  No asignado
+                                                </span>
                                               )}
                                             </td>
                                             <td className="py-4 px-5">
