@@ -1,5 +1,4 @@
 import { Coins, Filter, Plus } from "lucide-react"
-import { MARCO_COMPANIAS_LUZ } from "@/data/marco-retributivo-catalog"
 
 type Props = {
   supabaseConfigured: boolean
@@ -9,6 +8,7 @@ type Props = {
   onCreate: () => void
   companiaFilter: string
   setCompaniaFilter: (value: string) => void
+  companyTabs: string[]
   countsByCompania: Record<string, number>
   peajeOptions: string[]
   peajeFilter: string
@@ -23,6 +23,7 @@ export function MarcoRetributivoToolbar({
   onCreate,
   companiaFilter,
   setCompaniaFilter,
+  companyTabs,
   countsByCompania,
   peajeOptions,
   peajeFilter,
@@ -80,7 +81,7 @@ export function MarcoRetributivoToolbar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {MARCO_COMPANIAS_LUZ.map((tab) => {
+        {companyTabs.map((tab) => {
           const count = countsByCompania[tab] ?? 0
           return (
             <button

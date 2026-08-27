@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { toast } from "sonner"
-import { MARCO_COMPANIAS_LUZ } from "@/data/marco-retributivo-catalog"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   createMarcoEntry,
@@ -67,21 +66,21 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
   }, [rows, companiaFilter, tipoFilter, peajeFilter])
 
   const countsByCompania = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const tab of MARCO_COMPANIAS_LUZ) {
-      if (tab === "Todos") {
-        counts[tab] = rows.filter(
-          (e) => tipoFilter === "todos" || e.tipo === tipoFilter
-        ).length
-      } else {
-        counts[tab] = rows.filter(
-          (e) =>
-            e.compania === tab && (tipoFilter === "todos" || e.tipo === tipoFilter)
-        ).length
-      }
+    const scoped = rows.filter((e) => tipoFilter === "todos" || e.tipo === tipoFilter)
+    const counts: Record<string, number> = { Todos: scoped.length }
+    for (const row of scoped) {
+      counts[row.compania] = (counts[row.compania] ?? 0) + 1
     }
     return counts
   }, [rows, tipoFilter])
+
+  const companyTabs = useMemo(() => {
+    return Object.keys(countsByCompania).sort((a, b) => {
+      if (a === "Todos") return -1
+      if (b === "Todos") return 1
+      return a.localeCompare(b, "es")
+    })
+  }, [countsByCompania])
 
   function openEntryModal(entry: MarcoRetributivoRow) {
     setModalEntry(entry)
@@ -212,6 +211,7 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
     peajeOptions,
     filteredRows,
     countsByCompania,
+    companyTabs,
     openEntryModal,
     openCreateModal,
     closeModal,

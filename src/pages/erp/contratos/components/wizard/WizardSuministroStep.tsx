@@ -1,5 +1,4 @@
 import { Coins, Flame, Lightbulb, MessageSquare } from "lucide-react"
-import { marcoRetributivoCatalog } from "@/data/marco-retributivo-catalog"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import type { Contract } from "@/types/contract"
 import {
@@ -93,7 +92,7 @@ export function WizardSuministroStep({
           <select
             value={form.marcoEntryId || ""}
             onChange={(e) => {
-              const entry = marcoRetributivoCatalog.find((x) => x.id === e.target.value)
+              const entry = filteredTariffs.find((x) => x.id === e.target.value)
               if (entry) selectTariff(entry.id, entry.tarifa)
             }}
             className={WIZARD_INPUT_CLASS}

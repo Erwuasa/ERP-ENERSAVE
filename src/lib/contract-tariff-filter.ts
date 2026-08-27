@@ -18,8 +18,16 @@ export function isMarcoEntryForSegment(
   entry: MarcoRetributivoEntry,
   segment: ContractWizardSegment
 ): boolean {
-  const cond = entry.condiciones.toLowerCase()
+  const cond = (entry.condiciones ?? "").toLowerCase()
   const peaje = entry.peaje
+  const entrySegment = entry.segmento
+
+  if (entrySegment === "pyme" || entrySegment === "autonomo" || entrySegment === "comunidades") {
+    return segment === "pyme"
+  }
+  if (entrySegment === "residencial") {
+    return segment === "residencial"
+  }
 
   if (segment === "residencial") {
     return (
@@ -51,13 +59,15 @@ export function filterMarcoTariffs(params: {
   tipoCliente?: TipoClienteWizard
   peajeSegment?: PeajeSegment | ""
   search?: string
+  catalog?: MarcoRetributivoEntry[]
 }): MarcoRetributivoEntry[] {
   const segment = params.tipoCliente
     ? tipoClienteToSegment(params.tipoCliente)
     : params.segment
   const q = (params.search ?? "").trim().toLowerCase()
+  const catalog = params.catalog ?? marcoRetributivoCatalog
 
-  return marcoRetributivoCatalog.filter((entry) => {
+  return catalog.filter((entry) => {
     if (entry.compania !== params.compania) return false
     if (entry.tipo !== params.tipo) return false
     if (!isMarcoEntryForSegment(entry, segment)) return false
@@ -71,9 +81,12 @@ export function filterMarcoTariffs(params: {
   })
 }
 
-export function getWizardCompanies(segment: ContractWizardSegment): string[] {
+export function getWizardCompanies(
+  segment: ContractWizardSegment,
+  catalog: MarcoRetributivoEntry[] = marcoRetributivoCatalog
+): string[] {
   const set = new Set<string>()
-  for (const entry of marcoRetributivoCatalog) {
+  for (const entry of catalog) {
     if (isMarcoEntryForSegment(entry, segment)) {
       set.add(entry.compania)
     }

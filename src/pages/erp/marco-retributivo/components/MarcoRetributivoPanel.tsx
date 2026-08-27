@@ -36,6 +36,7 @@ export function MarcoRetributivoPanel({
           onCreate={vm.openCreateModal}
           companiaFilter={vm.companiaFilter}
           setCompaniaFilter={vm.setCompaniaFilter}
+          companyTabs={vm.companyTabs}
           countsByCompania={vm.countsByCompania}
           peajeOptions={vm.peajeOptions}
           peajeFilter={vm.peajeFilter}

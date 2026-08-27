@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
-import { marcoRetributivoCatalog } from "@/data/marco-retributivo-catalog"
+import { marcoRetributivoCatalog, type MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
 import {
   getDocumentosObligatoriosForMarco,
@@ -22,6 +22,7 @@ import { getTariffPeajeType, inferPeajeTypeFromSegment, spreadPotenciaFromP1 } f
 import { lookupSpainPostalCode } from "@/lib/spain-postal-code"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wizard-ui"
+import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
 
 export function useNuevoContratoWizard({
   open,
@@ -47,7 +48,17 @@ export function useNuevoContratoWizard({
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
+  const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>(marcoRetributivoCatalog)
   const cpLookupRequestId = useRef(0)
+
+  useEffect(() => {
+    if (!open) return
+    void listMarcoRetributivo().then((result) => {
+      if (result.ok && result.data.length > 0) {
+        setMarcoCatalog(result.data.map(marcoRowToCatalogEntry))
+      }
+    })
+  }, [open])
 
   function goToTab(tab: Exclude<WizardStep, 1>) {
     onChange({ wizardStep: tab })
@@ -61,7 +72,7 @@ export function useNuevoContratoWizard({
     })
   }
 
-  const companies = useMemo(() => getWizardCompanies(segment), [segment])
+  const companies = useMemo(() => getWizardCompanies(segment, marcoCatalog), [segment, marcoCatalog])
 
   const filteredTariffs = useMemo(
     () =>
@@ -71,18 +82,19 @@ export function useNuevoContratoWizard({
         tipo: form.tipo,
         tipoCliente: form.tipoCliente,
         search: tariffSearch,
+        catalog: marcoCatalog,
       }),
-    [form.compania, form.tipo, form.tipoCliente, segment, tariffSearch]
+    [form.compania, form.tipo, form.tipoCliente, segment, tariffSearch, marcoCatalog]
   )
 
   const selectedMarcoEntry = useMemo(() => {
     if (form.marcoEntryId) {
-      return marcoRetributivoCatalog.find((e) => e.id === form.marcoEntryId)
+      return marcoCatalog.find((e) => e.id === form.marcoEntryId)
     }
-    return marcoRetributivoCatalog.find(
+    return marcoCatalog.find(
       (e) => e.compania === form.compania && e.tarifa === form.tarifa && e.tipo === form.tipo
     )
-  }, [form.marcoEntryId, form.compania, form.tarifa, form.tipo])
+  }, [form.marcoEntryId, form.compania, form.tarifa, form.tipo, marcoCatalog])
 
   const documentosObligatorios = useMemo(
     () => getDocumentosObligatoriosForMarco(selectedMarcoEntry),
@@ -207,7 +219,7 @@ export function useNuevoContratoWizard({
   }
 
   function selectTariff(entryId: string, tarifa: string) {
-    const entry = marcoRetributivoCatalog.find((e) => e.id === entryId)
+    const entry = marcoCatalog.find((e) => e.id === entryId)
     onChange({
       marcoEntryId: entryId,
       tarifa,

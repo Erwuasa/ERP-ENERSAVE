@@ -80,6 +80,12 @@ export interface MarcoRetributivoRow {
   tipo_precio?: "fijo" | "indexado" | string | null
   incluye_sva?: boolean | null
   potencia_boe?: boolean | null
+  tariff_id?: string | null
+  at_rate_id?: string | null
+  at_marco_id?: string | null
+  collaborator_min?: number | null
+  collaborator_max?: number | null
+  source?: "manual" | "at" | null
 }
 
 export type MarcoRetributivoResult<T> =
@@ -106,7 +112,7 @@ export interface MarcoEntryInput {
 export type NewMarcoEntryInput = MarcoEntryInput
 
 const MARCO_SELECT =
-  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6, tipo_precio, incluye_sva, potencia_boe"
+  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6, tipo_precio, incluye_sva, potencia_boe, tariff_id, at_rate_id, at_marco_id, collaborator_min, collaborator_max, source"
 
 function mapError(error: { message: string }): MarcoRetributivoResult<never> {
   return { ok: false, message: error.message }
@@ -211,6 +217,7 @@ export function marcoRowToCatalogEntry(row: MarcoRetributivoRow): MarcoRetributi
     tarifa: row.tarifa,
     tipo: row.tipo,
     peaje: row.peaje,
+    segmento: row.segmento,
     condiciones:
       row.condiciones ??
       [row.condicion_1, row.condicion_2].filter(Boolean).join(" ") ??
@@ -278,9 +285,6 @@ export async function listMarcoRetributivo(): Promise<
   }
 
   const rows = ((data ?? []) as MarcoRetributivoRow[]).map(mapRow)
-  if (rows.length === 0) {
-    return { ok: true, data: getFallbackMarcoCatalog() }
-  }
   return { ok: true, data: rows }
 }
 

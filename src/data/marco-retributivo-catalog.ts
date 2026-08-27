@@ -10,6 +10,7 @@ export interface MarcoRetributivoEntry {
   tarifa: string
   tipo: "luz" | "gas"
   peaje: string
+  segmento?: "residencial" | "pyme" | "autonomo" | "comunidades"
   condiciones: string
   comisionTipo: "fija" | "porcentaje"
   comisionBase: number

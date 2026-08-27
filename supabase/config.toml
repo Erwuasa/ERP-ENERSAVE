@@ -3,3 +3,12 @@ project_id = "unxrvwuaqhwogwvynoyq"
 
 [db]
 major_version = 15
+
+[functions.sync-marcos-at]
+verify_jwt = false
+
+[functions.sync-tariffs-at]
+verify_jwt = false
+
+[functions.ate-webhooks]
+verify_jwt = false
