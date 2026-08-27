@@ -108,9 +108,7 @@ async function gateStaffWorkspace(
   | { ok: true; pending: MfaPendingState | null }
   | { ok: false; message: string }
 > {
-  if (!isStaffRole(profile.role)) return { ok: true, pending: null }
-
-  const inspected = await inspectStaffMfa(true)
+  const inspected = await inspectStaffMfa()
   if (inspected.ok === false) return inspected
   if (inspected.data.step === "none") return { ok: true, pending: null }
 

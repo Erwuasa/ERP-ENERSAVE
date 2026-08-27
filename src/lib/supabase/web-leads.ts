@@ -34,6 +34,9 @@ interface WebLeadRow {
   prospecto_id: string | null
   sla_due_at: string | null
   resubmitted_at: string | null
+  erp_invited_at: string | null
+  erp_invited_by: string | null
+  auth_user_id: string | null
 }
 
 function parseFacturasUrls(value: unknown): string[] {
@@ -71,6 +74,9 @@ function mapRow(row: WebLeadRow): WebLead {
     prospectoId: row.prospecto_id ?? undefined,
     slaDueAt: row.sla_due_at ?? undefined,
     resubmittedAt: row.resubmitted_at ?? undefined,
+    erpInvitedAt: row.erp_invited_at ?? undefined,
+    erpInvitedBy: row.erp_invited_by ?? undefined,
+    authUserId: row.auth_user_id ?? undefined,
   }
 }
 

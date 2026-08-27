@@ -147,7 +147,6 @@ export const VENTAS_TABS: readonly VentasTabId[] = [
 /** Rutas futuras (Fase 1 — React Router) */
 export const ROUTES = {
   login: "/login",
-  register: "/register",
   customer: {
     root: "/customer",
     dashboard: "/customer",

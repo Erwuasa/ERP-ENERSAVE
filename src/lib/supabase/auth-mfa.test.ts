@@ -11,20 +11,16 @@ import {
 } from "./auth-mfa"
 
 describe("staffMfaStep", () => {
-  it("skips MFA for customers", () => {
-    expect(staffMfaStep(false, "aal1", "aal2")).toBe("none")
+  it("lets a completed AAL2 session through", () => {
+    expect(staffMfaStep("aal2", "aal2")).toBe("none")
   })
 
-  it("lets staff through after AAL2", () => {
-    expect(staffMfaStep(true, "aal2", "aal2")).toBe("none")
+  it("challenges when a verified factor exists", () => {
+    expect(staffMfaStep("aal1", "aal2")).toBe("challenge")
   })
 
-  it("challenges staff with a verified factor", () => {
-    expect(staffMfaStep(true, "aal1", "aal2")).toBe("challenge")
-  })
-
-  it("enrolls staff without a second factor", () => {
-    expect(staffMfaStep(true, "aal1", "aal1")).toBe("enroll")
+  it("enrolls when there is no second factor", () => {
+    expect(staffMfaStep("aal1", "aal1")).toBe("enroll")
   })
 })
 

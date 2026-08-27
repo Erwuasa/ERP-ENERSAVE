@@ -1,7 +1,72 @@
-import { AlertCircle, ChevronRight, Mail, ShieldCheck, Smartphone } from "lucide-react"
+import { useEffect, useState, type ReactNode } from "react"
+import { AlertCircle, ChevronRight, Loader2, Mail, ShieldCheck, Smartphone } from "lucide-react"
+import { colors, motion, radius } from "@/constants/styles"
 import { isCompleteEmailOtp, isCompleteTotpCode, maskEmail, totpQrImageSrc } from "@/lib/supabase/auth-mfa"
 
 export type MfaPanelKind = "choose" | "challenge" | "enroll" | "email"
+type MfaChoice = "totp" | "email"
+
+const choiceButtonClass = [
+  "group w-full p-4 text-left flex items-center gap-3",
+  colors.surface,
+  radius.xl,
+  "border border-slate-200 dark:border-slate-800",
+  "transition-all",
+  motion.transition,
+  "hover:border-blue-500 dark:hover:border-cyan-400 hover:bg-blue-500/5 dark:hover:bg-cyan-400/5 hover:shadow-md",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:focus-visible:ring-cyan-400/40",
+  "focus-visible:border-blue-500 dark:focus-visible:border-cyan-400",
+  "disabled:opacity-50 disabled:pointer-events-none",
+].join(" ")
+
+function ChoiceButton({
+  pending,
+  loadingLabel,
+  icon,
+  title,
+  subtitle,
+  disabled,
+  onClick,
+}: {
+  pending: boolean
+  loadingLabel: string
+  icon: ReactNode
+  title: string
+  subtitle: string
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      aria-busy={pending}
+      onClick={onClick}
+      className={`${choiceButtonClass} ${
+        pending ? "border-blue-500 dark:border-cyan-400 bg-blue-500/5 dark:bg-cyan-400/5" : ""
+      }`}
+    >
+      <span className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
+        {pending ? (
+          <Loader2 className="w-5 h-5 text-blue-600 dark:text-cyan-400 animate-spin" />
+        ) : (
+          icon
+        )}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-brand-text">
+          {pending ? loadingLabel : title}
+        </span>
+        <span className="block text-[11px] text-brand-subtext">{subtitle}</span>
+      </span>
+      <ChevronRight
+        className={`w-4 h-4 shrink-0 text-brand-subtext transition-transform ${motion.transition} group-hover:translate-x-1 group-hover:text-blue-600 dark:group-hover:text-cyan-400 group-focus-visible:translate-x-1 ${
+          pending ? "opacity-0" : ""
+        }`}
+      />
+    </button>
+  )
+}
 
 export function MfaLoginPanel({
   kind,
@@ -37,6 +102,15 @@ export function MfaLoginPanel({
   const isEnroll = kind === "enroll"
   const isEmail = kind === "email"
   const masked = email ? maskEmail(email) : ""
+  const [pendingChoice, setPendingChoice] = useState<MfaChoice | null>(null)
+  const [resending, setResending] = useState(false)
+
+  useEffect(() => {
+    if (!loading) {
+      setPendingChoice(null)
+      setResending(false)
+    }
+  }, [loading])
 
   if (kind === "choose") {
     return (
@@ -60,39 +134,37 @@ export function MfaLoginPanel({
           </div>
         ) : null}
 
-        <button
-          type="button"
+        <ChoiceButton
+          pending={pendingChoice === "totp" && loading}
+          loadingLabel="Preparando autenticador…"
+          icon={<Smartphone className="w-5 h-5 text-blue-600 dark:text-cyan-400" />}
+          title="App autenticadora"
+          subtitle="Google Authenticator, Authy u otra"
           disabled={loading}
-          onClick={onChooseTotp}
-          className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-brand-surface hover:border-blue-500/40 text-left flex items-center gap-3 transition-colors disabled:opacity-50"
-        >
-          <Smartphone className="w-5 h-5 text-blue-600 dark:text-cyan-400 shrink-0" />
-          <span>
-            <span className="block text-sm font-bold text-brand-text">App autenticadora</span>
-            <span className="block text-[11px] text-brand-subtext">Google Authenticator, Authy u otra</span>
-          </span>
-        </button>
+          onClick={() => {
+            setPendingChoice("totp")
+            onChooseTotp?.()
+          }}
+        />
 
-        <button
-          type="button"
+        <ChoiceButton
+          pending={pendingChoice === "email" && loading}
+          loadingLabel="Generando código de acceso…"
+          icon={<Mail className="w-5 h-5 text-blue-600 dark:text-cyan-400" />}
+          title="Código al correo"
+          subtitle={masked ? `Enviar OTP a ${masked}` : "Te enviamos un código al correo"}
           disabled={loading}
-          onClick={onChooseEmail}
-          className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-brand-surface hover:border-blue-500/40 text-left flex items-center gap-3 transition-colors disabled:opacity-50"
-        >
-          <Mail className="w-5 h-5 text-blue-600 dark:text-cyan-400 shrink-0" />
-          <span>
-            <span className="block text-sm font-bold text-brand-text">Código al correo</span>
-            <span className="block text-[11px] text-brand-subtext">
-              {masked ? `Enviar OTP a ${masked}` : "Te enviamos un código al correo"}
-            </span>
-          </span>
-        </button>
+          onClick={() => {
+            setPendingChoice("email")
+            onChooseEmail?.()
+          }}
+        />
 
         <button
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors"
+          className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors disabled:opacity-50"
         >
           Cancelar e iniciar con otra cuenta
         </button>
@@ -176,7 +248,7 @@ export function MfaLoginPanel({
         className="relative w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-none focus:outline-none transition-all flex items-center justify-center space-x-2 border border-blue-500 group cursor-pointer overflow-hidden"
       >
         {loading ? (
-          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <Loader2 className="w-5 h-5 animate-spin" />
         ) : (
           <>
             <span className="text-sm">{isEnroll ? "Activar y entrar" : "Verificar"}</span>
@@ -188,11 +260,15 @@ export function MfaLoginPanel({
       {isEmail && onResendEmail ? (
         <button
           type="button"
-          onClick={onResendEmail}
+          onClick={() => {
+            setResending(true)
+            onResendEmail()
+          }}
           disabled={loading}
-          className="w-full text-xs font-medium text-blue-600 dark:text-cyan-400 hover:underline disabled:opacity-50"
+          className="w-full inline-flex items-center justify-center gap-2 text-xs font-medium text-blue-600 dark:text-cyan-400 hover:underline disabled:opacity-50"
         >
-          Reenviar código
+          {resending && loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+          {resending && loading ? "Generando código…" : "Reenviar código"}
         </button>
       ) : null}
 
@@ -201,7 +277,7 @@ export function MfaLoginPanel({
           type="button"
           onClick={onBackToChoose}
           disabled={loading}
-          className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors"
+          className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors disabled:opacity-50"
         >
           Elegir otro método
         </button>
@@ -211,7 +287,7 @@ export function MfaLoginPanel({
         type="button"
         onClick={onCancel}
         disabled={loading}
-        className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors"
+        className="w-full text-xs font-medium text-brand-subtext hover:text-brand-text transition-colors disabled:opacity-50"
       >
         Cancelar e iniciar con otra cuenta
       </button>

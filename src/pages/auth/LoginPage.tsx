@@ -1,9 +1,9 @@
 import { useState } from "react"
-import { Navigate, Link } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 import { AlertCircle, ChevronRight, Lock, User } from "lucide-react"
 import { EnersaveLogo } from "@/components/common/EnersaveLogo"
 import { MfaLoginPanel } from "@/components/auth/MfaLoginPanel"
-import { getDefaultAppPath, ROUTES } from "@/constants/navigation"
+import { getDefaultAppPath } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
 import { normalizeTotpCode } from "@/lib/supabase/auth-mfa"
 
@@ -154,10 +154,7 @@ export function LoginPage() {
         </form>
 
         <p className="text-center text-xs text-brand-subtext">
-          ¿No tienes cuenta?{" "}
-          <Link to={ROUTES.register} className="font-bold text-blue-600 dark:text-cyan-400 hover:underline">
-            Regístrate
-          </Link>
+          El acceso es por invitación de EnerSave.
         </p>
           </>
         )}

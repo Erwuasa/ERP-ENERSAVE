@@ -78,7 +78,7 @@ function mapSignInError(message: string): string {
   return message
 }
 
-/** Establece sesión Supabase Auth. Solo login; el alta es registerSupabaseAccount. */
+/** Establece sesión Supabase Auth. El alta de customers es por invitación (Edge Function). */
 export async function syncSupabaseSession(
   email: string,
   password: string
@@ -122,61 +122,3 @@ export async function ensureSupabaseSession(
   return syncSupabaseSession(email, password)
 }
 
-export interface RegisterAccountInput {
-  email: string
-  password: string
-  fullName: string
-}
-
-function mapRegisterError(message: string, code?: string): string {
-  if (code === "over_email_send_rate_limit") {
-    return "Límite de emails de Supabase alcanzado. Espera unos minutos, desactiva «Confirm email» en desarrollo, o crea el usuario manualmente en el dashboard."
-  }
-  const lower = message.toLowerCase()
-  if (lower.includes("already registered") || lower.includes("user already registered")) {
-    return "Este correo ya está registrado. Inicia sesión o usa otro email."
-  }
-  if (lower.includes("email rate limit") || lower.includes("over_email_send_rate_limit")) {
-    return "Límite de emails de Supabase alcanzado. Espera unos minutos o desactiva la confirmación de email en desarrollo."
-  }
-  if (lower.includes("password")) {
-    return "La contraseña debe tener al menos 6 caracteres."
-  }
-  return message
-}
-
-/** Alta pública ERP — entra como customer hasta que un admin asigne rol de staff. */
-export async function registerSupabaseAccount(
-  input: RegisterAccountInput
-): Promise<AuthSessionResult> {
-  if (!isSupabaseConfigured()) {
-    return { ok: false, message: "Supabase no configurado" }
-  }
-
-  const supabase = getSupabaseClient()
-  if (!supabase) {
-    return { ok: false, message: "Cliente Supabase no disponible" }
-  }
-
-  const email = input.email.trim().toLowerCase()
-  const fullName = input.fullName.trim()
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password: input.password,
-    options: {
-        data: {
-          full_name: fullName,
-          role: "customer",
-          account_status: "active",
-        },
-    },
-  })
-
-  if (error) {
-    return { ok: false, message: mapRegisterError(error.message, error.code) }
-  }
-
-  await supabase.auth.signOut()
-  return { ok: true }
-}

@@ -4,6 +4,7 @@ import {
   Clock,
   ExternalLink,
   Inbox,
+  Mail,
   RefreshCw,
   Search,
   UserPlus,
@@ -98,7 +99,7 @@ function LeadDetailPanel({ lead }: { lead: WebLead }) {
 }
 
 export function LeadsWebPage({ actor, profiles, onOpenFicha }: LeadsWebPageProps) {
-  const { leads, loading, error, needsAuth, refresh, assign, convert } = useWebLeads()
+  const { leads, loading, error, needsAuth, refresh, assign, convert, invite } = useWebLeads()
   const [search, setSearch] = useState("")
   const [inboxFilter, setInboxFilter] = useState<WebLeadInboxFilter>("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -169,6 +170,27 @@ export function LeadsWebPage({ actor, profiles, onOpenFicha }: LeadsWebPageProps
     onOpenFicha(result.prospecto)
   }
 
+  async function handleInvite(lead: WebLead) {
+    if (!lead.email) {
+      toast.error("Este lead no tiene correo")
+      return
+    }
+
+    setBusyLeadId(lead.id)
+    const result = await invite(lead.id)
+    setBusyLeadId(null)
+
+    if (result.ok === false) {
+      toast.error(result.message)
+      return
+    }
+    toast.success(
+      result.resent
+        ? "Invitación reenviada al área cliente"
+        : "Invitación enviada al área cliente"
+    )
+  }
+
   return (
     <div className="space-y-4 animate-fade-in max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
@@ -212,7 +234,7 @@ export function LeadsWebPage({ actor, profiles, onOpenFicha }: LeadsWebPageProps
 
       {canAssign && (
         <p className="text-xs text-brand-subtext">
-          Asigna leads a comerciales y conviértelos al pipeline cuando estén listos para gestionar.
+          Asigna leads, invítalos al área cliente y conviértelos al pipeline cuando estén listos.
         </p>
       )}
       {actor.role === "comercial" && (
@@ -294,6 +316,11 @@ export function LeadsWebPage({ actor, profiles, onOpenFicha }: LeadsWebPageProps
                             Reenvío
                           </span>
                         )}
+                        {lead.erpInvitedAt && (
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-800 dark:text-cyan-200 border border-cyan-500/25">
+                            Invitado
+                          </span>
+                        )}
                         <p className="text-sm font-semibold text-brand-text truncate">{lead.nombre}</p>
                       </div>
                       <p className="text-[11px] text-brand-subtext mt-1">
@@ -347,6 +374,18 @@ export function LeadsWebPage({ actor, profiles, onOpenFicha }: LeadsWebPageProps
                         </div>
                       )}
 
+                      {canAssign && (
+                        <button
+                          type="button"
+                          disabled={busy || !lead.email}
+                          title={!lead.email ? "Este lead no tiene correo" : undefined}
+                          onClick={() => void handleInvite(lead)}
+                          className="inline-flex items-center justify-center gap-1.5 min-h-[40px] px-3 rounded-lg border border-brand-border bg-brand-panel hover:bg-brand-bg text-xs font-semibold disabled:opacity-60"
+                        >
+                          <Mail className="w-3.5 h-3.5" />
+                          {lead.erpInvitedAt ? "Reenviar invitación" : "Invitar al área cliente"}
+                        </button>
+                      )}
                       {showConvert && (
                         <button
                           type="button"

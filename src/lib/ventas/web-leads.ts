@@ -31,6 +31,9 @@ export interface WebLead {
   prospectoId?: string
   slaDueAt?: string
   resubmittedAt?: string
+  erpInvitedAt?: string
+  erpInvitedBy?: string
+  authUserId?: string
 }
 
 export type WebLeadInboxFilter = "all" | "unassigned" | "mine" | "resubmitted"

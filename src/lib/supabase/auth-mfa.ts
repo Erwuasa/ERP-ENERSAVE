@@ -13,11 +13,9 @@ export interface TotpEnrollment {
 const TOTP_ISSUER = "ERP ENERSAVE"
 
 export function staffMfaStep(
-  isStaff: boolean,
   currentLevel: string | null | undefined,
   nextLevel: string | null | undefined
 ): MfaStepKind {
-  if (!isStaff) return "none"
   if (currentLevel === "aal2") return "none"
   if (nextLevel === "aal2") return "challenge"
   return "enroll"
@@ -127,13 +125,9 @@ export async function verifyStaffEmailOtp(email: string, token: string): Promise
   return { ok: true, data: undefined }
 }
 
-export async function inspectStaffMfa(
-  isStaff: boolean
-): Promise<
+export async function inspectStaffMfa(): Promise<
   MfaResult<{ step: "none" } | { step: "challenge"; factorId: string } | { step: "enroll" }>
 > {
-  if (!isStaff) return { ok: true, data: { step: "none" } }
-
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return { ok: false, message: resolved.message }
 
@@ -144,7 +138,7 @@ export async function inspectStaffMfa(
     return { ok: true, data: { step: "none" } }
   }
 
-  const step = staffMfaStep(isStaff, aal.data.currentLevel, aal.data.nextLevel)
+  const step = staffMfaStep(aal.data.currentLevel, aal.data.nextLevel)
   if (step === "none") return { ok: true, data: { step: "none" } }
   if (step === "enroll") return { ok: true, data: { step: "enroll" } }
 
