@@ -65,7 +65,14 @@ Deno.serve(async (request) => {
 
     if (isProductEvent(event)) {
       const result = await runTariffSync()
-      return respondWithJson({ ok: true, event, routed: 'sync-tariffs-at', stats: result.stats })
+      return respondWithJson({
+        ok: true,
+        event,
+        routed: 'sync-tariffs-at',
+        skipped: Boolean(result.skipped),
+        reason: result.skip_reason,
+        stats: result.stats,
+      })
     }
 
     return respondWithJson({ ok: true, event, ignored: true })

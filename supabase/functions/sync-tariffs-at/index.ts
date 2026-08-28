@@ -61,7 +61,17 @@ Deno.serve(async (request) => {
     const mode = options.mode ?? (event.startsWith('product.') ? 'sync' : 'explore')
 
     if (mode === 'sync') {
-      const { stats, tablas, reporte } = await runTariffSync()
+      const result = await runTariffSync()
+      if (result.skipped) {
+        return respondWithJson({
+          ok: true,
+          mode: 'sync',
+          skipped: true,
+          reason: result.skip_reason,
+        })
+      }
+
+      const { stats, tablas, reporte } = result
       return respondWithJson({
         ok: true,
         mode: 'sync',

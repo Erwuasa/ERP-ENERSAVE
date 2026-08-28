@@ -7,6 +7,7 @@ import {
   normalizeListPayload,
   type JsonRecord,
 } from './at-api.ts'
+import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 
 const UPSERT_BATCH = 50
 
@@ -87,6 +88,8 @@ interface CatalogCounts {
 }
 
 export interface TariffSyncResult {
+  skipped?: boolean
+  skip_reason?: string
   stats: SyncStats
   catalog: { antes: CatalogCounts; ahora: CatalogCounts }
   tablas: Array<Record<string, string | number>>
@@ -111,6 +114,66 @@ function normalizeSegment(segmento: string): string {
 
 function normalizeSupplyType(tipo: string): string {
   return tipo.trim().toUpperCase() === 'GAS' ? 'gas' : 'luz'
+}
+
+function uniqueAtTariffs(rows: AtTariffRow[]): AtTariffRow[] {
+  const byId = new Map<string, AtTariffRow>()
+  for (const row of rows) {
+    if (row?.id) byId.set(row.id, row)
+  }
+  return [...byId.values()]
+}
+
+function dedupePriceRows(
+  rows: Array<{
+    tariff_id: string
+    period: string
+    energy_price_kwh: number
+    power_price_kw_day: number
+  }>
+) {
+  const byKey = new Map<string, (typeof rows)[number]>()
+  for (const row of rows) {
+    byKey.set(`${row.tariff_id}:${row.period}`, row)
+  }
+  return [...byKey.values()]
+}
+
+function emptyCatalogCounts(): CatalogCounts {
+  return {
+    providers_at: 0,
+    tariffs_at: 0,
+    tariffs_at_active: 0,
+    tariffs_manual: 0,
+    prices_at: 0,
+    prices_total: 0,
+  }
+}
+
+function emptySyncStats(): SyncStats {
+  return {
+    pages_fetched: 0,
+    tariffs_from_at: 0,
+    providers_upserted: 0,
+    tariffs_upserted: 0,
+    tariffs_new: 0,
+    tariffs_changed: 0,
+    tariffs_unchanged: 0,
+    price_rows_written: 0,
+    tariffs_deactivated: 0,
+  }
+}
+
+function skippedSyncResult(reason: string): TariffSyncResult {
+  const zeros = emptyCatalogCounts()
+  return {
+    skipped: true,
+    skip_reason: reason,
+    stats: emptySyncStats(),
+    catalog: { antes: zeros, ahora: zeros },
+    tablas: [],
+    reporte: reason,
+  }
 }
 
 function buildPriceRows(tariffId: string, row: AtTariffRow) {
@@ -432,11 +495,12 @@ function mapTariffRow(row: AtTariffRow, providerId: string | null, syncedAt: str
 
 async function syncTariffsToDatabase(rows: AtTariffRow[]): Promise<TariffSyncResult> {
   const supabase = getSupabaseAdmin()
+  const uniqueRows = uniqueAtTariffs(rows)
   const syncedAt = new Date().toISOString()
   const antes = await countCatalog(supabase)
   const stats: SyncStats = {
     pages_fetched: 0,
-    tariffs_from_at: rows.length,
+    tariffs_from_at: uniqueRows.length,
     providers_upserted: 0,
     tariffs_upserted: 0,
     tariffs_new: 0,
@@ -446,14 +510,14 @@ async function syncTariffsToDatabase(rows: AtTariffRow[]): Promise<TariffSyncRes
     tariffs_deactivated: 0,
   }
 
-  const { count: providersCount, byAtId } = await upsertProviders(supabase, rows)
+  const { count: providersCount, byAtId } = await upsertProviders(supabase, uniqueRows)
   stats.providers_upserted = providersCount
   const existing = await loadExistingAtCatalog(supabase)
 
   const syncedRateIds: string[] = []
 
-  for (let offset = 0; offset < rows.length; offset += UPSERT_BATCH) {
-    const batch = rows.slice(offset, offset + UPSERT_BATCH)
+  for (let offset = 0; offset < uniqueRows.length; offset += UPSERT_BATCH) {
+    const batch = uniqueRows.slice(offset, offset + UPSERT_BATCH)
     const tariffPayload = batch.map((row) => {
       const providerId = row.compania?.id ? byAtId.get(row.compania.id) ?? null : null
       return mapTariffRow(row, providerId, syncedAt)
@@ -492,26 +556,41 @@ async function syncTariffsToDatabase(rows: AtTariffRow[]): Promise<TariffSyncRes
       syncedRateIds.push(tariff.at_rate_id)
     }
 
-    const tariffIds = [...tariffIdByAtRate.values()]
-    if (tariffIds.length) {
+    const priceTariffIds = new Set<string>()
+    const priceRows = batch.flatMap((row) => {
+      const tariffId = tariffIdByAtRate.get(row.id)
+      if (!tariffId) return []
+
+      const incomingPrices = buildPriceRows(tariffId, row)
+      const prev = existing.tariffs.get(row.id)
+      const prevPrices = prev ? (existing.prices.get(prev.id) ?? []) : []
+      if (prev && priceFingerprint(prevPrices) === priceFingerprint(incomingPrices)) {
+        return []
+      }
+
+      priceTariffIds.add(tariffId)
+      return incomingPrices
+    })
+
+    const uniquePrices = dedupePriceRows(priceRows)
+    const rewriteIds = [...priceTariffIds]
+
+    if (rewriteIds.length) {
       const { error: deleteError } = await supabase
         .from('tariff_prices')
         .delete()
-        .in('tariff_id', tariffIds)
+        .in('tariff_id', rewriteIds)
 
       if (deleteError) throw new Error(`tariff_prices delete failed: ${deleteError.message}`)
     }
 
-    const priceRows = batch.flatMap((row) => {
-      const tariffId = tariffIdByAtRate.get(row.id)
-      if (!tariffId) return []
-      return buildPriceRows(tariffId, row)
-    })
+    if (uniquePrices.length) {
+      const { error: priceError } = await supabase
+        .from('tariff_prices')
+        .upsert(uniquePrices, { onConflict: 'tariff_id,period' })
 
-    if (priceRows.length) {
-      const { error: priceError } = await supabase.from('tariff_prices').insert(priceRows)
-      if (priceError) throw new Error(`tariff_prices insert failed: ${priceError.message}`)
-      stats.price_rows_written += priceRows.length
+      if (priceError) throw new Error(`tariff_prices upsert failed: ${priceError.message}`)
+      stats.price_rows_written += uniquePrices.length
     }
 
     stats.tariffs_upserted += upsertedTariffs?.length ?? 0
@@ -531,10 +610,20 @@ async function syncTariffsToDatabase(rows: AtTariffRow[]): Promise<TariffSyncRes
 }
 
 export async function runTariffSync(): Promise<TariffSyncResult> {
-  const { rows, pagesFetched } = await fetchAllTariffsFromAt()
-  const result = await syncTariffsToDatabase(rows)
-  result.stats.pages_fetched = pagesFetched
-  return result
+  const supabase = getSupabaseAdmin()
+  const acquired = await tryAcquireAtSyncLock(supabase, 'tariffs-at')
+  if (!acquired) {
+    return skippedSyncResult('sync already running')
+  }
+
+  try {
+    const { rows, pagesFetched } = await fetchAllTariffsFromAt()
+    const result = await syncTariffsToDatabase(rows)
+    result.stats.pages_fetched = pagesFetched
+    return result
+  } finally {
+    await releaseAtSyncLock(supabase, 'tariffs-at')
+  }
 }
 
 export function parseTariffFetchOptions(

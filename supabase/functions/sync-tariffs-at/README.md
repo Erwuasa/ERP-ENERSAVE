@@ -10,7 +10,7 @@ Fuente canónica en **ERP-ENERSAVE**. Se despliegan en el proyecto Supabase prin
 
 `verify_jwt = false`. Auth: HMAC `x-ate-*`, Bearer `AT_TARIFFS_SYNC_SECRET` o `x-webhook-secret`.
 
-Secrets: `AT_ENTERPRISE_API_KEY`, `AT_TARIFFS_SYNC_SECRET`.
+Secrets: `AT_ENTERPRISE_API_KEY`, `AT_TARIFFS_SYNC_SECRET` (webhook productos), `AT_MARCOS_SYNC_SECRET` (webhook marcos). No sustituyas el de tarifas por el de marcos.
 
 ## Deploy
 
