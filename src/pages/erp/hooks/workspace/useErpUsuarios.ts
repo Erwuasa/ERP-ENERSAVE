@@ -7,11 +7,13 @@ import {
   type Profile,
   type UserRole,
 } from '@/types/profile';
-import { listErpComerciales, updateErpComercial, deleteStaffUser } from '@/lib/supabase/erp-comerciales';
+import { listErpComerciales, updateErpComercial, deleteStaffUser, inviteStaffUser, cancelStaffInvitation } from '@/lib/supabase/erp-comerciales';
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 import { fetchAdminMfaSummary, resetAdminMfa } from '@/lib/supabase/admin-mfa';
 import { canResetTargetMfa } from '@/lib/admin-mfa-policy';
 import { sendStaffInvitationEmail } from '@/lib/supabase/staff-invitation';
+import { normalizeStaffEmail } from '@/lib/erp-comercial-id';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
 
 interface UseErpUsuariosParams {
   profiles: Profile[];
@@ -99,12 +101,24 @@ export function useErpUsuarios({
 
   const handleAddNewUser = async (e: FormEvent) => {
     e.preventDefault();
-    const email = newUserEmail.trim().toLowerCase();
-    if (!email) {
-      toast.error('Indica el email de una cuenta ya registrada.');
+    const fullName = newUserName.trim();
+    const email = normalizeStaffEmail(newUserEmail);
+    if (!fullName || !email) {
+      toast.error('Indica nombre y email.');
       return;
     }
+
+    if (!isSupabaseConfigured()) {
+      toast.error('Supabase no configurado.');
+      return;
+    }
+
     setIsCreatingUser(true);
+
+    const managerId =
+      newUserRole === 'comercial'
+        ? newUserManager || profiles.find((p) => p.role === 'jefe_comercial')?.id || null
+        : null;
 
     const accounts = await listAppUsers();
     if (accounts.ok === false) {
@@ -113,53 +127,82 @@ export function useErpUsuarios({
       return;
     }
 
-    const target = accounts.data.find((u) => u.email.toLowerCase() === email);
-    if (!target) {
+    const existingAccount = accounts.data.find((u) => u.email.toLowerCase() === email);
+
+    if (existingAccount?.hasAuth && existingAccount.role !== 'customer') {
       setIsCreatingUser(false);
-      toast.error('Esa cuenta no existe. La persona debe registrarse antes de ser staff.');
+      toast.error('Ese email ya tiene acceso staff.');
       return;
     }
 
-    const managerId =
-      newUserRole === 'comercial'
-        ? newUserManager || profiles.find((p) => p.role === 'jefe_comercial')?.id || null
-        : null;
+    if (existingAccount?.hasAuth && existingAccount.role === 'customer') {
+      const promote = await updateErpComercial(existingAccount.id, {
+        role: newUserRole,
+        manager_id: managerId,
+      });
+      setIsCreatingUser(false);
+      if (promote.ok === false) {
+        toast.error(promote.message);
+        return;
+      }
+      setNewUserName('');
+      setNewUserEmail('');
+      setIsCreateOpen(false);
+      toast.success(`${fullName} ahora es ${newUserRole}.`);
+      const [comerciales, refreshed] = await Promise.all([listErpComerciales(), listAppUsers()]);
+      if (comerciales.ok) {
+        setProfiles(
+          comerciales.data.map((row) =>
+            profileFromDirectoryRow({
+              id: row.id,
+              full_name: row.full_name,
+              role: row.role,
+              manager_id: row.manager_id,
+              email: row.email,
+              commission_percentage: row.commission_percentage,
+            })
+          )
+        );
+      }
+      if (refreshed.ok) setAppUsers(refreshed.data);
+      return;
+    }
 
-    const result = await updateErpComercial(target.id, {
+    const invite = await inviteStaffUser({
+      email,
+      full_name: fullName,
       role: newUserRole,
       manager_id: managerId,
     });
 
-    if (result.ok === false) {
+    if (invite.ok === false) {
       setIsCreatingUser(false);
-      toast.error(result.message);
+      toast.error(invite.message);
       return;
     }
 
-    const promoted: Profile = {
-      id: result.data.id,
-      fullName: result.data.full_name,
-      role: result.data.role,
-      managerId: result.data.manager_id,
-      commissionPercentage: result.data.commission_percentage,
-      permissions: defaultPermissionsForRole(result.data.role),
-      email: result.data.email ?? email,
-      status: 'activo',
-    };
-
-    setProfiles((prev) => {
-      if (prev.some((p) => p.id === promoted.id)) {
-        return prev.map((p) => (p.id === promoted.id ? promoted : p));
-      }
-      return [...prev, promoted];
+    const emailResult = await sendStaffInvitationEmail({
+      email,
+      fullName,
+      role: newUserRole,
     });
+
     setNewUserName('');
     setNewUserEmail('');
     setIsCreatingUser(false);
     setIsCreateOpen(false);
-    toast.success(`${promoted.fullName} ahora es ${promoted.role}.`);
+
     const refreshed = await listAppUsers();
     if (refreshed.ok) setAppUsers(refreshed.data);
+
+    if (emailResult.ok === false) {
+      toast.warning(
+        `Invitación guardada en Supabase, pero no se pudo enviar el email: ${emailResult.message}`
+      );
+      return;
+    }
+
+    toast.success(`Invitación enviada a ${email}.`);
   };
 
   async function handleSaveUserRoleToSupabase(
@@ -211,6 +254,27 @@ export function useErpUsuarios({
     const fromApp = appUsers.find((u) => u.id === userId);
     if (!fromProfiles && !fromApp) return;
     const label = fromProfiles?.fullName ?? fromApp?.fullName ?? fromApp?.email ?? userId;
+
+    if (fromApp?.source === 'invitation' || fromApp?.hasAuth === false) {
+      if (
+        !confirm(`¿Cancelar la invitación de ${label}? No podrá registrarse con ese enlace.`)
+      ) {
+        return;
+      }
+      setIsDeletingUserId(userId);
+      const result = await cancelStaffInvitation(userId);
+      setIsDeletingUserId(null);
+      if (result.ok === false) {
+        toast.error(result.message);
+        return;
+      }
+      setProfiles((prev) => prev.filter((p) => p.id !== userId));
+      setActiveUserForSheet(null);
+      toast.success('Invitación cancelada.');
+      const accounts = await listAppUsers();
+      if (accounts.ok) setAppUsers(accounts.data);
+      return;
+    }
 
     if (activeRole === 'superadmin') {
       if (

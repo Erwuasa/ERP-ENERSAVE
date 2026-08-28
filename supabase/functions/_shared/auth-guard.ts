@@ -36,26 +36,14 @@ export async function assertErpOpsAdmin(req: Request): Promise<{ ok: true } | Re
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey)
-  const email = userData.user.email?.toLowerCase() ?? ""
-
-  const { data: rowByAuth } = await admin
-    .from("erp_comerciales")
+  const { data: profile } = await admin
+    .from("user_profiles")
     .select("role")
-    .eq("auth_user_id", userData.user.id)
+    .eq("id", userData.user.id)
     .maybeSingle()
 
-  let row = rowByAuth
-  if (!row && email) {
-    const { data: rowByEmail } = await admin
-      .from("erp_comerciales")
-      .select("role")
-      .ilike("email", email)
-      .maybeSingle()
-    row = rowByEmail
-  }
-
   const role =
-    row?.role ??
+    profile?.role ??
     (userData.user.app_metadata?.role as string | undefined) ??
     (userData.user.user_metadata?.role as string | undefined)
 

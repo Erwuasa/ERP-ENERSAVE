@@ -125,6 +125,68 @@ export async function updateErpComercial(
   return { ok: true, data: mapRow(row) }
 }
 
+export interface InviteStaffUserInput {
+  email: string
+  full_name: string
+  role: ErpComercialRole
+  manager_id?: string | null
+}
+
+export interface InviteStaffUserResult {
+  id: string
+  email: string
+  full_name: string
+  role: ErpComercialRole
+  manager_id: string | null
+  status: "pendiente"
+}
+
+export async function inviteStaffUser(
+  input: InviteStaffUserInput
+): Promise<ErpComercialResult<InviteStaffUserResult>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return clientOrError
+  }
+
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { data, error } = await client.rpc("invite_staff_user_v1", {
+    p_email: input.email,
+    p_full_name: input.full_name,
+    p_role: input.role,
+    p_manager_id: input.manager_id ?? null,
+  })
+
+  if (error) {
+    const message = error.message.includes("already has staff access")
+      ? "Ese email ya tiene acceso staff."
+      : error.message.includes("not authorized")
+        ? "No autorizado para invitar usuarios."
+        : error.message
+    return { ok: false, message }
+  }
+
+  const row = data as Record<string, unknown> | null
+  if (!row?.id || !row.email) {
+    return { ok: false, message: "Respuesta inválida al crear invitación." }
+  }
+
+  const rawRole = String(row.role)
+  const role: ErpComercialRole = isStaffRole(rawRole) ? rawRole : "comercial"
+
+  return {
+    ok: true,
+    data: {
+      id: String(row.id),
+      email: String(row.email),
+      full_name: String(row.full_name ?? input.full_name),
+      role,
+      manager_id: (row.manager_id as string | null) ?? null,
+      status: "pendiente",
+    },
+  }
+}
+
 export async function updateErpComercialFiscal(
   id: string,
   patch: {
@@ -190,6 +252,26 @@ export async function deleteStaffUser(
   }
 
   return { ok: true, data: payload }
+}
+
+export async function cancelStaffInvitation(
+  invitationId: string
+): Promise<ErpComercialResult<null>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return clientOrError
+  }
+
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { error } = await client.rpc("cancel_staff_invitation_v1", {
+    p_invitation_id: invitationId,
+  })
+
+  if (error) {
+    return { ok: false, message: error.message }
+  }
+
+  return { ok: true, data: null }
 }
 
 export async function isStaffLoginAllowed(

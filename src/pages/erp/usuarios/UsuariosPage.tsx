@@ -70,7 +70,7 @@ export function UsuariosPage() {
       role: user.role,
       managerId: user.managerId,
       email: user.email,
-      status: 'activo',
+      status: user.source === 'invitation' || !user.hasAuth ? 'pendiente' : 'activo',
       commissionPercentage: defaultCommissionForRole(user.role),
       permissions: defaultPermissionsForRole(user.role),
     };

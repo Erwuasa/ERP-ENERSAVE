@@ -1,7 +1,7 @@
 import type { UserRole } from "@/types/profile"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
-export type AppUserSource = "account" | "staff_directory"
+export type AppUserSource = "account" | "staff_directory" | "invitation"
 
 export interface AppUser {
   id: string
@@ -59,7 +59,12 @@ export async function listAppUsers(): Promise<AppUsersResult> {
       comercialId: row.comercial_id,
       managerId: row.manager_id,
       hasAuth: row.has_auth,
-      source: row.source === "staff_directory" ? "staff_directory" : "account",
+      source:
+        row.source === "invitation"
+          ? "invitation"
+          : row.source === "staff_directory"
+            ? "staff_directory"
+            : "account",
     })),
   }
 }

@@ -109,14 +109,12 @@ let mockProfiles: UserProfile[] = [
 ];
 
 /**
- * Fetch all user profiles from Supabase.
- * Includes fallback logic to static in-memory seed data if Supabase keys aren't provisioned.
+ * Fetch user profiles from Supabase (legacy Next.js route). Sin fallback mock.
  */
 export async function getUsers(): Promise<{ success: boolean; users: UserProfile[] }> {
   try {
     const supabase = createServerActionClient({ cookies });
     
-    // Attempt real database fetch
     const { data: dbProfiles, error } = await supabase
       .from("profiles")
       .select(`
@@ -131,21 +129,17 @@ export async function getUsers(): Promise<{ success: boolean; users: UserProfile
     if (error) throw error;
     
     if (dbProfiles && dbProfiles.length > 0) {
-      // Map database schema to rich page expectations
       const users: UserProfile[] = dbProfiles.map((p) => {
-        // Resolve manager name from fetched collection
         const manager = dbProfiles.find((m) => m.id === p.manager_id);
-        
-        // Match permissions schema
         const perm = p.permissions || {};
         return {
           id: p.id,
           fullName: p.full_name,
-          email: `${p.full_name.toLowerCase().replace(/\s+/g, "")}@ener-erp.com`, // fallback email calculation
+          email: `${p.full_name.toLowerCase().replace(/\s+/g, "")}@ener-erp.com`,
           role: p.role,
           managerId: p.manager_id,
           managerName: manager ? manager.full_name : undefined,
-          status: "activo", // Assume active in real db or configure in profiles table
+          status: "activo",
           permissions: {
             contractsView: perm.contractsView ?? true,
             comparatorAccess: perm.comparatorAccess ?? true,
@@ -158,20 +152,12 @@ export async function getUsers(): Promise<{ success: boolean; users: UserProfile
       });
       return { success: true, users };
     }
+
+    return { success: true, users: [] };
   } catch (err) {
-    console.warn("Supabase getUsers request warning (using resilient mock simulation):", err);
+    console.warn("Supabase getUsers failed:", err);
+    return { success: false, users: [] };
   }
-
-  // Fallback map simulation resolving manager profiles
-  const processedMock = mockProfiles.map((p) => {
-    const manager = mockProfiles.find((m) => m.id === p.managerId);
-    return {
-      ...p,
-      managerName: manager ? manager.fullName : undefined,
-    };
-  });
-
-  return { success: true, users: processedMock };
 }
 
 /**
