@@ -122,3 +122,65 @@ export async function ensureSupabaseSession(
   return syncSupabaseSession(email, password)
 }
 
+export interface RegisterSupabaseAccountInput {
+  email: string
+  password: string
+  fullName: string
+}
+
+/** Registro público: solo emails pre-invitados por staff (RPC is_email_invited_for_signup). */
+export async function registerSupabaseAccount(
+  input: RegisterSupabaseAccountInput
+): Promise<AuthSessionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Supabase no configurado" }
+  }
+
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    return { ok: false, message: "Cliente Supabase no disponible" }
+  }
+
+  const normalizedEmail = input.email.trim().toLowerCase()
+  const fullName = input.fullName.trim()
+
+  const { data: invited, error: inviteError } = await supabase.rpc(
+    "is_email_invited_for_signup",
+    { p_email: normalizedEmail }
+  )
+
+  if (inviteError) {
+    return { ok: false, message: inviteError.message }
+  }
+
+  if (!invited) {
+    return {
+      ok: false,
+      message:
+        "Este email no está invitado. Pide a un administrador que te registre en Usuarios antes de crear cuenta.",
+    }
+  }
+
+  const signUp = await supabase.auth.signUp({
+    email: normalizedEmail,
+    password: input.password,
+    options: {
+      data: {
+        full_name: fullName,
+      },
+    },
+  })
+
+  if (signUp.error) {
+    const lower = signUp.error.message.toLowerCase()
+    if (lower.includes("already registered")) {
+      return {
+        ok: false,
+        message: "Ya existe una cuenta con este email. Usa Iniciar sesión.",
+      }
+    }
+    return { ok: false, message: signUp.error.message }
+  }
+
+  return { ok: true }
+}

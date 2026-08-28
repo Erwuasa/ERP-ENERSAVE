@@ -17,7 +17,11 @@ export function ErpWorkspaceModals() {
     handleSaveUserRoleToSupabase,
     togglePermission,
     handleDeleteUserFromSupabase,
+    handleResendInvitation,
     handleResetUserMfa,
+    isDeletingUserId,
+    isResendingInvitationId,
+    activeRole,
     activeUser,
     activeUserId,
     perfilComercialOpen,
@@ -40,7 +44,7 @@ export function ErpWorkspaceModals() {
               .map((p) => ({ id: p.id, fullName: p.fullName }))}
             open
             saving={isSavingUserSheet}
-            deleting={ws.isDeletingUserId === activeUserForSheet.id}
+            deleting={isDeletingUserId === activeUserForSheet.id}
             canDelete={activeUser.role === "superadmin"}
             currentUserId={activeUserId}
             onClose={() => setActiveUserForSheet(null)}
@@ -64,6 +68,9 @@ export function ErpWorkspaceModals() {
               })
             }}
             onDelete={() => handleDeleteUserFromSupabase(activeUserForSheet.id)}
+            canResendInvitation={activeRole === "superadmin" || activeRole === "tramitacion"}
+            resendingInvitation={isResendingInvitationId === activeUserForSheet.id}
+            onResendInvitation={() => void handleResendInvitation(activeUserForSheet.id)}
             mfaEnrolled={ws.mfaEnrolledIds.includes(activeUserForSheet.id)}
             mfaLoading={ws.isSyncingErpUsers}
             mfaResetting={ws.mfaResettingUserId === activeUserForSheet.id}

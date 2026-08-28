@@ -11,6 +11,7 @@ import { listErpComerciales, updateErpComercial, deleteStaffUser } from '@/lib/s
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 import { fetchAdminMfaSummary, resetAdminMfa } from '@/lib/supabase/admin-mfa';
 import { canResetTargetMfa } from '@/lib/admin-mfa-policy';
+import { sendStaffInvitationEmail } from '@/lib/supabase/staff-invitation';
 
 interface UseErpUsuariosParams {
   profiles: Profile[];
@@ -42,6 +43,7 @@ export function useErpUsuarios({
   const [mfaEnrolledIds, setMfaEnrolledIds] = useState<string[]>([]);
   const [mfaResettingUserId, setMfaResettingUserId] = useState<string | null>(null);
   const [isDeletingUserId, setIsDeletingUserId] = useState<string | null>(null);
+  const [isResendingInvitationId, setIsResendingInvitationId] = useState<string | null>(null);
 
   const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
 
@@ -253,6 +255,30 @@ export function useErpUsuarios({
     if (accounts.ok) setAppUsers(accounts.data);
   }
 
+  async function handleResendInvitation(userId: string) {
+    const fromProfiles = profiles.find((p) => p.id === userId);
+    const fromApp = appUsers.find((u) => u.id === userId);
+    const email = fromProfiles?.email ?? fromApp?.email ?? '';
+    const fullName = fromProfiles?.fullName ?? fromApp?.fullName ?? '';
+    const role = fromProfiles?.role ?? fromApp?.role ?? 'comercial';
+
+    if (!email.trim()) {
+      toast.error('Este usuario no tiene email de acceso.');
+      return;
+    }
+
+    setIsResendingInvitationId(userId);
+    const result = await sendStaffInvitationEmail({ email, fullName, role });
+    setIsResendingInvitationId(null);
+
+    if (result.ok === false) {
+      toast.error(result.message);
+      return;
+    }
+
+    toast.success(`Invitación reenviada a ${email}`);
+  }
+
   async function handleResetUserMfa(userId: string) {
     const fromProfiles = profiles.find((p) => p.id === userId);
     const fromApp = appUsers.find((u) => u.id === userId);
@@ -326,6 +352,9 @@ export function useErpUsuarios({
     isCreatingUser,
     isSavingUserSheet,
     isSyncingErpUsers,
+    isDeletingUserId,
+    isResendingInvitationId,
+    handleResendInvitation,
     appUsers,
     appUsersError,
     handleAddNewUser,

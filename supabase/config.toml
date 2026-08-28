@@ -12,3 +12,9 @@ verify_jwt = false
 
 [functions.ate-webhooks]
 verify_jwt = false
+
+[functions.send-staff-invitation]
+verify_jwt = false
+
+[functions.staff-login-otp]
+verify_jwt = false

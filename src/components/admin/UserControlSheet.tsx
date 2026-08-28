@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { motion } from "motion/react"
-import { ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { Mail, ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { mfaStatusLabel } from "@/lib/admin-mfa-policy"
 import { fetchAdminMfaStatus } from "@/lib/supabase/admin-mfa"
 
@@ -46,6 +46,9 @@ interface UserControlSheetProps {
   mfaResetting?: boolean
   canResetMfa?: boolean
   onResetMfa?: () => void
+  canResendInvitation?: boolean
+  resendingInvitation?: boolean
+  onResendInvitation?: () => void
 }
 
 const PERMISSION_ITEMS: Array<{
@@ -78,6 +81,9 @@ export function UserControlSheet({
   mfaResetting = false,
   canResetMfa = false,
   onResetMfa,
+  canResendInvitation = false,
+  resendingInvitation = false,
+  onResendInvitation,
 }: UserControlSheetProps) {
   const [enrolled, setEnrolled] = useState(mfaEnrolled)
   const [statusLoading, setStatusLoading] = useState(false)
@@ -162,6 +168,28 @@ export function UserControlSheet({
             </div>
             <p className="text-[10px] font-mono text-brand-subtext truncate">{user.email}</p>
           </div>
+
+          {canResendInvitation && user.email?.trim() && onResendInvitation ? (
+            <div className="rounded-xl border border-brand-border bg-brand-bg/50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4 text-cyan-600" />
+                <div>
+                  <p className="text-xs font-semibold text-brand-text">Invitación por email</p>
+                  <p className="text-[10px] text-brand-subtext">
+                    Envía de nuevo el enlace para crear cuenta en la plataforma.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={resendingInvitation || saving}
+                onClick={onResendInvitation}
+                className="w-full py-2 text-[11px] font-bold rounded-lg border border-cyan-500/30 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-40"
+              >
+                {resendingInvitation ? "Enviando…" : "Reenviar invitación"}
+              </button>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <label className="block text-[10px] font-mono uppercase text-brand-subtext font-bold">

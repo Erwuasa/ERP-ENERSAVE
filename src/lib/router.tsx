@@ -9,6 +9,7 @@ import { ErpDataProvider } from "@/providers/ErpDataProvider"
 import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
 import { ROUTES } from "@/constants/navigation"
 import { LoginPage } from "@/pages/auth/LoginPage"
+import { RegisterPage } from "@/pages/auth/RegisterPage"
 import { CustomerDashboardPage } from "@/pages/customer/CustomerDashboardPage"
 import { ErpWorkspaceShell } from "@/pages/erp/ErpWorkspace"
 import { IncidenciasProvider } from "@/pages/erp/incidencias/IncidenciasProvider"
@@ -65,7 +66,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/register",
-        element: <Navigate to={ROUTES.login} replace />,
+        element: <RegisterPage />,
       },
       {
         path: "/",

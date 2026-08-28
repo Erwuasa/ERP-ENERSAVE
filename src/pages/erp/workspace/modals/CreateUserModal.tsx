@@ -6,6 +6,8 @@ import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 type Props = Pick<
   ErpWorkspaceContext,
   | "profiles"
+  | "newUserName"
+  | "setNewUserName"
   | "newUserEmail"
   | "setNewUserEmail"
   | "newUserRole"
@@ -20,6 +22,8 @@ type Props = Pick<
 
 export function CreateUserModal({
   profiles,
+  newUserName,
+  setNewUserName,
   newUserEmail,
   setNewUserEmail,
   newUserRole,
@@ -51,7 +55,7 @@ export function CreateUserModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-cyan-600" />
-                <h3 className="text-sm font-bold text-brand-text">Promover a staff</h3>
+                <h3 className="text-sm font-bold text-brand-text">Registrar asesor</h3>
               </div>
               <button
                 type="button"
@@ -64,18 +68,31 @@ export function CreateUserModal({
 
             <form onSubmit={handleAddNewUser} className="space-y-4 text-xs">
               <p className="text-[11px] text-brand-subtext leading-relaxed">
-                La persona debe haberse registrado antes. Aquí solo se le asigna rol de staff.
+                Crea la invitación en Supabase. El asesor podrá registrarse después con ese email.
               </p>
               <div className="space-y-1">
                 <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">
-                  Email de la cuenta
+                  Nombre completo
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newUserName}
+                  onChange={(e) => setNewUserName(e.target.value)}
+                  placeholder="p. ej. Miguel Ángel Soler"
+                  className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500 text-brand-text"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">
+                  Email de acceso
                 </label>
                 <input
                   type="email"
                   required
                   value={newUserEmail}
                   onChange={(e) => setNewUserEmail(e.target.value)}
-                  placeholder="cliente@correo.com"
+                  placeholder="asesor@correo.com"
                   className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none focus:ring-1 focus:ring-cyan-500 text-brand-text"
                 />
               </div>
@@ -128,7 +145,7 @@ export function CreateUserModal({
                   disabled={isCreatingUser}
                   className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg font-semibold disabled:opacity-50"
                 >
-                  {isCreatingUser ? "Guardando…" : "Asignar rol"}
+                  {isCreatingUser ? "Registrando…" : "Registrar en Supabase"}
                 </button>
               </div>
             </form>
