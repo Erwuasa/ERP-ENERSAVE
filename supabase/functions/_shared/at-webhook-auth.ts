@@ -131,20 +131,36 @@ async function isSignedWebhookAuthorized(
 }
 
 function webhookSecrets(): string[] {
-  const secrets = [getEnv('AT_TARIFFS_SYNC_SECRET'), getEnv('AT_MARCOS_SYNC_SECRET')]
+  const secrets = [
+    getEnv('AT_TARIFFS_SYNC_SECRET'),
+    getEnv('AT_MARCOS_SYNC_SECRET'),
+    getEnv('SUPABASE_SERVICE_ROLE_KEY'),
+  ]
   return [...new Set(secrets.filter(Boolean))]
+}
+
+function providedSecrets(request: Request): string[] {
+  const headerSecret = (
+    request.headers.get('x-sync-secret') ??
+    request.headers.get('x-webhook-secret') ??
+    ''
+  ).trim()
+  const auth = (request.headers.get('authorization') ?? '').trim()
+  const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
+  return [...new Set([headerSecret, bearer, auth].filter(Boolean))]
 }
 
 export async function isAtWebhookAuthorized(request: Request, rawBody: string): Promise<boolean> {
   const secrets = webhookSecrets()
   if (secrets.length === 0) return true
 
-  const headerSecret =
-    request.headers.get('x-sync-secret') ?? request.headers.get('x-webhook-secret') ?? ''
-  if (headerSecret && secrets.includes(headerSecret)) return true
+  const provided = providedSecrets(request)
+  if (provided.some((value) => secrets.some((secret) => timingSafeEqual(value, secret)))) {
+    return true
+  }
 
-  const auth = request.headers.get('authorization') ?? ''
-  if (secrets.some((secret) => auth === `Bearer ${secret}`)) return true
+  const auth = (request.headers.get('authorization') ?? '').trim()
+  if (secrets.some((secret) => timingSafeEqual(auth, `Bearer ${secret}`))) return true
 
   for (const secret of secrets) {
     if (await isSignedWebhookAuthorized(request, rawBody, secret)) return true
