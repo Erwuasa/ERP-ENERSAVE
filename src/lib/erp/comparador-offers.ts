@@ -1,7 +1,7 @@
 import { buildComparadorCandidates } from "../comparador-candidates"
 import { matchesCompProposalFilters, type CompProposalFilterId } from "../comparador-proposal-filters"
 import { sortComparadorOptions, type ComparadorSortMode } from "../comparador-sort"
-import type { MarcoRetributivoRow } from "../supabase/marco-retributivo"
+import { marcoRowToCatalogEntry, type MarcoRetributivoRow } from "../supabase/marco-retributivo"
 import type {
   ComparadorAccessTariff,
   ComparadorPeriodValues,
@@ -142,6 +142,7 @@ export function computeComparadorOffers(
     commissionPercentage: input.commissionPercentage,
     consumoAnual: totalConsumoAnual,
     formatCurrency: input.formatCurrency,
+    catalog: (input.marcoRows ?? []).map(marcoRowToCatalogEntry),
   })
 
   const topOptions = markedOptions.slice(0, 3)

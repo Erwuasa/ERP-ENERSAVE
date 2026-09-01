@@ -1,7 +1,4 @@
-import {
-  marcoRetributivoCatalog,
-  type MarcoRetributivoEntry,
-} from "../../data/marco-retributivo-catalog"
+import type { MarcoRetributivoEntry } from "../../data/marco-retributivo-catalog"
 import { computeComisionBreakdown } from "../marco-commission"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
@@ -229,10 +226,6 @@ export function marcoRowToCatalogEntry(row: MarcoRetributivoRow): MarcoRetributi
   }
 }
 
-export function getFallbackMarcoCatalog(): MarcoRetributivoRow[] {
-  return marcoRetributivoCatalog.map(catalogEntryToRow)
-}
-
 function toDbPatch(
   patch: Partial<MarcoEntryInput>,
   updatedBy?: string | null
@@ -261,7 +254,7 @@ export async function listMarcoRetributivo(): Promise<
 > {
   const clientOrError = requireClient()
   if (isMarcoClientError(clientOrError)) {
-    return { ok: true, data: getFallbackMarcoCatalog() }
+    return { ok: true, data: [] }
   }
 
   const { data, error } = await clientOrError
@@ -279,7 +272,7 @@ export async function listMarcoRetributivo(): Promise<
       error.code === "42P01" ||
       error.code === "PGRST205"
     ) {
-      return { ok: true, data: getFallbackMarcoCatalog() }
+      return { ok: true, data: [] }
     }
     return mapError(error)
   }
@@ -384,14 +377,11 @@ export function resolveMarcoCatalogEntry(
   if (marcoEntryId) {
     const fromRows = localRows.find((r) => r.id === marcoEntryId)
     if (fromRows) return marcoRowToCatalogEntry(fromRows)
-    const fromCatalog = marcoRetributivoCatalog.find((e) => e.id === marcoEntryId)
-    if (fromCatalog) return fromCatalog
   }
-  return (
-    marcoRetributivoCatalog.find(
-      (e) => e.compania === compania && e.tarifa === tarifa && e.tipo === tipo
-    ) ?? null
+  const byMeta = localRows.find(
+    (r) => r.compania === compania && r.tarifa === tarifa && r.tipo === tipo
   )
+  return byMeta ? marcoRowToCatalogEntry(byMeta) : null
 }
 
 export async function getMarcoEntryById(
@@ -399,11 +389,7 @@ export async function getMarcoEntryById(
 ): Promise<MarcoRetributivoResult<MarcoRetributivoEntry>> {
   const clientOrError = requireClient()
   if (isMarcoClientError(clientOrError)) {
-    const fallback = resolveMarcoCatalogEntry(marcoEntryId, "", "", "luz")
-    if (!fallback) {
-      return { ok: false, message: "Entrada de marco retributivo no encontrada" }
-    }
-    return { ok: true, data: fallback }
+    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
   }
 
   const { data, error } = await clientOrError
@@ -412,18 +398,9 @@ export async function getMarcoEntryById(
     .eq("id", marcoEntryId)
     .maybeSingle()
 
-  if (error) {
-    const fallback = resolveMarcoCatalogEntry(marcoEntryId, "", "", "luz")
-    if (fallback) return { ok: true, data: fallback }
-    return mapError(error)
-  }
-
+  if (error) return mapError(error)
   if (!data) {
-    const fallback = resolveMarcoCatalogEntry(marcoEntryId, "", "", "luz")
-    if (!fallback) {
-      return { ok: false, message: "Entrada de marco retributivo no encontrada" }
-    }
-    return { ok: true, data: fallback }
+    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
   }
 
   return { ok: true, data: marcoRowToCatalogEntry(mapRow(data as MarcoRetributivoRow)) }

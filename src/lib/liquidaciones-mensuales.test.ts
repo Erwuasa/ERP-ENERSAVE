@@ -6,8 +6,37 @@ import {
   isDateInMonthYear,
   sumLiquidacionesMensualesComisionado,
 } from "./liquidaciones-mensuales"
+import { catalogEntryToRow } from "./supabase/marco-retributivo"
 
 const noopFormat = (value: number) => `${value.toFixed(2)} €`
+
+const iberdrolaRow = catalogEntryToRow({
+  id: "iberdrola-luz-estable-20",
+  compania: "Iberdrola",
+  tarifa: "Plan Estable Luz",
+  tipo: "luz",
+  peaje: "2.0TD",
+  condiciones: "",
+  comisionTipo: "fija",
+  comisionBase: 80,
+  comisionUnidad: "eur_cups",
+  vigenciaMeses: 0,
+})
+
+const endesaRow = catalogEntryToRow({
+  id: "endesa-luz-fija-20",
+  compania: "Endesa",
+  tarifa: "One Luz Fija Directa",
+  tipo: "luz",
+  peaje: "2.0TD",
+  condiciones: "",
+  comisionTipo: "fija",
+  comisionBase: 100,
+  comisionUnidad: "eur_cups",
+  vigenciaMeses: 0,
+})
+
+const marcoRows = [iberdrolaRow, endesaRow]
 
 function contract(partial: Partial<Contract> & Pick<Contract, "id">): Contract {
   return {
@@ -16,7 +45,7 @@ function contract(partial: Partial<Contract> & Pick<Contract, "id">): Contract {
     tipo: "luz",
     compania: "Iberdrola",
     tarifa: "Plan Estable Luz",
-    marcoEntryId: "iberdrola-luz-estable-20",
+    marcoEntryId: iberdrolaRow.id,
     consumoAnual: 3600,
     montoInterno: 0,
     montoExterno: 0,
@@ -66,7 +95,8 @@ describe("calcularLiquidacionMensualPorComercial", () => {
       8,
       2026,
       comerciales,
-      noopFormat
+      noopFormat,
+      marcoRows
     )
 
     expect(result.desglosePorContrato).toHaveLength(2)
@@ -84,7 +114,7 @@ describe("calcularLiquidacionesMensualesTodoElEquipo", () => {
         comercialId: "com-2",
         compania: "Endesa",
         tarifa: "One Luz Fija Directa",
-        marcoEntryId: "endesa-luz-fija-20",
+        marcoEntryId: endesaRow.id,
       }),
     ]
 
@@ -93,7 +123,8 @@ describe("calcularLiquidacionesMensualesTodoElEquipo", () => {
       comerciales,
       8,
       2026,
-      noopFormat
+      noopFormat,
+      marcoRows
     )
 
     expect(liquidaciones).toHaveLength(2)

@@ -20,6 +20,7 @@ import {
   erpComercialFromProfile as mapProfileToLiquidacionComercial,
 } from "@/lib/liquidaciones-mensuales"
 import { downloadAutofacturaPdf, generateAutofacturaPdf } from "@/lib/pdf/autofactura-pdf"
+import { listMarcoRetributivo } from "@/lib/supabase/marco-retributivo"
 
 interface Params {
   activeUser: Profile
@@ -125,13 +126,16 @@ export function useErpFiscalProfile({
         })
       )
 
+    const marcos = await listMarcoRetributivo()
+    const marcoRows = marcos.ok ? marcos.data : []
     const liquidacion = calcularLiquidacionMensualPorComercial(
       contracts,
       activeUserId,
       mes,
       año,
       comerciales,
-      formatCurrency
+      formatCurrency,
+      marcoRows
     )
 
     if (liquidacion.desglosePorContrato.length === 0) {

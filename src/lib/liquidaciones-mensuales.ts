@@ -2,7 +2,10 @@ import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
 import { isContractActivado } from "./contract-estado"
 import { estimateMarcoCommissionEur } from "./marco-commission"
-import { resolveMarcoCatalogEntry } from "./supabase/marco-retributivo"
+import {
+  resolveMarcoCatalogEntry,
+  type MarcoRetributivoRow,
+} from "./supabase/marco-retributivo"
 
 export interface ErpComercial {
   id: string
@@ -64,13 +67,15 @@ function findComercial(
 function estimateContractCommissions(
   contract: Contract,
   commissionPercentage: number,
-  formatCurrency: (value: number) => string
+  formatCurrency: (value: number) => string,
+  marcoRows: MarcoRetributivoRow[]
 ): { comisionBruta: number; comisionComercial: number; detalle: string } | null {
   const entry = resolveMarcoCatalogEntry(
     contract.marcoEntryId,
     contract.compania,
     contract.tarifa,
-    contract.tipo
+    contract.tipo,
+    marcoRows
   )
   if (!entry) return null
 
@@ -98,7 +103,8 @@ export function calcularLiquidacionMensualPorComercial(
   mes: number,
   año: number,
   comerciales: ErpComercial[],
-  formatCurrency: (value: number) => string = defaultFormatCurrency
+  formatCurrency: (value: number) => string = defaultFormatCurrency,
+  marcoRows: MarcoRetributivoRow[] = []
 ): LiquidacionMensualComercial {
   const comercial = findComercial(comerciales, comercialId)
   const commissionPercentage = comercial?.commissionPercentage ?? 70
@@ -115,7 +121,8 @@ export function calcularLiquidacionMensualPorComercial(
     const comisiones = estimateContractCommissions(
       contract,
       commissionPercentage,
-      formatCurrency
+      formatCurrency,
+      marcoRows
     )
     if (!comisiones || comisiones.comisionComercial <= 0) continue
 
@@ -158,7 +165,8 @@ export function calcularLiquidacionesMensualesTodoElEquipo(
   comerciales: ErpComercial[],
   mes: number,
   año: number,
-  formatCurrency: (value: number) => string = defaultFormatCurrency
+  formatCurrency: (value: number) => string = defaultFormatCurrency,
+  marcoRows: MarcoRetributivoRow[] = []
 ): LiquidacionMensualComercial[] {
   return comerciales
     .filter((comercial) => comercial.activo)
@@ -169,7 +177,8 @@ export function calcularLiquidacionesMensualesTodoElEquipo(
         mes,
         año,
         comerciales,
-        formatCurrency
+        formatCurrency,
+        marcoRows
       )
     )
     .filter((liquidacion) => liquidacion.desglosePorContrato.length > 0)

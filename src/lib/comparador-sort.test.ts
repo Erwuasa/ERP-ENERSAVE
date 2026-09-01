@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 import {
   resolveComparadorMarcoEntry,
   sortComparadorOptions,
@@ -6,12 +7,40 @@ import {
 
 const formatCurrency = (val: number) => `${val.toFixed(2)} €`
 
+const catalog: MarcoRetributivoEntry[] = [
+  {
+    id: "ib-plan",
+    compania: "Iberdrola",
+    tarifa: "Plan Estable Luz",
+    tipo: "luz",
+    peaje: "2.0TD",
+    condiciones: "",
+    comisionTipo: "fija",
+    comisionBase: 50,
+    comisionUnidad: "eur_cups",
+    vigenciaMeses: 0,
+  },
+  {
+    id: "en-negocio",
+    compania: "Endesa",
+    tarifa: "Negocio Fórmula Variable",
+    tipo: "luz",
+    peaje: "3.0TD",
+    condiciones: "",
+    comisionTipo: "fija",
+    comisionBase: 80,
+    comisionUnidad: "eur_cups",
+    vigenciaMeses: 0,
+  },
+]
+
 describe("resolveComparadorMarcoEntry", () => {
   it("resuelve tarifa con prefijo de compañía", () => {
     const entry = resolveComparadorMarcoEntry(
       "Iberdrola",
       "Iberdrola Plan Estable Luz",
-      "2.0TD"
+      "2.0TD",
+      catalog
     )
     expect(entry?.tarifa).toBe("Plan Estable Luz")
   })
@@ -20,7 +49,8 @@ describe("resolveComparadorMarcoEntry", () => {
     const entry = resolveComparadorMarcoEntry(
       "Endesa",
       "Endesa Negocio Fórmula Variable",
-      "3.0TD"
+      "3.0TD",
+      catalog
     )
     expect(entry?.tarifa).toBe("Negocio Fórmula Variable")
   })
@@ -53,6 +83,7 @@ describe("sortComparadorOptions", () => {
     commissionPercentage: 50,
     consumoAnual: 3600,
     formatCurrency,
+    catalog,
   }
 
   it("ordena por ahorro descendente por defecto", () => {

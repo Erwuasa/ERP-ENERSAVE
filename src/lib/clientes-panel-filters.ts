@@ -1,4 +1,3 @@
-import { marcoRetributivoCatalog } from "../data/marco-retributivo-catalog"
 import type { Client } from "../types/client"
 import type { Contract } from "../types/contract"
 import { getContractsForClient } from "./clients"
@@ -151,17 +150,7 @@ export function getClientProvincia(client: Client, contracts: Contract[]): strin
 export function getClientTerminos(client: Client, contracts: Contract[]): string {
   const linked = getContractsForClient(client, contracts)
   const activated = linked.find((c) => isContractActivado(c.estado))
-  if (activated?.marcoEntryId) {
-    const entry = marcoRetributivoCatalog.find((e) => e.id === activated.marcoEntryId)
-    if (entry?.condiciones) {
-      const permanencia = entry.condiciones.match(/permanencia[^.]*/i)
-      if (permanencia) return permanencia[0]
-      if (/sin permanencia/i.test(entry.condiciones)) return "Sin permanencia"
-      return entry.condiciones.length > 36
-        ? `${entry.condiciones.slice(0, 36)}…`
-        : entry.condiciones
-    }
-  }
+  if (activated?.estado && client.estado === "activo") return "Aceptado"
   if (client.estado === "activo") return "Aceptado"
   if (client.estado === "pendiente") return "Pendiente"
   return "—"

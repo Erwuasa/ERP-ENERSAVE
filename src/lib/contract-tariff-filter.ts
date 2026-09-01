@@ -1,5 +1,4 @@
 import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
-import { marcoRetributivoCatalog } from "../data/marco-retributivo-catalog"
 import type { PeajeSegment } from "./contract-potencia"
 
 export type ContractWizardSegment = "residencial" | "pyme"
@@ -65,7 +64,7 @@ export function filterMarcoTariffs(params: {
     ? tipoClienteToSegment(params.tipoCliente)
     : params.segment
   const q = (params.search ?? "").trim().toLowerCase()
-  const catalog = params.catalog ?? marcoRetributivoCatalog
+  const catalog = params.catalog ?? []
 
   return catalog.filter((entry) => {
     if (entry.compania !== params.compania) return false
@@ -83,7 +82,7 @@ export function filterMarcoTariffs(params: {
 
 export function getWizardCompanies(
   segment: ContractWizardSegment,
-  catalog: MarcoRetributivoEntry[] = marcoRetributivoCatalog
+  catalog: MarcoRetributivoEntry[] = []
 ): string[] {
   const set = new Set<string>()
   for (const entry of catalog) {
@@ -97,9 +96,10 @@ export function getWizardCompanies(
 export function findMarcoEntryByTarifa(
   compania: string,
   tarifa: string,
-  tipo: "luz" | "gas"
+  tipo: "luz" | "gas",
+  catalog: MarcoRetributivoEntry[] = []
 ): MarcoRetributivoEntry | undefined {
-  return marcoRetributivoCatalog.find(
+  return catalog.find(
     (e) => e.compania === compania && e.tarifa === tarifa && e.tipo === tipo
   )
 }

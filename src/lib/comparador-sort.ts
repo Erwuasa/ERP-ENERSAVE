@@ -1,4 +1,4 @@
-import { marcoRetributivoCatalog, type MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
+import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 import { findMarcoEntryByTarifa } from "./contract-tariff-filter"
 import { estimateMarcoCommissionEur } from "./marco-commission"
 
@@ -29,19 +29,20 @@ function normalizeTariffLabel(name: string): string {
 export function resolveComparadorMarcoEntry(
   companyName: string,
   tariffName: string,
-  accessTariff: string
+  accessTariff: string,
+  catalog: MarcoRetributivoEntry[] = []
 ): MarcoRetributivoEntry | null {
-  const exact = findMarcoEntryByTarifa(companyName, tariffName, "luz")
+  const exact = findMarcoEntryByTarifa(companyName, tariffName, "luz", catalog)
   if (exact) return exact
 
   const stripped = tariffName.replace(new RegExp(`^${companyName}\\s*`, "i"), "").trim()
-  const byStripped = findMarcoEntryByTarifa(companyName, stripped, "luz")
+  const byStripped = findMarcoEntryByTarifa(companyName, stripped, "luz", catalog)
   if (byStripped) return byStripped
 
   const normTariff = normalizeTariffLabel(tariffName)
   const normStripped = normalizeTariffLabel(stripped)
 
-  const byPeaje = marcoRetributivoCatalog.filter(
+  const byPeaje = catalog.filter(
     (entry) =>
       entry.compania === companyName &&
       entry.tipo === "luz" &&
@@ -67,12 +68,14 @@ export function estimateComparadorCommissionEur(
   accessTariff: string,
   commissionPercentage: number,
   consumoAnual: number,
-  formatCurrency: (val: number) => string
+  formatCurrency: (val: number) => string,
+  catalog: MarcoRetributivoEntry[] = []
 ): number {
   const entry = resolveComparadorMarcoEntry(
     option.companyName,
     option.tariffName,
-    accessTariff
+    accessTariff,
+    catalog
   )
   if (!entry || consumoAnual <= 0) return 0
 
@@ -92,8 +95,10 @@ export function sortComparadorOptions<T extends ComparadorSortableOption>(
     commissionPercentage: number
     consumoAnual: number
     formatCurrency: (val: number) => string
+    catalog?: MarcoRetributivoEntry[]
   }
 ): Array<T & { commissionEur: number; isBestOption: boolean }> {
+  const catalog = params.catalog ?? []
   const enriched = options.map((option) => ({
     ...option,
     commissionEur: estimateComparadorCommissionEur(
@@ -101,7 +106,8 @@ export function sortComparadorOptions<T extends ComparadorSortableOption>(
       params.accessTariff,
       params.commissionPercentage,
       params.consumoAnual,
-      params.formatCurrency
+      params.formatCurrency,
+      catalog
     ),
   }))
 

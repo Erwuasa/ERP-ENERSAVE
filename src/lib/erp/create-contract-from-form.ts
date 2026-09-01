@@ -14,8 +14,8 @@ import {
   computeRenewalSchedule,
 } from "@/lib/contract-segment-rules"
 import { upsertClient, syncClientEstados } from "@/lib/clients"
-import { marcoRetributivoCatalog } from "@/data/marco-retributivo-catalog"
 import { computeComisionBreakdown } from "@/lib/marco-commission"
+import { getMarcoEntryById } from "@/lib/supabase/marco-retributivo"
 import { contractsService } from "@/api/erp/contracts.service"
 import {
   createContratoCreadoActividad,
@@ -88,14 +88,8 @@ export async function createContractFromForm(params: {
   const consumo = form.consumoAnual === "" ? 0 : Number(form.consumoAnual)
   const precioFijo = parseFloat(String(form.precioFijoConsumo).replace(",", "."))
 
-  const marcoEntry = form.marcoEntryId
-    ? marcoRetributivoCatalog.find((entry) => entry.id === form.marcoEntryId)
-    : marcoRetributivoCatalog.find(
-        (entry) =>
-          entry.compania === form.compania &&
-          entry.tarifa === form.tarifa &&
-          entry.tipo === form.tipo
-      )
+  const marcoResult = form.marcoEntryId ? await getMarcoEntryById(form.marcoEntryId) : null
+  const marcoEntry = marcoResult?.ok ? marcoResult.data : null
 
   const comercialDefault =
     profiles.find((p) => p.role === "comercial" || p.role === "jefe_comercial") ||

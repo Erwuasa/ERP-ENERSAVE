@@ -1,7 +1,10 @@
 import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
 import { computeComisionBreakdown } from "./marco-commission"
-import { resolveMarcoCatalogEntry } from "./supabase/marco-retributivo"
+import {
+  resolveMarcoCatalogEntry,
+  type MarcoRetributivoRow,
+} from "./supabase/marco-retributivo"
 import { normalizeTipoClienteSegment } from "./contract-segment-rules"
 
 export interface ProfileRow {
@@ -68,13 +71,15 @@ function findContractForSettlement(settlement: Settlement, contracts: Contract[]
 function resolveComisionComercialFromContract(
   contract: Contract,
   profiles: ProfileRow[],
-  formatCurrency: (val: number) => string
+  formatCurrency: (val: number) => string,
+  marcoRows: MarcoRetributivoRow[] = []
 ): number | null {
   const entry = resolveMarcoCatalogEntry(
     contract.marcoEntryId,
     contract.compania,
     contract.tarifa,
-    contract.tipo
+    contract.tipo,
+    marcoRows
   )
   if (!entry) return null
 
@@ -92,7 +97,8 @@ export function enrichSettlementRow(
   settlement: Settlement,
   contracts: Contract[],
   profiles: ProfileRow[],
-  formatCurrency: (val: number) => string
+  formatCurrency: (val: number) => string,
+  marcoRows: MarcoRetributivoRow[] = []
 ): LiquidacionInternaRow {
   const contract = findContractForSettlement(settlement, contracts)
   const manager = contract
@@ -123,7 +129,7 @@ export function enrichSettlementRow(
     fechaActivacion: contract?.createdAt ?? settlement.createdAt,
     comision:
       contract != null
-        ? resolveComisionComercialFromContract(contract, profiles, formatCurrency) ??
+        ? resolveComisionComercialFromContract(contract, profiles, formatCurrency, marcoRows) ??
           settlement.montoExterno
         : settlement.montoExterno,
     comercialId: settlement.comercialId,

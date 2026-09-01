@@ -1,7 +1,12 @@
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { Contract } from "@/types/contract"
 import { computeComisionBreakdown } from "@/lib/marco-commission"
-import { resolveMarcoCatalogEntry } from "@/lib/supabase/marco-retributivo"
+import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
+import {
+  getMarcoEntryById,
+  listMarcoRetributivo,
+  resolveMarcoCatalogEntry,
+} from "@/lib/supabase/marco-retributivo"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 
 export interface ContractComisionDesgloseProps {
@@ -18,17 +23,44 @@ export function ContractComisionDesglose({
   const comercial = profiles.find((p) => p.id === contract.comercialId)
   const commissionPercentage = comercial?.commissionPercentage ?? 70
   const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
+  const [entry, setEntry] = useState<MarcoRetributivoEntry | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      if (contract.marcoEntryId) {
+        const byId = await getMarcoEntryById(contract.marcoEntryId)
+        if (cancelled) return
+        if (byId.ok) {
+          setEntry(byId.data)
+          return
+        }
+      }
+      const listed = await listMarcoRetributivo()
+      if (cancelled) return
+      if (!listed.ok) {
+        setEntry(null)
+        return
+      }
+      setEntry(
+        resolveMarcoCatalogEntry(
+          contract.marcoEntryId,
+          contract.compania,
+          contract.tarifa,
+          contract.tipo,
+          listed.data
+        )
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [contract.marcoEntryId, contract.compania, contract.tarifa, contract.tipo])
 
   const breakdown = useMemo(() => {
-    const entry = resolveMarcoCatalogEntry(
-      contract.marcoEntryId,
-      contract.compania,
-      contract.tarifa,
-      contract.tipo
-    )
     if (!entry || !consumo || consumo <= 0) return null
     return computeComisionBreakdown(entry, commissionPercentage, consumo, formatCurrency)
-  }, [contract, commissionPercentage, consumo, formatCurrency])
+  }, [entry, commissionPercentage, consumo, formatCurrency])
 
   if (!breakdown) {
     return (

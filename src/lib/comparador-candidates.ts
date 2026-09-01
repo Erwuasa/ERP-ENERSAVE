@@ -1,4 +1,3 @@
-import { marcoRetributivoCatalog, type MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 import type { CompProposalProfileTags } from "./comparador-proposal-filters"
 import {
   inferIncluyeSvaFromMarcoText,
@@ -105,30 +104,6 @@ function profileFromMarcoRow(
   }
 }
 
-function profileFromCatalogEntry(
-  entry: MarcoRetributivoEntry,
-  accessTariff: "2.0TD" | "3.0TD" | "6.0TD",
-  index: number
-): ComparadorTariffProfile {
-  const base = DEFAULT_RATES[accessTariff]
-  const variation = 1 + (index % 4) * 0.012 - 0.018
-  const potRates = base.potRates.map((rate) => Number((rate * variation).toFixed(4)))
-  const conRates = base.conRates.map((rate) => Number((rate * variation).toFixed(4)))
-  const tipoPrecio = inferTipoPrecioFromMarcoText(entry.tarifa, entry.condiciones)
-  const incluyeSva = inferIncluyeSvaFromMarcoText(entry.tarifa, entry.condiciones)
-
-  return {
-    id: entry.id,
-    companyName: entry.compania,
-    tariffName: entry.tarifa,
-    potRates,
-    conRates,
-    pricingType: tipoPrecio,
-    sinSva: !incluyeSva,
-    potenciaBoe: inferPotenciaBoeFromMarcoText(entry.tarifa, entry.condiciones),
-  }
-}
-
 export function buildComparadorCandidates(input: ComparadorCandidateInput): ComparadorTariffProfile[] {
   const { accessTariff, tipo = "luz", marcoRows } = input
 
@@ -143,9 +118,5 @@ export function buildComparadorCandidates(input: ComparadorCandidateInput): Comp
       .map((row) => profileFromMarcoRow(row, accessTariff))
   }
 
-  return marcoRetributivoCatalog
-    .filter(
-      (entry) => entry.tipo === tipo && peajeMatchesEntry(entry.peaje, accessTariff)
-    )
-    .map((entry, index) => profileFromCatalogEntry(entry, accessTariff, index))
+  return []
 }

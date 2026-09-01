@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
-import { marcoRetributivoCatalog, type MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
+import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
+import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
 import {
   getDocumentosObligatoriosForMarco,
@@ -22,7 +23,6 @@ import { getTariffPeajeType, inferPeajeTypeFromSegment, spreadPotenciaFromP1 } f
 import { lookupSpainPostalCode } from "@/lib/spain-postal-code"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wizard-ui"
-import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
 
 export function useNuevoContratoWizard({
   open,
@@ -48,7 +48,7 @@ export function useNuevoContratoWizard({
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
-  const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>(marcoRetributivoCatalog)
+  const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
   const cpLookupRequestId = useRef(0)
 
   useEffect(() => {

@@ -27,6 +27,10 @@ import {
   updateAlegacionEstado,
 } from "../lib/supabase/alegaciones"
 import { isSupabaseConfigured } from "../lib/supabase/client"
+import {
+  listMarcoRetributivo,
+  type MarcoRetributivoRow,
+} from "../lib/supabase/marco-retributivo"
 import type { Alegacion, AlegacionAdjunto, AlegacionEstado } from "../types/alegacion"
 import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
@@ -294,6 +298,7 @@ export function LiquidacionesInternasPanel({
   const [activeTab, setActiveTab] = useState<LiquidacionesTab>("totales")
   const [compania, setCompania] = useState<string>("Todos")
   const [search, setSearch] = useState("")
+  const [marcoRows, setMarcoRows] = useState<MarcoRetributivoRow[]>([])
 
   const isAdminLiquidaciones = activeRole === "superadmin" || activeRole === "tramitacion"
   const canChangeAlegacionEstado = isAdminLiquidaciones
@@ -323,6 +328,12 @@ export function LiquidacionesInternasPanel({
     void loadAlegaciones()
   }, [loadAlegaciones])
 
+  useEffect(() => {
+    void listMarcoRetributivo().then((result) => {
+      if (result.ok) setMarcoRows(result.data)
+    })
+  }, [])
+
   const alegacionBySettlementId = useMemo(() => {
     const map = new Map<string, Alegacion>()
     for (const alegacion of alegaciones) {
@@ -333,8 +344,10 @@ export function LiquidacionesInternasPanel({
 
   const baseRows = useMemo(() => {
     const scoped = filterSettlementsForRole(settlements, activeRole, activeUserId, profiles)
-    return scoped.map((s) => enrichSettlementRow(s, contracts, profiles, formatCurrency))
-  }, [settlements, contracts, profiles, activeRole, activeUserId, formatCurrency])
+    return scoped.map((s) =>
+      enrichSettlementRow(s, contracts, profiles, formatCurrency, marcoRows)
+    )
+  }, [settlements, contracts, profiles, activeRole, activeUserId, formatCurrency, marcoRows])
 
   const filterOpts = { tab: activeTab, dateFrom, dateTo, compania, search }
 
