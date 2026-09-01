@@ -25,8 +25,9 @@ function parseMode(request: Request, body?: Record<string, unknown>): 'explore' 
   const fromQuery = url.searchParams.get('mode')
   const fromBody = typeof body?.mode === 'string' ? body.mode : ''
   const event = ateEventName(request, body)
+  if (fromQuery === 'explore' || fromBody === 'explore') return 'explore'
   if (fromQuery === 'sync' || fromBody === 'sync' || event.startsWith('marco.')) return 'sync'
-  return 'explore'
+  return request.method === 'POST' ? 'sync' : 'explore'
 }
 
 async function exploreMarcos(request: Request) {
@@ -79,7 +80,8 @@ async function exploreMarcos(request: Request) {
     }
   }
 
-  const mergedAnalysis = samples.reduce(
+  const analysisRows = samples.length ? samples : forContract.rows.slice(0, sampleSize)
+  const mergedAnalysis = analysisRows.reduce(
     (acc, row) => {
       const analysis = buildFieldSummary(row)
       for (const path of analysis.paths) acc.paths.add(path)

@@ -130,39 +130,78 @@ function looksLikePercent(row: JsonRecord): boolean {
   return unit.includes('%') || unit.includes('porcent') || tipo.includes('porcent')
 }
 
+async function fetchPagedMarcos(path: string): Promise<{ rows: JsonRecord[]; pagesFetched: number }> {
+  const allRows: JsonRecord[] = []
+  let page = 1
+  let pagesFetched = 0
+
+  while (page <= 200) {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(AT_PAGE_SIZE),
+      limit: String(AT_PAGE_SIZE),
+      offset: String((page - 1) * AT_PAGE_SIZE),
+      order_dir: 'asc',
+    })
+    const payload = await fetchFromAt(path, params)
+    const { rows, pagination } = normalizeListPayload(payload)
+    const flat = flattenMarcoRows(rows)
+    const before = allRows.length
+    allRows.push(...flat)
+    pagesFetched += 1
+
+    if (flat.length === 0) break
+
+    if (pagination) {
+      const currentPage = Number(pagination.page ?? page)
+      const pageSize = Number(pagination.page_size ?? pagination.limit ?? AT_PAGE_SIZE)
+      const total = Number(pagination.total ?? allRows.length)
+      const totalPages = Math.max(1, Math.ceil(total / Math.max(Number(pageSize) || AT_PAGE_SIZE, 1)))
+      if (currentPage >= totalPages) break
+      page = currentPage + 1
+      continue
+    }
+
+    if (flat.length < AT_PAGE_SIZE) break
+    if (page > 1 && allRows.length === before) break
+    page += 1
+  }
+
+  return { rows: allRows, pagesFetched }
+}
+
+function dedupeMarcoRows(rows: JsonRecord[]): JsonRecord[] {
+  const byId = new Map<string, JsonRecord>()
+  const rest: JsonRecord[] = []
+  for (const row of rows) {
+    const id = asUuid(row.id) ?? asString(row.marco_logical_id ?? row.marco_id)
+    if (!id) {
+      rest.push(row)
+      continue
+    }
+    byId.set(id, row)
+  }
+  return [...byId.values(), ...rest]
+}
+
 export async function fetchAllMarcosFromAt(): Promise<{
   rows: JsonRecord[]
   pagesFetched: number
   commissionsEnriched: number
 }> {
-  const allRows: JsonRecord[] = []
-  let page = 1
-  let totalPages = 1
-  let pagesFetched = 0
+  const forContract = await fetchPagedMarcos('/marcos/for-contract')
+  const listed =
+    forContract.rows.length > 0
+      ? { rows: [] as JsonRecord[], pagesFetched: 0 }
+      : await fetchPagedMarcos('/marcos')
 
-  while (page <= totalPages) {
-    const params = new URLSearchParams({
-      page: String(page),
-      page_size: String(AT_PAGE_SIZE),
-      order_dir: 'asc',
-    })
-    const payload = await fetchFromAt('/marcos', params)
-    const { rows, pagination } = normalizeListPayload(payload)
-    allRows.push(...flattenMarcoRows(rows))
-    pagesFetched += 1
-
-    const currentPage = Number(pagination?.page ?? page)
-    const pageSize = Number(pagination?.page_size ?? AT_PAGE_SIZE)
-    const total = Number(pagination?.total ?? allRows.length)
-    totalPages = Math.max(1, Math.ceil(total / Math.max(pageSize, 1)))
-    if (rows.length === 0) break
-    page = currentPage + 1
-  }
+  const allRows = dedupeMarcoRows([...forContract.rows, ...listed.rows])
+  const pagesFetched = forContract.pagesFetched + listed.pagesFetched
 
   const rateIds = [
     ...new Set(
       allRows
-        .map((row) => asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id ?? row.id))
+        .map((row) => asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id))
         .filter((id): id is string => Boolean(id))
     ),
   ]
@@ -190,7 +229,7 @@ export async function fetchAllMarcosFromAt(): Promise<{
 
   if (byRate.size > 0) {
     for (const row of allRows) {
-      const rateId = asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id ?? row.id)
+      const rateId = asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id)
       const extra = rateId ? byRate.get(rateId) : undefined
       if (extra) Object.assign(row, extra)
     }
@@ -233,9 +272,7 @@ async function mapAtRowToDb(
   tariffs: Map<string, LinkedTariff>,
   syncedAt: string
 ): Promise<MarcoDbRow | null> {
-  const rateId = asUuid(
-    row.rate_id ?? row.rates_id ?? row.tariff_id ?? (typeof row.id === 'string' && row.mr_count ? row.id : null)
-  )
+  const rateId = asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id)
   const linked = rateId ? tariffs.get(rateId) ?? null : null
 
   const tipo = normalizeTipo(
@@ -248,6 +285,7 @@ async function mapAtRowToDb(
   const max = asNumber(row.collaborator_max ?? row.max ?? row.comision_max ?? row.commission_max)
   const amount = asNumber(
     row.commission_collaborator ??
+      row.comisionado_base ??
       row.comision_colaborador ??
       row.comision ??
       row.importe ??
@@ -256,20 +294,26 @@ async function mapAtRowToDb(
   const base = max ?? min ?? amount ?? 0
   const percent = looksLikePercent(row)
 
-  const kwhMin = asNumber(row.annual_kwh_min ?? row.kwh_min ?? row.consumo_min ?? row.from_kwh)
-  const kwhMax = asNumber(row.annual_kwh_max ?? row.kwh_max ?? row.consumo_max ?? row.to_kwh)
+  const kwhMin = asNumber(
+    row.annual_kwh_min ?? row.kwh_min ?? row.consumo_min ?? row.from_kwh ?? row.min_consumo_kwh_anual
+  )
+  const kwhMax = asNumber(
+    row.annual_kwh_max ?? row.kwh_max ?? row.consumo_max ?? row.to_kwh ?? row.max_consumo_kwh_anual
+  )
   const commissionType = asString(row.commission_type ?? row.tipo_comisionado ?? row.at_commission_type)
   const mrCount = asNumber(row.mr_count)
 
   const explicitMarcoId = asUuid(row.marco_id ?? row.mr_id)
   const rowId = asUuid(row.id)
+  const logicalId = asString(row.marco_logical_id)
   const atMarcoId =
     explicitMarcoId ??
     (rowId && rowId !== rateId ? rowId : null) ??
+    logicalId ??
     (await fingerprintId([
       rateId ?? '',
       tipo,
-      asString(row.peaje ?? row.access_toll ?? linked?.access_tariff),
+      asString(row.peaje ?? row.peaje_acceso ?? row.access_toll ?? linked?.access_tariff),
       asString(row.segmento ?? linked?.segment),
       String(kwhMin ?? ''),
       String(kwhMax ?? ''),
@@ -278,17 +322,26 @@ async function mapAtRowToDb(
       String(max ?? ''),
     ]))
 
+  const billingCompanyName =
+    typeof row.billing_company === 'string' && !asUuid(row.billing_company)
+      ? row.billing_company
+      : ''
+
   const compania =
-    companyName(row.compania ?? row.billing_company ?? row.company) ||
-    asString(row.billing_company_name ?? row.company_name) ||
+    asString(row.compania_nombre ?? row.proveedor_nombre ?? row.billing_company_name ?? row.company_name) ||
+    companyName(row.compania ?? row.company) ||
+    asString(billingCompanyName) ||
     linked?.provider_name ||
     'AT'
 
   const tarifa =
-    asString(row.rate_name ?? row.tarifa ?? row.nombre ?? row.name) || linked?.name || 'Tarifa AT'
+    asString(row.rate_name ?? row.tarifa ?? row.condicion_1 ?? row.nombre ?? row.name) ||
+    linked?.name ||
+    logicalId ||
+    'Tarifa AT'
 
   const peaje =
-    asString(row.peaje ?? row.access_toll ?? row.categoria ?? row.access_tariff) ||
+    asString(row.peaje ?? row.peaje_acceso ?? row.access_toll ?? row.categoria ?? row.access_tariff) ||
     linked?.access_tariff ||
     '2.0TD'
 
@@ -321,7 +374,7 @@ async function mapAtRowToDb(
     comision_base: Math.round(base * 100) / 100,
     comision_unidad: percent ? 'porcentaje_facturado' : 'eur_cups',
     vigencia_meses: Math.max(0, Math.round(asNumber(row.vigencia_meses ?? row.permanencia_meses) ?? 0)),
-    fecha_inicio: asString(row.fecha_inicio) || syncedAt.slice(0, 10),
+    fecha_inicio: (asString(row.fecha_inicio) || syncedAt).slice(0, 10),
     activo: row.active === false || row.activo === false ? false : true,
     collaborator_min: min,
     collaborator_max: max,
