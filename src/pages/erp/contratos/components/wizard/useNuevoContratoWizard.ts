@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
+import { listAtCatalogEntries } from "@/lib/supabase/at-catalog"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
 import {
@@ -49,6 +50,7 @@ export function useNuevoContratoWizard({
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
+  const [atCompanies, setAtCompanies] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
 
   useEffect(() => {
@@ -57,6 +59,9 @@ export function useNuevoContratoWizard({
       if (result.ok && result.data.length > 0) {
         setMarcoCatalog(result.data.map(marcoRowToCatalogEntry))
       }
+    })
+    void listAtCatalogEntries("billing-companies").then((result) => {
+      if (result.ok) setAtCompanies(result.data.map((row) => row.label).filter(Boolean))
     })
   }, [open])
 
@@ -72,7 +77,10 @@ export function useNuevoContratoWizard({
     })
   }
 
-  const companies = useMemo(() => getWizardCompanies(segment, marcoCatalog), [segment, marcoCatalog])
+  const companies = useMemo(() => {
+    const fromMarco = getWizardCompanies(segment, marcoCatalog)
+    return Array.from(new Set([...fromMarco, ...atCompanies])).sort((a, b) => a.localeCompare(b, "es"))
+  }, [segment, marcoCatalog, atCompanies])
 
   const filteredTariffs = useMemo(
     () =>

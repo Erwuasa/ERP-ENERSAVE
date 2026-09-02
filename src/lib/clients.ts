@@ -159,11 +159,20 @@ export function linkContractsToClients(
 }
 
 export function getContractsForClient(client: Client, contracts: Contract[]): Contract[] {
-  return contracts.filter(
-    (c) =>
-      c.clientId === client.id ||
-      (c.comercialId === client.comercialId &&
-        clientMatchKey(c.clientName, c.nif, c.comercialId) ===
-          clientMatchKey(client.nombre, client.documento, client.comercialId))
-  )
+  return contracts.filter((c) => {
+    if (c.clientId === client.id) return true
+    if (client.documento && c.nif && client.documento.toUpperCase() === c.nif.toUpperCase()) {
+      return true
+    }
+    if (!client.comercialId || !c.comercialId) return false
+    return (
+      c.comercialId === client.comercialId &&
+      clientMatchKey(c.clientName, c.nif, c.comercialId) ===
+        clientMatchKey(client.nombre, client.documento, client.comercialId)
+    )
+  })
+}
+
+export function clientDisplayName(client: Pick<Client, "nombre" | "apellidos">): string {
+  return [client.nombre, client.apellidos].filter(Boolean).join(" ").trim() || client.nombre
 }

@@ -29,15 +29,16 @@ export function useIncidenciasPage({
   teamMemberIds,
   isErpOpsAdmin,
 }: UseIncidenciasPageParams) {
-  const [incidencias, setIncidencias] = useState<Ticket[]>(() =>
-    INCIDENCIAS_SEED.map((inc) => normalizeIncidenciaTicket(inc))
-  )
+  const [incidencias, setIncidencias] = useState<Ticket[]>([])
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) return
+    if (!isSupabaseConfigured()) {
+      setIncidencias(INCIDENCIAS_SEED.map((inc) => normalizeIncidenciaTicket(inc)))
+      return
+    }
     let cancelled = false
     void listIncidencias().then((result) => {
-      if (cancelled || !result.ok || result.data.length === 0) return
+      if (cancelled || !result.ok) return
       setIncidencias(result.data.map((inc) => normalizeIncidenciaTicket(inc)))
     })
     return () => {

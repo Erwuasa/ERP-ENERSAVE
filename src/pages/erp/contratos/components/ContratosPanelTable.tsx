@@ -264,6 +264,11 @@ export function ContratosPanelTable({
                 <td className={CONTRACTS_TD}>
                   <p className="font-semibold text-brand-text leading-snug break-words">
                     {renderEditableCell(c, "clientName", { placeholder: "Cliente" })}
+                    {c.source === "at" ? (
+                      <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
+                        AT{c.atStatus ? ` · ${c.atStatus}` : ""}
+                      </span>
+                    ) : null}
                   </p>
                   <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 mt-1 break-all">
                     {renderEditableCell(c, "cups", {

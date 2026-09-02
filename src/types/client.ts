@@ -14,6 +14,7 @@ export interface ClienteArchivo {
 export interface Client {
   id: string
   nombre: string
+  apellidos?: string
   estado: ClienteEstado
   documento?: string
   telefono?: string
@@ -27,4 +28,9 @@ export interface Client {
   comercialId: string
   archivos: ClienteArchivo[]
   createdAt: string
+  rgpdAccepted?: boolean
+  source?: "manual" | "at"
+  atClientId?: string
+  notas?: string
+  cups?: string
 }

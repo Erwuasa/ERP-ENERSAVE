@@ -40,6 +40,9 @@ export function mapRowToSettlement(row: Row): Settlement {
     descripcion: str(row.descripcion) ?? "",
     createdAt: isoDate(row.created_at) ?? "",
     contractId: str(row.contrato_id),
+    source: row.source === "at" ? "at" : "manual",
+    companyPaymentStatus: str(row.company_payment_status),
+    collaboratorPaymentStatus: str(row.collaborator_payment_status),
   }
 }
 

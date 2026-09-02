@@ -1,7 +1,7 @@
 import { FilePenLine, FolderOpen } from "lucide-react"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
-import { getContractsForClient } from "@/lib/clients"
+import { clientDisplayName, getContractsForClient } from "@/lib/clients"
 import {
   formatClientContact,
   getClientProvincia,
@@ -65,6 +65,7 @@ export function ClientesPanelTable({
                 />
               </th>
               <th className={CLIENTES_TH}>Tipo</th>
+              <th className={CLIENTES_TH}>Origen</th>
               <th className={CLIENTES_TH}>Términos</th>
               <th className={CLIENTES_TH}>Contacto</th>
               <th className={CLIENTES_TH}>Provincia</th>
@@ -82,7 +83,21 @@ export function ClientesPanelTable({
                   key={client.id}
                   className="border-b border-brand-border hover:bg-slate-50/50 dark:hover:bg-white/[0.02]"
                 >
-                  <td className={`${CLIENTES_TD} font-bold text-brand-text`}>{client.nombre}</td>
+                  <td className={`${CLIENTES_TD} font-bold text-brand-text`}>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{clientDisplayName(client)}</span>
+                      {client.source === "at" && (
+                        <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
+                          AT
+                        </span>
+                      )}
+                      {client.rgpdAccepted && (
+                        <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                          RGPD
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className={`${CLIENTES_TD} font-mono text-brand-subtext`}>
                     {client.createdAt.split("-").reverse().join("/")}
                   </td>
@@ -99,6 +114,9 @@ export function ClientesPanelTable({
                     >
                       {client.tipoCliente === "empresa" ? "PYME" : "Particular"}
                     </span>
+                  </td>
+                  <td className={`${CLIENTES_TD} font-mono text-[10px] uppercase text-brand-subtext`}>
+                    {client.source === "at" ? "AT" : "ERP"}
                   </td>
                   <td className={`${CLIENTES_TD} text-brand-subtext max-w-[140px]`}>
                     <span className="line-clamp-2" title={terminos}>

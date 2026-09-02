@@ -50,6 +50,8 @@ export interface IncidenciaTicket {
   createdAt?: string
   estadoAt?: string
   historialEstados: IncidenciaEstadoHistorialEntry[]
+  source?: "manual" | "at"
+  atIncidentId?: string
 }
 
 export function todayInputDate(referenceDate?: Date): string {

@@ -132,7 +132,7 @@ export function mapRowToContract(row: Row): Contract {
 
   return {
     id: String(row.id ?? ""),
-    clientId: str(metadata.client_id),
+    clientId: str(row.cliente_id) ?? str(metadata.client_id),
     clientName: str(row.client_name) ?? "",
     cups: str(row.cups) ?? "",
     tipo: row.tipo === "gas" ? "gas" : "luz",
@@ -171,6 +171,9 @@ export function mapRowToContract(row: Row): Contract {
     nombreComercial: str(row.nombre_comercial),
     jefeEquipo: str(row.jefe_equipo),
     marcoEntryId: str(row.marco_entry_id),
+    source: row.source === "at" ? "at" : "manual",
+    atStatus: str(row.at_status),
+    atContractId: str(row.at_contract_id),
     documentos: Array.isArray(row.documentos)
       ? (row.documentos as Contract["documentos"])
       : undefined,

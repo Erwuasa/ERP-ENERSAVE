@@ -9,6 +9,9 @@ export interface Settlement {
   descripcion: string
   createdAt: string
   contractId?: string
+  source?: "manual" | "at"
+  companyPaymentStatus?: string
+  collaboratorPaymentStatus?: string
 }
 
 export type LiquidacionesInternasTab = "totales" | "pendientes" | "retrocomisiones"

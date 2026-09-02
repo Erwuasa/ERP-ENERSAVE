@@ -1,4 +1,6 @@
+import { useEffect, useMemo, useState } from "react"
 import { MARCO_COMPANIAS_LUZ } from "@/data/marco-retributivo-catalog"
+import { listAtCatalogEntries } from "@/lib/supabase/at-catalog"
 import { formatMarcoSegmentoLabel, MARCO_SEGMENTO_OPTIONS } from "@/lib/supabase/marco-retributivo"
 import type { MarcoEntryInput } from "@/lib/supabase/marco-retributivo"
 import {
@@ -15,6 +17,24 @@ type Props = {
 }
 
 export function MarcoEditModalDatosSection({ form, disabled, patchForm }: Props) {
+  const [catalogCompanies, setCatalogCompanies] = useState<string[]>([])
+
+  useEffect(() => {
+    void listAtCatalogEntries("billing-companies").then((result) => {
+      if (result.ok) {
+        setCatalogCompanies(result.data.map((row) => row.label).filter(Boolean))
+      }
+    })
+  }, [])
+
+  const companies = useMemo(() => {
+    const set = new Set(
+      [...MARCO_COMPANIAS_LUZ.filter((c) => c !== "Todos"), ...catalogCompanies, form.compania].filter(
+        Boolean
+      )
+    )
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"))
+  }, [catalogCompanies, form.compania])
   return (
     <section className="space-y-3">
       <h4 className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
@@ -31,7 +51,7 @@ export function MarcoEditModalDatosSection({ form, disabled, patchForm }: Props)
               onChange={(e) => patchForm({ compania: e.target.value })}
               className={`${MARCO_INPUT_CLASS} cursor-pointer`}
             >
-              {MARCO_COMPANIAS_LUZ.filter((c) => c !== "Todos").map((c) => (
+              {companies.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>

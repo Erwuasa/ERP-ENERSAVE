@@ -22,6 +22,8 @@ import type { CompProposalFilterId } from '@/lib/comparador-proposal-filters';
 import type { ComparadorSortMode } from '@/lib/comparador-sort';
 import { applyComparadorOcrResult } from '@/lib/comparador-ocr-apply';
 import { extractContractDataFromDocument } from '@/lib/contract-ocr';
+import { listAtComparisons } from '@/lib/supabase/at-comparisons';
+import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { listMarcoRetributivo, type MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
 import {
   mapComparadorHistoryListToEstudioAhorroConjunto,
@@ -49,6 +51,7 @@ export interface ComparisonHistoryEntry {
   maxAnnualSavings: number;
   bestTariffName: string;
   date: string;
+  source?: "local" | "at";
 }
 
 import type { AppModule } from '@/constants/navigation';
@@ -140,38 +143,31 @@ export function useErpComparador({
   const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
   const [isGeneratingJointPdf, setIsGeneratingJointPdf] = useState(false);
 
-  const [comparisonsHistory, setComparisonsHistory] = useState<ComparisonHistoryEntry[]>([
-    {
-      id: 'comp-1',
-      clientName: 'Ferretería El Candado',
-      cups: 'ES0021000000882244XX',
-      accessTariff: '3.0TD',
-      currentAnnualExpense: 4800,
-      maxAnnualSavings: 960,
-      bestTariffName: 'EnerLuz Inteligente Indexada',
-      date: '2026-05-18',
-    },
-    {
-      id: 'comp-2',
-      clientName: 'Lavandería Burbujas',
-      cups: 'ES0021000000119988YY',
-      accessTariff: '2.0TD',
-      currentAnnualExpense: 2300,
-      maxAnnualSavings: 450,
-      bestTariffName: 'EnerLuz Inteligente Indexada',
-      date: '2026-05-20',
-    },
-    {
-      id: 'comp-3',
-      clientName: 'Conservas del Cantábrico',
-      cups: 'ES0021000000776655ZZ',
-      accessTariff: '6.0TD',
-      currentAnnualExpense: 14500,
-      maxAnnualSavings: 3100,
-      bestTariffName: 'EnerLuz Industrial Pool Max 6.0',
-      date: '2026-05-22',
-    },
-  ]);
+  const [comparisonsHistory, setComparisonsHistory] = useState<ComparisonHistoryEntry[]>([]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    void listAtComparisons().then((result) => {
+      if (!result.ok) return;
+      const fromAt: ComparisonHistoryEntry[] = result.data.map((row) => ({
+        id: row.id,
+        clientName: row.clientName || row.name,
+        cups: row.cups,
+        accessTariff: (row.accessTariff === '3.0TD' || row.accessTariff === '6.0TD'
+          ? row.accessTariff
+          : '2.0TD') as ComparadorAccessTariff,
+        currentAnnualExpense: row.currentAnnualExpense,
+        maxAnnualSavings: row.maxAnnualSavings,
+        bestTariffName: row.bestTariffName || row.name,
+        date: row.date,
+        source: 'at',
+      }));
+      setComparisonsHistory((prev) => {
+        const local = prev.filter((item) => item.source !== 'at');
+        return [...fromAt, ...local];
+      });
+    });
+  }, []);
 
   const handleCompareRates = useCallback(() => {
     const { results, summary } = computeComparadorOffers({
@@ -552,6 +548,7 @@ export function useErpComparador({
       maxAnnualSavings: Math.round(compSummary ? compSummary.maxAnnualSavings : 400),
       bestTariffName: modalTariff,
       date: new Date().toISOString().split('T')[0],
+      source: 'local',
     };
     setComparisonsHistory((prev) => [newHistoryEntry, ...prev]);
 

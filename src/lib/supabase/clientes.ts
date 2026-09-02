@@ -28,6 +28,7 @@ export function mapRowToClient(row: Row): Client {
   return {
     id: String(row.id ?? ""),
     nombre: str(row.nombre) ?? "",
+    apellidos: str(row.apellidos),
     estado: estado && ESTADOS.includes(estado) ? estado : "pendiente",
     documento: str(row.nif_cif),
     telefono: str(row.telefono),
@@ -41,6 +42,11 @@ export function mapRowToClient(row: Row): Client {
     comercialId: str(row.comercial_id) ?? "",
     archivos: archivosOf(row.archivos),
     createdAt: isoDate(row.created_at) ?? "",
+    rgpdAccepted: bool(row.rgpd_accepted),
+    source: row.source === "at" ? "at" : "manual",
+    atClientId: str(row.at_client_id),
+    notas: str(row.notas),
+    cups: str(row.cups),
   }
 }
 

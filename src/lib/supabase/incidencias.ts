@@ -73,6 +73,8 @@ export function mapRowToIncidencia(row: Row): IncidenciaTicket {
     createdAt: str(row.created_at),
     estadoAt: str(row.estado_at),
     historialEstados: parseHistorialEstados(row.historial_estados),
+    source: row.source === "at" ? "at" : "manual",
+    atIncidentId: str(row.at_incident_id),
   }
 }
 

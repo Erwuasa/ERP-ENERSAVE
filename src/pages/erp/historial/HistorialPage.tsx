@@ -67,7 +67,7 @@ export function HistorialPage() {
 
         {filtered.length === 0 ? (
           <div className="p-12 text-center text-brand-subtext border border-dashed border-brand-border rounded-2xl bg-slate-50/50">
-            <p className="text-xs">No se han registrado comparativas en esta sesión.</p>
+            <p className="text-xs">No hay comparativas locales ni sincronizadas de AT.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -105,7 +105,14 @@ export function HistorialPage() {
                         />
                       </td>
                       <td className="py-4 px-2">
-                        <div className="font-bold text-brand-text">{item.clientName}</div>
+                        <div className="font-bold text-brand-text">
+                          {item.clientName}
+                          {item.source === "at" ? (
+                            <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
+                              AT
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="text-[10px] text-brand-subtext font-mono mt-0.5">
                           {item.date}
                         </div>
@@ -134,14 +141,18 @@ export function HistorialPage() {
                         </span>
                       </td>
                       <td className="py-4 px-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void handleDownloadHistoryPdf(item)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold text-[10px] rounded-lg tracking-wider uppercase shadow transition-colors cursor-pointer"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>Descargar PDF</span>
-                        </button>
+                        {item.source === "at" ? (
+                          <span className="text-[10px] font-mono text-brand-subtext">Log AT</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void handleDownloadHistoryPdf(item)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold text-[10px] rounded-lg tracking-wider uppercase shadow transition-colors cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Descargar PDF</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )

@@ -53,4 +53,7 @@ export interface Contract {
     createdAt: string
   }>
   marcoEntryId?: string
+  source?: "manual" | "at"
+  atStatus?: string
+  atContractId?: string
 }
