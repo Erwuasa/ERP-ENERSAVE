@@ -10,6 +10,27 @@ verify_jwt = false
 [functions.sync-tariffs-at]
 verify_jwt = false
 
+[functions.sync-clients-at]
+verify_jwt = false
+
+[functions.sync-contracts-at]
+verify_jwt = false
+
+[functions.sync-liquidations-at]
+verify_jwt = false
+
+[functions.sync-incidents-at]
+verify_jwt = false
+
+[functions.sync-catalog-at]
+verify_jwt = false
+
+[functions.sync-comparisons-at]
+verify_jwt = false
+
+[functions.sync-emails-at]
+verify_jwt = false
+
 [functions.ate-webhooks]
 verify_jwt = false
 
