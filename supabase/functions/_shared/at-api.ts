@@ -160,3 +160,66 @@ export function asUuid(value: unknown): string | null {
     ? text.toLowerCase()
     : null
 }
+
+export function asBool(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value
+  if (value === 'true' || value === 1 || value === '1') return true
+  if (value === 'false' || value === 0 || value === '0') return false
+  return null
+}
+
+const MAX_PAGES = 200
+
+export async function fetchAllPages(
+  path: string,
+  extra?: URLSearchParams
+): Promise<{ rows: JsonRecord[]; pagesFetched: number }> {
+  const rows: JsonRecord[] = []
+  let page = 1
+  let pagesFetched = 0
+
+  while (page <= MAX_PAGES) {
+    const params = extra ? new URLSearchParams(extra) : new URLSearchParams()
+    params.set('page', String(page))
+    params.set('page_size', String(AT_PAGE_SIZE))
+    const payload = await fetchFromAt(path, params)
+    const { rows: batch, pagination } = normalizeListPayload(payload)
+    pagesFetched += 1
+    if (batch.length === 0) break
+    rows.push(...batch)
+    const totalPages = asNumber(pagination?.total_pages)
+    if (totalPages != null && page >= totalPages) break
+    if (batch.length < AT_PAGE_SIZE) break
+    page += 1
+  }
+
+  return { rows, pagesFetched }
+}
+
+export async function exploreAtList(path: string, sampleSize = 3) {
+  const pageSize = Math.min(Math.max(sampleSize, 5), 20)
+  const payload = await fetchFromAt(
+    path,
+    new URLSearchParams({ page: '1', page_size: String(pageSize) })
+  )
+  const list = normalizeListPayload(payload)
+  const samples = list.rows.slice(0, sampleSize)
+  const merged = samples.reduce(
+    (acc, row) => {
+      const analysis = buildFieldSummary(row)
+      for (const p of analysis.paths) acc.paths.add(p)
+      Object.assign(acc.samples, analysis.samples)
+      return acc
+    },
+    { paths: new Set<string>(), samples: {} as Record<string, string> }
+  )
+
+  return {
+    pagination: list.pagination,
+    samples,
+    field_analysis: {
+      paths: [...merged.paths].sort(),
+      samples: merged.samples,
+    },
+  }
+}

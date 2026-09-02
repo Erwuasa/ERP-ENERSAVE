@@ -130,13 +130,25 @@ async function isSignedWebhookAuthorized(
   return false
 }
 
+function splitSecretList(raw: string): string[] {
+  return raw
+    .split(/[\s,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
 function webhookSecrets(): string[] {
-  const secrets = [
+  const named = [
     getEnv('AT_TARIFFS_SYNC_SECRET'),
     getEnv('AT_MARCOS_SYNC_SECRET'),
+    getEnv('AT_CLIENTS_SYNC_SECRET'),
+    getEnv('AT_CONTRACTS_SYNC_SECRET'),
+    getEnv('AT_LIQUIDATIONS_SYNC_SECRET'),
+    getEnv('AT_INCIDENTS_SYNC_SECRET'),
+    getEnv('AT_EMAILS_SYNC_SECRET'),
     getEnv('SUPABASE_SERVICE_ROLE_KEY'),
   ]
-  return [...new Set(secrets.filter(Boolean))]
+  return [...new Set([...named, ...splitSecretList(getEnv('AT_WEBHOOK_SECRETS'))].filter(Boolean))]
 }
 
 function providedSecrets(request: Request): string[] {

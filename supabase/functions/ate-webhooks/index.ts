@@ -2,6 +2,13 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from '../_shared/at-webhook-auth.ts'
 import { runMarcoSync } from '../_shared/sync-marcos.ts'
 import { runTariffSync } from '../_shared/sync-tariffs.ts'
+import { runClientSync } from '../_shared/sync-clients.ts'
+import { runContractSync } from '../_shared/sync-contracts.ts'
+import { runLiquidationSync } from '../_shared/sync-liquidations.ts'
+import { runIncidentSync } from '../_shared/sync-incidents.ts'
+import { runCatalogSync } from '../_shared/sync-catalog.ts'
+import { runComparisonSync } from '../_shared/sync-comparisons.ts'
+import { runEmailSync } from '../_shared/sync-emails.ts'
 
 declare const Deno: {
   serve: (handler: (request: Request) => Response | Promise<Response>) => void
@@ -14,13 +21,18 @@ function respondWithJson(body: unknown, status = 200) {
   })
 }
 
-function isProductEvent(event: string) {
-  return event.startsWith('product.')
-}
-
-function isMarcoEvent(event: string) {
-  return event.startsWith('marco.')
-}
+const ROUTES: Array<{ prefix: string; routed: string; run: () => Promise<{ stats?: unknown; skipped?: boolean; skip_reason?: string }> }> = [
+  { prefix: 'marco.', routed: 'sync-marcos-at', run: runMarcoSync },
+  { prefix: 'product.', routed: 'sync-tariffs-at', run: runTariffSync },
+  { prefix: 'client.', routed: 'sync-clients-at', run: runClientSync },
+  { prefix: 'contract_incident.', routed: 'sync-incidents-at', run: runIncidentSync },
+  { prefix: 'contract.', routed: 'sync-contracts-at', run: runContractSync },
+  { prefix: 'liquidation.', routed: 'sync-liquidations-at', run: runLiquidationSync },
+  { prefix: 'incident.', routed: 'sync-incidents-at', run: runIncidentSync },
+  { prefix: 'catalog.', routed: 'sync-catalog-at', run: runCatalogSync },
+  { prefix: 'comparison.', routed: 'sync-comparisons-at', run: runComparisonSync },
+  { prefix: 'email.', routed: 'sync-emails-at', run: runEmailSync },
+]
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -58,24 +70,20 @@ Deno.serve(async (request) => {
       return respondWithJson({ ok: true, event, ignored: false })
     }
 
-    if (isMarcoEvent(event)) {
-      const { stats } = await runMarcoSync()
-      return respondWithJson({ ok: true, event, routed: 'sync-marcos-at', stats })
+    const route = ROUTES.find((item) => event.startsWith(item.prefix))
+    if (!route) {
+      return respondWithJson({ ok: true, event, ignored: true })
     }
 
-    if (isProductEvent(event)) {
-      const result = await runTariffSync()
-      return respondWithJson({
-        ok: true,
-        event,
-        routed: 'sync-tariffs-at',
-        skipped: Boolean(result.skipped),
-        reason: result.skip_reason,
-        stats: result.stats,
-      })
-    }
-
-    return respondWithJson({ ok: true, event, ignored: true })
+    const result = await route.run()
+    return respondWithJson({
+      ok: true,
+      event,
+      routed: route.routed,
+      skipped: Boolean(result.skipped),
+      reason: result.skip_reason,
+      stats: result.stats,
+    })
   } catch (error) {
     console.error('[ate-webhooks]', event, error)
     return respondWithJson(
