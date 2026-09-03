@@ -45,7 +45,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               <p className="text-[10px] text-brand-subtext font-mono mt-0.5">
                 {vm.isCompanyStep
                   ? "Selecciona comercializadora"
-                  : `${formatCompaniaLabel(form.compania)} · ${vm.segment}`}
+                  : `${formatCompaniaLabel(form.compania)} · ${vm.segment} · ${form.tipo}`}
               </p>
             </div>
             <button
@@ -61,8 +61,11 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
             <WizardCompanyStep
               form={form}
               segment={vm.segment}
-              companies={vm.companies}
+              featuredCompanies={vm.featuredCompanies}
+              atRestCompanies={vm.atRestCompanies}
+              companySupplyTypes={vm.companySupplyTypes}
               setSegment={vm.setSegment}
+              setTipo={vm.setTipo}
               selectCompany={vm.selectCompany}
               goToTab={vm.goToTab}
               onClose={vm.handleClose}

@@ -36,7 +36,7 @@ export function CompaniaLogo({
         className={`inline-flex ${MARK_BOX[size]} items-center justify-center overflow-hidden`}
         title={label}
       >
-        <img src={src} alt={label} className="h-full w-full object-contain" />
+        <img src={src} alt="" className="h-full w-full object-contain" />
       </span>
     )
   }

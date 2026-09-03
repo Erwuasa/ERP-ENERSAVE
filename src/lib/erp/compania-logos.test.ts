@@ -4,6 +4,7 @@ import {
   formatCompaniaLabel,
   getCompaniaInitials,
   hasCompaniaLogo,
+  mergeCompanyNames,
   resolveCompaniaLogoKey,
 } from "./compania-logos"
 
@@ -28,9 +29,16 @@ describe("compania-logos", () => {
     expect(hasCompaniaLogo("ADAMO")).toBe(false)
   })
 
-  it("sorts companies with logo first and filters by label", () => {
-    const sorted = filterAndSortWizardCompanies(["ADAMO", "AXPO", "7PLAY"], "")
-    expect(sorted[0]).toBe("AXPO")
+  it("dedupes company names across catalogs", () => {
+    expect(mergeCompanyNames([["Endesa"], ["ENDESA", "ADAMO"]])).toEqual(["Endesa", "ADAMO"])
+  })
+
+  it("keeps every company visible and sorts logos first", () => {
+    expect(filterAndSortWizardCompanies(["ADAMO", "AXPO", "7PLAY"], "")).toEqual([
+      "AXPO",
+      "7PLAY",
+      "ADAMO",
+    ])
     expect(filterAndSortWizardCompanies(["ADAMO", "AXPO"], "ada")).toEqual(["ADAMO"])
   })
 })

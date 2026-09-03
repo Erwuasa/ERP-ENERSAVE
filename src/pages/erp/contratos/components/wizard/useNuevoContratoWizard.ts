@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
-import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
 import { listAtCatalogEntries } from "@/lib/supabase/at-catalog"
+import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
+import { listTariffCatalogPage } from "@/lib/supabase/tariffs"
+import { mergeCompanyNames, normalizeCompaniaKey } from "@/lib/erp/compania-logos"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
 import {
@@ -11,6 +13,7 @@ import {
 import {
   filterMarcoTariffs,
   getWizardCompanies,
+  getWizardCompanySupplyTypes,
   type ContractWizardSegment,
 } from "@/lib/contract-tariff-filter"
 import type { NewContractFormState, WizardStep } from "@/lib/contract-registration"
@@ -51,6 +54,7 @@ export function useNuevoContratoWizard({
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
   const [atCompanies, setAtCompanies] = useState<string[]>([])
+  const [tariffCompanies, setTariffCompanies] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
 
   useEffect(() => {
@@ -65,6 +69,22 @@ export function useNuevoContratoWizard({
     })
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    void listTariffCatalogPage({
+      suministro: form.tipo,
+      compania: "Todas",
+      tipoCliente: segment === "pyme" ? "empresa" : "particular",
+      peaje: "todos",
+      webVisibility: "todas",
+      search: "",
+      limit: 1,
+      offset: 0,
+    }).then((result) => {
+      if (result.ok) setTariffCompanies(Object.keys(result.data.providerCounts))
+    })
+  }, [open, form.tipo, segment])
+
   function goToTab(tab: Exclude<WizardStep, 1>) {
     onChange({ wizardStep: tab })
   }
@@ -77,10 +97,41 @@ export function useNuevoContratoWizard({
     })
   }
 
-  const companies = useMemo(() => {
-    const fromMarco = getWizardCompanies(segment, marcoCatalog)
-    return Array.from(new Set([...fromMarco, ...atCompanies])).sort((a, b) => a.localeCompare(b, "es"))
-  }, [segment, marcoCatalog, atCompanies])
+  function setTipo(next: "luz" | "gas") {
+    const tipoChanged = form.tipo !== next
+    onChange({
+      tipo: next,
+      ...(tipoChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
+    })
+  }
+
+  const featuredCompanies = useMemo(
+    () =>
+      mergeCompanyNames([
+        getWizardCompanies(segment, marcoCatalog, form.tipo),
+        tariffCompanies,
+      ]),
+    [segment, marcoCatalog, form.tipo, tariffCompanies]
+  )
+
+  const atRestCompanies = useMemo(() => {
+    const featuredKeys = new Set(featuredCompanies.map(normalizeCompaniaKey))
+    return atCompanies.filter((name) => !featuredKeys.has(normalizeCompaniaKey(name)))
+  }, [atCompanies, featuredCompanies])
+
+  const companies = useMemo(
+    () => mergeCompanyNames([featuredCompanies, atRestCompanies]),
+    [featuredCompanies, atRestCompanies]
+  )
+
+  const companySupplyTypes = useMemo(() => {
+    const map: Record<string, Array<"luz" | "gas">> = {}
+    for (const name of featuredCompanies) {
+      const tipos = getWizardCompanySupplyTypes(name, segment, marcoCatalog)
+      map[name] = tipos.length > 0 ? tipos : [form.tipo]
+    }
+    return map
+  }, [featuredCompanies, segment, marcoCatalog, form.tipo])
 
   const filteredTariffs = useMemo(
     () =>
@@ -291,6 +342,9 @@ export function useNuevoContratoWizard({
     setIncompleteConfirmOpen,
     incompleteMissing,
     companies,
+    featuredCompanies,
+    atRestCompanies,
+    companySupplyTypes,
     filteredTariffs,
     documentosObligatorios,
     commissionEstimate,
@@ -298,6 +352,7 @@ export function useNuevoContratoWizard({
     tarifaChipLabel,
     goToTab,
     setSegment,
+    setTipo,
     handleCodigoPostalChange,
     handlePotenciaP1Change,
     handleNombreChange,

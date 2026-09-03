@@ -82,15 +82,31 @@ export function filterMarcoTariffs(params: {
 
 export function getWizardCompanies(
   segment: ContractWizardSegment,
-  catalog: MarcoRetributivoEntry[] = []
+  catalog: MarcoRetributivoEntry[] = [],
+  tipo?: "luz" | "gas"
 ): string[] {
   const set = new Set<string>()
   for (const entry of catalog) {
+    if (tipo && entry.tipo !== tipo) continue
     if (isMarcoEntryForSegment(entry, segment)) {
       set.add(entry.compania)
     }
   }
   return Array.from(set).sort((a, b) => a.localeCompare(b, "es"))
+}
+
+export function getWizardCompanySupplyTypes(
+  compania: string,
+  segment: ContractWizardSegment,
+  catalog: MarcoRetributivoEntry[] = []
+): Array<"luz" | "gas"> {
+  const tipos = new Set<"luz" | "gas">()
+  for (const entry of catalog) {
+    if (entry.compania !== compania) continue
+    if (!isMarcoEntryForSegment(entry, segment)) continue
+    tipos.add(entry.tipo)
+  }
+  return (["luz", "gas"] as const).filter((tipo) => tipos.has(tipo))
 }
 
 export function findMarcoEntryByTarifa(

@@ -109,6 +109,20 @@ export function getCompaniaInitials(name: string): string {
   return label.replace(/[^A-Za-z0-9]/g, "").slice(0, 2).toUpperCase() || "?"
 }
 
+export function mergeCompanyNames(groups: string[][]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const group of groups) {
+    for (const name of group) {
+      const key = normalizeCompaniaKey(name)
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      out.push(name)
+    }
+  }
+  return out
+}
+
 export function filterAndSortWizardCompanies(companies: string[], query: string): string[] {
   const q = query.trim().toLowerCase()
   const filtered = q
