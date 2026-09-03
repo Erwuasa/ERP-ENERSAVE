@@ -5,6 +5,7 @@ import { WizardClienteStep } from "@/pages/erp/contratos/components/wizard/Wizar
 import { WizardSuministroStep } from "@/pages/erp/contratos/components/wizard/WizardSuministroStep"
 import { WizardDocumentosStep } from "@/pages/erp/contratos/components/wizard/WizardDocumentosStep"
 import { WizardIncompleteConfirmModal } from "@/pages/erp/contratos/components/wizard/WizardIncompleteConfirmModal"
+import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
 import { WIZARD_TABS } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 
@@ -17,7 +18,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
     onChange,
     isSubmitting,
     formatCurrency,
-    renderCompaniaLogo,
     activeUserId,
     activeUserName,
     clients,
@@ -45,7 +45,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               <p className="text-[10px] text-brand-subtext font-mono mt-0.5">
                 {vm.isCompanyStep
                   ? "Selecciona comercializadora"
-                  : `${form.compania} · ${vm.segment}`}
+                  : `${formatCompaniaLabel(form.compania)} · ${vm.segment}`}
               </p>
             </div>
             <button
@@ -62,7 +62,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               form={form}
               segment={vm.segment}
               companies={vm.companies}
-              renderCompaniaLogo={renderCompaniaLogo}
               setSegment={vm.setSegment}
               selectCompany={vm.selectCompany}
               goToTab={vm.goToTab}

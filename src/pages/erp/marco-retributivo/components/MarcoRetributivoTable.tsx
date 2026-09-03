@@ -93,7 +93,14 @@ export function MarcoRetributivoTable({
                   onClick={() => onOpenEntry(row)}
                   className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/50 transition-colors cursor-pointer"
                 >
-                  <td className="px-4 py-3 align-top">{renderCompaniaLogo(row.compania)}</td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {renderCompaniaLogo(row.compania)}
+                      <span className="font-semibold text-brand-text leading-tight">
+                        {row.compania}
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 align-top">
                     <span className="font-semibold text-brand-text block">{row.tarifa}</span>
                     <span
