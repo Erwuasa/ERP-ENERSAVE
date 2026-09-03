@@ -428,6 +428,5 @@ export function useErpUsuarios({
     togglePermission,
     mfaEnrolledIds,
     mfaResettingUserId,
-    isDeletingUserId,
   };
 }
