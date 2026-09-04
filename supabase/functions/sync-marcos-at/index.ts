@@ -144,12 +144,20 @@ Deno.serve(async (request) => {
     const mode = parseMode(request, body)
 
     if (mode === 'sync') {
-      const { stats } = await runMarcoSync()
+      const result = await runMarcoSync()
+      if (result.skipped) {
+        return respondWithJson({
+          ok: true,
+          mode: 'sync',
+          skipped: true,
+          reason: result.skip_reason,
+        })
+      }
       return respondWithJson({
         ok: true,
         mode: 'sync',
         purpose: 'Sync marco retributivo AT Enterprise → marco_retributivo',
-        stats,
+        stats: result.stats,
         notas: [
           'AT no expone la comisión base de la matriz; se guarda el rango del colaborador.',
           'Las filas manuales (source=manual) no se tocan.',

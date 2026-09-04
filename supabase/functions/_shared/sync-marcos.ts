@@ -8,6 +8,9 @@ import {
   normalizeListPayload,
   type JsonRecord,
 } from './at-api.ts'
+import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
+
+const LOCK = 'marcos-at'
 
 const UPSERT_BATCH = 50
 const COMMISSION_BATCH = 20
@@ -449,10 +452,37 @@ export async function syncMarcosToDatabase(rows: JsonRecord[]): Promise<{
   return { stats }
 }
 
-export async function runMarcoSync(): Promise<{ stats: MarcoSyncStats }> {
-  const { rows, pagesFetched, commissionsEnriched } = await fetchAllMarcosFromAt()
-  const result = await syncMarcosToDatabase(rows)
-  result.stats.pages_fetched = pagesFetched
-  result.stats.commissions_enriched = commissionsEnriched
-  return result
+function emptyMarcoStats(): MarcoSyncStats {
+  return {
+    pages_fetched: 0,
+    rows_from_at: 0,
+    rows_mapped: 0,
+    rows_skipped: 0,
+    rows_upserted: 0,
+    rows_deactivated: 0,
+    tariffs_linked: 0,
+    commissions_enriched: 0,
+  }
+}
+
+export async function runMarcoSync(): Promise<{
+  stats: MarcoSyncStats
+  skipped?: boolean
+  skip_reason?: string
+}> {
+  const supabase = getSupabaseAdmin()
+  const acquired = await tryAcquireAtSyncLock(supabase, LOCK)
+  if (!acquired) {
+    return { skipped: true, skip_reason: 'lock_held', stats: emptyMarcoStats() }
+  }
+
+  try {
+    const { rows, pagesFetched, commissionsEnriched } = await fetchAllMarcosFromAt()
+    const result = await syncMarcosToDatabase(rows)
+    result.stats.pages_fetched = pagesFetched
+    result.stats.commissions_enriched = commissionsEnriched
+    return result
+  } finally {
+    await releaseAtSyncLock(supabase, LOCK)
+  }
 }

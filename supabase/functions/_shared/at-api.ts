@@ -23,6 +23,25 @@ export function getSupabaseAdmin() {
   })
 }
 
+const AT_429_MAX_ATTEMPTS = 6
+const AT_429_BASE_MS = 1000
+const AT_429_CAP_MS = 4000
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function retryAfterMs(response: Response, attempt: number): number {
+  const header = response.headers.get('retry-after')
+  if (header) {
+    const seconds = Number(header)
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(Math.max(seconds * 1000, AT_429_BASE_MS), AT_429_CAP_MS)
+    }
+  }
+  return Math.min(AT_429_BASE_MS * 2 ** attempt, AT_429_CAP_MS)
+}
+
 export async function fetchFromAt(path: string, searchParams?: URLSearchParams) {
   const apiKey = getEnv('AT_ENTERPRISE_API_KEY')
   if (!apiKey) {
@@ -34,27 +53,38 @@ export async function fetchFromAt(path: string, searchParams?: URLSearchParams) 
     for (const [key, value] of searchParams.entries()) url.searchParams.set(key, value)
   }
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      Accept: 'application/json',
-    },
-  })
+  let lastPayload: unknown = null
+  let lastStatus = 0
 
-  const text = await response.text()
-  let payload: unknown = null
+  for (let attempt = 0; attempt < AT_429_MAX_ATTEMPTS; attempt++) {
+    const response = await fetch(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+      },
+    })
 
-  try {
-    payload = text ? JSON.parse(text) : null
-  } catch {
-    payload = { raw: text }
+    const text = await response.text()
+    try {
+      lastPayload = text ? JSON.parse(text) : null
+    } catch {
+      lastPayload = { raw: text }
+    }
+    lastStatus = response.status
+
+    if (response.ok) return lastPayload
+
+    if (response.status === 429 && attempt < AT_429_MAX_ATTEMPTS - 1) {
+      const waitMs = retryAfterMs(response, attempt)
+      console.warn(`[at-api] 429 ${path} attempt ${attempt + 1}/${AT_429_MAX_ATTEMPTS}, retry in ${waitMs}ms`)
+      await sleep(waitMs)
+      continue
+    }
+
+    throw new Error(`AT Enterprise ${response.status}: ${JSON.stringify(lastPayload)}`)
   }
 
-  if (!response.ok) {
-    throw new Error(`AT Enterprise ${response.status}: ${JSON.stringify(payload)}`)
-  }
-
-  return payload
+  throw new Error(`AT Enterprise ${lastStatus}: ${JSON.stringify(lastPayload)}`)
 }
 
 export function normalizeListPayload(payload: unknown) {
