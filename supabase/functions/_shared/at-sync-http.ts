@@ -79,9 +79,15 @@ export function serveAtSyncFunction(options: {
       }
 
       const mode = parseAtSyncMode(request, body, options.eventPrefix)
+      console.log(`[${options.logName}] ${request.method} mode=${mode}`)
 
       if (mode === 'sync') {
         const result = await options.runSync()
+        if (result.skipped) {
+          console.log(`[${options.logName}] skipped ${result.skip_reason}`)
+        } else {
+          console.log(`[${options.logName}] sync ok`, result.stats)
+        }
         if (result.skipped) {
           return respondWithJson({
             ok: true,
