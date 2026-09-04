@@ -80,8 +80,8 @@ export async function sendStaffEmailOtp(_email: string): Promise<MfaResult<void>
   const token = sessionData.session?.access_token
   if (!token) return { ok: false, message: "Inicia sesión para recibir el código." }
 
-  const url = String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "")
-  const anon = String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? "")
+  const url = String(import.meta.env.SUPABASE_URL ?? "").replace(/\/$/, "")
+  const anon = String(import.meta.env.SUPABASE_ANON_KEY ?? "")
   const response = await fetch(`${url}/functions/v1/staff-login-otp`, {
     method: "POST",
     headers: {

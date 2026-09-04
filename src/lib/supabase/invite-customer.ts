@@ -17,8 +17,8 @@ export async function inviteCustomerFromLead(leadId: string): Promise<InviteCust
   const token = sessionData.session?.access_token
   if (!token) return { ok: false, message: "Inicia sesión para invitar al cliente." }
 
-  const url = String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "")
-  const anon = String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? "")
+  const url = String(import.meta.env.SUPABASE_URL ?? "").replace(/\/$/, "")
+  const anon = String(import.meta.env.SUPABASE_ANON_KEY ?? "")
   const response = await fetch(`${url}/functions/v1/invite-customer-from-lead`, {
     method: "POST",
     headers: {

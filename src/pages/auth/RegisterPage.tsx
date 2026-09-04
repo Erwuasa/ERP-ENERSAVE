@@ -57,7 +57,7 @@ export function RegisterPage() {
       return
     }
     if (!isSupabaseConfigured()) {
-      setError("Supabase no está configurado. Añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.")
+      setError("Supabase no está configurado. Añade SUPABASE_URL y SUPABASE_ANON_KEY.")
       return
     }
 

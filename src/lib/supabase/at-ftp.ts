@@ -17,11 +17,11 @@ export interface AtFtpListPayload {
 }
 
 function envUrl() {
-  return String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "")
+  return String(import.meta.env.SUPABASE_URL ?? "").replace(/\/$/, "")
 }
 
 function envAnonKey() {
-  return String(import.meta.env.VITE_SUPABASE_ANON_KEY ?? "")
+  return String(import.meta.env.SUPABASE_ANON_KEY ?? "")
 }
 
 async function authorizedAtFtpFetch(query: string): Promise<Response | SupabaseResult<never>> {

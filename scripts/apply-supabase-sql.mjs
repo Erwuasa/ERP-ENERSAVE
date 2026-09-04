@@ -24,7 +24,7 @@ if (!fileArg) {
 const sql = readFileSync(resolve(fileArg), "utf8")
 const projectRef =
   process.env.SUPABASE_PROJECT_REF ||
-  process.env.VITE_SUPABASE_URL?.replace("https://", "").split(".")[0]
+  process.env.SUPABASE_URL?.replace("https://", "").split(".")[0]
 
 async function applyViaDbUrl() {
   const dbUrl = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL

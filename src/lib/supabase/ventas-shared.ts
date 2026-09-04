@@ -33,7 +33,7 @@ export function requireSupabase(): SupabaseClient | VentasFailure {
     return {
       ok: false,
       reason: "not_configured",
-      message: "Supabase no está configurado. Añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.",
+      message: "Supabase no está configurado. Añade SUPABASE_URL y SUPABASE_ANON_KEY.",
     }
   }
   const supabase = getSupabaseClient()

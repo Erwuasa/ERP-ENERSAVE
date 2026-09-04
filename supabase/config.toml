@@ -1,4 +1,4 @@
-# Proyecto remoto website (destino merge ERP + web) — debe coincidir con VITE_SUPABASE_URL en .env
+# Proyecto remoto website (destino merge ERP + web) — debe coincidir con SUPABASE_URL en .env
 project_id = "unxrvwuaqhwogwvynoyq"
 
 [db]

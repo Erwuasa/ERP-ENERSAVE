@@ -24,7 +24,7 @@ export function resolveSupabaseClient(): ResolvedClient {
       ok: false,
       reason: "not_configured",
       message:
-        "Supabase no está configurado. Añade VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.",
+        "Supabase no está configurado. Añade SUPABASE_URL y SUPABASE_ANON_KEY.",
     }
   }
 
