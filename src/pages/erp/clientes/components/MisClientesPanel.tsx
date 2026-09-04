@@ -27,7 +27,8 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
   const vm = useMisClientesPanel(props)
 
   return (
-    <div className="space-y-5 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
+      <div className="shrink-0 space-y-3 pb-3">
       <ClientesKpiStrip
         total={vm.filteredCount}
         particulares={vm.kpiParticulares}
@@ -46,7 +47,9 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
         tipoCounts={vm.tipoCounts}
         aceptacionCounts={vm.aceptacionCounts}
       />
+      </div>
 
+      <div className="min-h-0 flex-1">
       <ClientesPanelTable
         clients={vm.sorted}
         contracts={vm.contracts}
@@ -56,6 +59,11 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
         onOpenFolder={vm.setFolderClientId}
         onOpenContracts={vm.setContractsClientId}
       />
+      </div>
+
+      <p className="shrink-0 pt-2 text-[10px] font-mono text-brand-subtext">
+        {vm.sorted.length} cliente{vm.sorted.length !== 1 ? "s" : ""}
+      </p>
 
       <input
         ref={vm.fileInputRef}
