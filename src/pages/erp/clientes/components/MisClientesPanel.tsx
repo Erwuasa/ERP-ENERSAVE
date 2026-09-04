@@ -30,10 +30,12 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
     <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
       <div className="shrink-0 space-y-3 pb-3">
       <ClientesKpiStrip
-        total={vm.filteredCount}
+        total={vm.tipoCounts.todos}
         particulares={vm.kpiParticulares}
         pymes={vm.kpiPymes}
         contratosActivos={vm.kpiContratosActivos}
+        tipoFilter={vm.tipoFilter}
+        onTipoFilterChange={vm.setTipoFilter}
       />
 
       <ClientesPanelToolbar

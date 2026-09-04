@@ -1,70 +1,98 @@
-import { Building2, CheckCircle, User, Users } from "lucide-react"
+import type { ClienteTipoFilter } from "@/lib/clientes-panel-filters"
 
 type Props = {
   total: number
   particulares: number
   pymes: number
   contratosActivos: number
+  tipoFilter?: ClienteTipoFilter
+  onTipoFilterChange?: (value: ClienteTipoFilter) => void
 }
 
-export function ClientesKpiStrip({ total, particulares, pymes, contratosActivos }: Props) {
+export function ClientesKpiStrip({
+  total,
+  particulares,
+  pymes,
+  contratosActivos,
+  tipoFilter,
+  onTipoFilterChange,
+}: Props) {
+  const cards = [
+    {
+      id: "todos" as const,
+      label: "Clientes",
+      value: total,
+      hint: "En este filtro",
+      valueClass: "text-emerald-600 dark:text-emerald-400",
+      selectable: true,
+    },
+    {
+      id: "particular" as const,
+      label: "Particulares",
+      value: particulares,
+      hint: "Personas físicas",
+      valueClass: "text-sky-600 dark:text-sky-400",
+      selectable: true,
+    },
+    {
+      id: "empresa" as const,
+      label: "PYMEs",
+      value: pymes,
+      hint: "Empresas",
+      valueClass: "text-amber-600 dark:text-amber-400",
+      selectable: true,
+    },
+    {
+      id: "contratos" as const,
+      label: "Contratos activos",
+      value: contratosActivos,
+      hint: "Vinculados a estos clientes",
+      valueClass: "text-cyan-600 dark:text-cyan-400",
+      selectable: false,
+    },
+  ]
+
   return (
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-2.5">
-      <div className="bg-brand-panel px-3 py-2.5 rounded-xl border border-brand-border shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-1 h-full bg-blue-500" />
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-              Clientes
-            </p>
-            <p className="text-xl font-black font-mono text-blue-600 dark:text-blue-400 mt-0.5">
-              {total}
-            </p>
-          </div>
-          <Users className="w-6 h-6 text-blue-500/80 shrink-0" />
-        </div>
-      </div>
+    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      {cards.map((kpi) => {
+        const selected = kpi.selectable && tipoFilter === kpi.id
+        const className = `text-left p-4 rounded-xl border transition-colors duration-200 ${
+          kpi.selectable ? "cursor-pointer" : ""
+        } ${
+          selected
+            ? "border-cyan-500/50 bg-cyan-500/5 shadow-sm"
+            : "border-brand-border bg-brand-panel hover:border-cyan-500/30"
+        }`
 
-      <div className="bg-brand-panel px-3 py-2.5 rounded-xl border border-brand-border shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-1 h-full bg-sky-400" />
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-              Particulares
+        const body = (
+          <>
+            <p className="text-[10px] font-mono uppercase text-brand-subtext">{kpi.label}</p>
+            <p className={`text-2xl font-black font-mono tabular-nums mt-1 ${kpi.valueClass}`}>
+              {kpi.value}
             </p>
-            <p className="text-xl font-black font-mono text-sky-500 mt-0.5">{particulares}</p>
-          </div>
-          <User className="w-6 h-6 text-sky-400/80 shrink-0" />
-        </div>
-      </div>
+            <p className="text-[9px] font-mono text-brand-subtext mt-1">{kpi.hint}</p>
+          </>
+        )
 
-      <div className="bg-brand-panel px-3 py-2.5 rounded-xl border border-amber-400/50 shadow-sm relative overflow-hidden ring-1 ring-amber-400/20">
-        <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400" />
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-              PYMEs
-            </p>
-            <p className="text-xl font-black font-mono text-orange-500 mt-0.5">{pymes}</p>
-          </div>
-          <Building2 className="w-6 h-6 text-orange-500/80 shrink-0" />
-        </div>
-      </div>
+        if (kpi.selectable && onTipoFilterChange) {
+          return (
+            <button
+              key={kpi.id}
+              type="button"
+              onClick={() => onTipoFilterChange(kpi.id)}
+              className={className}
+            >
+              {body}
+            </button>
+          )
+        }
 
-      <div className="bg-brand-panel px-3 py-2.5 rounded-xl border border-brand-border shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500" />
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-              Contratos activos
-            </p>
-            <p className="text-xl font-black font-mono text-emerald-500 mt-0.5">
-              {contratosActivos}
-            </p>
+        return (
+          <div key={kpi.id} className={className}>
+            {body}
           </div>
-          <CheckCircle className="w-6 h-6 text-emerald-500/80 shrink-0" />
-        </div>
-      </div>
+        )
+      })}
     </div>
   )
 }
