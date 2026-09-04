@@ -41,6 +41,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwindcss(), appVersionPlugin()],
+    // Vite only inlines VITE_* unless listed here. Do NOT add SUPABASE_SERVICE_ROLE_KEY.
+    envPrefix: ['VITE_', 'SUPABASE_URL', 'SUPABASE_ANON_KEY'],
     define: {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion.version),
       'import.meta.env.VITE_APP_PRODUCT_NAME': JSON.stringify(appVersion.productName),
