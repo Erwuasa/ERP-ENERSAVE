@@ -62,7 +62,7 @@ export function ContratosPanelToolbar({
   onTramitacionShowAllUnreviewed,
 }: Props) {
   return (
-    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+    <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
       <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
         {showUserFilter && onUserFilterChange && (
           <UserFilterDropdown

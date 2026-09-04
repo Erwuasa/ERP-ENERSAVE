@@ -12,7 +12,7 @@ type Props = {
 
 export function ContratosPanelFicha({ contract, profiles, formatCurrency, onClose }: Props) {
   return (
-    <section className="bg-brand-panel border border-brand-border rounded-2xl p-5 space-y-4">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-brand-border bg-brand-panel p-4 shadow-xl space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-xs font-bold uppercase tracking-wider font-mono text-brand-text">
@@ -32,7 +32,7 @@ export function ContratosPanelFicha({ contract, profiles, formatCurrency, onClos
         </button>
       </div>
 
-      <div className="border-t border-brand-border pt-4">
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-brand-border pt-3">
         <h4 className="text-[10px] font-mono uppercase tracking-wider text-brand-subtext font-bold mb-3">
           Desglose de comisión
         </h4>

@@ -124,8 +124,9 @@ export function ContratosPanel({
   })
 
   return (
-    <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 shadow-sm dark:shadow-none">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-panel p-3 sm:p-4 shadow-sm dark:shadow-none">
+        <div className="shrink-0 space-y-2.5 pb-2.5">
         <ContratosPanelToolbar
           showUserFilter={showUserFilter}
           userFilterId={userFilterId}
@@ -159,7 +160,9 @@ export function ContratosPanel({
           setContractsListFilter={setContractsListFilter}
           showTarifaRecommendations={showTarifaRecommendations}
         />
+        </div>
 
+        <div className="relative min-h-0 flex-1">
         <ContratosPanelTable
           activeRole={activeRole}
           activeUserId={activeUserId}
@@ -185,6 +188,19 @@ export function ContratosPanel({
           onDismissRenewalAlert={onDismissRenewalAlert}
         />
 
+        {vm.selectedContract && canViewComisionDesglose && (
+          <div className="absolute inset-y-0 right-0 z-20 w-[min(100%,22rem)] pl-2">
+            <ContratosPanelFicha
+              contract={vm.selectedContract}
+              profiles={profiles}
+              formatCurrency={formatCurrency}
+              onClose={() => vm.setSelectedContractId(null)}
+            />
+          </div>
+        )}
+        </div>
+
+        <div className="shrink-0 pt-2">
         <ContratosPanelPagination
           filteredCount={vm.filtered.length}
           contractsListFilter={contractsListFilter}
@@ -193,16 +209,8 @@ export function ContratosPanel({
           onPrevPage={() => vm.setPage((p) => Math.max(1, p - 1))}
           onNextPage={() => vm.setPage((p) => Math.min(vm.totalPages, p + 1))}
         />
+        </div>
       </div>
-
-      {vm.selectedContract && canViewComisionDesglose && (
-        <ContratosPanelFicha
-          contract={vm.selectedContract}
-          profiles={profiles}
-          formatCurrency={formatCurrency}
-          onClose={() => vm.setSelectedContractId(null)}
-        />
-      )}
 
       <ConfirmDeleteContractModal
         open={contractPendingDelete != null}

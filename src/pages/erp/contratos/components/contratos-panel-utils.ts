@@ -1,7 +1,7 @@
 export const CONTRACTS_TH =
-  "px-3 py-3 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-normal leading-snug"
+  "px-2.5 py-2 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-normal leading-snug"
 
-export const CONTRACTS_TD = "px-3 py-4 align-top border-b border-brand-border/70"
+export const CONTRACTS_TD = "px-2.5 py-2.5 align-top border-b border-brand-border/70"
 
 export interface ProfileOption {
   id: string

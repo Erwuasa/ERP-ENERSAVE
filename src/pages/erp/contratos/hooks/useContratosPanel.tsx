@@ -22,7 +22,9 @@ import { useEditableCell } from "@/hooks/use-editable-cell"
 import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
 import {
   CONTRACT_ESTADOS,
+  formatContractEstadoLabel,
   getContractEstadoBadgeClass,
+  getContractEstadoDotClass,
   normalizeContractEstado,
   type ContractEstado,
 } from "@/lib/contract-estado"
@@ -132,16 +134,17 @@ export function useContratosPanel({
           if (!canEditEstado) return
           setEditingEstadoId(c.id)
         }}
-        className={`inline-flex items-center justify-center px-3 py-1.5 rounded-md text-[10px] leading-snug font-mono font-bold text-center min-w-[7.5rem] max-w-[11rem] ${
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none ring-1 ring-inset ${
           canEditEstado ? "cursor-pointer hover:opacity-90" : "cursor-default"
         } ${getContractEstadoBadgeClass(estado)}`}
         title={
           canEditEstado
-            ? "1 clic para copiar · doble clic para cambiar estado"
-            : "1 clic para copiar · solo superadmin puede cambiar el estado"
+            ? `${estado} · 1 clic para copiar · doble clic para cambiar`
+            : `${estado} · 1 clic para copiar`
         }
       >
-        {estado}
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getContractEstadoDotClass(estado)}`} />
+        <span className="truncate">{formatContractEstadoLabel(estado)}</span>
       </span>
     )
   }

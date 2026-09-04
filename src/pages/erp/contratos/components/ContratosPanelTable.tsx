@@ -40,7 +40,7 @@ import {
 
 type RenderEditableCell = ReturnType<typeof useEditableCell<Contract>>["renderEditableCell"]
 
-export const CONTRATOS_PAGE_SIZE = 10
+export const CONTRATOS_PAGE_SIZE = 25
 
 type Props = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
@@ -95,10 +95,10 @@ export function ContratosPanelTable({
   const [openRecId, setOpenRecId] = useState<string | null>(null)
   const [openRenewalId, setOpenRenewalId] = useState<string | null>(null)
   return (
-    <div className="overflow-x-auto rounded-xl border border-brand-border/60 bg-brand-surface/30">
+    <div className="h-full min-h-0 overflow-auto overscroll-contain rounded-xl border border-brand-border/60 bg-brand-surface/30">
       <table className="w-full min-w-[1240px] table-fixed text-left text-xs">
         <colgroup>
-          <col className="w-[118px]" />
+          <col className="w-[148px]" />
           <col className="w-[17%]" />
           <col className="w-[82px]" />
           <col className="w-[14%]" />
@@ -114,7 +114,7 @@ export function ContratosPanelTable({
             </>
           )}
         </colgroup>
-        <thead className="bg-brand-panel/80">
+        <thead className="sticky top-0 z-10 bg-brand-panel">
           <tr>
             <th className={`${CONTRACTS_TH} text-center`}>Estado</th>
             <th className={CONTRACTS_TH}>
@@ -161,7 +161,7 @@ export function ContratosPanelTable({
             )}
           </tr>
         </thead>
-        <tbody className="min-h-[520px] divide-y divide-brand-border/50">
+        <tbody className="divide-y divide-brand-border/50">
           {paginated.map((c) => {
             const renewal = getRenewalSchedule(c)
             const dias = renewal.diasRenovacion ?? 0
@@ -204,8 +204,8 @@ export function ContratosPanelTable({
                       : ""
                 }`}
               >
-                <td className={`${CONTRACTS_TD} text-center`}>
-                  <div className="flex justify-center items-start gap-1 flex-wrap">
+                <td className={`${CONTRACTS_TD} text-center align-middle`}>
+                  <div className="inline-flex items-center justify-center gap-1">
                     {renderEstadoCell(c)}
                     {onRequestDelete &&
                     canUserDeleteContract(c, activeRole, activeUserId) ? (
@@ -476,17 +476,6 @@ export function ContratosPanelTable({
               </tr>
             )
           })}
-          {paginated.length < CONTRATOS_PAGE_SIZE &&
-            Array.from({ length: CONTRATOS_PAGE_SIZE - paginated.length }).map((_, i) => (
-              <tr key={`pad-${i}`} className="h-[68px]" aria-hidden>
-                <td
-                  colSpan={
-                    activeRole === "superadmin" ? 11 : canViewComisionDesglose ? 10 : 9
-                  }
-                  className={CONTRACTS_TD}
-                />
-              </tr>
-            ))}
         </tbody>
       </table>
       {filtered.length === 0 && (

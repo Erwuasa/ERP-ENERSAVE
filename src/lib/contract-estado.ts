@@ -39,26 +39,72 @@ export function normalizeContractEstado(value: string): ContractEstado {
   return LEGACY_ESTADO_MAP[key] ?? CONTRACT_ESTADO_INICIAL
 }
 
+export function formatContractEstadoLabel(estado: string): string {
+  switch (normalizeContractEstado(estado)) {
+    case "Borrador":
+      return "Borrador"
+    case "PTE DE TRAMITACIÓN":
+      return "Pte. tramit."
+    case "PTE DE FIRMA":
+      return "Pte. firma"
+    case "FIRMA CADUCADA":
+      return "Caducada"
+    case "TRAMITANDO":
+      return "Tramitando"
+    case "ACTIVADO":
+      return "Activado"
+    case "INCIDENCIA ADMINISTRATIVA":
+      return "Incidencia"
+    case "Dado de Baja":
+      return "Baja"
+    default:
+      return estado
+  }
+}
+
+export function getContractEstadoDotClass(estado: string): string {
+  switch (normalizeContractEstado(estado)) {
+    case "Borrador":
+      return "bg-slate-400"
+    case "PTE DE TRAMITACIÓN":
+      return "bg-slate-500"
+    case "PTE DE FIRMA":
+      return "bg-amber-500"
+    case "FIRMA CADUCADA":
+      return "bg-orange-500"
+    case "TRAMITANDO":
+      return "bg-sky-500"
+    case "ACTIVADO":
+      return "bg-emerald-500"
+    case "INCIDENCIA ADMINISTRATIVA":
+      return "bg-violet-500"
+    case "Dado de Baja":
+      return "bg-slate-400"
+    default:
+      return "bg-slate-400"
+  }
+}
+
 export function getContractEstadoBadgeClass(estado: string): string {
   switch (normalizeContractEstado(estado)) {
     case "Borrador":
-      return "bg-slate-400/20 text-slate-600 dark:text-slate-300 border border-slate-400/30"
+      return "bg-slate-400/15 text-slate-600 dark:text-slate-300 ring-slate-400/25"
     case "PTE DE TRAMITACIÓN":
-      return "bg-[#f4f4f5] text-slate-700 dark:bg-slate-700/80 dark:text-slate-200 border border-slate-300/60 dark:border-slate-500/40"
+      return "bg-slate-500/10 text-slate-600 dark:text-slate-200 ring-slate-400/25"
     case "PTE DE FIRMA":
-      return "bg-amber-100/90 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200 border border-amber-300/50 dark:border-amber-500/25"
+      return "bg-amber-500/12 text-amber-800 dark:text-amber-300 ring-amber-500/25"
     case "FIRMA CADUCADA":
-      return "bg-orange-100/90 text-orange-800 dark:bg-orange-500/15 dark:text-orange-200 border border-orange-300/50 dark:border-orange-500/25"
+      return "bg-orange-500/12 text-orange-800 dark:text-orange-300 ring-orange-500/25"
     case "TRAMITANDO":
-      return "bg-sky-100/90 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200 border border-sky-300/50 dark:border-sky-500/25"
+      return "bg-sky-500/12 text-sky-800 dark:text-sky-300 ring-sky-500/25"
     case "ACTIVADO":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25"
+      return "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300 ring-emerald-500/25"
     case "INCIDENCIA ADMINISTRATIVA":
-      return "bg-violet-100/90 text-violet-800 dark:bg-violet-500/15 dark:text-violet-200 border border-violet-300/50 dark:border-violet-500/25"
+      return "bg-violet-500/12 text-violet-800 dark:text-violet-300 ring-violet-500/25"
     case "Dado de Baja":
-      return "bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/25"
+      return "bg-slate-500/10 text-slate-500 dark:text-slate-400 ring-slate-500/20"
     default:
-      return "bg-slate-500/15 text-slate-500 border border-slate-500/20"
+      return "bg-slate-500/10 text-slate-500 ring-slate-500/20"
   }
 }
 
