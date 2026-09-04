@@ -8,7 +8,6 @@ export function LiquidacionesInternasPage() {
     activeRole,
     activeUser,
     activeUserId,
-    superadminViewMode,
     settlements,
     contracts,
     profiles,
@@ -26,10 +25,8 @@ export function LiquidacionesInternasPage() {
     <SensitiveScreenShell userLabel={activeUser.fullName}>
       <LiquidacionesInternasPanel
         activeRole={
-          activeRole === "superadmin"
-            ? superadminViewMode === "comercial"
-              ? "comercial"
-              : "superadmin"
+          activeRole === "superadmin" || activeRole === "tramitacion"
+            ? activeRole
             : (activeRole as "jefe_comercial" | "comercial")
         }
         activeUserId={activeUserId}
