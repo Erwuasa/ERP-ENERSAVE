@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { ConfirmModal } from "@/components/common/ConfirmModal"
 import { MarcoRetributivoEditModal } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoEditModal"
 import { MarcoRetributivoTable } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoTable"
 import { MarcoRetributivoToolbar } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoToolbar"
@@ -55,7 +56,7 @@ export function MarcoRetributivoPanel({
             formatCurrency={formatCurrency}
             renderCompaniaLogo={renderCompaniaLogo}
             onOpenEntry={vm.openEntryModal}
-            onDeactivate={vm.handleDeactivate}
+            onDeactivate={vm.requestDeactivate}
           />
         </div>
 
@@ -64,6 +65,29 @@ export function MarcoRetributivoPanel({
           {vm.loading ? "…" : "actualizado desde Supabase"}
         </p>
       </div>
+
+      <ConfirmModal
+        open={vm.pendingDeactivate != null}
+        title="Desactivar entrada"
+        description={
+          vm.pendingDeactivate ? (
+            <>
+              ¿Desactivar{" "}
+              <strong className="text-brand-text">{vm.pendingDeactivate.tarifa}</strong> de{" "}
+              {vm.pendingDeactivate.compania}? Dejará de aparecer en el marco retributivo.
+            </>
+          ) : (
+            "¿Desactivar esta entrada del marco retributivo?"
+          )
+        }
+        confirmLabel="Desactivar"
+        loading={vm.deactivating}
+        loadingLabel="Desactivando…"
+        onConfirm={() => {
+          void vm.confirmDeactivate()
+        }}
+        onCancel={vm.cancelDeactivate}
+      />
 
       <MarcoRetributivoEditModal
         open={vm.modalOpen}

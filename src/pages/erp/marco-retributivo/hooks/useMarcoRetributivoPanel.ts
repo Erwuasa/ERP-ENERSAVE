@@ -27,6 +27,8 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
   const [modalOpen, setModalOpen] = useState(false)
   const [modalEntry, setModalEntry] = useState<MarcoRetributivoRow | null>(null)
   const [isCreateMode, setIsCreateMode] = useState(false)
+  const [pendingDeactivate, setPendingDeactivate] = useState<MarcoRetributivoRow | null>(null)
+  const [deactivating, setDeactivating] = useState(false)
 
   const canEdit = activeRole === "superadmin" || activeRole === "tramitacion"
   const showComisionEnersave = activeRole === "superadmin" || activeRole === "tramitacion"
@@ -168,24 +170,42 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
     return true
   }
 
-  async function handleDeactivate(id: string, e: MouseEvent) {
+  function requestDeactivate(id: string, e: MouseEvent) {
     e.stopPropagation()
-    if (!canEdit) return
-    if (!confirm("¿Desactivar esta entrada del marco retributivo?")) return
+    if (!canEdit || deactivating) return
+    const row = rows.find((entry) => entry.id === id)
+    if (!row) return
+    setPendingDeactivate(row)
+  }
+
+  function cancelDeactivate() {
+    if (deactivating) return
+    setPendingDeactivate(null)
+  }
+
+  async function confirmDeactivate() {
+    if (!pendingDeactivate || !canEdit || deactivating) return
+    const id = pendingDeactivate.id
+    setDeactivating(true)
 
     if (!supabaseConfigured) {
       setRows((prev) => prev.filter((r) => r.id !== id))
       toast.success("Entrada desactivada (local).")
+      setPendingDeactivate(null)
+      setDeactivating(false)
       return
     }
 
     const result = await deleteMarcoEntry(id, activeUserId)
     if (result.ok === false) {
       toast.error(result.message)
+      setDeactivating(false)
       return
     }
     setRows((prev) => prev.filter((r) => r.id !== id))
     toast.success("Entrada desactivada.")
+    setPendingDeactivate(null)
+    setDeactivating(false)
   }
 
   function setTipoFilterWithReset(tipo: "luz" | "gas" | "todos") {
@@ -217,6 +237,10 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
     closeModal,
     handleSave,
     handleCreate,
-    handleDeactivate,
+    requestDeactivate,
+    confirmDeactivate,
+    cancelDeactivate,
+    pendingDeactivate,
+    deactivating,
   }
 }
