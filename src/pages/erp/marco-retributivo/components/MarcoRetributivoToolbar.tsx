@@ -31,10 +31,10 @@ export function MarcoRetributivoToolbar({
 }: Props) {
   return (
     <>
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-brand-border pb-4">
-        <div className="flex items-center space-x-3">
-          <span className="p-2 rounded-xl bg-blue-600/10 text-blue-600">
-            <Coins className="w-6 h-6" />
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-brand-border pb-2.5">
+        <div className="flex items-center space-x-2.5">
+          <span className="p-1.5 rounded-lg bg-blue-600/10 text-blue-600">
+            <Coins className="w-5 h-5" />
           </span>
           <div>
             <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">
