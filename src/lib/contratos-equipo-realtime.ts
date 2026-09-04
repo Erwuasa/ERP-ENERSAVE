@@ -1,5 +1,5 @@
 import { getSupabaseClient, isSupabaseConfigured } from "./supabase/client"
-import { mapRowToContract } from "./supabase/contracts"
+import { getCachedProviderByAtCompanyId, mapRowToContract } from "./supabase/contracts"
 import type { Contract } from "../types/contract"
 import type { Row } from "./supabase/result"
 
@@ -26,7 +26,7 @@ export function subscribeContratosEquipoInserts(
         const row = payload.new as Row | null
         if (!row?.id) return
 
-        const contract = mapRowToContract(row)
+        const contract = mapRowToContract(row, getCachedProviderByAtCompanyId())
         onInsert({
           contract,
           comercialId: contract.comercialId,

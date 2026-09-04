@@ -467,10 +467,12 @@ export function AppShell({
           }}
         />
 
-        <div className="flex-1 min-w-0 min-h-0 p-4 sm:p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-brand-bg text-brand-text">
+        <div className="flex-1 min-w-0 min-h-0 p-4 sm:p-6 md:p-10 relative overflow-hidden h-full bg-brand-bg text-brand-text flex flex-col">
           <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
           <div className="absolute bottom-10 left-10 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-amber)]" />
-          {children}
+          <div className="relative z-[1] flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col space-y-8">
+            {children}
+          </div>
         </div>
       </div>
     </div>

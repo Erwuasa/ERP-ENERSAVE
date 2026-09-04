@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import {
-  ChevronDown,
-  ChevronRight,
   FileText,
   Loader2,
   MessageCircleWarning,
@@ -39,6 +37,7 @@ import { DateRangePicker } from "./ui/DateRangePicker"
 import {
   defaultLiquidacionesDateRange,
   enrichSettlementRow,
+  countLiquidacionRowsByCompania,
   filterLiquidacionRows,
   filterSettlementsForRole,
   groupRowsByJefe,
@@ -123,6 +122,7 @@ function LiquidacionesTable({
   showAlegacionIcon,
   onOpenAlegacion,
   highlightAlegaciones = false,
+  stickyHeadClassName = "sticky top-0 z-10 bg-brand-panel",
 }: {
   rows: LiquidacionInternaRow[]
   formatCurrency: (value: number) => string
@@ -131,6 +131,7 @@ function LiquidacionesTable({
   showAlegacionIcon?: (row: LiquidacionInternaRow) => boolean
   onOpenAlegacion?: (row: LiquidacionInternaRow) => void
   highlightAlegaciones?: boolean
+  stickyHeadClassName?: string
 }) {
   if (rows.length === 0) {
     return (
@@ -141,9 +142,9 @@ function LiquidacionesTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-brand-border/60">
+    <div className="rounded-xl border border-brand-border/60">
       <table className="w-full min-w-[960px] table-fixed text-xs">
-        <thead className="bg-brand-panel/80">
+        <thead className={stickyHeadClassName}>
           <tr className="text-[10px] uppercase text-brand-subtext">
             <th className="px-3 py-2.5 text-left w-[4%]" aria-label="Alegación" />
             <th className="px-3 py-2.5 text-left w-[14%]">Cliente / CUPS</th>
@@ -255,6 +256,68 @@ function LiquidacionesTable({
   )
 }
 
+function LiquidacionesGroupedTables({
+  groups,
+  emptyLabel,
+  formatCurrency,
+  showComercial,
+  highlightAlegaciones = false,
+  alegacionBySettlementId,
+  showAlegacionIcon,
+  onOpenAlegacion,
+}: {
+  groups: {
+    key: string
+    title: string
+    rows: LiquidacionInternaRow[]
+    extra?: ReactNode
+  }[]
+  emptyLabel: string
+  formatCurrency: (value: number) => string
+  showComercial: boolean
+  highlightAlegaciones?: boolean
+  alegacionBySettlementId: Map<string, Alegacion>
+  showAlegacionIcon?: (row: LiquidacionInternaRow) => boolean
+  onOpenAlegacion?: (row: LiquidacionInternaRow) => void
+}) {
+  if (groups.length === 0) {
+    return (
+      <p className="text-center text-xs font-mono text-brand-subtext py-10 border border-dashed border-brand-border rounded-xl">
+        {emptyLabel}
+      </p>
+    )
+  }
+
+  return (
+    <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <section key={group.key} className="space-y-2">
+            <h3 className="sticky top-0 z-20 bg-brand-bg text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
+              {group.title}
+              <span className="ml-2 text-[10px] font-mono text-brand-subtext normal-case">
+                {group.rows.length} movimiento{group.rows.length !== 1 ? "s" : ""} ·{" "}
+                {formatCurrency(sumComisionRows(group.rows))}
+              </span>
+              {group.extra}
+            </h3>
+            <LiquidacionesTable
+              rows={group.rows}
+              formatCurrency={formatCurrency}
+              showComercial={showComercial}
+              highlightAlegaciones={highlightAlegaciones}
+              alegacionBySettlementId={alegacionBySettlementId}
+              showAlegacionIcon={showAlegacionIcon}
+              onOpenAlegacion={onOpenAlegacion}
+              stickyHeadClassName="sticky top-8 z-10 bg-brand-panel"
+            />
+          </section>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function LiquidacionesInternasPanel({
   activeRole,
   activeUserId,
@@ -281,7 +344,6 @@ export function LiquidacionesInternasPanel({
   const [chatAlegacion, setChatAlegacion] = useState<Alegacion | null>(null)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [panelView, setPanelView] = useState<LiquidacionesView>("listado")
-  const [expandedComercialId, setExpandedComercialId] = useState<string | null>(null)
 
   const defaults = defaultLiquidacionesDateRange()
   const defaultDateRangeValue = useMemo(
@@ -369,6 +431,16 @@ export function LiquidacionesInternasPanel({
     () =>
       sumComisionRows(filterLiquidacionRows(baseRows, { ...filterOpts, tab: "retrocomisiones" })),
     [baseRows, dateFrom, dateTo, compania, search]
+  )
+  const companiaCounts = useMemo(
+    () =>
+      countLiquidacionRowsByCompania(baseRows, {
+        tab: activeTab,
+        dateFrom,
+        dateTo,
+        search,
+      }),
+    [baseRows, activeTab, dateFrom, dateTo, search]
   )
 
   const myRows =
@@ -581,7 +653,8 @@ export function LiquidacionesInternasPanel({
   }
 
   return (
-    <div className="space-y-5 animate-fade-in font-sans">
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden animate-fade-in font-sans">
+      <div className="shrink-0 space-y-5">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-center gap-2">
           <WalletCards className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
@@ -729,7 +802,9 @@ export function LiquidacionesInternasPanel({
 
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
         <div className="flex flex-wrap gap-1.5">
-          {LIQUIDACIONES_COMPANIA_FILTERS.map((c) => (
+          {LIQUIDACIONES_COMPANIA_FILTERS.map((c) => {
+            const count = companiaCounts[c] ?? 0
+            return (
             <button
               key={c}
               type="button"
@@ -741,8 +816,18 @@ export function LiquidacionesInternasPanel({
               }`}
             >
               {c}
+              <span
+                className={`ml-1 px-1 rounded-full text-[8px] font-bold tabular-nums ${
+                  compania === c
+                    ? "bg-white/20 text-white"
+                    : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                }`}
+              >
+                {count}
+              </span>
             </button>
-          ))}
+            )
+          })}
         </div>
         <div className="relative w-full lg:max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-subtext" />
@@ -765,113 +850,77 @@ export function LiquidacionesInternasPanel({
           )}
         </div>
       </div>
+      </div>
 
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {activeRole === "comercial" && (
-        <LiquidacionesTable
-          rows={filteredRows}
-          showComercial={false}
-          showAlegacionIcon={showAlegacionIcon}
-          {...tableCommonProps}
-        />
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain pr-1">
+          <LiquidacionesTable
+            rows={filteredRows}
+            showComercial={false}
+            showAlegacionIcon={showAlegacionIcon}
+            {...tableCommonProps}
+          />
+        </div>
       )}
 
       {activeRole === "jefe_comercial" && (
-        <div className="space-y-6">
-          <section className="space-y-2">
-            <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide">
-              Mis liquidaciones · {activeUserName}
-            </h3>
-            <LiquidacionesTable
-              rows={myRows}
-              showComercial={false}
-              showAlegacionIcon={showAlegacionIcon}
-              {...tableCommonProps}
-            />
-          </section>
-          <section className="space-y-2">
-            <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide">
-              Equipo comercial
-            </h3>
-            <LiquidacionesTable rows={teamRows} showComercial {...tableCommonProps} />
-          </section>
+        <div className="min-h-0 flex-1 overflow-auto overscroll-contain pr-1">
+          <div className="space-y-6">
+            <section className="space-y-2">
+              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide">
+                Mis liquidaciones · {activeUserName}
+              </h3>
+              <LiquidacionesTable
+                rows={myRows}
+                showComercial={false}
+                showAlegacionIcon={showAlegacionIcon}
+                {...tableCommonProps}
+              />
+            </section>
+            <section className="space-y-2">
+              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide">
+                Equipo comercial
+              </h3>
+              <LiquidacionesTable rows={teamRows} showComercial {...tableCommonProps} />
+            </section>
+          </div>
         </div>
       )}
 
       {isAdminLiquidaciones && panelView === "por_comercial" && (
-        <div className="space-y-3">
-          {comercialesForAdminView.length === 0 ? (
-            <p className="text-center text-xs font-mono text-brand-subtext py-10 border border-dashed border-brand-border rounded-xl">
-              Sin comerciales en este filtro
-            </p>
-          ) : (
-            comercialesForAdminView.map((comercial) => {
-              const expanded = expandedComercialId === comercial.id
-              return (
-                <section
-                  key={comercial.id}
-                  className="rounded-xl border border-brand-border bg-brand-panel overflow-hidden"
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedComercialId((prev) => (prev === comercial.id ? null : comercial.id))
-                    }
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-brand-surface/60 transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      {expanded ? (
-                        <ChevronDown className="w-4 h-4 text-brand-subtext shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 text-brand-subtext shrink-0" />
-                      )}
-                      <span className="text-xs font-bold text-brand-text truncate">
-                        {comercial.name}
-                      </span>
-                      <span className="text-[10px] font-mono text-brand-subtext shrink-0">
-                        {comercial.rows.length} liq.
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {comercial.abiertas > 0 ? (
-                        <span className="inline-flex px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                          {comercial.abiertas} requiere acción
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                  {expanded ? (
-                    <div className="px-2 pb-3">
-                      <LiquidacionesTable
-                        rows={comercial.rows}
-                        showComercial={false}
-                        highlightAlegaciones
-                        {...tableCommonProps}
-                      />
-                    </div>
-                  ) : null}
-                </section>
-              )
-            })
-          )}
-        </div>
+        <LiquidacionesGroupedTables
+          groups={comercialesForAdminView.map((comercial) => ({
+            key: comercial.id,
+            title: comercial.name,
+            rows: comercial.rows,
+            extra:
+              comercial.abiertas > 0 ? (
+                <span className="ml-2 text-[10px] font-mono font-bold uppercase text-amber-600 dark:text-amber-400">
+                  · {comercial.abiertas} requiere acción
+                </span>
+              ) : null,
+          }))}
+          emptyLabel="Sin comerciales en este filtro"
+          showComercial
+          highlightAlegaciones
+          {...tableCommonProps}
+        />
       )}
 
       {isAdminLiquidaciones && panelView === "listado" && (
-        <div className="space-y-6">
-          {[...superadminGroups.entries()].map(([jefeName, rows]) => (
-            <section key={jefeName} className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border pb-2">
-                {jefeName}
-                <span className="ml-2 text-[10px] font-mono text-brand-subtext normal-case">
-                  {rows.length} movimiento{rows.length !== 1 ? "s" : ""} ·{" "}
-                  {formatCurrency(sumComisionRows(rows))}
-                </span>
-              </h3>
-              <LiquidacionesTable rows={rows} showComercial {...tableCommonProps} />
-            </section>
-          ))}
-        </div>
+        <LiquidacionesGroupedTables
+          groups={[...superadminGroups.entries()].map(([jefeName, rows]) => ({
+            key: jefeName,
+            title: jefeName,
+            rows,
+          }))}
+          emptyLabel="Sin liquidaciones en este filtro"
+          showComercial
+          {...tableCommonProps}
+        />
       )}
+      </div>
 
       <AlegacionChatModal
         open={chatOpen}

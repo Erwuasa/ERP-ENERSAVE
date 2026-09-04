@@ -22,7 +22,7 @@ export function LiquidacionesInternasPage() {
   } = ws
 
   return (
-    <SensitiveScreenShell userLabel={activeUser.fullName}>
+    <SensitiveScreenShell userLabel={activeUser.fullName} className="min-h-0 overflow-hidden">
       <LiquidacionesInternasPanel
         activeRole={
           activeRole === "superadmin" || activeRole === "tramitacion"
