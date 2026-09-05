@@ -2,10 +2,12 @@ import {
   asString,
   asUuid,
   fetchAllPages,
+  fetchAtRecord,
   getSupabaseAdmin,
   type JsonRecord,
 } from './at-api.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
+import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
 
 const LOCK = 'incidents-at'
 
@@ -26,16 +28,31 @@ function mapEstado(value: string): 'sin_categorizar' | 'abierto' | 'en_progreso'
   return 'abierto'
 }
 
-export async function runIncidentSync() {
+export async function runIncidentSync(ctx?: AtSyncContext) {
+  const ids = resolveAtSyncIds(ctx, ctx?.event ?? '')
+  const incrementalId = ids.incidentId
   const supabase = getSupabaseAdmin()
-  const acquired = await tryAcquireAtSyncLock(supabase, LOCK)
+  const lockName = incrementalId ? `${LOCK}:${incrementalId}` : LOCK
+  const acquired = await tryAcquireAtSyncLock(supabase, lockName)
   if (!acquired) {
     return { skipped: true, skip_reason: 'lock_held', stats: { skipped: true } }
   }
 
   try {
     const syncedAt = new Date().toISOString()
-    const { rows, pagesFetched } = await fetchAllPages('/incidents')
+    let rows: JsonRecord[] = []
+    let pagesFetched = 0
+    if (incrementalId) {
+      const record = await fetchAtRecord(`/incidents/${incrementalId}`)
+      if (!record) {
+        return { stats: { mode: 'incremental', missing: true, at_incident_id: incrementalId } }
+      }
+      rows = [record]
+    } else {
+      const listed = await fetchAllPages('/incidents')
+      rows = listed.rows
+      pagesFetched = listed.pagesFetched
+    }
     const { data: contracts } = await supabase
       .from('contratos_equipo')
       .select('id, at_contract_id, cliente_id, client_name')
@@ -92,6 +109,8 @@ export async function runIncidentSync() {
 
     return {
       stats: {
+        mode: incrementalId ? 'incremental' : 'full',
+        at_incident_id: incrementalId,
         pages_fetched: pagesFetched,
         rows_from_at: rows.length,
         rows_mapped: mapped.length,

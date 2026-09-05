@@ -246,6 +246,16 @@ export function mapRowToContract(
     source: row.source === "at" ? "at" : "manual",
     atStatus: str(row.at_status),
     atContractId: str(row.at_contract_id),
+    atStatusNote: str(row.at_status_note),
+    atIncidentAt: str(row.at_incident_at),
+    atNotes: Array.isArray(row.at_notes)
+      ? (row.at_notes as Array<Record<string, unknown>>).map((note) => ({
+          id: str(note.id),
+          note: str(note.note) ?? "",
+          createdAt: str(note.created_at ?? note.createdAt),
+          authorSide: str(note.author_side ?? note.authorSide),
+        }))
+      : undefined,
     documentos: Array.isArray(row.documentos)
       ? (row.documentos as Contract["documentos"])
       : undefined,

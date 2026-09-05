@@ -3,10 +3,13 @@ import {
   asString,
   asUuid,
   fetchAllPages,
+  fetchAtChildList,
+  fetchAtRecord,
   getSupabaseAdmin,
   type JsonRecord,
 } from './at-api.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
+import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
 
 const LOCK = 'contracts-at'
 const UPSERT_BATCH = 50
@@ -23,6 +26,7 @@ const AT_STATUS_TO_ERP: Record<string, string> = {
   scoring: 'TRAMITANDO',
   active: 'ACTIVADO',
   incident: 'INCIDENCIA ADMINISTRATIVA',
+  incident_resolved: 'INCIDENCIA ADMINISTRATIVA',
   error: 'INCIDENCIA ADMINISTRATIVA',
   ended: 'Dado de Baja',
   canceled: 'Dado de Baja',
@@ -62,16 +66,65 @@ function clientName(row: JsonRecord): string {
   return joined || asString(row.client_name) || 'Cliente AT'
 }
 
-export async function runContractSync() {
+function mapNotes(rows: JsonRecord[]) {
+  return rows.map((row) => ({
+    id: asString(row.id) || null,
+    note: asString(row.note ?? row.text ?? row.body),
+    is_private: row.is_private === true,
+    created_at: asString(row.created_at) || null,
+    created_by: asString(row.created_by) || null,
+    author_side: asString(row.author_side) || null,
+    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : null,
+  }))
+}
+
+export async function runContractSync(ctx?: AtSyncContext) {
+  const ids = resolveAtSyncIds(ctx, ctx?.event ?? '')
+  const incrementalId = ids.contractId
+  const isDelete = (ctx?.event ?? '').startsWith('contract.deleted')
   const supabase = getSupabaseAdmin()
-  const acquired = await tryAcquireAtSyncLock(supabase, LOCK)
+  const lockName = incrementalId ? `${LOCK}:${incrementalId}` : LOCK
+  const acquired = await tryAcquireAtSyncLock(supabase, lockName)
   if (!acquired) {
     return { skipped: true, skip_reason: 'lock_held', stats: { skipped: true } }
   }
 
   try {
     const syncedAt = new Date().toISOString()
-    const { rows, pagesFetched } = await fetchAllPages('/contracts')
+
+    if (isDelete && incrementalId) {
+      const { data, error } = await supabase
+        .from('contratos_equipo')
+        .update({ estado: 'Dado de Baja', at_status: 'deleted', at_synced_at: syncedAt })
+        .eq('at_contract_id', incrementalId)
+        .eq('source', 'at')
+        .select('id')
+      if (error) throw new Error(`contratos delete failed: ${error.message}`)
+      return {
+        stats: {
+          mode: 'incremental',
+          deleted: data?.length ?? 0,
+          at_contract_id: incrementalId,
+        },
+      }
+    }
+
+    let rows: JsonRecord[] = []
+    let pagesFetched = 0
+    let notes: JsonRecord[] | null = null
+
+    if (incrementalId) {
+      const record = await fetchAtRecord(`/contracts/${incrementalId}`)
+      if (!record) {
+        return { stats: { mode: 'incremental', missing: true, at_contract_id: incrementalId } }
+      }
+      rows = [record]
+      notes = await fetchAtChildList(`/contracts/${incrementalId}/notes`)
+    } else {
+      const listed = await fetchAllPages('/contracts')
+      rows = listed.rows
+      pagesFetched = listed.pagesFetched
+    }
 
     const { data: clients } = await supabase
       .from('clientes')
@@ -161,6 +214,9 @@ export async function runContractSync() {
         at_comparison_id: asUuid(row.comparision_id ?? row.comparison_id),
         source: 'at',
         at_synced_at: syncedAt,
+        at_status_note: asString(row.status_note ?? row.incident_reason) || null,
+        at_incident_at: asString(row.incident_at) || null,
+        ...(notes ? { at_notes: mapNotes(notes) } : {}),
         at_payload: row,
         metadata: {
           at: true,
@@ -183,7 +239,7 @@ export async function runContractSync() {
 
     const seen = new Set(mapped.map((row) => row.at_contract_id))
     let deactivated = 0
-    if (seen.size > 0) {
+    if (!incrementalId && seen.size > 0) {
       const { data, error } = await supabase
         .from('contratos_equipo')
         .update({ estado: 'Dado de Baja', at_synced_at: syncedAt })
@@ -197,6 +253,9 @@ export async function runContractSync() {
 
     return {
       stats: {
+        mode: incrementalId ? 'incremental' : 'full',
+        at_contract_id: incrementalId,
+        notes_synced: notes?.length ?? null,
         pages_fetched: pagesFetched,
         rows_from_at: rows.length,
         rows_mapped: mapped.length,
