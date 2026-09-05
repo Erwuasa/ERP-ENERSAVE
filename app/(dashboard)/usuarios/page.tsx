@@ -497,7 +497,7 @@ export default function UsuariosPage() {
                                 </div>
                               ) : (
                                 <span className="text-rose-400/80 bg-rose-500/5 px-2 py-0.5 rounded border border-rose-500/10 text-[10px] font-mono">
-                                  ⚠️ Sin Jefe Asignado
+                                  Sin Jefe Asignado
                                 </span>
                               )}
                             </td>

@@ -38,7 +38,7 @@ export function ContratoDetalleTabContrato({
           <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
             <p className="text-sm font-semibold text-rose-800 dark:text-rose-200 leading-snug">
-              ⚠️ Este contrato está parado por una incidencia — Adjunta lo que falte y márcala como
+              Este contrato está parado por una incidencia — Adjunta lo que falte y márcala como
               resuelta para que siga su curso.
             </p>
             <p className="text-xs font-mono text-rose-700/90 dark:text-rose-300/90">
