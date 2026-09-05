@@ -105,6 +105,8 @@ export function ContratosPanel({
     onOpenNewContract,
     highlightContractId,
     userFilterId,
+    activeUserId,
+    activeUserName,
     reviewedContractIds,
     tarifaRecommendations,
   })
@@ -204,7 +206,6 @@ export function ContratosPanel({
 
       {contratoSeleccionado ? (
           <ContratoDetallePanel
-            key={contratoSeleccionado.id}
             contract={contratoSeleccionado}
             comercialEmail={profiles.find((p) => p.id === contratoSeleccionado.comercialId)?.email}
             profiles={profiles}

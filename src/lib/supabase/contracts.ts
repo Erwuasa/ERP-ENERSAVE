@@ -1,6 +1,7 @@
 import type { Contract } from "../../types/contract"
 import { normalizeContractEstado } from "../contract-estado"
 import { flattenDocumentosPorTipo } from "../contrato-documentos"
+import { insertContratoHistorialCambioEstado } from "./contrato-historial"
 import type { NewContractFormState } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import {
@@ -219,6 +220,7 @@ export function mapRowToContract(
     comercialId: str(row.comercial_id) ?? "",
     comercialName: str(row.comercial_name) ?? "",
     createdAt: str(row.fecha_inicio) ?? str(row.created_at)?.slice(0, 10) ?? "",
+    updatedAt: str(row.updated_at),
     fechaBaja: str(row.fecha_baja),
     retrocomisionClawback: num(row.retrocomision_clawback),
     estadoRenovacion: str(row.estado_renovacion),
@@ -344,7 +346,14 @@ export async function listTeamContracts(): Promise<TeamContractResult<Contract[]
 
 export async function updateTeamContract(
   id: string,
-  patch: Partial<Contract>
+  patch: Partial<Contract>,
+  options?: {
+    audit?: {
+      autorId: string
+      autorNombre: string
+      estadoAnterior?: string
+    }
+  }
 ): Promise<TeamContractResult<Contract>> {
   const resolved = resolveClient()
   if (resolved.ok === false) return resolved
@@ -362,6 +371,20 @@ export async function updateTeamContract(
     .single()
 
   if (error) return toFailure(error)
+
+  if (patch.estado && options?.audit) {
+    const historialResult = await insertContratoHistorialCambioEstado({
+      contratoId: id,
+      autorId: options.audit.autorId,
+      autorNombre: options.audit.autorNombre,
+      estadoAnterior: options.audit.estadoAnterior ?? "",
+      estadoNuevo: patch.estado,
+      motivo: patch.motivoCambioEstado,
+    })
+    if (historialResult.ok === false) {
+      console.warn("[contracts] historial cambio_estado no registrado:", historialResult.message)
+    }
+  }
 
   const providers = await loadProviderByAtCompanyId(resolved.client)
   return { ok: true, data: mapRowToContract(data as Row, providers) }
