@@ -9,6 +9,7 @@ import { runIncidentSync } from '../_shared/sync-incidents.ts'
 import { runCatalogSync } from '../_shared/sync-catalog.ts'
 import { runComparisonSync } from '../_shared/sync-comparisons.ts'
 import { runEmailSync } from '../_shared/sync-emails.ts'
+import type { AtSyncContext } from '../_shared/at-webhook-entity.ts'
 
 declare const Deno: {
   serve: (handler: (request: Request) => Response | Promise<Response>) => void
@@ -21,17 +22,21 @@ function respondWithJson(body: unknown, status = 200) {
   })
 }
 
-const ROUTES: Array<{ prefix: string; routed: string; run: () => Promise<{ stats?: unknown; skipped?: boolean; skip_reason?: string }> }> = [
-  { prefix: 'marco.', routed: 'sync-marcos-at', run: runMarcoSync },
-  { prefix: 'product.', routed: 'sync-tariffs-at', run: runTariffSync },
-  { prefix: 'client.', routed: 'sync-clients-at', run: runClientSync },
-  { prefix: 'contract_incident.', routed: 'sync-incidents-at', run: runIncidentSync },
-  { prefix: 'contract.', routed: 'sync-contracts-at', run: runContractSync },
-  { prefix: 'liquidation.', routed: 'sync-liquidations-at', run: runLiquidationSync },
-  { prefix: 'incident.', routed: 'sync-incidents-at', run: runIncidentSync },
-  { prefix: 'catalog.', routed: 'sync-catalog-at', run: runCatalogSync },
-  { prefix: 'comparison.', routed: 'sync-comparisons-at', run: runComparisonSync },
-  { prefix: 'email.', routed: 'sync-emails-at', run: runEmailSync },
+const ROUTES: Array<{
+  prefix: string
+  routed: string
+  run: (ctx: AtSyncContext) => Promise<{ stats?: unknown; skipped?: boolean; skip_reason?: string }>
+}> = [
+  { prefix: 'marco.', routed: 'sync-marcos-at', run: () => runMarcoSync() },
+  { prefix: 'product.', routed: 'sync-tariffs-at', run: () => runTariffSync() },
+  { prefix: 'client.', routed: 'sync-clients-at', run: () => runClientSync() },
+  { prefix: 'contract_incident.', routed: 'sync-incidents-at', run: (ctx) => runIncidentSync(ctx) },
+  { prefix: 'contract.', routed: 'sync-contracts-at', run: (ctx) => runContractSync(ctx) },
+  { prefix: 'liquidation.', routed: 'sync-liquidations-at', run: () => runLiquidationSync() },
+  { prefix: 'incident.', routed: 'sync-incidents-at', run: (ctx) => runIncidentSync(ctx) },
+  { prefix: 'catalog.', routed: 'sync-catalog-at', run: () => runCatalogSync() },
+  { prefix: 'comparison.', routed: 'sync-comparisons-at', run: () => runComparisonSync() },
+  { prefix: 'email.', routed: 'sync-emails-at', run: () => runEmailSync() },
 ]
 
 Deno.serve(async (request) => {
@@ -75,7 +80,7 @@ Deno.serve(async (request) => {
       return respondWithJson({ ok: true, event, ignored: true })
     }
 
-    const result = await route.run()
+    const result = await route.run({ event, body })
     return respondWithJson({
       ok: true,
       event,

@@ -226,6 +226,35 @@ export async function fetchAllPages(
   return { rows, pagesFetched }
 }
 
+export function unwrapAtRecord(payload: unknown): JsonRecord | null {
+  if (!payload || typeof payload !== 'object') return null
+  const root = payload as JsonRecord
+  const data = root.data
+  if (data && typeof data === 'object' && !Array.isArray(data)) return data as JsonRecord
+  if (asUuid(root.id) || asString(root.id)) return root
+  return null
+}
+
+export async function fetchAtRecord(path: string): Promise<JsonRecord | null> {
+  try {
+    return unwrapAtRecord(await fetchFromAt(path))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('AT Enterprise 404')) return null
+    throw error
+  }
+}
+
+export async function fetchAtChildList(path: string): Promise<JsonRecord[]> {
+  try {
+    return normalizeListPayload(await fetchFromAt(path)).rows
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('AT Enterprise 404')) return []
+    throw error
+  }
+}
+
 export async function exploreAtList(path: string, sampleSize = 3) {
   const pageSize = Math.min(Math.max(sampleSize, 5), 20)
   const payload = await fetchFromAt(

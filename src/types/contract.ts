@@ -67,4 +67,12 @@ export interface Contract {
   source?: "manual" | "at"
   atStatus?: string
   atContractId?: string
+  atStatusNote?: string
+  atIncidentAt?: string
+  atNotes?: Array<{
+    id?: string
+    note: string
+    createdAt?: string
+    authorSide?: string
+  }>
 }

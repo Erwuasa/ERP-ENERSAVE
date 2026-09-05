@@ -1,6 +1,7 @@
 import { corsHeaders } from './cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from './at-webhook-auth.ts'
-import { exploreAtList, fetchFromAt } from './at-api.ts'
+import { asUuid, exploreAtList, fetchFromAt } from './at-api.ts'
+import type { AtSyncContext } from './at-webhook-entity.ts'
 
 declare const Deno: {
   serve: (handler: (request: Request) => Response | Promise<Response>) => void
@@ -46,7 +47,9 @@ export function serveAtSyncFunction(options: {
   exploreLabel: string
   syncPurpose: string
   notas?: string[]
-  runSync: () => Promise<{ stats: unknown; skipped?: boolean; skip_reason?: string }>
+  runSync: (
+    ctx: AtSyncContext
+  ) => Promise<{ stats: unknown; skipped?: boolean; skip_reason?: string }>
   extraExplore?: () => Promise<Record<string, unknown>>
 }) {
   Deno.serve(async (request) => {
@@ -79,10 +82,23 @@ export function serveAtSyncFunction(options: {
       }
 
       const mode = parseAtSyncMode(request, body, options.eventPrefix)
+      const event = ateEventName(request, body)
+      const url = new URL(request.url)
+      const queryId = asUuid(url.searchParams.get('id'))
+      const ctx: AtSyncContext = {
+        event,
+        body,
+        contractId:
+          asUuid(url.searchParams.get('contract_id')) ??
+          (options.eventPrefix === 'contract.' ? queryId : null),
+        incidentId:
+          asUuid(url.searchParams.get('incident_id')) ??
+          (options.eventPrefix === 'incident.' ? queryId : null),
+      }
       console.log(`[${options.logName}] ${request.method} mode=${mode}`)
 
       if (mode === 'sync') {
-        const result = await options.runSync()
+        const result = await options.runSync(ctx)
         if (result.skipped) {
           console.log(`[${options.logName}] skipped ${result.skip_reason}`)
         } else {
@@ -105,7 +121,6 @@ export function serveAtSyncFunction(options: {
         })
       }
 
-      const url = new URL(request.url)
       const sampleSize = Math.min(Math.max(Number(url.searchParams.get('sample_size') ?? 3) || 3, 1), 20)
       const explored = await exploreAtList(options.explorePath, sampleSize)
       const extra = options.extraExplore ? await options.extraExplore() : {}

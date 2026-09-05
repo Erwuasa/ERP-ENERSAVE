@@ -196,11 +196,25 @@ export function resolveContractTarifa(row: Row): string {
   )
 }
 
+function mapAtNotes(raw: unknown): Contract["atNotes"] {
+  if (!Array.isArray(raw)) return undefined
+  const notes = raw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .map((note) => ({
+      id: str(note.id),
+      note: str(note.note) ?? "",
+      createdAt: str(note.created_at ?? note.createdAt),
+      authorSide: str(note.author_side ?? note.authorSide),
+    }))
+  return notes.length > 0 ? notes : undefined
+}
+
 export function mapRowToContract(
   row: Row,
   providerByAtCompanyId: Map<string, string> = new Map()
 ): Contract {
   const metadata = metadataOf(row)
+  const payload = payloadRecord(row)
   const tipoPrecio = str(row.tipo_precio)
 
   return {
@@ -248,6 +262,9 @@ export function mapRowToContract(
     source: row.source === "at" ? "at" : "manual",
     atStatus: str(row.at_status),
     atContractId: str(row.at_contract_id),
+    atStatusNote: str(row.at_status_note) ?? str(payload.status_note),
+    atIncidentAt: str(row.at_incident_at) ?? str(payload.incident_at),
+    atNotes: mapAtNotes(row.at_notes),
     documentos: Array.isArray(row.documentos)
       ? (row.documentos as Contract["documentos"])
       : undefined,

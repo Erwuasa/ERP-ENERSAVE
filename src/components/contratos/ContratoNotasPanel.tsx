@@ -8,6 +8,7 @@ import {
   subscribeContratoNotas,
   type ContratoNota,
 } from "@/lib/supabase/contrato-notas"
+import type { AtContractNote } from "@/lib/supabase/at-contract-notes"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 
 type Props = {
@@ -15,6 +16,8 @@ type Props = {
   estadoContrato?: string
   activeUserId: string
   activeUserName: string
+  atNotes?: AtContractNote[]
+  atNotesLoading?: boolean
 }
 
 function formatNotaTime(iso: string): string {
@@ -33,6 +36,8 @@ export function ContratoNotasPanel({
   estadoContrato,
   activeUserId,
   activeUserName,
+  atNotes = [],
+  atNotesLoading = false,
 }: Props) {
   const [notas, setNotas] = useState<ContratoNota[]>([])
   const [draft, setDraft] = useState("")
@@ -155,14 +160,34 @@ export function ContratoNotasPanel({
       </header>
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {isLoading ? (
+        {isLoading || atNotesLoading ? (
           <p className="text-center text-[11px] text-brand-subtext">Cargando notas…</p>
-        ) : notas.length === 0 ? (
+        ) : notas.length === 0 && atNotes.length === 0 ? (
           <p className="text-center text-[11px] leading-relaxed text-brand-subtext">
-            Sin notas todavía. Escribe un comentario o adjunta un archivo.
+            Sin notas todavía. Las de Helios aparecen aquí al abrir un contrato AT.
           </p>
         ) : (
           <ul className="space-y-3">
+            {atNotes.map((note, index) => (
+              <li
+                key={note.id ?? `at-${note.createdAt ?? index}`}
+                className="mr-4 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate text-[10px] font-bold text-brand-text">
+                    {note.authorSide || "AT / Helios"}
+                  </p>
+                  {note.createdAt ? (
+                    <time className="shrink-0 text-[9px] font-mono text-brand-subtext">
+                      {formatNotaTime(note.createdAt)}
+                    </time>
+                  ) : null}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed text-brand-text">
+                  {note.note || "—"}
+                </p>
+              </li>
+            ))}
             {notas.map((nota) => {
               const isOwn = nota.autorId === activeUserId
               return (

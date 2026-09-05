@@ -32,15 +32,48 @@ export function ContratosPanelFicha({ contract, profiles, formatCurrency, onClos
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-brand-border pt-3">
-        <h4 className="text-[10px] font-mono uppercase tracking-wider text-brand-subtext font-bold mb-3">
-          Desglose de comisión
-        </h4>
-        <ContractComisionDesglose
-          contract={contract}
-          profiles={profiles}
-          formatCurrency={formatCurrency}
-        />
+      <div className="min-h-0 flex-1 overflow-y-auto border-t border-brand-border pt-3 space-y-4">
+        {(contract.atStatusNote || (contract.atNotes && contract.atNotes.length > 0)) && (
+          <div className="space-y-2">
+            <h4 className="text-[10px] font-mono uppercase tracking-wider text-brand-subtext font-bold">
+              Incidencia / notas AT
+            </h4>
+            {contract.atStatusNote && (
+              <p className="text-xs text-brand-text leading-relaxed">{contract.atStatusNote}</p>
+            )}
+            {contract.atIncidentAt && (
+              <p className="text-[10px] font-mono text-brand-subtext">{contract.atIncidentAt}</p>
+            )}
+            {contract.atNotes && contract.atNotes.length > 0 && (
+              <ul className="space-y-1.5">
+                {contract.atNotes.slice(0, 8).map((note, index) => (
+                  <li
+                    key={note.id ?? `${note.createdAt ?? "note"}-${index}`}
+                    className="rounded-lg border border-brand-border/70 px-2.5 py-2 text-[11px] text-brand-text"
+                  >
+                    <p className="leading-snug">{note.note || "—"}</p>
+                    {(note.createdAt || note.authorSide) && (
+                      <p className="mt-1 text-[10px] font-mono text-brand-subtext">
+                        {[note.authorSide, note.createdAt].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <div>
+          <h4 className="text-[10px] font-mono uppercase tracking-wider text-brand-subtext font-bold mb-3">
+            Desglose de comisión
+          </h4>
+          <ContractComisionDesglose
+            contract={contract}
+            profiles={profiles}
+            formatCurrency={formatCurrency}
+          />
+        </div>
       </div>
     </section>
   )
