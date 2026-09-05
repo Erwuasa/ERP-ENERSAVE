@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { ConfirmModal } from "@/components/common/ConfirmModal"
 import { MarcoRetributivoEditModal } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoEditModal"
 import { MarcoRetributivoTable } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoTable"
 import { MarcoRetributivoToolbar } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoToolbar"
@@ -26,40 +27,67 @@ export function MarcoRetributivoPanel({
   const vm = useMarcoRetributivoPanel({ activeRole, activeUserId })
 
   return (
-    <div className="space-y-6 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
-      <div className="bg-brand-panel p-6 sm:p-8 rounded-3xl border border-brand-border space-y-5 relative shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]">
-        <MarcoRetributivoToolbar
-          supabaseConfigured={vm.supabaseConfigured}
-          canEdit={vm.canEdit}
-          tipoFilter={vm.tipoFilter}
-          setTipoFilter={vm.setTipoFilter}
-          onCreate={vm.openCreateModal}
-          companiaFilter={vm.companiaFilter}
-          setCompaniaFilter={vm.setCompaniaFilter}
-          companyTabs={vm.companyTabs}
-          countsByCompania={vm.countsByCompania}
-          peajeOptions={vm.peajeOptions}
-          peajeFilter={vm.peajeFilter}
-          setPeajeFilter={vm.setPeajeFilter}
-        />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-panel p-3 sm:p-4 shadow-sm dark:shadow-none">
+        <div className="shrink-0 space-y-2.5 pb-2.5">
+          <MarcoRetributivoToolbar
+            supabaseConfigured={vm.supabaseConfigured}
+            canEdit={vm.canEdit}
+            tipoFilter={vm.tipoFilter}
+            setTipoFilter={vm.setTipoFilter}
+            onCreate={vm.openCreateModal}
+            companiaFilter={vm.companiaFilter}
+            setCompaniaFilter={vm.setCompaniaFilter}
+            companyTabs={vm.companyTabs}
+            countsByCompania={vm.countsByCompania}
+            peajeOptions={vm.peajeOptions}
+            peajeFilter={vm.peajeFilter}
+            setPeajeFilter={vm.setPeajeFilter}
+          />
+        </div>
 
-        <MarcoRetributivoTable
-          loading={vm.loading}
-          filteredRows={vm.filteredRows}
-          showComisionEnersave={vm.showComisionEnersave}
-          canEdit={vm.canEdit}
-          commissionPercentage={commissionPercentage}
-          formatCurrency={formatCurrency}
-          renderCompaniaLogo={renderCompaniaLogo}
-          onOpenEntry={vm.openEntryModal}
-          onDeactivate={vm.handleDeactivate}
-        />
+        <div className="min-h-0 flex-1">
+          <MarcoRetributivoTable
+            loading={vm.loading}
+            filteredRows={vm.filteredRows}
+            showComisionEnersave={vm.showComisionEnersave}
+            canEdit={vm.canEdit}
+            commissionPercentage={commissionPercentage}
+            formatCurrency={formatCurrency}
+            renderCompaniaLogo={renderCompaniaLogo}
+            onOpenEntry={vm.openEntryModal}
+            onDeactivate={vm.requestDeactivate}
+          />
+        </div>
 
-        <p className="text-[9px] font-mono text-slate-400 text-right">
+        <p className="shrink-0 pt-2 text-right text-[10px] font-mono text-brand-subtext">
           {vm.filteredRows.length} tarifa{vm.filteredRows.length !== 1 ? "s" : ""} ·{" "}
           {vm.loading ? "…" : "actualizado desde Supabase"}
         </p>
       </div>
+
+      <ConfirmModal
+        open={vm.pendingDeactivate != null}
+        title="Desactivar entrada"
+        description={
+          vm.pendingDeactivate ? (
+            <>
+              ¿Desactivar{" "}
+              <strong className="text-brand-text">{vm.pendingDeactivate.tarifa}</strong> de{" "}
+              {vm.pendingDeactivate.compania}? Dejará de aparecer en el marco retributivo.
+            </>
+          ) : (
+            "¿Desactivar esta entrada del marco retributivo?"
+          )
+        }
+        confirmLabel="Desactivar"
+        loading={vm.deactivating}
+        loadingLabel="Desactivando…"
+        onConfirm={() => {
+          void vm.confirmDeactivate()
+        }}
+        onCancel={vm.cancelDeactivate}
+      />
 
       <MarcoRetributivoEditModal
         open={vm.modalOpen}

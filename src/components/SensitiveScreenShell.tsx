@@ -4,10 +4,12 @@ import {
   useDevToolsConfidentialityNotice,
   useSensitiveScreenContextMenu,
 } from "../hooks/use-sensitive-screen-protection"
+import { cn } from "../lib/utils"
 
 interface SensitiveScreenShellProps {
   userLabel: string
   children: ReactNode
+  className?: string
 }
 
 const WATERMARK_TILE_COUNT = 28
@@ -26,7 +28,7 @@ function SensitiveScreenWatermark({ label }: { label: string }) {
   )
 }
 
-export function SensitiveScreenShell({ userLabel, children }: SensitiveScreenShellProps) {
+export function SensitiveScreenShell({ userLabel, children, className }: SensitiveScreenShellProps) {
   useSensitiveScreenContextMenu()
   const showDevToolsNotice = useDevToolsConfidentialityNotice()
   const trimmedLabel = userLabel.trim() || "Usuario"
@@ -34,7 +36,7 @@ export function SensitiveScreenShell({ userLabel, children }: SensitiveScreenShe
   return (
     <div
       id={SENSITIVE_SCREEN_ROOT_ID}
-      className="sensitive-screen-root relative flex min-h-0 flex-1 flex-col"
+      className={cn("sensitive-screen-root relative flex min-h-0 flex-1 flex-col", className)}
     >
       <SensitiveScreenWatermark label={trimmedLabel} />
 
@@ -44,7 +46,9 @@ export function SensitiveScreenShell({ userLabel, children }: SensitiveScreenShe
         </div>
       )}
 
-      <div className="relative z-[2] flex min-h-0 flex-1 flex-col">{children}</div>
+      <div className={cn("relative z-[2] flex min-h-0 flex-1 flex-col", className && "overflow-hidden")}>
+        {children}
+      </div>
     </div>
   )
 }

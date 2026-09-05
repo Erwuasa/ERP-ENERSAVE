@@ -39,6 +39,52 @@ export function normalizeContractEstado(value: string): ContractEstado {
   return LEGACY_ESTADO_MAP[key] ?? CONTRACT_ESTADO_INICIAL
 }
 
+export function formatContractEstadoLabel(estado: string): string {
+  switch (normalizeContractEstado(estado)) {
+    case "Borrador":
+      return "Borrador"
+    case "PTE DE TRAMITACIÓN":
+      return "Pte. tramit."
+    case "PTE DE FIRMA":
+      return "Pte. firma"
+    case "FIRMA CADUCADA":
+      return "Caducada"
+    case "TRAMITANDO":
+      return "Tramitando"
+    case "ACTIVADO":
+      return "Activado"
+    case "INCIDENCIA ADMINISTRATIVA":
+      return "Incidencia"
+    case "Dado de Baja":
+      return "Baja"
+    default:
+      return estado
+  }
+}
+
+export function getContractEstadoDotClass(estado: string): string {
+  switch (normalizeContractEstado(estado)) {
+    case "Borrador":
+      return "bg-slate-400"
+    case "PTE DE TRAMITACIÓN":
+      return "bg-slate-500"
+    case "PTE DE FIRMA":
+      return "bg-amber-500"
+    case "FIRMA CADUCADA":
+      return "bg-orange-500"
+    case "TRAMITANDO":
+      return "bg-sky-500"
+    case "ACTIVADO":
+      return "bg-emerald-500"
+    case "INCIDENCIA ADMINISTRATIVA":
+      return "bg-violet-500"
+    case "Dado de Baja":
+      return "bg-slate-400"
+    default:
+      return "bg-slate-400"
+  }
+}
+
 export function getContractEstadoBadgeClass(estado: string): string {
   switch (normalizeContractEstado(estado)) {
     case "Borrador":

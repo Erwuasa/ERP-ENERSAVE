@@ -115,6 +115,30 @@ export type SaveTeamContractResult =
 
 const resolveClient = resolveSupabaseClient
 
+let providerByAtCompanyIdCache: Map<string, string> | null = null
+
+export function getCachedProviderByAtCompanyId(): Map<string, string> {
+  return providerByAtCompanyIdCache ?? new Map()
+}
+
+async function loadProviderByAtCompanyId(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>
+): Promise<Map<string, string>> {
+  if (providerByAtCompanyIdCache) return providerByAtCompanyIdCache
+
+  const { data } = await client
+    .from("providers")
+    .select("name, at_company_id")
+    .not("at_company_id", "is", null)
+
+  providerByAtCompanyIdCache = new Map(
+    (data ?? [])
+      .filter((row) => row.at_company_id && row.name)
+      .map((row) => [String(row.at_company_id), String(row.name)])
+  )
+  return providerByAtCompanyIdCache
+}
+
 function toFailure(error: { code?: string; message: string }): TeamContractFailure {
   return toSupabaseFailure(error, TABLE)
 }
@@ -126,7 +150,55 @@ function metadataOf(row: Row): Record<string, unknown> {
     : {}
 }
 
-export function mapRowToContract(row: Row): Contract {
+function payloadRecord(row: Row): Record<string, unknown> {
+  const raw = row.at_payload
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {}
+}
+
+function nestedPayload(payload: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = payload[key]
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {}
+}
+
+export function resolveContractCompania(
+  row: Row,
+  providerByAtCompanyId: Map<string, string> = new Map()
+): string {
+  const stored = str(row.compania)?.trim() ?? ""
+  if (stored && stored.toUpperCase() !== "AT") return stored
+
+  const payload = payloadRecord(row)
+  const providerAtId = str(payload.provider_id)
+  const fromProvider = providerAtId ? providerByAtCompanyId.get(providerAtId) : undefined
+  if (fromProvider?.trim()) return fromProvider.trim()
+
+  return stored
+}
+
+export function resolveContractTarifa(row: Row): string {
+  const stored = str(row.tarifa)?.trim() ?? ""
+  if (stored && stored.toUpperCase() !== "TARIFA AT") return stored
+
+  const payload = payloadRecord(row)
+  const electricity = nestedPayload(payload, "electricity_data")
+  const gas = nestedPayload(payload, "gas_data")
+  return (
+    str(electricity.rate_name) ??
+    str(electricity.tariff_name) ??
+    str(gas.rate_name) ??
+    str(gas.tariff_name) ??
+    stored
+  )
+}
+
+export function mapRowToContract(
+  row: Row,
+  providerByAtCompanyId: Map<string, string> = new Map()
+): Contract {
   const metadata = metadataOf(row)
   const tipoPrecio = str(row.tipo_precio)
 
@@ -136,8 +208,8 @@ export function mapRowToContract(row: Row): Contract {
     clientName: str(row.client_name) ?? "",
     cups: str(row.cups) ?? "",
     tipo: row.tipo === "gas" ? "gas" : "luz",
-    compania: str(row.compania) ?? "",
-    tarifa: str(row.tarifa) ?? "",
+    compania: resolveContractCompania(row, providerByAtCompanyId),
+    tarifa: resolveContractTarifa(row),
     consumoAnual: num(row.consumo_anual) ?? 0,
     montoInterno: num(row.monto_interno) ?? 0,
     montoExterno: num(row.monto_externo) ?? 0,
@@ -246,6 +318,7 @@ export async function listTeamContracts(): Promise<TeamContractResult<Contract[]
   const resolved = resolveClient()
   if (resolved.ok === false) return resolved
 
+  const providers = await loadProviderByAtCompanyId(resolved.client)
   const PAGE_SIZE = 500
   const allRows: Contract[] = []
   let from = 0
@@ -259,7 +332,7 @@ export async function listTeamContracts(): Promise<TeamContractResult<Contract[]
 
     if (error) return toFailure(error)
 
-    const batch = (data ?? []).map((row) => mapRowToContract(row as Row))
+    const batch = (data ?? []).map((row) => mapRowToContract(row as Row, providers))
     allRows.push(...batch)
 
     if (batch.length < PAGE_SIZE) break
@@ -290,7 +363,8 @@ export async function updateTeamContract(
 
   if (error) return toFailure(error)
 
-  return { ok: true, data: mapRowToContract(data as Row) }
+  const providers = await loadProviderByAtCompanyId(resolved.client)
+  return { ok: true, data: mapRowToContract(data as Row, providers) }
 }
 
 export async function deleteTeamContract(id: string): Promise<TeamContractResult<void>> {

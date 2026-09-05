@@ -473,19 +473,25 @@ export function AppShell({
         />
 
         <div
-          className={`relative flex-1 min-w-0 min-h-0 h-full bg-brand-bg text-brand-text font-sans ${
-            isFullBleedWorkspacePage
-              ? "overflow-hidden p-0"
-              : "overflow-y-auto space-y-8 p-4 sm:p-6 md:p-10"
+          className={`relative flex flex-1 min-h-0 min-w-0 h-full flex-col bg-brand-bg font-sans text-brand-text ${
+            isFullBleedWorkspacePage ? "overflow-hidden p-0" : "overflow-hidden p-4 sm:p-6 md:p-10"
           }`}
         >
           {!isFullBleedWorkspacePage ? (
             <>
-              <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
-              <div className="absolute bottom-10 left-10 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-amber)]" />
+              <div className="pointer-events-none absolute top-0 right-0 h-80 w-80 rounded-full bg-[var(--brand-glow-cyan)] blur-3xl" />
+              <div className="pointer-events-none absolute bottom-10 left-10 h-80 w-80 rounded-full bg-[var(--brand-glow-amber)] blur-3xl" />
             </>
           ) : null}
-          {children}
+          <div
+            className={`relative z-[1] flex min-h-0 flex-1 flex-col ${
+              isFullBleedWorkspacePage
+                ? "overflow-hidden"
+                : "space-y-8 overflow-x-hidden overflow-y-auto"
+            }`}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>

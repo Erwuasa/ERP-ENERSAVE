@@ -100,6 +100,14 @@ export async function runContractSync() {
       (marcos ?? []).map((row) => [String(row.at_marco_id), String(row.id)])
     )
 
+    const { data: providers } = await supabase
+      .from('providers')
+      .select('name, at_company_id')
+      .not('at_company_id', 'is', null)
+    const providerByAt = new Map(
+      (providers ?? []).map((row) => [String(row.at_company_id), asString(row.name)])
+    )
+
     const mapped = []
     for (const row of rows) {
       const atId = asUuid(row.id)
@@ -109,15 +117,25 @@ export async function runContractSync() {
       const marcoId = asUuid(row.marco_id) ?? asString(row.marco_logical_id)
       const linkedTariff = rateId ? tariffByAt.get(rateId) : undefined
       const atStatus = asString(row.status ?? row.estado).toLowerCase()
+      const providerAtId = asUuid(row.provider_id)
+      const electricity = nested(row, 'electricity_data')
+      const gas = nested(row, 'gas_data')
       mapped.push({
         at_contract_id: atId,
         cliente_id: atClientId ? clientByAt.get(atClientId) ?? null : null,
         client_name: clientName(row),
         cups: pickCups(row),
         tipo: pickTipo(row),
-        compania: asString(row.compania ?? row.company ?? row.provider_name) || 'AT',
+        compania:
+          asString(row.compania ?? row.company ?? row.provider_name) ||
+          (providerAtId ? providerByAt.get(providerAtId) : '') ||
+          'AT',
         tarifa:
-          asString(row.tarifa ?? row.rate_name ?? row.tariff_name) || linkedTariff?.name || 'Tarifa AT',
+          asString(row.tarifa ?? row.rate_name ?? row.tariff_name) ||
+          asString(electricity.rate_name ?? electricity.tariff_name) ||
+          asString(gas.rate_name ?? gas.tariff_name) ||
+          linkedTariff?.name ||
+          'Tarifa AT',
         tipo_precio: asString(row.tipo_precio) || null,
         consumo_anual: asNumber(row.consumo_anual) ?? 0,
         estado: AT_STATUS_TO_ERP[atStatus] ?? 'PTE DE TRAMITACIÓN',

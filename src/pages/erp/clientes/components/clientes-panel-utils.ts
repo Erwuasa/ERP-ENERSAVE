@@ -1,9 +1,9 @@
 import type { ClienteArchivo } from "@/types/client"
 
 export const CLIENTES_TH =
-  "px-3 py-3 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-nowrap"
+  "px-2.5 py-2 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-nowrap"
 
-export const CLIENTES_TD = "px-3 py-4 align-top border-b border-brand-border/70"
+export const CLIENTES_TD = "px-2.5 py-2.5 align-middle border-b border-brand-border/70"
 
 export function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

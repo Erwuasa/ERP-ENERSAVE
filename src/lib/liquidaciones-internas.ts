@@ -6,6 +6,11 @@ import {
   type MarcoRetributivoRow,
 } from "./supabase/marco-retributivo"
 import { normalizeTipoClienteSegment } from "./contract-segment-rules"
+import {
+  formatCompaniaLabel,
+  normalizeCompaniaKey,
+  resolveCompaniaLogoKey,
+} from "./erp/compania-logos"
 
 export interface ProfileRow {
   id: string
@@ -45,6 +50,65 @@ export const LIQUIDACIONES_COMPANIA_FILTERS = [
   "Factorenergia",
 ] as const
 
+function isPlaceholderCompania(name: string | null | undefined): boolean {
+  const raw = name?.trim() ?? ""
+  if (!raw || raw === "—") return true
+  return normalizeCompaniaKey(raw) === "at"
+}
+
+export function matchesCompaniaFilter(compania: string, filter: string): boolean {
+  if (!filter || filter === "Todos") return true
+  if (isPlaceholderCompania(compania)) return false
+
+  const rowKey = resolveCompaniaLogoKey(compania)
+  const filterKey = resolveCompaniaLogoKey(filter)
+  if (rowKey && filterKey) return rowKey === filterKey
+
+  const rowNorm = normalizeCompaniaKey(compania)
+  const filterNorm = normalizeCompaniaKey(filter)
+  if (!rowNorm || !filterNorm) return false
+  return rowNorm === filterNorm || rowNorm.includes(filterNorm) || filterNorm.includes(rowNorm)
+}
+
+function inferCompaniaFromText(text: string): string | undefined {
+  const key = resolveCompaniaLogoKey(text)
+  if (key) return formatCompaniaLabel(key)
+  const compact = normalizeCompaniaKey(text)
+  if (compact.includes("factorenergia")) return "Factorenergia"
+  return undefined
+}
+
+export function resolveLiquidacionCompania(
+  contract: Contract | undefined,
+  settlement: Settlement,
+  marcoRows: MarcoRetributivoRow[] = []
+): string {
+  const fromContract = contract?.compania?.trim()
+  if (fromContract && !isPlaceholderCompania(fromContract)) return fromContract
+
+  if (contract?.marcoEntryId) {
+    const marco = marcoRows.find((row) => row.id === contract.marcoEntryId)
+    if (marco?.compania && !isPlaceholderCompania(marco.compania)) return marco.compania
+  }
+
+  if (contract?.tarifa) {
+    const marco = marcoRows.find(
+      (row) =>
+        row.tarifa === contract.tarifa &&
+        (!contract.tipo || row.tipo === contract.tipo) &&
+        !isPlaceholderCompania(row.compania)
+    )
+    if (marco?.compania) return marco.compania
+  }
+
+  return (
+    inferCompaniaFromText(settlement.descripcion) ||
+    inferCompaniaFromText(contract?.tarifa ?? "") ||
+    fromContract ||
+    "—"
+  )
+}
+
 function parseIsoDate(iso: string): Date {
   const [y, m, d] = iso.split("-").map(Number)
   return new Date(y, (m ?? 1) - 1, d ?? 1)
@@ -57,7 +121,10 @@ function inDateRange(dateIso: string, dateFrom: string, dateTo: string): boolean
 
 function findContractForSettlement(settlement: Settlement, contracts: Contract[]): Contract | undefined {
   if (settlement.contractId) {
-    return contracts.find((c) => c.id === settlement.contractId)
+    const byId = contracts.find((c) => c.id === settlement.contractId)
+    if (byId) return byId
+    const byAt = contracts.find((c) => c.atContractId === settlement.contractId)
+    if (byAt) return byAt
   }
   const desc = settlement.descripcion.toLowerCase()
   return contracts.find(
@@ -101,6 +168,7 @@ export function enrichSettlementRow(
   marcoRows: MarcoRetributivoRow[] = []
 ): LiquidacionInternaRow {
   const contract = findContractForSettlement(settlement, contracts)
+  const compania = resolveLiquidacionCompania(contract, settlement, marcoRows)
   const manager = contract
     ? profiles.find((p) => p.id === contract.comercialId)?.managerId
     : profiles.find((p) => p.id === settlement.comercialId)?.managerId
@@ -119,18 +187,22 @@ export function enrichSettlementRow(
     segmento: contract
       ? normalizeTipoClienteSegment({
           tipoCliente: contract.tipoCliente,
-          compania: contract.compania,
+          compania,
           clientName: contract.clientName,
           nif: contract.nif,
         })
       : settlement.tipo,
-    compania: contract?.compania ?? "—",
+    compania,
     tarifa: contract?.tarifa ?? "—",
     fechaActivacion: contract?.createdAt ?? settlement.createdAt,
     comision:
       contract != null
-        ? resolveComisionComercialFromContract(contract, profiles, formatCurrency, marcoRows) ??
-          settlement.montoExterno
+        ? resolveComisionComercialFromContract(
+            { ...contract, compania },
+            profiles,
+            formatCurrency,
+            marcoRows
+          ) ?? settlement.montoExterno
         : settlement.montoExterno,
     comercialId: settlement.comercialId,
     comercialName: settlement.comercialName,
@@ -187,8 +259,8 @@ export function filterLiquidacionRows(
       if (!isRetrocomisionSettlement(row.settlement)) return false
     }
 
-    if (options.compania !== "Todos") {
-      if (!row.compania.toLowerCase().includes(options.compania.toLowerCase())) return false
+    if (options.compania !== "Todos" && !matchesCompaniaFilter(row.compania, options.compania)) {
+      return false
     }
 
     if (options.search.trim()) {
@@ -202,6 +274,18 @@ export function filterLiquidacionRows(
     }
     return true
   })
+}
+
+export function countLiquidacionRowsByCompania(
+  rows: LiquidacionInternaRow[],
+  options: Omit<Parameters<typeof filterLiquidacionRows>[1], "compania">
+): Record<string, number> {
+  return Object.fromEntries(
+    LIQUIDACIONES_COMPANIA_FILTERS.map((filter) => [
+      filter,
+      filterLiquidacionRows(rows, { ...options, compania: filter }).length,
+    ])
+  )
 }
 
 export function sumComisionRows(rows: LiquidacionInternaRow[]): number {
