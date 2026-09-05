@@ -34,6 +34,9 @@ import {
   matchesCompaniaFilter,
 } from "@/lib/erp/comercializadoras-catalog"
 import { isContractPendingTramitacionReview } from "@/lib/contratos-tramitacion-notifications"
+import { compareContractsByLastModified } from "@/lib/contrato-historial"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
+import { updateTeamContract } from "@/lib/supabase/contracts"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 
 type Options = {
@@ -48,6 +51,8 @@ type Options = {
   onOpenNewContract?: () => void
   highlightContractId?: string | null
   userFilterId?: string
+  activeUserId?: string
+  activeUserName?: string
   reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
 }
@@ -64,6 +69,8 @@ export function useContratosPanel({
   onOpenNewContract,
   highlightContractId,
   userFilterId = "all",
+  activeUserId = "",
+  activeUserName = "",
   reviewedContractIds,
   tarifaRecommendations,
 }: Options) {
@@ -92,8 +99,44 @@ export function useContratosPanel({
   const updateContract = (id: string, field: keyof Contract & string, value: unknown) => {
     if (field === "estado" && !canEditEstado) return
     setContracts((prev) =>
-      prev.map((item) => (item.id !== id ? item : { ...item, [field]: value }))
+      prev.map((item) =>
+        item.id !== id
+          ? item
+          : {
+              ...item,
+              [field]: value,
+              ...(field === "estado" ? { updatedAt: new Date().toISOString() } : {}),
+            }
+      )
     )
+  }
+
+  async function persistEstadoChange(contract: Contract, nextEstado: ContractEstado) {
+    const previousEstado = normalizeContractEstado(contract.estado)
+    updateContract(contract.id, "estado", nextEstado)
+    setEditingEstadoId(null)
+
+    if (!isSupabaseConfigured() || !activeUserId) return
+
+    const result = await updateTeamContract(
+      contract.id,
+      { estado: nextEstado },
+      {
+        audit: {
+          autorId: activeUserId,
+          autorNombre: activeUserName || "Usuario",
+          estadoAnterior: previousEstado,
+        },
+      }
+    )
+
+    if (result.ok === false) {
+      updateContract(contract.id, "estado", previousEstado)
+      toast.error(result.message)
+      return
+    }
+
+    setContracts((prev) => prev.map((item) => (item.id === contract.id ? result.data : item)))
   }
 
   const { renderEditableCell } = useEditableCell<Contract>(updateContract)
@@ -107,8 +150,7 @@ export function useContratosPanel({
           value={estado}
           autoFocus
           onChange={(e) => {
-            updateContract(c.id, "estado", e.target.value as ContractEstado)
-            setEditingEstadoId(null)
+            void persistEstadoChange(c, e.target.value as ContractEstado)
           }}
           onBlur={() => setEditingEstadoId(null)}
           className="mx-auto block w-full max-w-full rounded-md border border-cyan-500 bg-brand-panel p-1.5 text-[10px] font-mono text-brand-text outline-none"
@@ -287,7 +329,10 @@ export function useContratosPanel({
     ]
   )
 
-  const visibleRows = filtered
+  const visibleRows = useMemo(() => {
+    if (contractsListFilter !== "ultima_modificacion") return filtered
+    return [...filtered].sort(compareContractsByLastModified)
+  }, [filtered, contractsListFilter])
 
   function handleExportExcel() {
     toast.success(`Exportados ${exportContractsToExcel(filtered)} contratos a Excel`)

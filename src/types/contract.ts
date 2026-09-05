@@ -18,6 +18,8 @@ export interface Contract {
   comercialId: string
   comercialName: string
   createdAt: string
+  /** ISO timestamp de la última modificación persistida (updated_at en BD). */
+  updatedAt?: string
   fechaBaja?: string
   retrocomisionClawback?: number
   atr?: string

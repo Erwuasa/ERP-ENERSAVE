@@ -11,6 +11,7 @@ export type ContractEstadoKpiFilter = (typeof CONTRACT_ESTADO_KPI_FILTERS)[numbe
 
 export type ContractsListFilter =
   | "all"
+  | "ultima_modificacion"
   | "renovacion_proxima"
   | "con_recomendacion"
   | "borrador"
@@ -68,6 +69,7 @@ export function matchesContractEstadoKpiFilter(
 ): boolean {
   if (
     filter === "all" ||
+    filter === "ultima_modificacion" ||
     filter === "renovacion_proxima" ||
     filter === "con_recomendacion" ||
     filter === "borrador" ||
@@ -111,6 +113,7 @@ export function countContractsByEstadoKpi(
 
 export function contractsListFilterLabel(filter: ContractsListFilter): string {
   if (filter === "all") return ""
+  if (filter === "ultima_modificacion") return " · última modificación"
   if (filter === "renovacion_proxima") return " · renovación próxima"
   if (filter === "con_recomendacion") return " · con recomendación"
   if (filter === "borrador") return " · borrador"

@@ -91,6 +91,7 @@ export function ContratosPanelToolbar({
             defaultValue="all"
             options={[
               { id: "all", label: "Todos" },
+              { id: "ultima_modificacion", label: "Última modificación" },
               { id: "renovacion_proxima", label: "Renovación próxima" },
               ...(showTarifaRecommendations
                 ? [{ id: "con_recomendacion" as const, label: "Con recomendación" }]
