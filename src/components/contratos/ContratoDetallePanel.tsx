@@ -19,6 +19,8 @@ import { ContratoDetalleTabComisiones } from "@/components/contratos/tabs/Contra
 import { ContratoDetalleTabFechas } from "@/components/contratos/tabs/ContratoDetalleTabFechas"
 import { ContratoDetalleTabDocumentos } from "@/components/contratos/tabs/ContratoDetalleTabDocumentos"
 import { ContratoDetalleTabHistorial } from "@/components/contratos/tabs/ContratoDetalleTabHistorial"
+import { useAtContractNotes } from "@/hooks/use-at-contract-notes"
+import type { AtContractNote } from "@/lib/supabase/at-contract-notes"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 
 const BACKDROP_TRANSITION = { duration: 0.18, ease: [0.4, 0, 0.2, 1] as const }
@@ -47,6 +49,10 @@ function renderActiveTab(
     activeUserId: string
     activeUserName: string
     onContractUpdated: (contract: Contract) => void
+    atStatusNote?: string
+    atIncidentAt?: string
+    atNotes?: AtContractNote[]
+    atNotesLoading?: boolean
   }
 ) {
   const {
@@ -60,7 +66,15 @@ function renderActiveTab(
   } = options
   switch (tab) {
     case "incidencias":
-      return <ContratoDetalleTabIncidencias />
+      return (
+        <ContratoDetalleTabIncidencias
+          contract={contract}
+          statusNote={options.atStatusNote}
+          incidentAt={options.atIncidentAt}
+          notes={options.atNotes}
+          loading={options.atNotesLoading}
+        />
+      )
     case "contrato":
       return <ContratoDetalleTabContrato contract={contract} comercialEmail={comercialEmail} />
     case "cliente":
@@ -114,6 +128,13 @@ export function ContratoDetallePanel({
   const [activeTab, setActiveTab] = useState<ContratoDetalleTab>("contrato")
   const [isPresent, setIsPresent] = useState(true)
   const displayId = formatContractDisplayId(contract.id)
+  const atExtras = useAtContractNotes({
+    atContractId: contract.atContractId,
+    contratoId: contract.id,
+    initialNotes: contract.atNotes,
+    initialStatusNote: contract.atStatusNote,
+    initialIncidentAt: contract.atIncidentAt,
+  })
 
   useEffect(() => {
     setIsPresent(true)
@@ -217,6 +238,10 @@ export function ContratoDetallePanel({
                   activeUserId,
                   activeUserName,
                   onContractUpdated,
+                  atStatusNote: atExtras.statusNote,
+                  atIncidentAt: atExtras.incidentAt,
+                  atNotes: atExtras.notes,
+                  atNotesLoading: atExtras.loading,
                 })}
               </main>
               <ContratoNotasPanel
@@ -224,6 +249,8 @@ export function ContratoDetallePanel({
                 estadoContrato={contract.estado}
                 activeUserId={activeUserId}
                 activeUserName={activeUserName}
+                atNotes={atExtras.notes}
+                atNotesLoading={atExtras.loading}
               />
             </div>
           </motion.aside>
