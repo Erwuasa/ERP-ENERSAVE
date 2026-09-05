@@ -196,17 +196,56 @@ export function resolveContractTarifa(row: Row): string {
   )
 }
 
+function mapObjectRows(raw: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+}
+
 function mapAtNotes(raw: unknown): Contract["atNotes"] {
-  if (!Array.isArray(raw)) return undefined
-  const notes = raw
-    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
-    .map((note) => ({
-      id: str(note.id),
-      note: str(note.note) ?? "",
-      createdAt: str(note.created_at ?? note.createdAt),
-      authorSide: str(note.author_side ?? note.authorSide),
-    }))
+  const notes = mapObjectRows(raw).map((note) => ({
+    id: str(note.id),
+    note: str(note.note) ?? "",
+    createdAt: str(note.created_at ?? note.createdAt),
+    authorSide: str(note.author_side ?? note.authorSide),
+  }))
   return notes.length > 0 ? notes : undefined
+}
+
+function mapAtEvents(raw: unknown): Contract["atEvents"] {
+  const events = mapObjectRows(raw).map((event) => ({
+    id: str(event.id),
+    type: str(event.type),
+    title: str(event.title),
+    fromStatus: str(event.from_status ?? event.fromStatus),
+    toStatus: str(event.to_status ?? event.toStatus),
+    actor: str(event.actor),
+    createdAt: str(event.created_at ?? event.createdAt),
+  }))
+  return events.length > 0 ? events : undefined
+}
+
+function mapAtDocuments(raw: unknown): Contract["atDocuments"] {
+  const documents = mapObjectRows(raw).map((doc) => ({
+    id: str(doc.id),
+    name: str(doc.name) ?? "Documento AT",
+    type: str(doc.type),
+    url: str(doc.url),
+    size: str(doc.size),
+    mime: str(doc.mime),
+    createdAt: str(doc.created_at ?? doc.createdAt),
+  }))
+  return documents.length > 0 ? documents : undefined
+}
+
+function mapAtEmails(raw: unknown): Contract["atEmails"] {
+  const emails = mapObjectRows(raw).map((email) => ({
+    id: str(email.id),
+    subject: str(email.subject),
+    to: str(email.to),
+    status: str(email.status),
+    createdAt: str(email.created_at ?? email.createdAt),
+  }))
+  return emails.length > 0 ? emails : undefined
 }
 
 export function mapRowToContract(
@@ -265,6 +304,9 @@ export function mapRowToContract(
     atStatusNote: str(row.at_status_note) ?? str(payload.status_note),
     atIncidentAt: str(row.at_incident_at) ?? str(payload.incident_at),
     atNotes: mapAtNotes(row.at_notes),
+    atEvents: mapAtEvents(row.at_events),
+    atDocuments: mapAtDocuments(row.at_documents),
+    atEmails: mapAtEmails(row.at_emails),
     documentos: Array.isArray(row.documentos)
       ? (row.documentos as Contract["documentos"])
       : undefined,

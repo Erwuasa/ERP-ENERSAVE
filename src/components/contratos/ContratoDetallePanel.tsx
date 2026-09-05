@@ -19,7 +19,12 @@ import { ContratoDetalleTabFechas } from "@/components/contratos/tabs/ContratoDe
 import { ContratoDetalleTabDocumentos } from "@/components/contratos/tabs/ContratoDetalleTabDocumentos"
 import { ContratoDetalleTabHistorial } from "@/components/contratos/tabs/ContratoDetalleTabHistorial"
 import { useAtContractNotes } from "@/hooks/use-at-contract-notes"
-import type { AtContractNote } from "@/lib/supabase/at-contract-notes"
+import type {
+  AtContractDocument,
+  AtContractEmail,
+  AtContractEvent,
+  AtContractNote,
+} from "@/lib/supabase/at-contract-notes"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 
 const PANEL_MS = 90
@@ -51,6 +56,9 @@ function renderActiveTab(
     atStatusNote?: string
     atIncidentAt?: string
     atNotes?: AtContractNote[]
+    atEvents?: AtContractEvent[]
+    atDocuments?: AtContractDocument[]
+    atEmails?: AtContractEmail[]
     atNotesLoading?: boolean
   }
 ) {
@@ -104,10 +112,19 @@ function renderActiveTab(
           activeUserId={activeUserId}
           activeUserName={activeUserName}
           onContractUpdated={onContractUpdated}
+          atDocuments={options.atDocuments}
+          atDocumentsLoading={options.atNotesLoading}
         />
       )
     case "historial":
-      return <ContratoDetalleTabHistorial contract={contract} />
+      return (
+        <ContratoDetalleTabHistorial
+          contratoId={contract.id}
+          events={options.atEvents}
+          emails={options.atEmails}
+          loading={options.atNotesLoading}
+        />
+      )
     default:
       return null
   }
@@ -133,6 +150,9 @@ export function ContratoDetallePanel({
     atContractId: contract.atContractId,
     contratoId: contract.id,
     initialNotes: contract.atNotes,
+    initialEvents: contract.atEvents,
+    initialDocuments: contract.atDocuments,
+    initialEmails: contract.atEmails,
     initialStatusNote: contract.atStatusNote,
     initialIncidentAt: contract.atIncidentAt,
   })
@@ -256,6 +276,9 @@ export function ContratoDetallePanel({
               atStatusNote: atExtras.statusNote,
               atIncidentAt: atExtras.incidentAt,
               atNotes: atExtras.notes,
+              atEvents: atExtras.events,
+              atDocuments: atExtras.documents,
+              atEmails: atExtras.emails,
               atNotesLoading: atExtras.loading,
             })}
           </main>

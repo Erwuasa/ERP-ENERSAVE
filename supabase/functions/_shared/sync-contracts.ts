@@ -8,6 +8,7 @@ import {
   getSupabaseAdmin,
   type JsonRecord,
 } from './at-api.ts'
+import { mapAtDocuments, mapAtEmails, mapAtEvents, mapAtNotes } from './at-contract-children.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
 
@@ -66,17 +67,6 @@ function clientName(row: JsonRecord): string {
   return joined || asString(row.client_name) || 'Cliente AT'
 }
 
-function mapNotes(rows: JsonRecord[]) {
-  return rows.map((row) => ({
-    id: asString(row.id) || null,
-    note: asString(row.note ?? row.text ?? row.body),
-    is_private: row.is_private === true,
-    created_at: asString(row.created_at) || null,
-    created_by: asString(row.created_by) || null,
-    author_side: asString(row.author_side) || null,
-    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : null,
-  }))
-}
 
 export async function runContractSync(ctx?: AtSyncContext) {
   const ids = resolveAtSyncIds(ctx, ctx?.event ?? '')
@@ -112,6 +102,9 @@ export async function runContractSync(ctx?: AtSyncContext) {
     let rows: JsonRecord[] = []
     let pagesFetched = 0
     let notes: JsonRecord[] | null = null
+    let events: JsonRecord[] | null = null
+    let documents: JsonRecord[] | null = null
+    let emails: JsonRecord[] | null = null
 
     if (incrementalId) {
       const record = await fetchAtRecord(`/contracts/${incrementalId}`)
@@ -119,7 +112,12 @@ export async function runContractSync(ctx?: AtSyncContext) {
         return { stats: { mode: 'incremental', missing: true, at_contract_id: incrementalId } }
       }
       rows = [record]
-      notes = await fetchAtChildList(`/contracts/${incrementalId}/notes`)
+      ;[notes, events, documents, emails] = await Promise.all([
+        fetchAtChildList(`/contracts/${incrementalId}/notes`),
+        fetchAtChildList(`/contracts/${incrementalId}/events`),
+        fetchAtChildList(`/contracts/${incrementalId}/documents`),
+        fetchAtChildList(`/contracts/${incrementalId}/emails`),
+      ])
     } else {
       const listed = await fetchAllPages('/contracts')
       rows = listed.rows
@@ -216,7 +214,10 @@ export async function runContractSync(ctx?: AtSyncContext) {
         at_synced_at: syncedAt,
         at_status_note: asString(row.status_note ?? row.incident_reason) || null,
         at_incident_at: asString(row.incident_at) || null,
-        ...(notes ? { at_notes: mapNotes(notes) } : {}),
+        ...(notes ? { at_notes: mapAtNotes(notes) } : {}),
+        ...(events ? { at_events: mapAtEvents(events) } : {}),
+        ...(documents ? { at_documents: mapAtDocuments(documents) } : {}),
+        ...(emails ? { at_emails: mapAtEmails(emails) } : {}),
         at_payload: row,
         metadata: {
           at: true,
@@ -256,6 +257,9 @@ export async function runContractSync(ctx?: AtSyncContext) {
         mode: incrementalId ? 'incremental' : 'full',
         at_contract_id: incrementalId,
         notes_synced: notes?.length ?? null,
+        events_synced: events?.length ?? null,
+        documents_synced: documents?.length ?? null,
+        emails_synced: emails?.length ?? null,
         pages_fetched: pagesFetched,
         rows_from_at: rows.length,
         rows_mapped: mapped.length,

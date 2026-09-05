@@ -10,7 +10,7 @@ serveAtSyncFunction({
   notas: [
     'Estados AT se mapean a los estados ERP.',
     'cliente_id / tariff_id / marco se enlazan por at_* ids si existen.',
-    'Si el webhook trae id: sync de ese contrato + GET /contracts/{id}/notes.',
+    'Si el webhook trae id: sync de ese contrato + notes/events/documents/emails.',
     'Campos extra quedan en at_payload y metadata.',
   ],
   runSync: runContractSync,

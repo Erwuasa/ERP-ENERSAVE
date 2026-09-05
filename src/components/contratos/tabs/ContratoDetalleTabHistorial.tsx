@@ -1,161 +1,163 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import type { AtContractEmail, AtContractEvent } from "@/lib/supabase/at-contract-notes"
 import {
-  Clock3,
-  FileText,
-  MessageSquare,
-  RefreshCw,
-  ShieldAlert,
-  Sparkles,
-} from "lucide-react"
-import type { Contract } from "@/types/contract"
-import {
-  formatHistorialDateTime,
-  getHistorialEventoIconClass,
-  type ContratoHistorialEvento,
-} from "@/lib/contrato-historial"
-import { fetchContratoHistorial } from "@/lib/supabase/contrato-historial"
-import { isSupabaseConfigured } from "@/lib/supabase/client"
+  fetchHistorialContrato,
+  type HistorialCambio,
+} from "@/lib/supabase/historial-cambios"
+import { ContratoDetalleSection } from "@/components/contratos/contrato-detalle-ui"
 
-interface ContratoDetalleTabHistorialProps {
-  contract: Contract
+type Props = {
+  contratoId: string
+  events?: AtContractEvent[]
+  emails?: AtContractEmail[]
+  loading?: boolean
 }
 
-function HistorialEventIcon({ tipo }: { tipo: ContratoHistorialEvento["tipo"] }) {
-  const className = "h-4 w-4"
-  switch (tipo) {
-    case "cambio_estado":
-      return <RefreshCw className={className} />
-    case "nota_interna":
-      return <MessageSquare className={className} />
-    case "documento_adjuntado":
-      return <FileText className={className} />
-    case "incidencia":
-      return <ShieldAlert className={className} />
-    case "contrato_creado":
-      return <Sparkles className={className} />
-    default:
-      return <Clock3 className={className} />
+type TimelineItem = {
+  key: string
+  source: "at" | "erp"
+  at: number
+  title: string
+  detail?: string
+  meta: string
+}
+
+const ERP_EVENT_LABEL: Record<string, string> = {
+  nota_interna: "Nota interna",
+  cambio_estado: "Cambio de estado",
+  documento_adjuntado: "Documento adjuntado",
+}
+
+function formatWhen(iso?: string): string {
+  if (!iso) return ""
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function eventTitle(event: AtContractEvent): string {
+  if (event.title?.trim()) return event.title
+  if (event.fromStatus || event.toStatus) {
+    return [event.fromStatus, event.toStatus].filter(Boolean).join(" → ")
   }
+  return event.type || "Evento AT"
 }
 
-export function ContratoDetalleTabHistorial({ contract }: ContratoDetalleTabHistorialProps) {
-  const [eventos, setEventos] = useState<ContratoHistorialEvento[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function ContratoDetalleTabHistorial({
+  contratoId,
+  events = [],
+  emails = [],
+  loading = false,
+}: Props) {
+  const [local, setLocal] = useState<HistorialCambio[]>([])
+  const [localLoading, setLocalLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
-    setIsLoading(true)
-    setError(null)
-
-    if (!isSupabaseConfigured()) {
-      setEventos([
-        {
-          id: `contrato-created-${contract.id}`,
-          tipo: "contrato_creado",
-          createdAt: contract.createdAt,
-          autorNombre: contract.comercialName || "Sistema",
-          titulo: "Contrato creado",
-          detalle: contract.clientName ? `Cliente: ${contract.clientName}` : undefined,
-        },
-      ])
-      setIsLoading(false)
-      return () => {
-        cancelled = true
-      }
-    }
-
-    void (async () => {
-      const result = await fetchContratoHistorial(contract)
+    setLocalLoading(true)
+    void fetchHistorialContrato(contratoId).then((result) => {
       if (cancelled) return
-      if (result.ok === false) {
-        setError(result.message)
-        setEventos([])
-      } else {
-        setEventos(result.data)
-      }
-      setIsLoading(false)
-    })()
-
+      setLocal(result.ok ? result.data : [])
+      setLocalLoading(false)
+    })
     return () => {
       cancelled = true
     }
-  }, [contract])
+  }, [contratoId])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-2 text-sm text-brand-subtext">
-        <RefreshCw className="h-4 w-4 animate-spin" />
-        Cargando historial…
-      </div>
-    )
-  }
+  const timeline = useMemo<TimelineItem[]>(() => {
+    const atItems = events.map((event, index) => ({
+      key: event.id ?? `at-${event.createdAt ?? index}`,
+      source: "at" as const,
+      at: event.createdAt ? Date.parse(event.createdAt) : 0,
+      title: eventTitle(event),
+      detail:
+        event.fromStatus || event.toStatus
+          ? [event.fromStatus, event.toStatus].filter(Boolean).join(" → ")
+          : event.type,
+      meta: ["AT / Helios", event.actor, formatWhen(event.createdAt)].filter(Boolean).join(" · "),
+    }))
 
-  if (error) {
-    return (
-      <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
-        No se pudo cargar el historial: {error}
-      </div>
-    )
-  }
+    const erpItems = local.map((item) => ({
+      key: item.id,
+      source: "erp" as const,
+      at: item.createdAt ? Date.parse(item.createdAt) : 0,
+      title: ERP_EVENT_LABEL[item.tipoEvento] ?? item.tipoEvento,
+      detail:
+        item.estadoAnterior || item.estadoNuevo
+          ? [item.estadoAnterior, item.estadoNuevo].filter(Boolean).join(" → ")
+          : item.motivo,
+      meta: [item.autorNombre, formatWhen(item.createdAt)].filter(Boolean).join(" · "),
+    }))
 
-  if (eventos.length === 0) {
-    return (
-      <div className="rounded-xl border border-brand-border bg-brand-panel/50 px-4 py-8 text-center text-sm text-brand-subtext">
-        Sin eventos registrados todavía.
-      </div>
-    )
-  }
+    return [...atItems, ...erpItems].sort((a, b) => b.at - a.at)
+  }, [events, local])
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-bold text-brand-text">Historial del contrato</h3>
-        <p className="text-xs text-brand-subtext mt-1">
-          Cambios de estado, notas internas, documentos e incidencias vinculadas, ordenados por
-          fecha.
-        </p>
-      </div>
+      <ContratoDetalleSection title="Timeline">
+        {loading || localLoading ? (
+          <p className="text-sm text-brand-subtext">Cargando historial…</p>
+        ) : timeline.length === 0 ? (
+          <p className="text-sm text-brand-subtext">
+            Sin eventos todavía. El historial de AT aparece al abrir un contrato AT.
+          </p>
+        ) : (
+          <ol className="space-y-2">
+            {timeline.map((item) => (
+              <li
+                key={item.key}
+                className={`rounded-lg border px-3 py-2 ${
+                  item.source === "at"
+                    ? "border-amber-500/25 bg-amber-500/5"
+                    : "border-cyan-500/25 bg-cyan-500/5"
+                }`}
+              >
+                <p className="text-[13px] font-semibold text-brand-text">{item.title}</p>
+                {item.detail ? (
+                  <p className="mt-0.5 text-[12px] text-brand-text/80">{item.detail}</p>
+                ) : null}
+                <p className="mt-1 text-[10px] font-mono text-brand-subtext">{item.meta}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </ContratoDetalleSection>
 
-      <ol className="relative space-y-0 border-l border-brand-border/80 ml-3">
-        {eventos.map((evento, index) => (
-          <li key={evento.id} className="relative pl-6 pb-6 last:pb-0">
-            <span
-              className={`absolute -left-[0.72rem] top-0 flex h-6 w-6 items-center justify-center rounded-full border ${getHistorialEventoIconClass(evento.tipo)}`}
-            >
-              <HistorialEventIcon tipo={evento.tipo} />
-            </span>
-
-            <div className="rounded-xl border border-brand-border/70 bg-brand-panel/60 px-4 py-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-brand-text">{evento.titulo}</p>
-                  <p className="text-[11px] text-brand-subtext mt-0.5">
-                    {evento.autorNombre}
-                    {index === 0 ? (
-                      <span className="ml-2 inline-flex rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
-                        Más reciente
-                      </span>
-                    ) : null}
-                  </p>
-                </div>
-                <time
-                  className="shrink-0 text-[11px] font-mono tabular-nums text-brand-subtext"
-                  dateTime={evento.createdAt}
-                >
-                  {formatHistorialDateTime(evento.createdAt)}
-                </time>
-              </div>
-
-              {evento.detalle ? (
-                <p className="mt-2 text-xs text-brand-text/90 whitespace-pre-wrap break-words">
-                  {evento.detalle}
+      <ContratoDetalleSection title="Emails AT">
+        {loading ? (
+          <p className="text-sm text-brand-subtext">Cargando emails de Helios…</p>
+        ) : emails.length === 0 ? (
+          <p className="text-sm text-brand-subtext">AT no ha devuelto emails de este contrato.</p>
+        ) : (
+          <ul className="space-y-2">
+            {emails.map((email, index) => (
+              <li
+                key={email.id ?? `email-${email.createdAt ?? index}`}
+                className="rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2"
+              >
+                <p className="text-[13px] font-semibold text-brand-text">
+                  {email.subject || "Email AT"}
                 </p>
-              ) : null}
-            </div>
-          </li>
-        ))}
-      </ol>
+                <p className="mt-0.5 text-[12px] text-brand-text/80">
+                  {[email.to, email.status].filter(Boolean).join(" · ") || "—"}
+                </p>
+                {email.createdAt ? (
+                  <p className="mt-1 text-[10px] font-mono text-brand-subtext">
+                    {formatWhen(email.createdAt)}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </ContratoDetalleSection>
     </div>
   )
 }
