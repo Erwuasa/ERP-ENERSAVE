@@ -39,7 +39,7 @@ export function AutofacturaDocument({ input }: { input: AutofacturaPdfInput }) {
       <Page size="A4" style={s.page}>
         <View style={s.headerRow}>
           <View>
-            <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", color: BRAND.verde }}>
+            <Text style={{ fontSize: 10, fontFamily: "SF Pro Display", fontWeight: "bold", color: BRAND.verde }}>
               ENERSAVE
             </Text>
             <Text style={s.title}>Autofactura de comisiones</Text>

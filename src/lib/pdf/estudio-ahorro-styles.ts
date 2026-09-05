@@ -1,4 +1,5 @@
 import { StyleSheet } from "@react-pdf/renderer"
+import { PDF_FONT_DISPLAY, PDF_FONT_TEXT } from "./register-sf-pro-pdf-fonts"
 
 export const BRAND = {
   azul: "#1B4A77",
@@ -15,7 +16,7 @@ export const pdfStyles = StyleSheet.create({
     paddingTop: 28,
     paddingBottom: 36,
     paddingHorizontal: 32,
-    fontFamily: "Helvetica",
+    fontFamily: PDF_FONT_TEXT,
     fontSize: 8,
     color: BRAND.texto,
     backgroundColor: BRAND.blanco,
@@ -28,7 +29,8 @@ export const pdfStyles = StyleSheet.create({
   },
   title: {
     fontSize: 16,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.azul,
     marginTop: 4,
   },
@@ -50,7 +52,8 @@ export const pdfStyles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 9,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.azul,
     marginBottom: 6,
     marginTop: 8,
@@ -81,14 +84,16 @@ export const pdfStyles = StyleSheet.create({
   },
   blockHeaderLabel: {
     fontSize: 7,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.azul,
     textTransform: "uppercase",
   },
   blockTarifaName: {
     fontSize: 7,
     color: BRAND.texto,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
   },
   logo: {
     width: 18,
@@ -112,7 +117,8 @@ export const pdfStyles = StyleSheet.create({
   },
   th: {
     fontSize: 6.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.gris,
     textTransform: "uppercase",
   },
@@ -137,7 +143,8 @@ export const pdfStyles = StyleSheet.create({
   },
   totalLabel: {
     fontSize: 7.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
   },
   invoiceCardsRow: {
     flexDirection: "row",
@@ -163,7 +170,8 @@ export const pdfStyles = StyleSheet.create({
   },
   invoiceTotal: {
     fontSize: 14,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     marginTop: 4,
   },
   invoiceTotalVerde: {
@@ -180,7 +188,8 @@ export const pdfStyles = StyleSheet.create({
   },
   savingsTitle: {
     fontSize: 18,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.blanco,
   },
   savingsSubtitle: {
@@ -205,14 +214,16 @@ export const pdfStyles = StyleSheet.create({
   },
   savingsCardLabel: {
     fontSize: 6.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.gris,
     textTransform: "uppercase",
     marginBottom: 4,
   },
   savingsCardValue: {
     fontSize: 16,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.texto,
   },
   savingsCardValueLarge: {
@@ -238,14 +249,16 @@ export const pdfStyles = StyleSheet.create({
   },
   conjuntoHeroLabel: {
     fontSize: 7,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.blanco,
     textTransform: "uppercase",
     opacity: 0.9,
   },
   conjuntoHeroValue: {
     fontSize: 24,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.blanco,
     marginTop: 4,
   },
@@ -268,13 +281,15 @@ export const pdfStyles = StyleSheet.create({
   },
   conjuntoTotalLabel: {
     fontSize: 6.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.gris,
     textTransform: "uppercase",
   },
   conjuntoTotalValue: {
     fontSize: 13,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.texto,
     marginTop: 3,
   },
@@ -297,7 +312,8 @@ export const pdfStyles = StyleSheet.create({
   },
   cupsListTh: {
     fontSize: 6.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.gris,
     textTransform: "uppercase",
   },
@@ -313,7 +329,8 @@ export const pdfStyles = StyleSheet.create({
   cupsColAhorro: { width: 78, textAlign: "right" },
   cupsCode: {
     fontSize: 7,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.texto,
   },
   cupsCliente: {
@@ -323,7 +340,8 @@ export const pdfStyles = StyleSheet.create({
   },
   cupsAhorro: {
     fontSize: 8.5,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.verde,
     textAlign: "right",
   },
@@ -344,12 +362,14 @@ export const pdfStyles = StyleSheet.create({
   },
   cupsListTotalLabel: {
     fontSize: 8,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.azul,
   },
   cupsListTotalValue: {
     fontSize: 11,
-    fontFamily: "Helvetica-Bold",
+    fontFamily: PDF_FONT_DISPLAY,
+    fontWeight: "bold",
     color: BRAND.verde,
     textAlign: "right",
   },

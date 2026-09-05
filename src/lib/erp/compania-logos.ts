@@ -16,7 +16,7 @@ export const COMPANIA_LOGO_KEYS = [
 
 export type CompaniaLogoKey = (typeof COMPANIA_LOGO_KEYS)[number]
 
-const COMPANIA_LABELS: Record<CompaniaLogoKey, string> = {
+export const COMPANIA_LABELS: Record<CompaniaLogoKey, string> = {
   endesa: "Endesa",
   repsol: "Repsol",
   naturgy: "Naturgy",

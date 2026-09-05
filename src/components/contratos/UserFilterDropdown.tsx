@@ -54,7 +54,7 @@ export function UserFilterDropdown({
   }
 
   return (
-    <div ref={anchorRef} className="relative shrink-0 min-w-[220px] max-w-xs">
+    <div ref={anchorRef} className="relative w-[11.5rem] shrink-0">
       <FilterTriggerButton
         label="Usuario"
         valueLabel={valueLabel}
@@ -63,7 +63,9 @@ export function UserFilterDropdown({
         onToggle={() => setOpenState(!open)}
         onClear={() => onChange(DEFAULT_VALUE)}
         icon={<Users className="w-4 h-4 text-brand-subtext shrink-0" />}
-        minWidthClass="min-w-[220px]"
+        minWidthClass="min-w-0"
+        maxWidthClass="max-w-full"
+        className="w-full"
         clearAriaLabel="Quitar filtro de usuario"
       />
 
@@ -72,8 +74,8 @@ export function UserFilterDropdown({
         onClose={() => setOpenState(false)}
         anchorRef={anchorRef}
         align="left"
-        maxWidth={320}
-        className="w-[min(100vw-1rem,320px)] max-h-[360px] overflow-y-auto bg-brand-panel border border-brand-border rounded-xl shadow-lg py-1"
+        maxWidth={288}
+        className="w-[min(100vw-1rem,288px)] max-h-[360px] overflow-y-auto bg-brand-panel border border-brand-border rounded-xl shadow-lg py-1"
       >
         <button
           type="button"

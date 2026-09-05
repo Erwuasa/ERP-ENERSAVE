@@ -169,7 +169,7 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
             <HardDrive className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-xl font-extrabold text-brand-text tracking-tight">FTP</h2>
+            <h2 className="text-xl font-extrabold text-brand-text tracking-tight font-display">FTP</h2>
             <p className="text-xs text-brand-subtext mt-1">
               {ftp.viewingAt
                 ? "Archivo común de AT Enterprise. Solo lectura, sin sincronizar."

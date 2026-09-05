@@ -127,7 +127,7 @@ function KpiCard({
         </p>
       )}
       <div className="mt-auto">
-        <p className="text-2xl font-black font-mono text-brand-text leading-none">
+        <p className="text-2xl font-black font-display text-brand-text leading-none">
           {value.toLocaleString("es-ES")}
         </p>
         <p className="text-[10px] font-mono text-brand-subtext mt-1">{suffix}</p>
@@ -217,7 +217,7 @@ export function SuperadminDashboard({
   return (
     <div className="space-y-6 animate-fade-in">
       <header className="space-y-1">
-        <h1 className="text-xl font-extrabold text-brand-text tracking-tight">
+        <h1 className="text-xl font-extrabold text-brand-text tracking-tight font-display">
           Bienvenido, {welcomeName}
         </h1>
         <p className="text-xs font-mono text-brand-subtext">

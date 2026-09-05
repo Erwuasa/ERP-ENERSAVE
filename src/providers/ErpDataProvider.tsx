@@ -196,7 +196,7 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       const errors: string[] = []
 
       function unwrap<T>(result: SupabaseResult<T[]>, table: string): T[] | null {
-        if (result.ok === true) return result.data.length > 0 ? result.data : null
+        if (result.ok === true) return result.data
         const failure = result as SupabaseFailure
         if (failure.reason === "table_missing") missing.push(table)
         else errors.push(`${table}: ${failure.message}`)

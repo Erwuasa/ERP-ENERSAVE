@@ -1,4 +1,5 @@
 import { pdf } from "@react-pdf/renderer"
+import { registerSfProPdfFonts } from "./register-sf-pro-pdf-fonts"
 import { AutofacturaDocument, type AutofacturaPdfInput } from "./autofactura-document"
 import type { ErpComercial } from "../../types/erp-comercial"
 import type { LiquidacionMensual } from "../liquidaciones-mensuales"
@@ -25,6 +26,7 @@ export async function generateAutofacturaPdf(
     ivaPct: options.ivaPct,
     proximaFechaEmisionLabel: options.proximaFechaEmisionLabel,
   }
+  registerSfProPdfFonts()
   const instance = pdf(<AutofacturaDocument input={input} />)
   return instance.toBlob()
 }

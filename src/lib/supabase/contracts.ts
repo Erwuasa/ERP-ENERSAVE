@@ -246,14 +246,27 @@ export async function listTeamContracts(): Promise<TeamContractResult<Contract[]
   const resolved = resolveClient()
   if (resolved.ok === false) return resolved
 
-  const { data, error } = await resolved.client
-    .from(TABLE)
-    .select("*")
-    .order("created_at", { ascending: false })
+  const PAGE_SIZE = 500
+  const allRows: Contract[] = []
+  let from = 0
 
-  if (error) return toFailure(error)
+  while (true) {
+    const { data, error } = await resolved.client
+      .from(TABLE)
+      .select("*")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1)
 
-  return { ok: true, data: (data ?? []).map((row) => mapRowToContract(row as Row)) }
+    if (error) return toFailure(error)
+
+    const batch = (data ?? []).map((row) => mapRowToContract(row as Row))
+    allRows.push(...batch)
+
+    if (batch.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return { ok: true, data: allRows }
 }
 
 export async function updateTeamContract(

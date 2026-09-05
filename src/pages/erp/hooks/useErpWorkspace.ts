@@ -93,9 +93,14 @@ export function useErpWorkspace() {
   );
 
   useEffect(() => {
-    if (activeRole !== 'superadmin' || superadminViewMode !== 'tramitacion') return;
-    const disallowedTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
-    if (disallowedTabs.includes(currentMenuTab)) {
+    const commercialOnlyTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
+    if (!commercialOnlyTabs.includes(currentMenuTab)) return;
+
+    const blocked =
+      activeRole === 'tramitacion' ||
+      (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
+
+    if (blocked) {
       navigateToTab('erp', 'Dashboard');
     }
   }, [activeRole, superadminViewMode, currentMenuTab, navigateToTab]);

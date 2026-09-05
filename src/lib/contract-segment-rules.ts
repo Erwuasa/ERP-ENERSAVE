@@ -1,3 +1,5 @@
+import { isContractActivado } from "./contract-estado"
+
 export type TipoClienteSegment = "residencial" | "pyme" | "autonomo"
 
 export interface ContractSegmentContext {
@@ -103,30 +105,35 @@ export function computeRenewalSchedule(
   }
 }
 
+/** Fecha ISO (YYYY-MM-DD) de activación para contratos ACTIVADO. */
+export function getContractActivationDate(contract: {
+  estado?: string
+  createdAt?: string
+  estadoEfectivoDesde?: string
+}): string | null {
+  if (!contract.estado || !isContractActivado(contract.estado)) return null
+  const raw = (contract.estadoEfectivoDesde ?? contract.createdAt ?? "").trim()
+  if (!raw) return null
+  const iso = raw.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null
+  return iso
+}
+
 export function getRenewalSchedule(
   contract: ContractSegmentContext & {
+    estado?: string
     createdAt?: string
+    estadoEfectivoDesde?: string
     fechaRenovacion?: string
     diasRenovacion?: number
     estadoRenovacion?: string
   },
   referenceDate = new Date()
 ): RenewalSchedule {
-  if (!aplicaRenovacionAnual(contract)) {
+  const activationDate = getContractActivationDate(contract)
+  if (!activationDate) {
     return { estadoRenovacion: "No aplica" }
   }
 
-  if (contract.createdAt) {
-    return computeRenewalSchedule(contract.createdAt, referenceDate)
-  }
-
-  return {
-    fechaRenovacion: contract.fechaRenovacion,
-    diasRenovacion: contract.diasRenovacion,
-    estadoRenovacion:
-      contract.estadoRenovacion === "Renovacion proxima" ||
-      (contract.diasRenovacion != null && contract.diasRenovacion <= RENOVACION_PROXIMA_DIAS)
-        ? "Renovacion proxima"
-        : "Al día",
-  }
+  return computeRenewalSchedule(activationDate, referenceDate)
 }

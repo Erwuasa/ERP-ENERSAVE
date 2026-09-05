@@ -98,7 +98,7 @@ export function EnersaveLogo({
         />
       </svg>
       {withText && (
-        <span className="mt-3 text-2xl font-extrabold tracking-widest text-[#1e3a8a] dark:text-[#60a5fa] font-sans">
+        <span className="mt-3 text-2xl font-extrabold tracking-widest text-[#1e3a8a] dark:text-[#60a5fa] font-display">
           ENERSAVE
         </span>
       )}

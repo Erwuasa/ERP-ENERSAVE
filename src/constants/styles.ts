@@ -5,6 +5,7 @@
 
 export const fonts = {
   sans: "font-sans",
+  display: "font-display",
   mono: "font-mono",
 } as const
 
@@ -35,8 +36,8 @@ export const shadows = {
 } as const
 
 export const labels = {
-  field: "block text-[10px] font-mono uppercase text-brand-subtext",
-  badge: "text-[10px] font-mono font-bold text-brand-subtext tabular-nums",
+  field: "block text-[10px] font-sans uppercase text-brand-subtext tracking-wide",
+  badge: "text-[10px] font-sans font-bold text-brand-subtext tabular-nums",
 } as const
 
 export const inputs = {

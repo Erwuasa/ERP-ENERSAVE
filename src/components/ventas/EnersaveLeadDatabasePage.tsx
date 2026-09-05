@@ -129,7 +129,7 @@ export function EnersaveLeadDatabasePage() {
     <div className="space-y-4 animate-fade-in max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-black text-brand-text tracking-tight flex items-center gap-2">
+          <h2 className="text-lg font-black text-brand-text tracking-tight font-display flex items-center gap-2">
             <Database className="w-5 h-5 text-cyan-500" />
             Base de datos EnerSave
           </h2>

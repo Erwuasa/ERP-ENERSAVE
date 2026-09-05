@@ -17,7 +17,7 @@ export function ClientesKpiStrip({ total, particulares, pymes, contratosActivos 
             <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
               Clientes
             </p>
-            <p className="text-2xl font-black font-mono text-blue-600 dark:text-blue-400 mt-1">
+            <p className="text-2xl font-black font-display text-blue-600 dark:text-blue-400 mt-1">
               {total}
             </p>
           </div>
@@ -32,7 +32,7 @@ export function ClientesKpiStrip({ total, particulares, pymes, contratosActivos 
             <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
               Particulares
             </p>
-            <p className="text-2xl font-black font-mono text-sky-500 mt-1">{particulares}</p>
+            <p className="text-2xl font-black font-display text-sky-500 mt-1">{particulares}</p>
           </div>
           <User className="w-8 h-8 text-sky-400/80 shrink-0" />
         </div>
@@ -46,7 +46,7 @@ export function ClientesKpiStrip({ total, particulares, pymes, contratosActivos 
             <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
               PYMEs
             </p>
-            <p className="text-2xl font-black font-mono text-orange-500 mt-1">{pymes}</p>
+            <p className="text-2xl font-black font-display text-orange-500 mt-1">{pymes}</p>
           </div>
           <Building2 className="w-8 h-8 text-orange-500/80 shrink-0" />
         </div>
@@ -59,7 +59,7 @@ export function ClientesKpiStrip({ total, particulares, pymes, contratosActivos 
             <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
               Contratos activos
             </p>
-            <p className="text-2xl font-black font-mono text-emerald-500 mt-1">
+            <p className="text-2xl font-black font-display text-emerald-500 mt-1">
               {contratosActivos}
             </p>
           </div>

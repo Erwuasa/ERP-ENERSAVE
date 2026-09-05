@@ -14,7 +14,7 @@ export function MiDiaHeader({ actor, pendientes, slaCritico }: MiDiaHeaderProps)
   return (
     <header className="space-y-1">
       <div className="flex items-start justify-between gap-4">
-        <h2 className="text-lg sm:text-xl font-black text-brand-text tracking-tight">
+        <h2 className="text-lg sm:text-xl font-black text-brand-text tracking-tight font-display">
           {saludo}, {firstName}
         </h2>
         <p className="text-sm text-brand-subtext capitalize shrink-0 text-right">

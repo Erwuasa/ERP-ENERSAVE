@@ -39,7 +39,7 @@ export function SlaAvisosPage({ actor, profiles, onOpenFicha }: SlaAvisosPagePro
   return (
     <div className="space-y-4 animate-fade-in">
       <div>
-        <h2 className="text-lg font-black text-brand-text tracking-tight">Avisos SLA</h2>
+        <h2 className="text-lg font-black text-brand-text tracking-tight font-display">Avisos SLA</h2>
         <p className="text-[10px] font-mono text-brand-subtext uppercase tracking-wider">
           /ventas/avisos-sla
         </p>

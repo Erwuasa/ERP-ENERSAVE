@@ -36,7 +36,7 @@ export function EstadoFilterDropdown({ value, onChange, counts, onOpenChange }: 
   }
 
   return (
-    <div ref={anchorRef} className="relative shrink-0">
+    <div ref={anchorRef} className="relative w-[9.5rem] shrink-0">
       <FilterTriggerButton
         label="Estado"
         valueLabel={activeMeta.label}
@@ -45,6 +45,9 @@ export function EstadoFilterDropdown({ value, onChange, counts, onOpenChange }: 
         onToggle={() => setOpenState(!open)}
         onClear={() => onChange(DEFAULT_VALUE)}
         icon={<SlidersHorizontal className="w-4 h-4 text-brand-subtext shrink-0" />}
+        minWidthClass="min-w-0"
+        maxWidthClass="max-w-full"
+        className="w-[9.5rem]"
         badge={
           <span className="inline-flex min-w-[1.25rem] justify-center px-1.5 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-panel text-[10px] font-mono font-bold text-brand-subtext">
             {activeCount}

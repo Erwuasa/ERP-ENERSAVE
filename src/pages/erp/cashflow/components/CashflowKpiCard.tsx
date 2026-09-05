@@ -26,7 +26,7 @@ export function CashflowKpiCard({ title, value, subtitle, icon, borderClass, bad
           <p className="text-[10px] uppercase font-mono tracking-wider font-extrabold text-brand-subtext">
             {title}
           </p>
-          <p className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-brand-text truncate">
+          <p className="text-2xl sm:text-3xl font-black font-display tracking-tight text-brand-text truncate">
             {value}
           </p>
           <p className="text-[10px] text-brand-subtext">{subtitle}</p>

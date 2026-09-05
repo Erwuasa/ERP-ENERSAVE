@@ -118,7 +118,7 @@ function MetricCard({
         {label}
       </span>
       <strong
-        className={`text-2xl font-black font-mono tracking-tight block mt-1 ${valueClass}`}
+        className={`text-2xl font-black font-display tracking-tight block mt-1 ${valueClass}`}
       >
         {value}
       </strong>

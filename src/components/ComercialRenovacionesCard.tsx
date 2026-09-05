@@ -48,7 +48,7 @@ export function ComercialRenovacionesCard({
       </div>
 
       <div className="pt-1 border-t border-dashed border-brand-border space-y-1 flex-1">
-        <strong className="text-xl font-black text-violet-600 dark:text-violet-400 tabular-nums font-mono block leading-none">
+        <strong className="text-xl font-black text-violet-600 dark:text-violet-400 tabular-nums font-display block leading-none">
           {upcoming.length}
         </strong>
         {upcoming.length > 0 ? (

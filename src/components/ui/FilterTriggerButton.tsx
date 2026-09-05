@@ -12,6 +12,7 @@ export interface FilterTriggerButtonProps {
   badge?: ReactNode
   className?: string
   minWidthClass?: string
+  maxWidthClass?: string
   clearAriaLabel?: string
 }
 
@@ -26,6 +27,7 @@ export function FilterTriggerButton({
   badge,
   className = "",
   minWidthClass = "min-w-[160px]",
+  maxWidthClass = "max-w-[280px]",
   clearAriaLabel,
 }: FilterTriggerButtonProps) {
   const borderClass = open
@@ -41,7 +43,7 @@ export function FilterTriggerButton({
       <button
         type="button"
         onClick={onToggle}
-        className={`inline-flex flex-1 items-center gap-2 px-3 py-2 ${minWidthClass} max-w-[280px] text-left cursor-pointer`}
+        className={`inline-flex flex-1 items-center gap-2 px-3 py-2 ${minWidthClass} ${maxWidthClass} text-left cursor-pointer`}
       >
         {icon}
         <span className="flex flex-col min-w-0 flex-1 leading-tight">

@@ -24,7 +24,7 @@ export function MiDiaCockpitHeader({
   return (
     <header className="flex items-center justify-between gap-3 py-1">
       <div className="min-w-0">
-        <h1 className="text-lg sm:text-xl font-bold text-brand-text tracking-tight truncate">
+        <h1 className="text-lg sm:text-xl font-bold text-brand-text tracking-tight font-display truncate">
           {saludo}, {firstName}
         </h1>
         <div className="flex flex-wrap items-center gap-2 mt-1">

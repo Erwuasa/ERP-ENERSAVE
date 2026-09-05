@@ -72,7 +72,10 @@ const VENTAS_TAB_SLUGS: Record<string, string> = {
 const SLUG_TO_TAB: Record<string, { module: AppModule; tab: MenuTabId }> = {}
 
 for (const [tab, slug] of Object.entries(ERP_TAB_SLUGS)) {
-  SLUG_TO_TAB[`/erp/${slug}`] = { module: "erp", tab: tab as MenuTabId }
+  const pathKey = `/erp/${slug}`
+  if (!SLUG_TO_TAB[pathKey]) {
+    SLUG_TO_TAB[pathKey] = { module: "erp", tab: tab as MenuTabId }
+  }
 }
 
 for (const [tab, slug] of Object.entries(VENTAS_TAB_SLUGS)) {

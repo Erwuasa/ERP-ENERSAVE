@@ -58,7 +58,7 @@ export function DashboardPage() {
                                 <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                                   Ventas del Nodo
                                 </p>
-                                <h3 className="text-2xl font-black text-brand-text tracking-tight font-mono">
+                                <h3 className="text-2xl font-black text-brand-text tracking-tight font-display">
                                   {formatCurrency(
                                     contracts
                                       .filter(c => {
@@ -78,7 +78,7 @@ export function DashboardPage() {
                                 <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                                   Override Earned (Honorarios)
                                 </p>
-                                <h3 className="text-2xl font-black text-emerald-500 tracking-tight font-mono">
+                                <h3 className="text-2xl font-black text-emerald-500 tracking-tight font-display">
                                   {formatCurrency(
                                     contracts
                                       .filter(c => c.comercialId !== activeUserId && isContractActivado(c.estado))
@@ -100,7 +100,7 @@ export function DashboardPage() {
                                 <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                                   Comisiones Personales
                                 </p>
-                                <h3 className="text-2xl font-black text-amber-500 tracking-tight font-mono">
+                                <h3 className="text-2xl font-black text-amber-500 tracking-tight font-display">
                                   {formatCurrency(
                                     settlements
                                       .filter(s => s.comercialId === activeUserId)
@@ -117,7 +117,7 @@ export function DashboardPage() {
                                 <p className="text-xs font-bold font-mono text-brand-subtext uppercase tracking-widest">
                                   Miembros en Red
                                 </p>
-                                <h3 className="text-2xl font-black text-brand-text tracking-tight font-sans">
+                                <h3 className="text-2xl font-black text-brand-text tracking-tight font-display">
                                   {profiles.filter(p => p.managerId === activeUserId).length} asesores
                                 </h3>
                                 <p className="text-[11px] text-slate-500">
@@ -216,7 +216,7 @@ export function DashboardPage() {
                                   </div>
                                 </div>
                                 <div className="pt-1.5 border-t border-dashed border-brand-border">
-                                  <strong className="text-xl font-black text-amber-500 tabular-nums font-mono leading-none">
+                                  <strong className="text-xl font-black text-amber-500 tabular-nums font-display leading-none">
                                     {formatCurrency(
                                       settlements
                                         .filter(s => s.comercialId === activeUserId && s.estado === 'pendiente')
@@ -238,7 +238,7 @@ export function DashboardPage() {
                                   </span>
                                 </div>
                                 <div className="pt-1 border-t border-dashed border-brand-border w-full text-center">
-                                  <strong className={`text-2xl font-black tabular-nums font-mono leading-none ${
+                                  <strong className={`text-2xl font-black tabular-nums font-display leading-none ${
                                     visibleIncidencias.filter(i => isIncidenciaAbierta(i.estado)).length > 0 ? 'text-rose-500' : 'text-emerald-500'
                                   }`}>
                                     {visibleIncidencias.filter(i => isIncidenciaAbierta(i.estado)).length}

@@ -32,7 +32,16 @@ export interface Contract {
   direccionCompleta?: string
   direccionSuministro?: string
   potenciaContratada?: string | number
-  documentos?: { name: string; size: string; tipo?: string; uploadedAt?: string }[]
+  documentos?: {
+    id?: string
+    name: string
+    size: string
+    tipo?: string
+    uploadedAt?: string
+    storagePath?: string
+    mimeType?: string
+    dataUrl?: string
+  }[]
   tipoPrecio?: "fijo" | "mercado"
   precioFijoConsumo?: number
   /** Consumo anual (kWh) introducido a mano para el cálculo de penalización */

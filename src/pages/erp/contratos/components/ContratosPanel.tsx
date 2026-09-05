@@ -1,19 +1,16 @@
-import { useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react"
+import { useRef, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react"
 import type { Contract } from "@/types/contract"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { ContractsExcelImportModal } from "@/components/contratos/ContractsExcelImportModal"
 import { ConfirmDeleteContractModal } from "@/components/contratos/ConfirmDeleteContractModal"
 import { ContratosOcrModal } from "@/pages/erp/contratos/components/ContratosOcrModal"
-import { ContratosPanelFicha } from "@/pages/erp/contratos/components/ContratosPanelFicha"
-import { ContratosPanelPagination } from "@/pages/erp/contratos/components/ContratosPanelPagination"
-import { ContratosPanelSearchRow } from "@/pages/erp/contratos/components/ContratosPanelSearchRow"
 import { ContratosPanelTable } from "@/pages/erp/contratos/components/ContratosPanelTable"
 import { ContratosPanelToolbar } from "@/pages/erp/contratos/components/ContratosPanelToolbar"
+import { ContratoDetallePanel } from "@/components/contratos/ContratoDetallePanel"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
-import type { TramitacionComercialGroup } from "@/lib/contratos-tramitacion-notifications"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 
 export interface ContratosPanelProps {
@@ -49,14 +46,8 @@ export interface ContratosPanelProps {
   showUserFilter?: boolean
   userFilterId?: string
   onUserFilterChange?: (userId: string) => void
-  showTramitacionNotifications?: boolean
-  tramitacionUnreviewedCount?: number
-  tramitacionUnreviewedGroups?: TramitacionComercialGroup[]
-  tramitacionRecentSummary?: string | null
-  reviewedContractIds?: ReadonlySet<string>
-  onTramitacionSelectComercial?: (comercialId: string) => void
-  onTramitacionShowAllUnreviewed?: () => void
   showTarifaRecommendations?: boolean
+  reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
   onCreateFromRecommendation?: (contract: Contract, recommendation: TarifaRecommendation) => void
   onDownloadRecommendationPdf?: (contract: Contract, recommendation: TarifaRecommendation) => void
@@ -89,23 +80,18 @@ export function ContratosPanel({
   showUserFilter = false,
   userFilterId = "all",
   onUserFilterChange,
-  showTramitacionNotifications = false,
-  tramitacionUnreviewedCount = 0,
-  tramitacionUnreviewedGroups = [],
-  tramitacionRecentSummary = null,
-  reviewedContractIds,
-  onTramitacionSelectComercial,
-  onTramitacionShowAllUnreviewed,
   showTarifaRecommendations = false,
+  reviewedContractIds,
   tarifaRecommendations,
   onCreateFromRecommendation,
   onDownloadRecommendationPdf,
   onDismissRecommendation,
   onDismissRenewalAlert,
 }: ContratosPanelProps) {
-  const canViewComisionDesglose = activeRole === "superadmin" || activeRole === "tramitacion"
   const [contractPendingDelete, setContractPendingDelete] = useState<Contract | null>(null)
   const [isDeletingContract, setIsDeletingContract] = useState(false)
+  const [contratoSeleccionado, setContratoSeleccionado] = useState<Contract | null>(null)
+  const scrollRootRef = useRef<HTMLDivElement>(null)
 
   const vm = useContratosPanel({
     canEditContractEstado,
@@ -124,9 +110,14 @@ export function ContratosPanel({
   })
 
   return (
-    <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100">
-      <div className="bg-brand-panel p-6 rounded-2xl border border-brand-border space-y-4 shadow-sm dark:shadow-none">
-        <ContratosPanelToolbar
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-brand-panel text-slate-800 dark:text-slate-100">
+      <div className="shrink-0 border-b border-brand-border/70 px-4 pb-3 pt-4">
+          <ContratosPanelToolbar
+          contractsSearchQuery={contractsSearchQuery}
+          setContractsSearchQuery={setContractsSearchQuery}
+          contractsListFilter={contractsListFilter}
+          setContractsListFilter={setContractsListFilter}
+          showTarifaRecommendations={showTarifaRecommendations}
           showUserFilter={showUserFilter}
           userFilterId={userFilterId}
           onUserFilterChange={onUserFilterChange}
@@ -144,65 +135,34 @@ export function ContratosPanel({
           onExportExcel={vm.handleExportExcel}
           onOpenExcelImport={() => vm.setExcelImportOpen(true)}
           onOpenWizard={vm.openWizard}
-          showTramitacionNotifications={showTramitacionNotifications}
-          tramitacionUnreviewedCount={tramitacionUnreviewedCount}
-          tramitacionUnreviewedGroups={tramitacionUnreviewedGroups}
-          tramitacionRecentSummary={tramitacionRecentSummary}
-          onTramitacionSelectComercial={onTramitacionSelectComercial}
-          onTramitacionShowAllUnreviewed={onTramitacionShowAllUnreviewed}
-        />
+          />
+        </div>
 
-        <ContratosPanelSearchRow
-          contractsSearchQuery={contractsSearchQuery}
-          setContractsSearchQuery={setContractsSearchQuery}
-          contractsListFilter={contractsListFilter}
-          setContractsListFilter={setContractsListFilter}
-          showTarifaRecommendations={showTarifaRecommendations}
-        />
-
-        <ContratosPanelTable
-          activeRole={activeRole}
-          activeUserId={activeUserId}
-          canViewComisionDesglose={canViewComisionDesglose}
-          paginated={vm.paginated}
-          filtered={vm.filtered}
-          contractsListFilter={contractsListFilter}
-          highlightContractId={highlightContractId}
-          rowRefs={vm.rowRefs}
-          renderEstadoCell={vm.renderEstadoCell}
-          renderEditableCell={vm.renderEditableCell}
-          selectedContractId={vm.selectedContractId}
-          setSelectedContractId={vm.setSelectedContractId}
-          onActivateContract={onActivateContract}
-          onBajaContract={onBajaContract}
-          onRequestDelete={onDeleteContract ? setContractPendingDelete : undefined}
-          formatCurrency={formatCurrency}
-          showTarifaRecommendations={showTarifaRecommendations}
-          tarifaRecommendations={tarifaRecommendations}
-          onCreateFromRecommendation={onCreateFromRecommendation}
-          onDownloadRecommendationPdf={onDownloadRecommendationPdf}
-          onDismissRecommendation={onDismissRecommendation}
-          onDismissRenewalAlert={onDismissRenewalAlert}
-        />
-
-        <ContratosPanelPagination
-          filteredCount={vm.filtered.length}
-          contractsListFilter={contractsListFilter}
-          safePage={vm.safePage}
-          totalPages={vm.totalPages}
-          onPrevPage={() => vm.setPage((p) => Math.max(1, p - 1))}
-          onNextPage={() => vm.setPage((p) => Math.min(vm.totalPages, p + 1))}
-        />
-      </div>
-
-      {vm.selectedContract && canViewComisionDesglose && (
-        <ContratosPanelFicha
-          contract={vm.selectedContract}
-          profiles={profiles}
-          formatCurrency={formatCurrency}
-          onClose={() => vm.setSelectedContractId(null)}
-        />
-      )}
+        <div
+          ref={scrollRootRef}
+          className="min-h-0 flex-1 overflow-auto overscroll-contain"
+        >
+          <ContratosPanelTable
+            activeRole={activeRole}
+            activeUserId={activeUserId}
+            rows={vm.visibleRows}
+            filtered={vm.filtered}
+            contractsListFilter={contractsListFilter}
+            highlightContractId={highlightContractId}
+            rowRefs={vm.rowRefs}
+            renderEstadoCell={vm.renderEstadoCell}
+            renderEditableCell={vm.renderEditableCell}
+            onRequestDelete={onDeleteContract ? setContractPendingDelete : undefined}
+            formatCurrency={formatCurrency}
+            showTarifaRecommendations={showTarifaRecommendations}
+            tarifaRecommendations={tarifaRecommendations}
+            onCreateFromRecommendation={onCreateFromRecommendation}
+            onDownloadRecommendationPdf={onDownloadRecommendationPdf}
+            onDismissRecommendation={onDismissRecommendation}
+            onDismissRenewalAlert={onDismissRenewalAlert}
+            onOpenDetalle={setContratoSeleccionado}
+          />
+        </div>
 
       <ConfirmDeleteContractModal
         open={contractPendingDelete != null}
@@ -241,6 +201,24 @@ export function ContratosPanel({
         }}
         onApply={vm.applyOcrToForm}
       />
+
+      {contratoSeleccionado ? (
+          <ContratoDetallePanel
+            key={contratoSeleccionado.id}
+            contract={contratoSeleccionado}
+            comercialEmail={profiles.find((p) => p.id === contratoSeleccionado.comercialId)?.email}
+            profiles={profiles}
+            formatCurrency={formatCurrency}
+            renderCompaniaLogo={renderCompaniaLogo}
+            activeUserId={activeUserId}
+            activeUserName={activeUserName}
+            onContractUpdated={(updated) => {
+              setContratoSeleccionado(updated)
+              setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+            }}
+            onClose={() => setContratoSeleccionado(null)}
+          />
+        ) : null}
     </div>
   )
 }

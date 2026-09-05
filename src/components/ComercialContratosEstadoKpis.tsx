@@ -81,7 +81,7 @@ export function ComercialContratosEstadoKpis({
                 />
               </div>
               <div className="pt-1.5 border-t border-dashed border-brand-border flex items-end justify-between gap-2">
-                <strong className="text-2xl font-black tabular-nums font-mono leading-none text-brand-text">
+                <strong className="text-2xl font-black tabular-nums font-display leading-none text-brand-text">
                   {count}
                 </strong>
                 <span

@@ -712,7 +712,7 @@ export function LiquidacionesInternasPanel({
           >
             <p className="text-[10px] font-mono uppercase text-brand-subtext">{kpi.label}</p>
             <p
-              className={`text-2xl font-black font-mono tabular-nums mt-1 ${
+              className={`text-2xl font-black font-display tabular-nums mt-1 ${
                 kpi.id === "retrocomisiones"
                   ? "text-rose-600 dark:text-rose-400"
                   : kpi.id === "pendientes"

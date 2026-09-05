@@ -5,19 +5,27 @@ import { filesToContratoArchivos } from "../../lib/contrato-documentos"
 
 interface DocumentoSlotCardProps {
   label: string
-  obligatorio: boolean
+  obligatorio?: boolean
   files: ContratoDocumentoArchivo[]
   onAddFiles: (files: ContratoDocumentoArchivo[]) => void
-  onRemoveFile: (index: number) => void
+  onRemoveFile?: (index: number) => void
+  onUploadRawFiles?: (files: File[]) => Promise<void>
+  allowRemove?: boolean
+  showInlineFileList?: boolean
+  countHint?: string
   accept?: string
 }
 
 export function DocumentoSlotCard({
   label,
-  obligatorio,
+  obligatorio = false,
   files,
   onAddFiles,
   onRemoveFile,
+  onUploadRawFiles,
+  allowRemove = true,
+  showInlineFileList = true,
+  countHint,
   accept = "image/*,.pdf,.doc,.docx,.mp3,.wav,.m4a,.xls,.xlsx",
 }: DocumentoSlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -25,7 +33,6 @@ export function DocumentoSlotCard({
   const [uploading, setUploading] = useState(false)
 
   const guardados = files.length
-  const pendientes = 0
 
   const emitFiles = useCallback(
     async (fileList: FileList | File[] | null) => {
@@ -37,13 +44,17 @@ export function DocumentoSlotCard({
       if (list.length === 0) return
       setUploading(true)
       try {
+        if (onUploadRawFiles) {
+          await onUploadRawFiles(list)
+          return
+        }
         const added = await filesToContratoArchivos(list)
         onAddFiles(added)
       } finally {
         setUploading(false)
       }
     },
-    [onAddFiles]
+    [onAddFiles, onUploadRawFiles]
   )
 
   const borderClass = obligatorio && guardados === 0
@@ -74,7 +85,8 @@ export function DocumentoSlotCard({
         <div className="min-w-0">
           <p className="text-[11px] font-semibold text-brand-text leading-snug">{label}</p>
           <p className="text-[9px] font-mono text-brand-subtext italic mt-0.5">
-            {guardados} guardado(s) · {pendientes} pendiente(s)
+            {guardados} guardado(s)
+            {countHint ? ` · ${countHint}` : ` · ${0} pendiente(s)`}
           </p>
         </div>
         <button
@@ -99,7 +111,7 @@ export function DocumentoSlotCard({
         />
       </div>
 
-      {files.length > 0 && (
+      {showInlineFileList && files.length > 0 && (
         <ul className="space-y-1 pt-1 border-t border-brand-border/60">
           {files.map((file, index) => (
             <li
@@ -109,14 +121,16 @@ export function DocumentoSlotCard({
               <span className="truncate text-brand-text">{file.name}</span>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-brand-subtext">{file.size}</span>
-                <button
-                  type="button"
-                  onClick={() => onRemoveFile(index)}
-                  className="p-0.5 text-brand-subtext hover:text-rose-500 cursor-pointer"
-                  aria-label={`Eliminar ${file.name}`}
-                >
-                  <X className="w-3 h-3" />
-                </button>
+                {allowRemove && onRemoveFile ? (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveFile(index)}
+                    className="p-0.5 text-brand-subtext hover:text-rose-500 cursor-pointer"
+                    aria-label={`Eliminar ${file.name}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                ) : null}
               </div>
             </li>
           ))}

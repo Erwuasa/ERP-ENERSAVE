@@ -142,7 +142,7 @@ export function GeneralDatabasePage({
     <div className="space-y-4 animate-fade-in w-full">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-black text-brand-text tracking-tight flex items-center gap-2">
+          <h2 className="text-lg font-black text-brand-text tracking-tight font-display flex items-center gap-2">
             <Zap className="h-5 w-5 text-cyan-500" />
             Base de Datos
           </h2>

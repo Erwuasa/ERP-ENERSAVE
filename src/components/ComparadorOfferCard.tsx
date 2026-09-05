@@ -146,7 +146,7 @@ export function ComparadorOfferCard({
         <div className="flex items-end justify-between gap-4">
           <span className="text-sm font-semibold text-brand-text">Total</span>
           <span
-            className={`text-2xl font-extrabold font-mono tabular-nums leading-none ${totalClass}`}
+            className={`text-2xl font-extrabold font-display tabular-nums leading-none ${totalClass}`}
           >
             {formatEuro(option.monthlyCost)}
           </span>

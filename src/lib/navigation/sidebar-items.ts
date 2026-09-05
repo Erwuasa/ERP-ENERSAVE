@@ -141,8 +141,6 @@ export function getVisibleSidebarItems({
         "Usuarios",
         "Contratos",
         "Mis Clientes",
-        "Comparador",
-        "Historial de Comparativas",
         "Tarifas",
         "Marco Retributivo",
         "Incidencias",
@@ -156,4 +154,19 @@ export function getVisibleSidebarItems({
 
     return item.allowedRoles.includes(activeRole)
   })
+}
+
+/** Etiqueta visible en sidebar (p. ej. "Clientes" en vista tramitación superadmin). */
+export function getSidebarItemDisplayName(
+  item: SidebarMenuItem,
+  options: SidebarVisibilityOptions
+): string {
+  if (
+    item.name === "Mis Clientes" &&
+    options.activeRole === "superadmin" &&
+    options.superadminViewMode === "tramitacion"
+  ) {
+    return "Clientes"
+  }
+  return item.name
 }

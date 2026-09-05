@@ -22,13 +22,17 @@ import { useEditableCell } from "@/hooks/use-editable-cell"
 import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
 import {
   CONTRACT_ESTADOS,
+  formatContractEstadoTableLabel,
   getContractEstadoBadgeClass,
   normalizeContractEstado,
   type ContractEstado,
 } from "@/lib/contract-estado"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import { matchesCreatedAtRange, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
-import { CONTRATOS_PAGE_SIZE } from "@/pages/erp/contratos/components/ContratosPanelTable"
+import {
+  buildCompaniaFilterOptions,
+  matchesCompaniaFilter,
+} from "@/lib/erp/comercializadoras-catalog"
 import { isContractPendingTramitacionReview } from "@/lib/contratos-tramitacion-notifications"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 
@@ -69,7 +73,6 @@ export function useContratosPanel({
   const [ocrResult, setOcrResult] = useState<ContractOcrResult | null>(null)
   const [ocrModalOpen, setOcrModalOpen] = useState(false)
   const [editingEstadoId, setEditingEstadoId] = useState<string | null>(null)
-  const [selectedContractId, setSelectedContractId] = useState<string | null>(null)
   const [estadoFilterUI, setEstadoFilterUI] = useState<ContractEstadoUiFilter>("todos")
   const [companiaFilterUI, setCompaniaFilterUI] = useState("todas")
   const [contractDateRange, setContractDateRange] = useState<DateRangePickerValue>({
@@ -77,7 +80,6 @@ export function useContratosPanel({
     to: null,
   })
   const [excelImportOpen, setExcelImportOpen] = useState(false)
-  const [page, setPage] = useState(1)
 
   const canEditEstado = canEditContractEstado
   const contractDateIso = useMemo(
@@ -109,7 +111,7 @@ export function useContratosPanel({
             setEditingEstadoId(null)
           }}
           onBlur={() => setEditingEstadoId(null)}
-          className="p-1.5 text-[10px] bg-brand-panel border border-cyan-500 rounded-md text-brand-text font-mono w-full max-w-[160px] outline-none mx-auto block"
+          className="mx-auto block w-full max-w-full rounded-md border border-cyan-500 bg-brand-panel p-1.5 text-[10px] font-mono text-brand-text outline-none"
         >
           {CONTRACT_ESTADOS.map((opt) => (
             <option key={opt} value={opt}>
@@ -132,16 +134,16 @@ export function useContratosPanel({
           if (!canEditEstado) return
           setEditingEstadoId(c.id)
         }}
-        className={`inline-flex items-center justify-center px-3 py-1.5 rounded-md text-[10px] leading-snug font-mono font-bold text-center min-w-[7.5rem] max-w-[11rem] ${
+        className={`box-border inline-flex w-full max-w-full items-center justify-center rounded-lg border px-2 py-1.5 text-[9px] font-mono font-bold uppercase leading-tight tracking-wide ${
           canEditEstado ? "cursor-pointer hover:opacity-90" : "cursor-default"
         } ${getContractEstadoBadgeClass(estado)}`}
         title={
           canEditEstado
-            ? "1 clic para copiar · doble clic para cambiar estado"
-            : "1 clic para copiar · solo superadmin puede cambiar el estado"
+            ? `${estado} · 1 clic copiar · doble clic cambiar`
+            : `${estado} · 1 clic copiar`
         }
       >
-        {estado}
+        {formatContractEstadoTableLabel(estado)}
       </span>
     )
   }
@@ -236,7 +238,7 @@ export function useContratosPanel({
       if (!matchesSearch(c)) return false
       if (!opts.skipEstado && !matchesContractEstadoUiFilter(c.estado, estadoFilterUI))
         return false
-      if (!opts.skipCompania && companiaFilterUI !== "todas" && c.compania !== companiaFilterUI)
+      if (!opts.skipCompania && !matchesCompaniaFilter(c.compania, companiaFilterUI))
         return false
       if (!opts.skipDate && !matchesCreatedAtRange(c.createdAt, fechaDesde, fechaHasta))
         return false
@@ -259,15 +261,16 @@ export function useContratosPanel({
     [poolForEstadoCounts]
   )
 
-  const companiaOptions = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const c of poolForCompaniaCounts) {
-      map.set(c.compania, (map.get(c.compania) ?? 0) + 1)
-    }
-    return Array.from(map.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => a.name.localeCompare(b.name, "es"))
-  }, [poolForCompaniaCounts])
+  const companiaOptions = useMemo(
+    () => buildCompaniaFilterOptions(poolForCompaniaCounts),
+    [poolForCompaniaCounts]
+  )
+
+  useEffect(() => {
+    if (companiaFilterUI === "todas") return
+    const stillAvailable = companiaOptions.some((option) => option.name === companiaFilterUI)
+    if (!stillAvailable) setCompaniaFilterUI("todas")
+  }, [companiaFilterUI, companiaOptions, setCompaniaFilterUI])
 
   const filtered = useMemo(
     () => applyPanelFilters(visibleContracts),
@@ -284,31 +287,7 @@ export function useContratosPanel({
     ]
   )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / CONTRATOS_PAGE_SIZE))
-  const safePage = Math.min(page, totalPages)
-  const paginated = filtered.slice(
-    (safePage - 1) * CONTRATOS_PAGE_SIZE,
-    safePage * CONTRATOS_PAGE_SIZE
-  )
-
-  const selectedContract = selectedContractId
-    ? visibleContracts.find((c) => c.id === selectedContractId) ?? null
-    : null
-
-  useEffect(() => {
-    setPage(1)
-  }, [
-    contractsSearchQuery,
-    contractsListFilter,
-    estadoFilterUI,
-    companiaFilterUI,
-    contractDateRange,
-    userFilterId,
-  ])
-
-  useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
+  const visibleRows = filtered
 
   function handleExportExcel() {
     toast.success(`Exportados ${exportContractsToExcel(filtered)} contratos a Excel`)
@@ -326,9 +305,6 @@ export function useContratosPanel({
     ocrModalOpen,
     setOcrModalOpen,
     setOcrResult,
-    selectedContractId,
-    setSelectedContractId,
-    selectedContract,
     estadoFilterUI,
     setEstadoFilterUI,
     companiaFilterUI,
@@ -341,10 +317,7 @@ export function useContratosPanel({
     companiaOptions,
     poolForCompaniaCounts,
     filtered,
-    paginated,
-    safePage,
-    totalPages,
-    setPage,
+    visibleRows,
     renderEstadoCell,
     renderEditableCell,
     handleImportDocument,

@@ -116,7 +116,7 @@ export function ReportingPage({ actor, profiles }: ReportingPageProps) {
     <div className="space-y-4 animate-fade-in relative pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="text-lg font-black text-brand-text tracking-tight">
+          <h2 className="text-lg font-black text-brand-text tracking-tight font-display">
             Reporting
           </h2>
           <p className="text-[10px] font-mono text-brand-subtext uppercase tracking-wider">

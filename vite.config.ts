@@ -38,6 +38,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const appVersion = readAppVersionManifest();
   const geminiApiKey = env.GEMINI_API_KEY || env.VITE_GEMINI_API_KEY || '';
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || '';
+  const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '';
 
   return {
     plugins: [react(), tailwindcss(), appVersionPlugin()],
@@ -46,6 +48,8 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_APP_PRODUCT_NAME': JSON.stringify(appVersion.productName),
       'import.meta.env.GEMINI_API_KEY': JSON.stringify(geminiApiKey),
       'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(geminiApiKey),
+      'import.meta.env.SUPABASE_URL': JSON.stringify(supabaseUrl),
+      'import.meta.env.SUPABASE_ANON_KEY': JSON.stringify(supabaseAnonKey),
     },
     resolve: {
       alias: {

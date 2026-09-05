@@ -1,4 +1,5 @@
 import { pdf } from "@react-pdf/renderer"
+import { registerSfProPdfFonts } from "./register-sf-pro-pdf-fonts"
 import {
   EstudioAhorroConjuntoDocument,
   EstudioAhorroDocument,
@@ -14,6 +15,7 @@ export type {
 } from "./estudio-ahorro-types"
 
 export async function generateEstudioAhorroPdf(input: EstudioAhorroInput): Promise<Blob> {
+  registerSfProPdfFonts()
   const instance = pdf(<EstudioAhorroDocument input={input} />)
   return instance.toBlob()
 }
@@ -22,6 +24,7 @@ export async function generateEstudioAhorroConjuntoPdf(
   input: EstudioAhorroConjuntoInput
 ): Promise<Blob> {
   if (input.estudios.length === 0) throw new Error("No hay comparativas seleccionadas")
+  registerSfProPdfFonts()
   const instance = pdf(<EstudioAhorroConjuntoDocument input={input} />)
   return instance.toBlob()
 }

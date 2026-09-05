@@ -1,8 +1,4 @@
-import {
-  aplicaRenovacionAnual,
-  getRenewalSchedule,
-  type ContractSegmentContext,
-} from "./contract-segment-rules"
+import { getRenewalSchedule, type ContractSegmentContext } from "./contract-segment-rules"
 
 export type { ContractsListFilter } from "./contract-estado-kpis"
 
@@ -16,9 +12,12 @@ export interface ContractRenewalRow extends ContractSegmentContext {
 /** Ventana de aviso en Contratos / KPI (≤30 días). */
 export const RENOVACION_ALERTA_DIAS = 30
 
-/** Contratos con renovación anual aplicable y ≤30 días hasta fechaRenovacion. */
-export function isRenovacionProxima(contract: ContractRenewalRow): boolean {
-  if (!aplicaRenovacionAnual(contract)) return false
+/** Contratos ACTIVADO con renovación a ≤30 días. */
+export function isRenovacionProxima(contract: ContractRenewalRow & { estado?: string; estadoEfectivoDesde?: string }): boolean {
   const schedule = getRenewalSchedule(contract)
-  return schedule.diasRenovacion != null && schedule.diasRenovacion <= RENOVACION_ALERTA_DIAS
+  return (
+    schedule.estadoRenovacion !== "No aplica" &&
+    schedule.diasRenovacion != null &&
+    schedule.diasRenovacion <= RENOVACION_ALERTA_DIAS
+  )
 }

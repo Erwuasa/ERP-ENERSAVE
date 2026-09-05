@@ -61,8 +61,11 @@ export function ClientesPanelToolbar({
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wide text-brand-subtext">
+            Tipo
+          </span>
           <ClientesFilterPill active={tipoFilter === "todos"} onClick={() => setTipoFilter("todos")}>
             Todos [{tipoCounts.todos}]
           </ClientesFilterPill>
@@ -78,11 +81,14 @@ export function ClientesPanelToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-mono font-bold uppercase tracking-wide text-brand-subtext">
+            Aceptación
+          </span>
           <ClientesFilterPill
             active={aceptacionFilter === "todos"}
             onClick={() => setAceptacionFilter("todos")}
           >
-            Todos [{aceptacionCounts.todos}]
+            Cualquiera [{aceptacionCounts.todos}]
           </ClientesFilterPill>
           <ClientesFilterPill
             active={aceptacionFilter === "aceptado"}

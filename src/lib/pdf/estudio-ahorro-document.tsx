@@ -202,7 +202,7 @@ function InvoiceSummaryCard({
         <Text style={{ fontSize: 7 }}>{formatEur(iva)}</Text>
       </View>
       <View style={s.invoiceLine}>
-        <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold" }}>TOTAL FACTURA</Text>
+        <Text style={{ fontSize: 8, fontFamily: "SF Pro Display", fontWeight: "bold" }}>TOTAL FACTURA</Text>
         <Text
           style={[
             s.invoiceTotal,

@@ -108,7 +108,9 @@ export function DateRangePicker({
         onToggle={() => setOpenState(!open)}
         onClear={handleClear}
         icon={<CalendarDays className="w-4 h-4 text-brand-subtext shrink-0" />}
-        minWidthClass="min-w-[180px]"
+        minWidthClass="min-w-0"
+        maxWidthClass="max-w-full"
+        className="w-full"
       />
 
       <FloatingPanelPortal

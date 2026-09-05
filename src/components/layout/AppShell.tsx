@@ -24,7 +24,7 @@ import type { AppModule } from "@/constants/navigation"
 import { menuTabToPath } from "@/constants/navigation"
 import { sidebar } from "@/constants/styles"
 import { useIsMobileSidebar } from "@/hooks/useMediaQuery"
-import { getVisibleSidebarItems } from "@/lib/navigation/sidebar-items"
+import { getVisibleSidebarItems, getSidebarItemDisplayName } from "@/lib/navigation/sidebar-items"
 import { buildSidebarActionBadges } from "@/lib/sidebar-action-badges"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
@@ -119,14 +119,17 @@ export function AppShell({
 
   const { contracts, settlements } = useErpData()
   const { incidencias } = useIncidenciasContext()
-  const menuOptions = useMemo(
-    () =>
-      getVisibleSidebarItems({
-        activeModule,
-        activeRole,
-        superadminViewMode,
-      }),
+  const sidebarVisibilityOptions = useMemo(
+    () => ({
+      activeModule,
+      activeRole,
+      superadminViewMode,
+    }),
     [activeModule, activeRole, superadminViewMode]
+  )
+  const menuOptions = useMemo(
+    () => getVisibleSidebarItems(sidebarVisibilityOptions),
+    [sidebarVisibilityOptions]
   )
   const sidebarBadges = useMemo(
     () =>
@@ -141,6 +144,8 @@ export function AppShell({
       ),
     [menuOptions, contracts, incidencias, settlements, activeUser.id]
   )
+
+  const isFullBleedWorkspacePage = /^\/erp\/contratos(\/|$)/.test(location.pathname)
 
   const initials = activeUser.fullName
     .split(" ")
@@ -368,7 +373,7 @@ export function AppShell({
                         />
                         {isExpanded && (
                           <span className="text-xs font-semibold truncate tracking-tight">
-                            {opt.name}
+                            {getSidebarItemDisplayName(opt, sidebarVisibilityOptions)}
                           </span>
                         )}
                         <SidebarMenuBadge badge={badge} collapsed={!isExpanded} />
@@ -467,9 +472,19 @@ export function AppShell({
           }}
         />
 
-        <div className="flex-1 min-w-0 min-h-0 p-4 sm:p-6 md:p-10 space-y-8 relative overflow-y-auto h-full bg-brand-bg text-brand-text">
-          <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
-          <div className="absolute bottom-10 left-10 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-amber)]" />
+        <div
+          className={`relative flex-1 min-w-0 min-h-0 h-full bg-brand-bg text-brand-text font-sans ${
+            isFullBleedWorkspacePage
+              ? "overflow-hidden p-0"
+              : "overflow-y-auto space-y-8 p-4 sm:p-6 md:p-10"
+          }`}
+        >
+          {!isFullBleedWorkspacePage ? (
+            <>
+              <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-cyan)]" />
+              <div className="absolute bottom-10 left-10 w-80 h-80 rounded-full blur-3xl pointer-events-none bg-[var(--brand-glow-amber)]" />
+            </>
+          ) : null}
           {children}
         </div>
       </div>

@@ -75,7 +75,7 @@ export function getComercializadoraLogoPlaceholder(compania: string): string {
   const color = getComercializadoraBrandColor(label)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
     <circle cx="14" cy="14" r="14" fill="${color}"/>
-    <text x="14" y="18.5" text-anchor="middle" fill="#ffffff" font-size="13" font-family="Helvetica">${initial}</text>
+    <text x="14" y="18.5" text-anchor="middle" fill="#ffffff" font-size="13" font-family="SF Pro Text, sans-serif">${initial}</text>
   </svg>`
   return svgToDataUri(svg)
 }
@@ -91,7 +91,7 @@ export function resolveComercializadoraLogoSrc(
 
 export function getEnersaveLogoPlaceholder(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="32" viewBox="0 0 120 32">
-    <text x="0" y="24" fill="#1B4A77" font-size="22" font-family="Helvetica">ENerSave</text>
+    <text x="0" y="24" fill="#1B4A77" font-size="22" font-family="SF Pro Display, sans-serif">ENerSave</text>
   </svg>`
   return svgToDataUri(svg)
 }

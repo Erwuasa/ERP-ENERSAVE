@@ -18,6 +18,12 @@ import {
   syncSupabaseSession,
 } from "@/lib/supabase/auth-session"
 import {
+  getDevSandboxLoginCredentials,
+  isDevSandboxQuickLoginEnabled,
+  resolveDevSandboxPassword,
+  shouldSkipDevSandboxMfa,
+} from "@/lib/dev-sandbox-login"
+import {
   cancelTotpEnrollment,
   inspectStaffMfa,
   normalizeTotpCode,
@@ -69,6 +75,8 @@ interface AuthContextValue {
   cancelMfa: () => Promise<void>
   logout: () => Promise<void>
   applyLoginProfile: (profile: Profile) => void
+  devSandboxQuickLogin: () => Promise<void>
+  isDevSandboxQuickLoginEnabled: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -108,6 +116,10 @@ async function gateStaffWorkspace(
   | { ok: true; pending: MfaPendingState | null }
   | { ok: false; message: string }
 > {
+  if (shouldSkipDevSandboxMfa(email)) {
+    return { ok: true, pending: null }
+  }
+
   const inspected = await inspectStaffMfa()
   if (inspected.ok === false) return inspected
   if (inspected.data.step === "none") return { ok: true, pending: null }
@@ -163,13 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persistLoggedInProfile(profile.id)
   }, [])
 
-  const triggerLogin = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault()
+  const completeStaffLogin = useCallback(
+    async (searchEmail: string, password: string) => {
       setLoginLoading(true)
       setLoginError(null)
-
-      const searchEmail = loginEmail.toLowerCase().trim()
 
       if (!isSupabaseConfigured()) {
         setLoginLoading(false)
@@ -177,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const sessionResult = await syncSupabaseSession(searchEmail, loginPassword)
+      const sessionResult = await syncSupabaseSession(searchEmail, password)
       if (sessionResult.ok === false) {
         setLoginLoading(false)
         setLoginError(sessionResult.message)
@@ -222,7 +231,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoginPassword("")
       setLoginLoading(false)
     },
-    [loginEmail, loginPassword, applyLoginProfile]
+    [applyLoginProfile]
+  )
+
+  const devSandboxQuickLogin = useCallback(async () => {
+    if (!isDevSandboxQuickLoginEnabled()) return
+    const { email, password } = getDevSandboxLoginCredentials()
+    setLoginEmail(email)
+    await completeStaffLogin(email, password)
+  }, [completeStaffLogin])
+
+  const triggerLogin = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault()
+      const searchEmail = loginEmail.toLowerCase().trim()
+      await completeStaffLogin(
+        searchEmail,
+        resolveDevSandboxPassword(searchEmail, loginPassword)
+      )
+    },
+    [loginEmail, loginPassword, completeStaffLogin]
   )
 
   const submitMfa = useCallback(
@@ -457,6 +485,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelMfa,
       logout,
       applyLoginProfile,
+      devSandboxQuickLogin,
+      isDevSandboxQuickLoginEnabled: isDevSandboxQuickLoginEnabled(),
     }),
     [
       isLoggedIn,
@@ -477,6 +507,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelMfa,
       logout,
       applyLoginProfile,
+      devSandboxQuickLogin,
     ]
   )
 

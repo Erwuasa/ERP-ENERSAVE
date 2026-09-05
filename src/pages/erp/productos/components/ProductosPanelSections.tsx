@@ -70,7 +70,7 @@ export function ProductosPanelHeader({
             <Package className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-xl font-extrabold text-brand-text tracking-tight">{title}</h2>
+            <h2 className="text-xl font-extrabold text-brand-text tracking-tight font-display">{title}</h2>
             <p className="text-xs text-brand-subtext mt-1 max-w-2xl leading-relaxed">{subtitle}</p>
           </div>
         </div>

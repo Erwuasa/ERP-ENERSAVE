@@ -17,11 +17,13 @@ export function canAccessWorkspaceSegment(
   const parsed = pathToMenuTab(`/${module}/${segment}`)
   if (!parsed) return false
 
+  const tabForAccess = parsed.tab === "Comparador de Facturas" ? "Comparador" : parsed.tab
+
   const visible = getVisibleSidebarItems({
     activeModule: module,
     activeRole: ws.activeRole,
     superadminViewMode: ws.superadminViewMode,
   })
 
-  return visible.some((item) => item.name === parsed.tab)
+  return visible.some((item) => item.name === tabForAccess)
 }

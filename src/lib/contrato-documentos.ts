@@ -6,19 +6,55 @@ import type {
 } from "./contract-registration"
 
 export const CONTRATO_DOCUMENTO_TIPOS = [
-  { id: "cif_nif", label: "CIF/NIF (empresa, com. propietarios o a...)" },
-  { id: "dni_nie", label: "DNI/NIE (cliente o representante)" },
+  { id: "dni_nie_titular", label: "DNI o NIE del titular" },
+  { id: "cif_empresa", label: "CIF de la empresa" },
+  { id: "factura_luz", label: "Factura de la luz actual" },
+  { id: "justo_titulo", label: "Justo título" },
+  { id: "certificado_instalacion", label: "Certificado de instalación" },
+  { id: "adenda_cambio_datos", label: "Adenda de cambio de datos" },
   { id: "cambio_titularidad", label: "Cambio de titularidad" },
-  { id: "grabacion_legal", label: "Grabación legal (audio)" },
-  { id: "factura", label: "Factura" },
-  { id: "otros", label: "Otros" },
+  { id: "grabacion_llamada", label: "Grabación de la llamada" },
+  { id: "otros", label: "Otros documentos" },
 ] as const
 
 export type ContratoDocumentoTipoId = (typeof CONTRATO_DOCUMENTO_TIPOS)[number]["id"]
 
+/** IDs históricos del wizard antes de ampliar el catálogo. */
+const LEGACY_DOCUMENTO_TIPO_MAP: Record<string, ContratoDocumentoTipoId> = {
+  cif_nif: "cif_empresa",
+  dni_nie: "dni_nie_titular",
+  factura: "factura_luz",
+  grabacion_legal: "grabacion_llamada",
+}
+
+export function normalizeDocumentoTipoId(tipo: string | undefined): ContratoDocumentoTipoId | null {
+  if (!tipo) return null
+  if (CONTRATO_DOCUMENTO_TIPOS.some((t) => t.id === tipo)) {
+    return tipo as ContratoDocumentoTipoId
+  }
+  return LEGACY_DOCUMENTO_TIPO_MAP[tipo] ?? null
+}
+
+export function getDocumentoTipoLabel(tipo: string | undefined): string {
+  const normalized = normalizeDocumentoTipoId(tipo)
+  if (!normalized) return tipo ?? "Documento"
+  return CONTRATO_DOCUMENTO_TIPOS.find((t) => t.id === normalized)?.label ?? normalized
+}
+
+export interface ContratoDocumentoRecord {
+  id: string
+  name: string
+  size: string
+  tipo: ContratoDocumentoTipoId | string
+  uploadedAt: string
+  storagePath?: string
+  mimeType?: string
+  dataUrl?: string
+}
+
 export const DEFAULT_DOCUMENTOS_OBLIGATORIOS: ContratoDocumentoTipoId[] = [
-  "cif_nif",
-  "dni_nie",
+  "cif_empresa",
+  "dni_nie_titular",
 ]
 
 export function getDocumentosObligatoriosForMarco(
@@ -26,9 +62,9 @@ export function getDocumentosObligatoriosForMarco(
 ): ContratoDocumentoTipoId[] {
   const fromMarco = entry?.documentosObligatorios
   if (fromMarco && fromMarco.length > 0) {
-    return fromMarco.filter((id): id is ContratoDocumentoTipoId =>
-      CONTRATO_DOCUMENTO_TIPOS.some((t) => t.id === id)
-    )
+    return fromMarco
+      .map((id) => normalizeDocumentoTipoId(id))
+      .filter((id): id is ContratoDocumentoTipoId => id != null)
   }
   return DEFAULT_DOCUMENTOS_OBLIGATORIOS
 }
@@ -43,6 +79,24 @@ export function flattenDocumentosPorTipo(
     }
   }
   return flat
+}
+
+export function groupDocumentosByTipo(
+  documentos: ContratoDocumentoRecord[] | undefined
+): Record<string, ContratoDocumentoRecord[]> {
+  const grouped: Record<string, ContratoDocumentoRecord[]> = {}
+  for (const doc of documentos ?? []) {
+    const tipo = normalizeDocumentoTipoId(doc.tipo) ?? doc.tipo ?? "otros"
+    if (!grouped[tipo]) grouped[tipo] = []
+    grouped[tipo].push({ ...doc, tipo })
+  }
+  return grouped
+}
+
+export function formatDocumentoSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 export function countDocumentosPorTipo(documentosPorTipo: DocumentosPorTipo): number {

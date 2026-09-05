@@ -387,6 +387,14 @@ export function resolveMarcoCatalogEntry(
 export async function getMarcoEntryById(
   marcoEntryId: string
 ): Promise<MarcoRetributivoResult<MarcoRetributivoEntry>> {
+  const rowResult = await getMarcoRowById(marcoEntryId)
+  if (rowResult.ok === false) return rowResult
+  return { ok: true, data: marcoRowToCatalogEntry(rowResult.data) }
+}
+
+export async function getMarcoRowById(
+  marcoEntryId: string
+): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
   const clientOrError = requireClient()
   if (isMarcoClientError(clientOrError)) {
     return { ok: false, message: "Entrada de marco retributivo no encontrada" }
@@ -403,7 +411,7 @@ export async function getMarcoEntryById(
     return { ok: false, message: "Entrada de marco retributivo no encontrada" }
   }
 
-  return { ok: true, data: marcoRowToCatalogEntry(mapRow(data as MarcoRetributivoRow)) }
+  return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
 }
 
 async function fetchComercialCommissionPercentage(comercialId: string): Promise<number> {

@@ -57,6 +57,7 @@ export function useEditableCell<T extends { id: string }>(
       display?: (value: unknown, row: T) => ReactNode
       className?: string
       readOnly?: boolean
+      emptyAlign?: "left" | "center" | "right"
     }
   ) {
     const placeholder = options?.placeholder ?? "—"
@@ -86,6 +87,41 @@ export function useEditableCell<T extends { id: string }>(
     const displayContent = options?.display
       ? options.display(raw, row)
       : textValue || placeholder
+
+    const isEmptyDisplay =
+      raw == null ||
+      raw === "" ||
+      displayContent === placeholder ||
+      displayContent === null ||
+      displayContent === false
+
+    if (isEmptyDisplay && !isEditing) {
+      const align = options?.emptyAlign ?? "center"
+      const alignClass =
+        align === "right" ? "text-right" : align === "left" ? "text-left" : "text-center"
+      return (
+        <span
+          role={readOnly ? undefined : "button"}
+          tabIndex={readOnly ? undefined : 0}
+          onDoubleClick={(e) => {
+            if (readOnly) return
+            e.preventDefault()
+            e.stopPropagation()
+            startEdit(row.id, field, raw)
+          }}
+          onKeyDown={(e) => {
+            if (readOnly) return
+            if (e.key === "Enter") startEdit(row.id, field, raw)
+          }}
+          className={`block w-full ${alignClass} text-brand-subtext font-mono ${
+            readOnly ? "cursor-default" : "cursor-pointer hover:text-brand-text"
+          } ${options?.className ?? ""}`}
+          title={readOnly ? undefined : "Doble clic para editar"}
+        >
+          {placeholder}
+        </span>
+      )
+    }
 
     return (
       <span

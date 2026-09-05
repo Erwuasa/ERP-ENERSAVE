@@ -42,23 +42,41 @@ export function normalizeContractEstado(value: string): ContractEstado {
 export function getContractEstadoBadgeClass(estado: string): string {
   switch (normalizeContractEstado(estado)) {
     case "Borrador":
-      return "bg-slate-400/20 text-slate-600 dark:text-slate-300 border border-slate-400/30"
+      return "bg-slate-200/80 text-slate-700 dark:bg-slate-600/30 dark:text-slate-200 border border-slate-300/70 dark:border-slate-500/40"
     case "PTE DE TRAMITACIÓN":
-      return "bg-[#f4f4f5] text-slate-700 dark:bg-slate-700/80 dark:text-slate-200 border border-slate-300/60 dark:border-slate-500/40"
+      return "bg-slate-100 text-slate-700 dark:bg-slate-700/60 dark:text-slate-200 border border-slate-300/60 dark:border-slate-500/35"
     case "PTE DE FIRMA":
-      return "bg-amber-100/90 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200 border border-amber-300/50 dark:border-amber-500/25"
+      return "bg-amber-100 text-amber-900 dark:bg-amber-400/20 dark:text-amber-100 border border-amber-300/70 dark:border-amber-400/30"
     case "FIRMA CADUCADA":
-      return "bg-orange-100/90 text-orange-800 dark:bg-orange-500/15 dark:text-orange-200 border border-orange-300/50 dark:border-orange-500/25"
+      return "bg-orange-100 text-orange-900 dark:bg-orange-400/20 dark:text-orange-100 border border-orange-300/70 dark:border-orange-400/30"
     case "TRAMITANDO":
-      return "bg-sky-100/90 text-sky-800 dark:bg-sky-500/15 dark:text-sky-200 border border-sky-300/50 dark:border-sky-500/25"
+      return "bg-sky-100 text-sky-900 dark:bg-sky-400/20 dark:text-sky-100 border border-sky-300/70 dark:border-sky-400/30"
     case "ACTIVADO":
-      return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25"
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200 border border-emerald-400/50 dark:border-emerald-500/30"
     case "INCIDENCIA ADMINISTRATIVA":
-      return "bg-violet-100/90 text-violet-800 dark:bg-violet-500/15 dark:text-violet-200 border border-violet-300/50 dark:border-violet-500/25"
+      return "bg-violet-100 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100 border border-violet-300/70 dark:border-violet-500/30"
     case "Dado de Baja":
-      return "bg-slate-500/15 text-slate-600 dark:text-slate-400 border border-slate-500/25"
+      return "bg-slate-200/70 text-slate-600 dark:bg-slate-600/25 dark:text-slate-300 border border-slate-400/40 dark:border-slate-500/30"
     default:
-      return "bg-slate-500/15 text-slate-500 border border-slate-500/20"
+      return "bg-slate-200/70 text-slate-600 border border-slate-400/30"
+  }
+}
+
+/** Etiqueta compacta para badges en tabla (evita solapamiento). */
+export function formatContractEstadoTableLabel(estado: string): string {
+  switch (normalizeContractEstado(estado)) {
+    case "PTE DE TRAMITACIÓN":
+      return "PTE TRAM."
+    case "PTE DE FIRMA":
+      return "PTE FIRMA"
+    case "INCIDENCIA ADMINISTRATIVA":
+      return "INCIDENCIA"
+    case "FIRMA CADUCADA":
+      return "FIRMA CAD."
+    case "Dado de Baja":
+      return "BAJA"
+    default:
+      return normalizeContractEstado(estado)
   }
 }
 

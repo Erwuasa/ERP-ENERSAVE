@@ -193,7 +193,7 @@ export function ComercialCommissionsChart({
 
         <div className="w-full min-w-0 space-y-1.5">
           <p
-            className="font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums leading-none drop-shadow-sm whitespace-nowrap text-[clamp(1.75rem,5vw,2.75rem)] tracking-tight"
+            className="font-black text-emerald-600 dark:text-emerald-400 font-display tabular-nums leading-none drop-shadow-sm whitespace-nowrap text-[clamp(1.75rem,5vw,2.75rem)] tracking-tight"
             title={formatCurrency(totalFacturado)}
           >
             {formatCurrency(totalFacturado)}

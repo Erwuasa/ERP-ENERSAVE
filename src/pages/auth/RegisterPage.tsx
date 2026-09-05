@@ -78,7 +78,7 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-brand-bg relative overflow-hidden transition-colors duration-300">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-brand-bg relative overflow-hidden transition-colors duration-300 font-sans">
       <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -86,10 +86,10 @@ export function RegisterPage() {
         <div className="text-center space-y-4">
           <EnersaveLogo className="h-20 w-20 mx-auto" />
           <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-brand-text font-sans">
+            <h1 className="text-2xl font-black tracking-tight text-brand-text font-display">
               Crear cuenta
             </h1>
-            <p className="text-xs text-brand-subtext font-medium uppercase font-mono tracking-widest">
+            <p className="text-xs text-brand-subtext font-medium uppercase font-sans tracking-widest">
               ERP ENERSAVE
             </p>
           </div>
@@ -125,7 +125,7 @@ export function RegisterPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-mono uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-sans uppercase tracking-wider">
                 Nombre completo
               </label>
               <div className="relative">
@@ -143,7 +143,7 @@ export function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-mono uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-sans uppercase tracking-wider">
                 Email
               </label>
               <div className="relative">
@@ -161,7 +161,7 @@ export function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-mono uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-sans uppercase tracking-wider">
                 Contraseña
               </label>
               <div className="relative">
@@ -180,7 +180,7 @@ export function RegisterPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-mono uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 font-sans uppercase tracking-wider">
                 Repetir contraseña
               </label>
               <div className="relative">

@@ -117,6 +117,7 @@ export function useContratosPage({
         role: p.role,
         managerId: p.managerId,
         commissionPercentage: p.commissionPercentage,
+        email: p.email,
       })),
     [profiles]
   )
@@ -159,13 +160,7 @@ export function useContratosPage({
       commissionPercentage: activeUser.commissionPercentage,
       formatCurrency,
       renderCompaniaLogo,
-      showTramitacionNotifications: showContractsUserFilter,
-      tramitacionUnreviewedCount: tramitacion.tramitacionUnreviewedCount,
-      tramitacionUnreviewedGroups: tramitacion.tramitacionUnreviewedGroups,
-      tramitacionRecentSummary: tramitacion.tramitacionRecentSummary,
       reviewedContractIds: tramitacion.reviewedContractIds,
-      onTramitacionSelectComercial: tramitacion.selectComercial,
-      onTramitacionShowAllUnreviewed: tramitacion.showAllUnreviewed,
       showTarifaRecommendations: canViewTarifaRecommendations,
       tarifaRecommendations: recommendations.tarifaRecommendations,
       onCreateFromRecommendation: recommendations.handleCreateFromRecommendation,

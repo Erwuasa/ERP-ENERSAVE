@@ -44,7 +44,7 @@ export function CompaniaFilterDropdown({
   }
 
   return (
-    <div ref={anchorRef} className="relative shrink-0">
+    <div ref={anchorRef} className="relative w-[10.5rem] shrink-0">
       <FilterTriggerButton
         label="Compañía"
         valueLabel={valueLabel}
@@ -53,7 +53,9 @@ export function CompaniaFilterDropdown({
         onToggle={() => setOpenState(!open)}
         onClear={() => onChange(DEFAULT_VALUE)}
         icon={<Building2 className="w-4 h-4 text-brand-subtext shrink-0" />}
-        minWidthClass="min-w-[180px]"
+        minWidthClass="min-w-0"
+        maxWidthClass="max-w-full"
+        className="w-full"
       />
 
       <FloatingPanelPortal
