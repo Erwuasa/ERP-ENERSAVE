@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 import type { Contract } from "@/types/contract"
+import type { AtContractDocument } from "@/lib/supabase/at-contract-notes"
 import { DocumentoSlotCard } from "@/components/contratos/DocumentoSlotCard"
 import { ContratoDocumentosUploadedList } from "@/components/contratos/ContratoDocumentosUploadedList"
 import { ContratoDetalleSection } from "@/components/contratos/contrato-detalle-ui"
@@ -22,6 +23,8 @@ interface ContratoDetalleTabDocumentosProps {
   activeUserId: string
   activeUserName: string
   onContractUpdated: (contract: Contract) => void
+  atDocuments?: AtContractDocument[]
+  atDocumentsLoading?: boolean
 }
 
 function toSlotFiles(docs: ContratoDocumentoRecord[]): ContratoDocumentoArchivo[] {
@@ -46,11 +49,17 @@ function normalizeContractDocumentos(contract: Contract): ContratoDocumentoRecor
   }))
 }
 
+function isHttpUrl(value?: string): boolean {
+  return Boolean(value && /^https?:\/\//i.test(value))
+}
+
 export function ContratoDetalleTabDocumentos({
   contract,
   activeUserId,
   activeUserName,
   onContractUpdated,
+  atDocuments = [],
+  atDocumentsLoading = false,
 }: ContratoDetalleTabDocumentosProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [uploadingTipo, setUploadingTipo] = useState<ContratoDocumentoTipoId | null>(null)
@@ -158,6 +167,43 @@ export function ContratoDetalleTabDocumentos({
           Subiendo documento en {CONTRATO_DOCUMENTO_TIPOS.find((t) => t.id === uploadingTipo)?.label}…
         </p>
       ) : null}
+
+      <ContratoDetalleSection title="Documentos AT">
+        {atDocumentsLoading ? (
+          <p className="text-sm text-brand-subtext">Cargando documentos de Helios…</p>
+        ) : atDocuments.length === 0 ? (
+          <p className="text-sm text-brand-subtext">
+            AT no ha devuelto documentos. Los del ERP se quedan en este expediente.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {atDocuments.map((doc, index) => (
+              <li
+                key={doc.id ?? `at-doc-${doc.name}-${index}`}
+                className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/25 bg-amber-500/5 px-3 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-brand-text">{doc.name}</p>
+                  <p className="mt-0.5 text-[11px] text-brand-subtext">
+                    {[doc.type, doc.size, doc.createdAt?.slice(0, 10)].filter(Boolean).join(" · ") ||
+                      "Documento Helios"}
+                  </p>
+                </div>
+                {isHttpUrl(doc.url) ? (
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-lg border border-brand-border px-3 py-1.5 text-[11px] font-bold text-brand-text hover:border-amber-500/40 hover:bg-amber-500/10"
+                  >
+                    Abrir
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </ContratoDetalleSection>
 
       <ContratoDetalleSection title="Archivos subidos">
         <ContratoDocumentosUploadedList

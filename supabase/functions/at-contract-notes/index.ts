@@ -1,5 +1,12 @@
 import { corsHeaders } from '../_shared/cors.ts'
-import { asString, asUuid, fetchAtChildList, fetchAtRecord, getSupabaseAdmin } from '../_shared/at-api.ts'
+import {
+  asString,
+  asUuid,
+  fetchAtChildList,
+  fetchAtRecord,
+  getSupabaseAdmin,
+} from '../_shared/at-api.ts'
+import { mapAtDocuments, mapAtEmails, mapAtEvents, mapAtNotes } from '../_shared/at-contract-children.ts'
 
 declare const Deno: {
   serve: (handler: (request: Request) => Response | Promise<Response>) => void
@@ -10,18 +17,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
-}
-
-function mapNotes(rows: Record<string, unknown>[]) {
-  return rows.map((row) => ({
-    id: asString(row.id) || null,
-    note: asString(row.note ?? row.text ?? row.body),
-    is_private: row.is_private === true,
-    created_at: asString(row.created_at) || null,
-    created_by: asString(row.created_by) || null,
-    author_side: asString(row.author_side) || null,
-    metadata: row.metadata && typeof row.metadata === 'object' ? row.metadata : null,
-  }))
 }
 
 Deno.serve(async (request) => {
@@ -52,11 +47,17 @@ Deno.serve(async (request) => {
     return json({ error: 'at_contract_id required' }, 400)
   }
 
-  const [record, noteRows] = await Promise.all([
+  const [record, noteRows, eventRows, documentRows, emailRows] = await Promise.all([
     fetchAtRecord(`/contracts/${atContractId}`),
     fetchAtChildList(`/contracts/${atContractId}/notes`),
+    fetchAtChildList(`/contracts/${atContractId}/events`),
+    fetchAtChildList(`/contracts/${atContractId}/documents`),
+    fetchAtChildList(`/contracts/${atContractId}/emails`),
   ])
-  const notes = mapNotes(noteRows)
+  const notes = mapAtNotes(noteRows)
+  const events = mapAtEvents(eventRows)
+  const documents = mapAtDocuments(documentRows)
+  const emails = mapAtEmails(emailRows)
   const statusNote = asString(record?.status_note ?? record?.incident_reason) || null
   const incidentAt = asString(record?.incident_at) || null
   const status = asString(record?.status ?? record?.estado) || null
@@ -69,11 +70,17 @@ Deno.serve(async (request) => {
         at_status_note: statusNote,
         at_incident_at: incidentAt,
         at_notes: notes,
+        at_events: events,
+        at_documents: documents,
+        at_emails: emails,
         at_status: status,
       })
       .eq('id', contratoId)
       .eq('source', 'at')
-    if (error && !/at_notes|at_status_note|at_incident_at/.test(error.message)) {
+    if (
+      error &&
+      !/at_notes|at_status_note|at_incident_at|at_events|at_documents|at_emails/.test(error.message)
+    ) {
       console.warn('[at-contract-notes] persist failed', error.message)
     }
   }
@@ -85,5 +92,8 @@ Deno.serve(async (request) => {
     status_note: statusNote,
     incident_at: incidentAt,
     notes,
+    events,
+    documents,
+    emails,
   })
 })

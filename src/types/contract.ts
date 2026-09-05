@@ -73,4 +73,29 @@ export interface Contract {
     createdAt?: string
     authorSide?: string
   }>
+  atEvents?: Array<{
+    id?: string
+    type?: string
+    title?: string
+    fromStatus?: string
+    toStatus?: string
+    actor?: string
+    createdAt?: string
+  }>
+  atDocuments?: Array<{
+    id?: string
+    name: string
+    type?: string
+    url?: string
+    size?: string
+    mime?: string
+    createdAt?: string
+  }>
+  atEmails?: Array<{
+    id?: string
+    subject?: string
+    to?: string
+    status?: string
+    createdAt?: string
+  }>
 }

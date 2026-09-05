@@ -245,9 +245,32 @@ export async function fetchAtRecord(path: string): Promise<JsonRecord | null> {
   }
 }
 
+const CHILD_LIST_KEYS = [
+  'events',
+  'timeline',
+  'items',
+  'history',
+  'documents',
+  'emails',
+  'files',
+  'notes',
+] as const
+
 export async function fetchAtChildList(path: string): Promise<JsonRecord[]> {
   try {
-    return normalizeListPayload(await fetchFromAt(path)).rows
+    const payload = await fetchFromAt(path)
+    const list = normalizeListPayload(payload)
+    if (list.rows.length > 0) return list.rows
+
+    const record = unwrapAtRecord(payload)
+    if (record) {
+      for (const key of CHILD_LIST_KEYS) {
+        const value = record[key]
+        if (Array.isArray(value)) return value as JsonRecord[]
+      }
+    }
+
+    return []
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.includes('AT Enterprise 404')) return []
