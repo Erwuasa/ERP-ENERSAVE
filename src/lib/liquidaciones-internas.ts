@@ -216,6 +216,47 @@ export function isRetrocomisionSettlement(settlement: Settlement): boolean {
   return /retrocomisi/i.test(settlement.descripcion)
 }
 
+export function isResidencialSegment(segmento: string): boolean {
+  return segmento.toLowerCase() === "residencial"
+}
+
+/** Residencial: día 10 del mes siguiente; resto (pyme, comunidades…): día 31. */
+export function getExpectedCobroDate(fechaActivacionIso: string, segmento: string): Date {
+  const activation = parseIsoDate(fechaActivacionIso)
+  const payDay = isResidencialSegment(segmento) ? 10 : 31
+  return new Date(activation.getFullYear(), activation.getMonth() + 1, payDay)
+}
+
+export function isPendingCobroRow(
+  row: LiquidacionInternaRow,
+  _reference = new Date()
+): boolean {
+  if (isRetrocomisionSettlement(row.settlement)) return false
+  if (row.comision <= 0) return false
+  if (row.settlement.estado === "pagado") return false
+  return true
+}
+
+/** Cobradas (pagado) menos retrocomisiones del periodo filtrado. */
+export function computeKpiLiquidacionesTotales(rows: LiquidacionInternaRow[]): number {
+  const cobradas = rows
+    .filter((row) => !isRetrocomisionSettlement(row.settlement) && row.settlement.estado === "pagado")
+    .reduce((sum, row) => sum + row.comision, 0)
+  const retro = rows
+    .filter((row) => isRetrocomisionSettlement(row.settlement))
+    .reduce((sum, row) => sum + row.comision, 0)
+  return cobradas + retro
+}
+
+export function computeKpiPendientesCobro(
+  rows: LiquidacionInternaRow[],
+  reference = new Date()
+): number {
+  return rows
+    .filter((row) => isPendingCobroRow(row, reference))
+    .reduce((sum, row) => sum + row.comision, 0)
+}
+
 export function filterSettlementsForRole(
   settlements: Settlement[],
   role: string,
@@ -238,10 +279,9 @@ export function filterSettlementsForRole(
   return []
 }
 
-export function filterLiquidacionRows(
+export function filterLiquidacionRowsByScope(
   rows: LiquidacionInternaRow[],
   options: {
-    tab: "totales" | "pendientes" | "retrocomisiones"
     dateFrom: string
     dateTo: string
     compania: string
@@ -250,14 +290,6 @@ export function filterLiquidacionRows(
 ): LiquidacionInternaRow[] {
   return rows.filter((row) => {
     if (!inDateRange(row.settlement.createdAt, options.dateFrom, options.dateTo)) return false
-
-    if (options.tab === "pendientes") {
-      if (row.settlement.estado !== "pendiente" || isRetrocomisionSettlement(row.settlement)) {
-        return false
-      }
-    } else if (options.tab === "retrocomisiones") {
-      if (!isRetrocomisionSettlement(row.settlement)) return false
-    }
 
     if (options.compania !== "Todos" && !matchesCompaniaFilter(row.compania, options.compania)) {
       return false
@@ -272,6 +304,29 @@ export function filterLiquidacionRows(
         row.comercialName.toLowerCase().includes(q)
       )
     }
+    return true
+  })
+}
+
+export function filterLiquidacionRows(
+  rows: LiquidacionInternaRow[],
+  options: {
+    tab: "totales" | "pendientes" | "retrocomisiones"
+    dateFrom: string
+    dateTo: string
+    compania: string
+    search: string
+  }
+): LiquidacionInternaRow[] {
+  return filterLiquidacionRowsByScope(rows, options).filter((row) => {
+    if (options.tab === "pendientes") {
+      if (!isPendingCobroRow(row)) return false
+    } else if (options.tab === "retrocomisiones") {
+      if (!isRetrocomisionSettlement(row.settlement)) return false
+    } else if (options.tab === "totales") {
+      if (isRetrocomisionSettlement(row.settlement)) return false
+    }
+
     return true
   })
 }

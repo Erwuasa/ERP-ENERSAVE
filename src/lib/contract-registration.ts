@@ -217,7 +217,7 @@ function inferWizardSegmentFromContract(contract: Contract): NewContractFormStat
   return "residencial"
 }
 
-function inferTipoClienteFromContract(contract: Contract): TipoClienteContrato {
+export function resolveContractTipoCliente(contract: Contract): TipoClienteContrato {
   const tipo = contract.tipoCliente
   if (
     tipo === "residencial" ||
@@ -242,7 +242,7 @@ export function contractToNewContractForm(
     const match = periods.find((p) => p.periodo === periodo)
     return match != null ? String(match.kw) : ""
   }
-  const tipoCliente = inferTipoClienteFromContract(contract)
+  const tipoCliente = resolveContractTipoCliente(contract)
   const isCompany =
     tipoCliente === "pyme" || tipoCliente === "comunidad_vecinos"
 

@@ -31,7 +31,10 @@ import { contractHasActiveRenewalAlert } from "@/lib/renewal-alert-dismissed"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import {
   CONTRACTS_TD,
+  CONTRACTS_TD_MIDDLE,
   CONTRACTS_TH,
+  CONTRACTS_TH_SUB,
+  CONTRACTS_TH_SUB_SPACER,
   formatActivationDate,
   mesesFraccionRenovacion,
 } from "@/pages/erp/contratos/components/contratos-panel-utils"
@@ -64,9 +67,7 @@ function ContractSupplyTypeIcon({ tipo }: { tipo: Contract["tipo"] }) {
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center rounded-md p-0.5 ${
-        isLuz
-          ? "text-cyan-600 dark:text-cyan-400"
-          : "text-amber-600 dark:text-amber-500"
+        isLuz ? "text-cyan-600 dark:text-cyan-400" : "text-orange-600 dark:text-orange-500"
       }`}
       title={isLuz ? "Luz" : "Gas"}
       aria-label={isLuz ? "Suministro de luz" : "Suministro de gas"}
@@ -116,7 +117,7 @@ export function ContratosPanelTable({
   }
 
   return (
-    <div className="w-full min-w-0 overflow-x-auto">
+    <div className="h-full min-w-0 overflow-x-auto">
       <table className="w-full min-w-[1120px] table-fixed text-left text-[11px] leading-snug">
         <colgroup>
           <col style={{ width: "11%" }} />
@@ -129,45 +130,57 @@ export function ContratosPanelTable({
           <col style={{ width: "8%" }} />
           {showComercialColumn ? <col style={{ width: "6%" }} /> : null}
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-brand-panel/95 backdrop-blur-sm">
+        <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-brand-surface/95 backdrop-blur-sm">
           <tr>
-            <th className={`${CONTRACTS_TH} text-center`}>Estado</th>
+            <th className={`${CONTRACTS_TH} text-center`}>
+              <span className="block">Estado</span>
+              <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
+                ·
+              </span>
+            </th>
             <th className={CONTRACTS_TH}>
-              Cliente
-              <span className="mt-0.5 block text-[9px] font-normal normal-case text-brand-subtext/90">
-                CUPS · NIF
-              </span>
+              <span className="block">Cliente</span>
+              <span className={CONTRACTS_TH_SUB}>CUPS · NIF</span>
             </th>
             <th className={CONTRACTS_TH}>
-              Compañía
-              <span className="mt-0.5 block text-[9px] font-normal normal-case text-brand-subtext/90">
-                Tarifa
+              <span className="block">Compañía</span>
+              <span className={CONTRACTS_TH_SUB}>Tarifa</span>
+            </th>
+            <th className={`${CONTRACTS_TH} text-center`}>
+              <span className="block">Activación</span>
+              <span className={CONTRACTS_TH_SUB}>Renovación</span>
+            </th>
+            <th className={`${CONTRACTS_TH} text-center`}>
+              <span className="block">Potencia</span>
+              <span className={CONTRACTS_TH_SUB}>Precio kWh</span>
+            </th>
+            <th className={`${CONTRACTS_TH} text-center`}>
+              <span className="block">Dirección</span>
+              <span className={CONTRACTS_TH_SUB}>IBAN</span>
+            </th>
+            <th className={`${CONTRACTS_TH} text-center`}>
+              <span className="block">Consumo</span>
+              <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
+                ·
               </span>
             </th>
             <th className={`${CONTRACTS_TH} text-center`}>
-              Activación
-              <span className="mt-0.5 block text-[9px] font-normal normal-case text-brand-subtext/90">
-                Renovación
+              <span className="block">Penalización</span>
+              <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
+                ·
               </span>
             </th>
-            <th className={`${CONTRACTS_TH} text-center`}>
-              Potencia
-              <span className="mt-0.5 block text-[9px] font-normal normal-case text-brand-subtext/90">
-                Precio kWh
-              </span>
-            </th>
-            <th className={`${CONTRACTS_TH} text-center`}>
-              Dirección
-              <span className="mt-0.5 block text-[9px] font-normal normal-case text-brand-subtext/90">
-                IBAN
-              </span>
-            </th>
-            <th className={`${CONTRACTS_TH} text-center`}>Consumo</th>
-            <th className={`${CONTRACTS_TH} text-center`}>Penalización</th>
-            {showComercialColumn ? <th className={CONTRACTS_TH}>Comercial</th> : null}
+            {showComercialColumn ? (
+              <th className={CONTRACTS_TH}>
+                <span className="block">Comercial</span>
+                <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
+                  ·
+                </span>
+              </th>
+            ) : null}
           </tr>
         </thead>
-        <tbody className="divide-y divide-brand-border/50">
+        <tbody className="divide-y divide-brand-border/60 bg-brand-panel">
           {rows.map((c) => {
             const renewal = getRenewalSchedule(c)
             const dias = renewal.diasRenovacion ?? 0
@@ -196,7 +209,7 @@ export function ContratosPanelTable({
                   rowRefs.current[c.id] = el
                 }}
                 onClick={(event) => handleRowClick(event, c)}
-                className={`transition-colors duration-200 hover:bg-brand-surface/60 ${
+                className={`transition-colors duration-200 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/40 ${
                   onOpenDetalle ? "cursor-pointer" : ""
                 } ${
                   isHighlighted
@@ -206,9 +219,13 @@ export function ContratosPanelTable({
                       : ""
                 }`}
               >
-                <td className={`${CONTRACTS_TD} overflow-hidden align-top`}>
-                  <div className="flex w-full min-w-0 flex-col items-center gap-1">
-                    <div className="w-full min-w-0 max-w-full">{renderEstadoCell(c)}</div>
+                <td className={`${CONTRACTS_TD} overflow-hidden text-center`}>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex w-full min-w-0 justify-center">{renderEstadoCell(c)}</div>
+                    {(onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId)) ||
+                    (showTarifaRecommendations && tarifaRecommendations?.has(c.id)) ||
+                    contractHasActiveRenewalAlert(c.id, isRenovacionProxima(c)) ? (
+                      <div className="flex flex-col items-center gap-1">
                     {onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId) ? (
                       <ContractQuickActionButton
                         tone="danger"
@@ -260,16 +277,13 @@ export function ContratosPanelTable({
                         }}
                       />
                     ) : null}
+                      </div>
+                    ) : null}
                   </div>
                 </td>
                 <td className={`${CONTRACTS_TD} overflow-hidden`}>
                   <p className="break-words font-semibold leading-snug text-brand-text">
                     {renderEditableCell(c, "clientName", { placeholder: "Cliente" })}
-                    {c.source === "at" ? (
-                      <span className="ml-1.5 inline-flex rounded bg-cyan-500/15 px-1.5 py-0.5 text-[8px] font-mono font-bold uppercase text-cyan-700 dark:text-cyan-400">
-                        AT{c.atStatus ? ` · ${c.atStatus}` : ""}
-                      </span>
-                    ) : null}
                   </p>
                   <p className="mt-1 break-all font-mono text-[10px] text-cyan-600 dark:text-cyan-400">
                     {renderEditableCell(c, "cups", {
@@ -293,7 +307,7 @@ export function ContratosPanelTable({
                   </p>
                 </td>
                 <td className={`${CONTRACTS_TD} text-center`}>
-                  <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text">
+                  <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text leading-snug">
                     {activationDate || c.createdAt ? (
                       formatActivationDate(activationDate ?? String(c.createdAt))
                     ) : (
@@ -345,7 +359,7 @@ export function ContratosPanelTable({
                     {renderEditableCell(c, "iban")}
                   </p>
                 </td>
-                <td className={`${CONTRACTS_TD} text-center font-mono tabular-nums`}>
+                <td className={`${CONTRACTS_TD_MIDDLE} text-center font-mono tabular-nums`}>
                   {renderEditableCell(c, "consumoAnualManual", {
                     display: (v) =>
                       v != null && Number(v) > 0
@@ -355,7 +369,9 @@ export function ContratosPanelTable({
                 </td>
                 <td className={`${CONTRACTS_TD} text-center`}>
                   {!aplicaPenalizacion ? (
-                    <span className="font-mono text-[9px] text-brand-subtext">No aplica</span>
+                    <div className="flex min-h-[2.5rem] items-center justify-center">
+                      <span className="font-mono text-[9px] text-brand-subtext">No aplica</span>
+                    </div>
                   ) : penalizacion != null &&
                     c.precioFijoConsumo != null &&
                     c.consumoAnualManual != null &&

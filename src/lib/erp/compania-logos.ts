@@ -123,6 +123,50 @@ export function mergeCompanyNames(groups: string[][]): string[] {
   return out
 }
 
+export function mergeProviderCounts(
+  raw: Record<string, number>
+): {
+  labels: string[]
+  countsByLabel: Record<string, number>
+  keyByLabel: Record<string, string>
+  filterNameByLabel: Record<string, string>
+} {
+  const merged = new Map<
+    string,
+    { label: string; count: number; bestRaw: string; bestRawCount: number }
+  >()
+
+  for (const [name, count] of Object.entries(raw)) {
+    const key = normalizeCompaniaKey(name) || name.toLowerCase()
+    const label = formatCompaniaLabel(name)
+    const existing = merged.get(key)
+    if (existing) {
+      existing.count += count
+      if (count > existing.bestRawCount) {
+        existing.bestRawCount = count
+        existing.bestRaw = name
+      }
+    } else {
+      merged.set(key, { label, count, bestRaw: name, bestRawCount: count })
+    }
+  }
+
+  const labels = [...merged.values()]
+    .sort((a, b) => a.label.localeCompare(b.label, "es"))
+    .map((item) => item.label)
+
+  const countsByLabel: Record<string, number> = {}
+  const keyByLabel: Record<string, string> = {}
+  const filterNameByLabel: Record<string, string> = {}
+  for (const [key, item] of merged.entries()) {
+    countsByLabel[item.label] = item.count
+    keyByLabel[item.label] = key
+    filterNameByLabel[item.label] = item.bestRaw
+  }
+
+  return { labels, countsByLabel, keyByLabel, filterNameByLabel }
+}
+
 export function filterAndSortWizardCompanies(companies: string[], query: string): string[] {
   const q = query.trim().toLowerCase()
   const filtered = q

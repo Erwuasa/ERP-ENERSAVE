@@ -9,6 +9,7 @@ import { ContratosPanelTable } from "@/pages/erp/contratos/components/ContratosP
 import { ContratosPanelToolbar } from "@/pages/erp/contratos/components/ContratosPanelToolbar"
 import { ContratoDetallePanel } from "@/components/contratos/ContratoDetallePanel"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
+import { PANEL_TOOLBAR } from "@/lib/enersave-ui-theme"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
@@ -112,9 +113,9 @@ export function ContratosPanel({
   })
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-brand-panel text-slate-800 dark:text-slate-100">
-      <div className="shrink-0 border-b border-brand-border/70 px-4 pb-3 pt-4">
-          <ContratosPanelToolbar
+    <div className="flex h-full min-h-0 w-full flex-col gap-2.5 overflow-hidden pl-3 sm:pl-4 py-1">
+      <div className={`shrink-0 ${PANEL_TOOLBAR}`}>
+        <ContratosPanelToolbar
           contractsSearchQuery={contractsSearchQuery}
           setContractsSearchQuery={setContractsSearchQuery}
           contractsListFilter={contractsListFilter}
@@ -137,14 +138,14 @@ export function ContratosPanel({
           onExportExcel={vm.handleExportExcel}
           onOpenExcelImport={() => vm.setExcelImportOpen(true)}
           onOpenWizard={vm.openWizard}
-          />
-        </div>
+        />
+      </div>
 
-        <div
-          ref={scrollRootRef}
-          className="min-h-0 flex-1 overflow-auto overscroll-contain"
-        >
-          <ContratosPanelTable
+      <div
+        ref={scrollRootRef}
+        className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-xl border border-brand-border bg-brand-panel shadow-sm"
+      >
+        <ContratosPanelTable
             activeRole={activeRole}
             activeUserId={activeUserId}
             rows={vm.visibleRows}

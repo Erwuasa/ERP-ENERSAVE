@@ -1,6 +1,7 @@
 import { FilePenLine, X } from "lucide-react"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
+import { supplyBadgeClass } from "@/lib/enersave-ui-theme"
 
 type Props = {
   client: Client
@@ -49,11 +50,9 @@ export function ClientesContractsModal({
               >
                 <div className="flex justify-between items-start gap-2">
                   <span
-                    className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded ${
-                      contract.tipo === "luz"
-                        ? "bg-cyan-500/10 text-cyan-600"
-                        : "bg-amber-500/10 text-amber-600"
-                    }`}
+                    className={`text-[9px] font-mono font-bold uppercase px-1.5 py-0.5 rounded ${supplyBadgeClass(
+                      contract.tipo
+                    )}`}
                   >
                     {contract.tipo}
                   </span>

@@ -21,12 +21,9 @@ export function AtEmailLogsPanel() {
       <div className="flex items-center gap-2">
         <Mail className="w-4 h-4 text-cyan-600" />
         <h3 className={`text-xs font-bold uppercase tracking-wider ${fonts.mono} text-brand-text`}>
-          Avisos por email (AT)
+          Avisos por email
         </h3>
       </div>
-      <p className="text-[10px] text-brand-subtext font-mono">
-        Logs de envío de AT Enterprise. Independiente de los avisos internos del ERP.
-      </p>
       {!loaded ? (
         <p className="text-xs font-mono text-brand-subtext">Cargando…</p>
       ) : logs.length === 0 ? (

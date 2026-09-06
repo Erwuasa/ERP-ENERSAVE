@@ -8,6 +8,7 @@ import {
 import { CompaniaLogo } from "@/lib/erp/render-compania-logo"
 import type { ContractWizardSegment } from "@/lib/contract-tariff-filter"
 import type { NewContractFormState } from "@/lib/contract-registration"
+import { SUPPLY_KIND_THEME } from "@/lib/enersave-ui-theme"
 import { WIZARD_INPUT_CLASS } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 
 type Props = {
@@ -53,11 +54,7 @@ function CompanyCard({
           {tipos.map((tipo) => (
             <span
               key={tipo}
-              className={`px-1.5 py-0.5 rounded text-[8px] ${fonts.mono} font-bold uppercase ${
-                tipo === "luz"
-                  ? "bg-amber-400/15 text-amber-700 dark:text-amber-200"
-                  : "bg-orange-400/15 text-orange-700 dark:text-orange-200"
-              }`}
+              className={`px-1.5 py-0.5 rounded text-[8px] ${fonts.mono} font-bold uppercase ${SUPPLY_KIND_THEME[tipo].badge}`}
             >
               {tipo}
             </span>
@@ -119,9 +116,7 @@ export function WizardCompanyStep({
               onClick={() => setTipo(t)}
               className={`inline-flex items-center gap-1.5 px-4 py-2 text-[10px] ${fonts.mono} font-bold uppercase ${radius.lg} border transition-all cursor-pointer ${
                 form.tipo === t
-                  ? t === "luz"
-                    ? "bg-amber-300/25 border-amber-400/55 text-amber-800 dark:text-amber-200"
-                    : "bg-orange-400/20 border-orange-400/50 text-orange-800 dark:text-orange-200"
+                  ? SUPPLY_KIND_THEME[t].tabActive
                   : "bg-brand-surface border-brand-border text-brand-subtext"
               }`}
             >

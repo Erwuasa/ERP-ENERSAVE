@@ -102,6 +102,30 @@ export function calcularCosteAnualTarifa(
   }
 }
 
+export function applyPrecioFijoConsumoToBreakdown(
+  breakdown: TarifaCostBreakdown,
+  precioFijoConsumo?: number | null
+): TarifaCostBreakdown {
+  if (precioFijoConsumo == null || precioFijoConsumo <= 0) return breakdown
+
+  const energiaRates = [...breakdown.energiaRates]
+  for (let i = 0; i < energiaRates.length; i++) {
+    if ((breakdown.consumos[i] ?? 0) > 0) energiaRates[i] = precioFijoConsumo
+  }
+
+  let energiaAnual = 0
+  for (let i = 0; i < energiaRates.length; i++) {
+    energiaAnual += (breakdown.consumos[i] ?? 0) * (energiaRates[i] ?? 0)
+  }
+
+  return {
+    ...breakdown,
+    energiaRates,
+    energiaAnual,
+    totalAnual: breakdown.potenciaAnual + energiaAnual + breakdown.alquilerAnual,
+  }
+}
+
 export function calcularCosteAnualDesdeMarco(
   row: MarcoRetributivoRow,
   contract: Contract,
@@ -110,7 +134,7 @@ export function calcularCosteAnualDesdeMarco(
   const potencias = inferContractPotencias(contract)
   const consumos = inferContractConsumos(contract)
   const { potenciaRates, energiaRates } = ratesFromMarcoRow(row)
-  return calcularCosteAnualTarifa(
+  const breakdown = calcularCosteAnualTarifa(
     potencias,
     consumos,
     potenciaRates,
@@ -118,6 +142,7 @@ export function calcularCosteAnualDesdeMarco(
     row.peaje,
     rentMeterMonthly
   )
+  return applyPrecioFijoConsumoToBreakdown(breakdown, contract.precioFijoConsumo)
 }
 
 export function calcularCosteAnualFallbackMercado(

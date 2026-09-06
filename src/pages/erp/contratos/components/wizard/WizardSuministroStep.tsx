@@ -1,5 +1,6 @@
 import { Coins, Flame, Lightbulb, MessageSquare } from "lucide-react"
 import type { NewContractFormState } from "@/lib/contract-registration"
+import { SUPPLY_KIND_THEME } from "@/lib/enersave-ui-theme"
 import type { Contract } from "@/types/contract"
 import {
   CONTRACT_ESTADO_INICIAL,
@@ -67,11 +68,7 @@ export function WizardSuministroStep({
                 type="button"
                 onClick={() => onChange({ tipo: t, tarifa: "", marcoEntryId: "" })}
                 className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 rounded-lg text-[10px] font-mono font-bold uppercase border transition-all cursor-pointer ${
-                  form.tipo === t
-                    ? t === "luz"
-                      ? "bg-amber-300/25 border-amber-400/55 text-amber-800 dark:text-amber-200"
-                      : "bg-orange-400/20 border-orange-400/50 text-orange-800 dark:text-orange-200"
-                    : "border-brand-border text-brand-subtext"
+                  form.tipo === t ? SUPPLY_KIND_THEME[t].tabActive : "border-brand-border text-brand-subtext"
                 }`}
               >
                 {t === "luz" ? <Lightbulb className="w-3.5 h-3.5" /> : <Flame className="w-3.5 h-3.5" />}

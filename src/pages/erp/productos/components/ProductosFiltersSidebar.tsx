@@ -41,7 +41,7 @@ export function ProductosFiltersSidebar({
     (webVisibility !== "todas" ? 1 : 0)
 
   return (
-    <aside className="w-full xl:w-56 shrink-0 xl:overflow-y-auto bg-brand-panel border border-brand-border rounded-2xl p-4 shadow-sm dark:shadow-none">
+    <aside className="w-full xl:w-44 shrink-0 xl:overflow-y-auto bg-brand-panel border border-brand-border rounded-xl p-3 shadow-sm dark:shadow-none">
       <button
         type="button"
         onClick={() => setMobileOpen((v) => !v)}
@@ -64,7 +64,7 @@ export function ProductosFiltersSidebar({
         />
       </button>
 
-      <div className={`${mobileOpen ? "mt-5 space-y-5" : "hidden"} xl:mt-5 xl:space-y-5 xl:block`}>
+      <div className={`${mobileOpen ? "mt-4 space-y-4" : "hidden"} xl:mt-4 xl:space-y-4 xl:block`}>
         <div className="space-y-2">
           <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
             Tipo de cliente
@@ -78,7 +78,7 @@ export function ProductosFiltersSidebar({
                 className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                   tipoCliente === opt.id
                     ? "bg-emerald-600 text-white"
-                    : "text-brand-subtext hover:bg-brand-surface hover:text-brand-text"
+                    : "text-brand-subtext hover:bg-cyan-500/5 hover:text-brand-text"
                 }`}
               >
                 {opt.label}
@@ -100,7 +100,7 @@ export function ProductosFiltersSidebar({
                 className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                   webVisibility === opt.id
                     ? "bg-emerald-600 text-white"
-                    : "text-brand-subtext hover:bg-brand-surface hover:text-brand-text"
+                    : "text-brand-subtext hover:bg-cyan-500/5 hover:text-brand-text"
                 }`}
               >
                 {opt.label}
@@ -113,7 +113,7 @@ export function ProductosFiltersSidebar({
           <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
             Peaje de acceso
           </p>
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-1">
             {PRODUCTO_PEAJE_OPTIONS.map((opt) => (
               <button
                 key={opt.id}
@@ -122,7 +122,7 @@ export function ProductosFiltersSidebar({
                 className={`px-2 py-2 rounded-lg text-[10px] font-mono font-bold border transition-colors cursor-pointer ${
                   peaje === opt.id
                     ? "bg-emerald-600 text-white border-emerald-600"
-                    : "bg-brand-surface text-brand-subtext border-brand-border hover:border-emerald-500/30"
+                    : "bg-brand-surface text-brand-subtext border-brand-border hover:border-cyan-500/30"
                 }`}
               >
                 {opt.label}

@@ -24,7 +24,7 @@ import type { AppModule } from "@/constants/navigation"
 import { menuTabToPath } from "@/constants/navigation"
 import { sidebar } from "@/constants/styles"
 import { useIsMobileSidebar } from "@/hooks/useMediaQuery"
-import { getVisibleSidebarItems, getSidebarItemDisplayName } from "@/lib/navigation/sidebar-items"
+import { getVisibleSidebarItems, getPreviewSidebarItems, getSidebarItemDisplayName } from "@/lib/navigation/sidebar-items"
 import { buildSidebarActionBadges } from "@/lib/sidebar-action-badges"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
@@ -47,7 +47,7 @@ export interface AppShellProps {
 
 function roleLabel(role: UserRole): string {
   if (role === "superadmin") return "Superadmin"
-  if (role === "jefe_comercial") return "Jefe Comercial"
+  if (role === "jefe_comercial") return "Director Comercial"
   if (role === "tramitacion") return "Tramitación"
   return "Comercial"
 }
@@ -129,6 +129,10 @@ export function AppShell({
   )
   const menuOptions = useMemo(
     () => getVisibleSidebarItems(sidebarVisibilityOptions),
+    [sidebarVisibilityOptions]
+  )
+  const previewMenuOptions = useMemo(
+    () => getPreviewSidebarItems(sidebarVisibilityOptions),
     [sidebarVisibilityOptions]
   )
   const sidebarBadges = useMemo(
@@ -380,6 +384,24 @@ export function AppShell({
                       </>
                     )}
                   </NavLink>
+                )
+              })}
+              {previewMenuOptions.map((opt) => {
+                const Icon = opt.icon
+                return (
+                  <div
+                    key={opt.name}
+                    title="Próximamente — sin acceso por ahora"
+                    aria-disabled="true"
+                    className="relative w-full flex items-center shrink-0 space-x-3 px-3 py-2.5 rounded-xl text-left opacity-45 cursor-not-allowed select-none"
+                  >
+                    <Icon className="w-4 h-4 shrink-0 text-brand-subtext/70" />
+                    {isExpanded && (
+                      <span className="text-xs font-semibold truncate tracking-tight text-brand-subtext/70">
+                        {getSidebarItemDisplayName(opt, sidebarVisibilityOptions)}
+                      </span>
+                    )}
+                  </div>
                 )
               })}
             </nav>

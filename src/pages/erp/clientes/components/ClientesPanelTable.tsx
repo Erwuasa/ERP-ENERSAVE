@@ -9,6 +9,7 @@ import {
   type ClienteSortField,
   type SortDirection,
 } from "@/lib/clientes-panel-filters"
+import { ENERSAVE_ACTION, clientTypeBadgeClass } from "@/lib/enersave-ui-theme"
 import { ClientesSortableHeader } from "@/pages/erp/clientes/components/ClientesSortableHeader"
 import { CLIENTES_TD, CLIENTES_TH } from "@/pages/erp/clientes/components/clientes-panel-utils"
 
@@ -45,8 +46,8 @@ export function ClientesPanelTable({
           <col className="w-[72px]" />
           <col className="w-[88px]" />
         </colgroup>
-        <thead className="sticky top-0 z-10 bg-brand-panel">
-          <tr className="text-brand-subtext font-mono">
+        <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-brand-surface/90">
+          <tr className="text-brand-subtext font-mono border-b border-brand-border">
             <th className={CLIENTES_TH}>
               <ClientesSortableHeader
                 label="Cliente"
@@ -112,11 +113,9 @@ export function ClientesPanelTable({
                 </td>
                 <td className={CLIENTES_TD}>
                   <span
-                    className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase ring-1 ring-inset ${
-                      client.tipoCliente === "empresa"
-                        ? "bg-orange-500/12 text-orange-600 dark:text-orange-400 ring-orange-500/25"
-                        : "bg-sky-500/12 text-sky-600 dark:text-sky-400 ring-sky-500/25"
-                    }`}
+                    className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase ${clientTypeBadgeClass(
+                      client.tipoCliente === "empresa" ? "empresa" : "particular"
+                    )}`}
                   >
                     {client.tipoCliente === "empresa" ? "PYME" : "Particular"}
                   </span>
@@ -141,7 +140,7 @@ export function ClientesPanelTable({
                     <button
                       type="button"
                       onClick={() => onOpenFolder(client.id)}
-                      className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors cursor-pointer"
+                      className={ENERSAVE_ACTION.iconAmber}
                       title="Carpeta de documentos"
                     >
                       <FolderOpen className="w-4 h-4" />
@@ -149,7 +148,7 @@ export function ClientesPanelTable({
                     <button
                       type="button"
                       onClick={() => onOpenContracts(client.id)}
-                      className="p-1.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-cyan-400 hover:bg-blue-500/20 border border-blue-500/20 transition-colors cursor-pointer"
+                      className={ENERSAVE_ACTION.iconCyan}
                       title="Contratos del cliente"
                     >
                       <FilePenLine className="w-3.5 h-3.5" />

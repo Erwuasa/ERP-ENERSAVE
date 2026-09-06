@@ -1,5 +1,10 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { AlertCircle, AlertTriangle, Info, X } from "lucide-react"
+import {
+  AVISO_TIPO_SORT_ORDER,
+  avisoTipoBadgeClass,
+  avisoTipoLabel,
+} from "../lib/aviso-display"
 import type { Aviso, AvisoTipo } from "../types/aviso"
 
 interface AvisosModalProps {
@@ -10,6 +15,12 @@ interface AvisosModalProps {
   onMarcarVistos: (avisoIds: string[]) => void | Promise<void>
 }
 
+function compareAvisosByPriority(a: Aviso, b: Aviso): number {
+  const byPriority = AVISO_TIPO_SORT_ORDER[a.tipo] - AVISO_TIPO_SORT_ORDER[b.tipo]
+  if (byPriority !== 0) return byPriority
+  return new Date(b.publicadoEn).getTime() - new Date(a.publicadoEn).getTime()
+}
+
 function tipoStyles(tipo: AvisoTipo): {
   card: string
   badge: string
@@ -18,53 +29,52 @@ function tipoStyles(tipo: AvisoTipo): {
   if (tipo === "urgente") {
     return {
       card: "border-red-500/40 bg-red-500/5",
-      badge: "bg-red-500/15 text-red-600 dark:text-red-400",
+      badge: avisoTipoBadgeClass(tipo),
       icon: AlertTriangle,
     }
   }
-  if (tipo === "importante") {
+  if (tipo === "liquidaciones" || tipo === "tramitacion") {
     return {
       card: "border-amber-500/40 bg-amber-500/5",
-      badge: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+      badge: avisoTipoBadgeClass(tipo),
       icon: AlertCircle,
     }
   }
   return {
     card: "border-sky-500/30 bg-sky-500/5",
-    badge: "bg-sky-500/15 text-sky-700 dark:text-sky-400",
+    badge: avisoTipoBadgeClass(tipo),
     icon: Info,
   }
-}
-
-function tipoLabel(tipo: AvisoTipo): string {
-  if (tipo === "urgente") return "Urgente"
-  if (tipo === "importante") return "Importante"
-  return "Información"
 }
 
 export function AvisosModal({
   open,
   avisos,
-  activeUserId,
   onClose,
   onMarcarVistos,
 }: AvisosModalProps) {
-  const pendingAvisos = useMemo(
-    () => avisos.filter((aviso) => !aviso.vistoPor.includes(activeUserId)),
-    [avisos, activeUserId]
-  )
-
   const [localDismissed, setLocalDismissed] = useState<Set<string>>(new Set())
 
-  const visibleAvisos = useMemo(
-    () => pendingAvisos.filter((aviso) => !localDismissed.has(aviso.id)),
-    [pendingAvisos, localDismissed]
+  useEffect(() => {
+    if (open) setLocalDismissed(new Set())
+  }, [open])
+
+  const queue = useMemo(
+    () =>
+      [...avisos]
+        .filter((aviso) => !localDismissed.has(aviso.id))
+        .sort(compareAvisosByPriority),
+    [avisos, localDismissed]
   )
 
-  if (!open || visibleAvisos.length === 0) return null
+  const currentAviso = queue[0] ?? null
+  const totalCount = avisos.length
+  const currentPosition = totalCount - queue.length + 1
+
+  if (!open || !currentAviso) return null
 
   async function dismissAllAndClose() {
-    const ids = visibleAvisos.map((aviso) => aviso.id)
+    const ids = queue.map((aviso) => aviso.id)
     await onMarcarVistos(ids)
     onClose()
   }
@@ -72,8 +82,11 @@ export function AvisosModal({
   async function handleEntendido(avisoId: string) {
     await onMarcarVistos([avisoId])
     setLocalDismissed((prev) => new Set([...prev, avisoId]))
-    if (visibleAvisos.length <= 1) onClose()
+    if (queue.length <= 1) onClose()
   }
+
+  const styles = tipoStyles(currentAviso.tipo)
+  const Icon = styles.icon
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
@@ -99,8 +112,9 @@ export function AvisosModal({
               Comunicaciones
             </h2>
             <p className="text-[10px] text-brand-subtext mt-0.5">
-              {visibleAvisos.length} aviso{visibleAvisos.length === 1 ? "" : "s"} pendiente
-              {visibleAvisos.length === 1 ? "" : "s"}
+              {totalCount === 1
+                ? "1 aviso pendiente"
+                : `Aviso ${currentPosition} de ${totalCount}`}
             </p>
           </div>
           <button
@@ -113,48 +127,43 @@ export function AvisosModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto p-4 space-y-3">
-          {visibleAvisos.map((aviso) => {
-            const styles = tipoStyles(aviso.tipo)
-            const Icon = styles.icon
-
-            return (
-              <article
-                key={aviso.id}
-                className={`rounded-xl border p-4 space-y-3 ${styles.card}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-2 min-w-0">
-                    <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${styles.badge.split(" ")[1]}`} />
-                    <div className="min-w-0">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase ${styles.badge}`}
-                      >
-                        {tipoLabel(aviso.tipo)}
-                      </span>
-                      <h3 className="text-sm font-bold text-brand-text mt-1.5 leading-snug">
-                        {aviso.titulo}
-                      </h3>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-xs text-brand-text leading-relaxed whitespace-pre-wrap">
-                  {aviso.contenido}
-                </p>
-
-                <div className="flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={() => void handleEntendido(aviso.id)}
-                    className="px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase bg-emerald-600 text-white hover:bg-emerald-500 transition-colors cursor-pointer"
+        <div className="overflow-y-auto p-4">
+          <article className={`rounded-xl border p-4 space-y-3 ${styles.card}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-2 min-w-0">
+                <Icon className={`w-4 h-4 shrink-0 mt-0.5 ${styles.badge.split(" ")[1]}`} />
+                <div className="min-w-0">
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase ${styles.badge}`}
                   >
-                    Entendido
-                  </button>
+                    {avisoTipoLabel(currentAviso.tipo)}
+                  </span>
+                  <h3 className="text-sm font-bold text-brand-text mt-1.5 leading-snug">
+                    {currentAviso.titulo}
+                  </h3>
                 </div>
-              </article>
-            )
-          })}
+              </div>
+            </div>
+
+            <p className="text-xs text-brand-text leading-relaxed whitespace-pre-wrap">
+              {currentAviso.contenido}
+            </p>
+
+            <div className="flex items-center justify-end gap-2">
+              {queue.length > 1 ? (
+                <span className="text-[10px] font-mono text-brand-subtext mr-auto">
+                  Siguiente aviso ({currentPosition + 1} de {totalCount})
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void handleEntendido(currentAviso.id)}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase bg-emerald-600 text-white hover:bg-emerald-500 transition-colors cursor-pointer"
+              >
+                {queue.length > 1 ? "Entendido, siguiente" : "Entendido"}
+              </button>
+            </div>
+          </article>
         </div>
       </div>
     </div>

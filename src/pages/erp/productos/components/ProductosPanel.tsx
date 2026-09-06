@@ -1,4 +1,6 @@
+import { useState } from "react"
 import type { ReactNode } from "react"
+import { CalendarioEconomicoPanel } from "@/pages/erp/productos/components/CalendarioEconomicoPanel"
 import { ProductosFiltersSidebar } from "@/pages/erp/productos/components/ProductosFiltersSidebar"
 import {
   ProductosList,
@@ -10,29 +12,33 @@ import type { ProductoTarifa } from "@/lib/productos-catalog"
 
 export interface ProductosPanelProps {
   title?: string
-  subtitle?: string
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
-  onNavigateContratos: () => void
   onCreateContract: (product: ProductoTarifa) => void
   renderCompaniaLogo?: (brandName: string) => ReactNode
 }
 
 export function ProductosPanel({
   title = "Tarifas",
-  subtitle = "Catálogo sincronizado desde AT Enterprise — publica alias y visibilidad para la web.",
   activeRole,
-  onNavigateContratos,
   onCreateContract,
 }: ProductosPanelProps) {
+  const [view, setView] = useState<"catalog" | "calendario">("catalog")
   const vm = useProductosPanel({ activeRole })
+
+  if (view === "calendario") {
+    return (
+      <div className="xl:h-full flex flex-col animate-fade-in font-sans">
+        <CalendarioEconomicoPanel canEdit={vm.canEditCalendario} onBack={() => setView("catalog")} />
+      </div>
+    )
+  }
 
   return (
     <div className="xl:h-full flex flex-col animate-fade-in font-sans">
-      <div className="xl:shrink-0 space-y-5 pb-5">
+      <div className="xl:shrink-0 space-y-3 pb-3">
         <ProductosPanelHeader
           title={title}
-          subtitle={subtitle}
-          onNavigateContratos={onNavigateContratos}
+          onOpenCalendario={() => setView("calendario")}
           suministro={vm.suministro}
           setSuministro={vm.setSuministro}
           compania={vm.compania}
@@ -50,7 +56,7 @@ export function ProductosPanel({
         )}
       </div>
 
-      <div className="xl:flex-1 xl:min-h-0 flex flex-col xl:flex-row gap-4">
+      <div className="xl:flex-1 xl:min-h-0 flex flex-col xl:flex-row gap-3">
         <ProductosFiltersSidebar
           tipoCliente={vm.tipoCliente}
           setTipoCliente={vm.setTipoCliente}

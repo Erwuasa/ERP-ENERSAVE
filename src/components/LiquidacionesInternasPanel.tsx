@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { endOfDay, startOfDay, subDays, subMonths, subYears } from "date-fns"
 import {
   FileText,
   Loader2,
@@ -9,11 +10,6 @@ import {
   X,
 } from "lucide-react"
 import { toast } from "sonner"
-import {
-  formatAutofacturaFecha,
-  getProximaFechaAutofactura,
-  type AutofacturaTipoCliente,
-} from "../lib/autofactura-scheduler"
 import {
   enrichMensajesWithSessionAttachments,
   setAlegacionSessionAttachments,
@@ -38,9 +34,13 @@ import {
   defaultLiquidacionesDateRange,
   enrichSettlementRow,
   countLiquidacionRowsByCompania,
+  computeKpiLiquidacionesTotales,
+  computeKpiPendientesCobro,
   filterLiquidacionRows,
+  filterLiquidacionRowsByScope,
   filterSettlementsForRole,
   groupRowsByJefe,
+  isRetrocomisionSettlement,
   LIQUIDACIONES_COMPANIA_FILTERS,
   sumComisionRows,
   type LiquidacionInternaRow,
@@ -53,6 +53,41 @@ import {
 
 type LiquidacionesTab = "totales" | "pendientes" | "retrocomisiones"
 type LiquidacionesView = "listado" | "por_comercial"
+
+const QUICK_DATE_RANGES = [
+  {
+    id: "1d",
+    label: "1 día",
+    getRange: (ref = new Date()) => ({
+      from: startOfDay(subDays(ref, 1)),
+      to: endOfDay(ref),
+    }),
+  },
+  {
+    id: "7d",
+    label: "7 días",
+    getRange: (ref = new Date()) => ({
+      from: startOfDay(subDays(ref, 7)),
+      to: endOfDay(ref),
+    }),
+  },
+  {
+    id: "1m",
+    label: "1 mes",
+    getRange: (ref = new Date()) => ({
+      from: startOfDay(subMonths(ref, 1)),
+      to: endOfDay(ref),
+    }),
+  },
+  {
+    id: "1y",
+    label: "1 año",
+    getRange: (ref = new Date()) => ({
+      from: startOfDay(subYears(ref, 1)),
+      to: endOfDay(ref),
+    }),
+  },
+] as const
 
 interface LiquidacionesInternasPanelProps {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
@@ -69,8 +104,6 @@ interface LiquidacionesInternasPanelProps {
   } | null>
   canGenerateAutofactura?: boolean
   fiscalProfileComplete?: boolean
-  autofacturaTipoCliente?: AutofacturaTipoCliente
-  proximaFechaAutofacturaLabel?: string
   onGenerateAutofactura?: () => Promise<void>
   onOpenFiscalProfile?: () => void
 }
@@ -330,8 +363,6 @@ export function LiquidacionesInternasPanel({
   onGenerateMonthlyLiquidaciones,
   canGenerateAutofactura = false,
   fiscalProfileComplete = false,
-  autofacturaTipoCliente = "residencial",
-  proximaFechaAutofacturaLabel,
   onGenerateAutofactura,
   onOpenFiscalProfile,
 }: LiquidacionesInternasPanelProps) {
@@ -344,6 +375,7 @@ export function LiquidacionesInternasPanel({
   const [chatAlegacion, setChatAlegacion] = useState<Alegacion | null>(null)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [panelView, setPanelView] = useState<LiquidacionesView>("listado")
+  const [selectedComercialId, setSelectedComercialId] = useState<string>("all")
 
   const defaults = defaultLiquidacionesDateRange()
   const defaultDateRangeValue = useMemo(
@@ -406,10 +438,34 @@ export function LiquidacionesInternasPanel({
 
   const baseRows = useMemo(() => {
     const scoped = filterSettlementsForRole(settlements, activeRole, activeUserId, profiles)
-    return scoped.map((s) =>
+    const enriched = scoped.map((s) =>
       enrichSettlementRow(s, contracts, profiles, formatCurrency, marcoRows)
     )
-  }, [settlements, contracts, profiles, activeRole, activeUserId, formatCurrency, marcoRows])
+    if (!isAdminLiquidaciones || selectedComercialId === "all") return enriched
+    return enriched.filter((row) => row.comercialId === selectedComercialId)
+  }, [
+    settlements,
+    contracts,
+    profiles,
+    activeRole,
+    activeUserId,
+    formatCurrency,
+    marcoRows,
+    isAdminLiquidaciones,
+    selectedComercialId,
+  ])
+
+  const comercialFilterOptions = useMemo(() => {
+    if (!isAdminLiquidaciones) return []
+    const scoped = filterSettlementsForRole(settlements, activeRole, activeUserId, profiles)
+    const ids = new Set(scoped.map((s) => s.comercialId))
+    return [...ids]
+      .map((id) => ({
+        id,
+        name: profiles.find((p) => p.id === id)?.fullName ?? id,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "es"))
+  }, [isAdminLiquidaciones, settlements, activeRole, activeUserId, profiles])
 
   const filterOpts = { tab: activeTab, dateFrom, dateTo, compania, search }
 
@@ -418,19 +474,26 @@ export function LiquidacionesInternasPanel({
     [baseRows, activeTab, dateFrom, dateTo, compania, search]
   )
 
-  const kpiTotales = useMemo(
-    () => sumComisionRows(filterLiquidacionRows(baseRows, { ...filterOpts, tab: "totales" })),
+  const scopeOpts = { dateFrom, dateTo, compania, search }
+  const scopedRows = useMemo(
+    () => filterLiquidacionRowsByScope(baseRows, scopeOpts),
     [baseRows, dateFrom, dateTo, compania, search]
   )
+
+  const kpiTotales = useMemo(
+    () => computeKpiLiquidacionesTotales(scopedRows),
+    [scopedRows]
+  )
   const kpiPendientes = useMemo(
-    () =>
-      sumComisionRows(filterLiquidacionRows(baseRows, { ...filterOpts, tab: "pendientes" })),
-    [baseRows, dateFrom, dateTo, compania, search]
+    () => computeKpiPendientesCobro(scopedRows),
+    [scopedRows]
   )
   const kpiRetro = useMemo(
     () =>
-      sumComisionRows(filterLiquidacionRows(baseRows, { ...filterOpts, tab: "retrocomisiones" })),
-    [baseRows, dateFrom, dateTo, compania, search]
+      sumComisionRows(
+        scopedRows.filter((row) => isRetrocomisionSettlement(row.settlement))
+      ),
+    [scopedRows]
   )
   const companiaCounts = useMemo(
     () =>
@@ -610,10 +673,6 @@ export function LiquidacionesInternasPanel({
     }
   }
 
-  const proximaFechaLabel =
-    proximaFechaAutofacturaLabel ??
-    formatAutofacturaFecha(getProximaFechaAutofactura(autofacturaTipoCliente))
-
   async function handleGenerateMonthlyLiquidaciones() {
     if (!onGenerateMonthlyLiquidaciones) return
     setIsGeneratingMonthly(true)
@@ -636,8 +695,18 @@ export function LiquidacionesInternasPanel({
   }
 
   const kpiCards: { id: LiquidacionesTab; label: string; value: number; hint: string }[] = [
-    { id: "totales", label: "Liquidaciones totales", value: kpiTotales, hint: "Rango seleccionado" },
-    { id: "pendientes", label: "Pendientes de cobro", value: kpiPendientes, hint: "Estado pendiente" },
+    {
+      id: "totales",
+      label: "Liquidaciones totales",
+      value: kpiTotales,
+      hint: "Cobradas menos retrocomisiones",
+    },
+    {
+      id: "pendientes",
+      label: "Pendientes de cobro",
+      value: kpiPendientes,
+      hint: "Residencial: día 10 · Resto: día 31 del mes siguiente",
+    },
     {
       id: "retrocomisiones",
       label: "Retrocomisiones",
@@ -655,24 +724,95 @@ export function LiquidacionesInternasPanel({
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden animate-fade-in font-sans">
       <div className="shrink-0 space-y-5">
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <WalletCards className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-          <div>
-            <h2 className="text-sm font-bold text-brand-text uppercase tracking-tight">
-              Liquidaciones internas
-            </h2>
-            <p className="text-[10px] font-mono text-brand-subtext">
-              {activeRole === "comercial" && "Tus comisiones liquidadas"}
-              {activeRole === "jefe_comercial" && "Tus liquidaciones y las de tu equipo"}
-              {activeRole === "superadmin" && "Control de liquidaciones por equipos comerciales"}
-              {activeRole === "tramitacion" && "Generación y control de liquidaciones internas"}
-            </p>
-          </div>
+      <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          {isAdminLiquidaciones ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setPanelView("listado")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
+                  panelView === "listado"
+                    ? "bg-cyan-600 text-white border-cyan-600"
+                    : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
+                }`}
+              >
+                Listado
+              </button>
+              <button
+                type="button"
+                onClick={() => setPanelView("por_comercial")}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
+                  panelView === "por_comercial"
+                    ? "bg-cyan-600 text-white border-cyan-600"
+                    : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                Por comercial
+                {alegacionesLoading ? null : (
+                  <span className="opacity-80">
+                    ·{" "}
+                    {
+                      alegaciones.filter(
+                        (a) => a.estado === "abierta" || a.estado === "en_revision"
+                      ).length
+                    }{" "}
+                    activas
+                  </span>
+                )}
+              </button>
+              {comercialFilterOptions.length > 0 ? (
+                <label className="inline-flex items-center gap-1.5">
+                  <span className="sr-only">Filtrar por comercial</span>
+                  <select
+                    value={selectedComercialId}
+                    onChange={(event) => setSelectedComercialId(event.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[180px]"
+                  >
+                    <option value="all">Todos los comerciales</option>
+                    {comercialFilterOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </>
+          ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-2 justify-end">
+
+        <div className="flex flex-wrap items-center gap-2 justify-start xl:justify-end min-w-0">
+          <div className="flex flex-wrap gap-1">
+            {QUICK_DATE_RANGES.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  const { from, to } = preset.getRange()
+                  setDateRange({ from, to, presetId: preset.id })
+                }}
+                className={`px-2 py-1 rounded-lg text-[9px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
+                  dateRange.presetId === preset.id
+                    ? "bg-cyan-600 text-white border-cyan-600"
+                    : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <DateRangePicker
+            value={dateRange}
+            onChange={(next) =>
+              setDateRange({ from: next.from, to: next.to, presetId: next.presetId })
+            }
+            defaultValue={defaultDateRangeValue}
+            align="right"
+          />
           {canGenerateAutofactura && onGenerateAutofactura ? (
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => void handleGenerateAutofactura()}
@@ -682,7 +822,7 @@ export function LiquidacionesInternasPanel({
                     ? undefined
                     : "Completa tu perfil fiscal para generar autofacturas"
                 }
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-colors hover:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-colors hover:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
               >
                 {isGeneratingAutofactura ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -691,14 +831,11 @@ export function LiquidacionesInternasPanel({
                 )}
                 Generar mi autofactura
               </button>
-              <span className="text-[9px] font-mono text-brand-subtext">
-                Próxima fecha sugerida: {proximaFechaLabel}
-              </span>
               {!fiscalProfileComplete && onOpenFiscalProfile ? (
                 <button
                   type="button"
                   onClick={onOpenFiscalProfile}
-                  className="text-[9px] font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                  className="text-[9px] font-semibold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer whitespace-nowrap"
                 >
                   Completar perfil fiscal
                 </button>
@@ -710,7 +847,7 @@ export function LiquidacionesInternasPanel({
               type="button"
               onClick={() => void handleGenerateMonthlyLiquidaciones()}
               disabled={isGeneratingMonthly}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-xs font-bold transition-colors hover:bg-cyan-500/15 disabled:opacity-60 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-xs font-bold transition-colors hover:bg-cyan-500/15 disabled:opacity-60 cursor-pointer whitespace-nowrap"
             >
               {isGeneratingMonthly ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -720,56 +857,8 @@ export function LiquidacionesInternasPanel({
               Generar liquidaciones del mes
             </button>
           ) : null}
-          <DateRangePicker
-            value={dateRange}
-            onChange={(next) =>
-              setDateRange({ from: next.from, to: next.to, presetId: next.presetId })
-            }
-            defaultValue={defaultDateRangeValue}
-            align="right"
-          />
         </div>
       </div>
-
-      {isAdminLiquidaciones ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setPanelView("listado")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
-              panelView === "listado"
-                ? "bg-cyan-600 text-white border-cyan-600"
-                : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-            }`}
-          >
-            <WalletCards className="w-3.5 h-3.5" />
-            Listado
-          </button>
-          <button
-            type="button"
-            onClick={() => setPanelView("por_comercial")}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
-              panelView === "por_comercial"
-                ? "bg-cyan-600 text-white border-cyan-600"
-                : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" />
-            Por comercial
-            {alegacionesLoading ? null : (
-              <span className="opacity-80">
-                ·{" "}
-                {
-                  alegaciones.filter(
-                    (a) => a.estado === "abierta" || a.estado === "en_revision"
-                  ).length
-                }{" "}
-                activas
-              </span>
-            )}
-          </button>
-        </div>
-      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {kpiCards.map((kpi) => (

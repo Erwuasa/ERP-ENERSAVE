@@ -12,6 +12,10 @@ export const CONTRATO_DETALLE_TABS = [
 
 export type ContratoDetalleTab = (typeof CONTRATO_DETALLE_TABS)[number]["id"]
 
+export function contratoDetalleSectionId(tab: ContratoDetalleTab): string {
+  return `contrato-detalle-${tab}`
+}
+
 export function formatContractDisplayId(contractId: string): string {
   return contractId.replace(/-/g, "").slice(0, 8).toUpperCase()
 }
