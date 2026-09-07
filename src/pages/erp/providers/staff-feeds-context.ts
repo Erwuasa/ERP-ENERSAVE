@@ -8,7 +8,7 @@ export interface StaffFeedsContextValue {
   calendarioEventos: CalendarioEvento[]
   setCalendarioEventos: Dispatch<SetStateAction<CalendarioEvento[]>>
   unviewedAvisos: Aviso[]
-  markAvisosVistos: () => Promise<void>
+  markAvisosVistos: (avisoIds?: string[]) => Promise<void>
 }
 
 export const StaffFeedsContext = createContext<StaffFeedsContextValue | null>(null)

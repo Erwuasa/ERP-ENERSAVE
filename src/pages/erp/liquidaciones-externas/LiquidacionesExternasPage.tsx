@@ -13,8 +13,7 @@ export function LiquidacionesExternasPage({ ws }: Props) {
     profiles,
     contracts,
     settlements,
-    pendingContracts,
-    setPendingContracts,
+    setSettlements,
     consolidatedLiquidations,
     setConsolidatedLiquidations,
     selectedCompaniaTab,
@@ -35,8 +34,7 @@ export function LiquidacionesExternasPage({ ws }: Props) {
       profiles={profiles as LiquidacionesProfile[]}
       contracts={contracts}
       settlements={settlements}
-      pendingContracts={pendingContracts}
-      setPendingContracts={setPendingContracts}
+      setSettlements={setSettlements}
       consolidatedLiquidations={consolidatedLiquidations}
       setConsolidatedLiquidations={setConsolidatedLiquidations}
       selectedCompaniaTab={selectedCompaniaTab}

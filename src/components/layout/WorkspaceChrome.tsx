@@ -88,7 +88,7 @@ export function WorkspaceChrome() {
         avisos={unviewedAvisos}
         activeUserId={activeUserId}
         onClose={() => setAvisosModalOpen(false)}
-        onMarcarVistos={() => markAvisosVistos()}
+        onMarcarVistos={(avisoIds) => markAvisosVistos(avisoIds)}
       />
     </>
   )

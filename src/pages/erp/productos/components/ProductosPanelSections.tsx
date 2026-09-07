@@ -1,11 +1,11 @@
-import { ArrowRight, FileSpreadsheet, Flame, Lightbulb, Loader2, Package, Phone, Search, X } from "lucide-react"
+import { CalendarDays, Flame, Lightbulb, Loader2, Package, Phone, Search, X } from "lucide-react"
 import type { ProductoSuministroTab, ProductoTarifa } from "@/lib/productos-catalog"
+import { SUPPLY_KIND_THEME, supplyTabClass } from "@/lib/enersave-ui-theme"
 import { ProductosTable } from "@/pages/erp/productos/components/ProductosTable"
 
 type Props = {
   title: string
-  subtitle: string
-  onNavigateContratos: () => void
+  onOpenCalendario: () => void
   suministro: ProductoSuministroTab
   setSuministro: (tab: ProductoSuministroTab) => void
   compania: string
@@ -32,12 +32,15 @@ const SUMINISTRO_TABS = [
   { id: "luz" as const, label: "Luz", icon: Lightbulb },
   { id: "gas" as const, label: "Gas", icon: Flame },
   { id: "telefonia" as const, label: "Telefonía", icon: Phone },
-]
+] as const
+
+function suministroTabClass(tabId: ProductoSuministroTab, isActive: boolean): string {
+  return supplyTabClass(tabId, isActive)
+}
 
 export function ProductosPanelHeader({
   title,
-  subtitle,
-  onNavigateContratos,
+  onOpenCalendario,
   suministro,
   setSuministro,
   compania,
@@ -50,8 +53,7 @@ export function ProductosPanelHeader({
 }: Pick<
   Props,
   | "title"
-  | "subtitle"
-  | "onNavigateContratos"
+  | "onOpenCalendario"
   | "suministro"
   | "setSuministro"
   | "compania"
@@ -64,85 +66,76 @@ export function ProductosPanelHeader({
 >) {
   return (
     <>
-      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <span className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-            <Package className="h-5 w-5" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+            <Package className="h-4 w-4" />
           </span>
-          <div>
-            <h2 className="text-xl font-extrabold text-brand-text tracking-tight font-display">{title}</h2>
-            <p className="text-xs text-brand-subtext mt-1 max-w-2xl leading-relaxed">{subtitle}</p>
-          </div>
+          <h2 className="text-lg font-extrabold text-brand-text tracking-tight font-display">{title}</h2>
         </div>
         <button
           type="button"
-          onClick={onNavigateContratos}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border bg-brand-panel text-xs font-bold text-brand-text hover:border-emerald-500/40 hover:text-emerald-600 transition-colors cursor-pointer shrink-0 self-start"
+          onClick={onOpenCalendario}
+          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 text-[11px] font-bold text-cyan-800 dark:text-cyan-200 hover:bg-cyan-500/15 hover:border-cyan-500/45 transition-colors cursor-pointer shrink-0"
         >
-          <FileSpreadsheet className="h-4 w-4" />
-          Ir a contratos
-          <ArrowRight className="h-3.5 w-3.5" />
+          <CalendarDays className="h-4 w-4" />
+          Calendario Económico
         </button>
       </div>
 
-      <div className="bg-brand-panel border border-brand-border rounded-2xl p-4 sm:p-5 space-y-4 shadow-sm dark:shadow-none">
-        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-brand-border pb-3">
-          <div className="space-y-2">
-            <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-              Tipo de producto
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {SUMINISTRO_TABS.map((tab) => {
-                const Icon = tab.icon
-                const count =
-                  tab.id === "telefonia" ? 0 : tab.id === "luz" ? supplyTabCounts.luz : supplyTabCounts.gas
-                const isActive = suministro === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => {
-                      setSuministro(tab.id)
-                      setCompania("Todas")
-                    }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-[11px] font-bold border-b-2 transition-colors cursor-pointer ${
-                      isActive
-                        ? "border-emerald-600 text-emerald-600"
-                        : "border-transparent text-brand-subtext hover:text-brand-text"
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    {tab.label}
-                    <span className="text-[10px] font-mono opacity-70">[{count}]</span>
-                  </button>
-                )
-              })}
-            </div>
+      <div className="bg-brand-panel border border-brand-border rounded-xl p-3 space-y-2.5 shadow-sm dark:shadow-none">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider shrink-0">
+            Tipo de producto
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {SUMINISTRO_TABS.map((tab) => {
+              const Icon = tab.icon
+              const count =
+                tab.id === "telefonia" ? 0 : tab.id === "luz" ? supplyTabCounts.luz : supplyTabCounts.gas
+              const isActive = suministro === tab.id
+              const styles = SUPPLY_KIND_THEME[tab.id]
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setSuministro(tab.id)
+                    setCompania("Todas")
+                  }}
+                  className={suministroTabClass(tab.id, isActive)}
+                >
+                  <Icon className={`h-3.5 w-3.5 ${styles.icon}`} />
+                  {tab.label}
+                  <span className="text-[10px] font-mono opacity-80 tabular-nums">{count}</span>
+                </button>
+              )
+            })}
           </div>
-          <p className="text-[11px] font-mono text-brand-subtext shrink-0">
+          <p className="text-[10px] font-mono text-brand-subtext shrink-0 ml-auto">
             <span className="font-bold text-brand-text">{totalActivas}</span> tarifa
             {totalActivas !== 1 ? "s" : ""} activa{totalActivas !== 1 ? "s" : ""}
-            <span className="mx-2 text-brand-border">·</span>
+            <span className="mx-1.5 text-brand-border">·</span>
             <span className="font-bold text-emerald-600 dark:text-emerald-400">{webPublishedCount}</span> en web
           </p>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-2 border-t border-brand-border/70 pt-2.5">
+          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider shrink-0 pt-1">
             Comercializadora
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => setCompania("Todas")}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors ${
                 compania === "Todas"
                   ? "border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                   : "border-brand-border text-brand-subtext hover:border-emerald-500/30"
               }`}
             >
               Todas
-              <span className="inline-flex min-w-[1.25rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
+              <span className="inline-flex min-w-[1.1rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
                 {countsByCompania.Todas ?? 0}
               </span>
             </button>
@@ -151,14 +144,14 @@ export function ProductosPanelHeader({
                 key={c}
                 type="button"
                 onClick={() => setCompania(c)}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors ${
+                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors ${
                   compania === c
                     ? "border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                     : "border-brand-border text-brand-subtext hover:border-emerald-500/30"
                 }`}
               >
                 {c}
-                <span className="inline-flex min-w-[1.25rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
+                <span className="inline-flex min-w-[1.1rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
                   {countsByCompania[c] ?? 0}
                 </span>
               </button>
@@ -199,7 +192,7 @@ export function ProductosList({
   | "onEditWeb"
 >) {
   return (
-    <div className="xl:flex-1 min-w-0 xl:min-h-0 flex flex-col gap-4">
+    <div className="xl:flex-1 min-w-0 xl:min-h-0 flex flex-col gap-3">
       <div className="relative shrink-0">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-subtext pointer-events-none" />
         <input
@@ -207,7 +200,7 @@ export function ProductosList({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre de tarifa o compañía..."
-          className="w-full pl-10 pr-24 py-2.5 rounded-xl border border-brand-border bg-brand-surface text-sm text-brand-text placeholder:text-brand-subtext/70"
+          className="w-full pl-10 pr-24 py-2 rounded-xl border border-brand-border bg-brand-surface text-sm text-brand-text placeholder:text-brand-subtext/70"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-brand-subtext pointer-events-none">
           {filtered.length}/{totalFiltered} tarifa{totalFiltered !== 1 ? "s" : ""}
@@ -224,8 +217,6 @@ export function ProductosList({
         )}
       </div>
 
-      {/* xl+: solo esta zona hace scroll, el header y los filtros de arriba quedan fijos.
-          Por debajo de xl fluye con el resto de la página. */}
       <div className="xl:flex-1 xl:min-h-0 xl:overflow-y-auto pr-1 -mr-1">
         {loading ? (
           <div className="flex items-center justify-center gap-2 py-20 text-brand-subtext border border-dashed border-brand-border rounded-2xl bg-brand-panel">
@@ -237,7 +228,7 @@ export function ProductosList({
             key="telefonia"
             className="animate-fade-in-ease text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-panel"
           >
-            <Phone className="h-8 w-8 mx-auto text-brand-subtext mb-2" />
+            <Phone className="h-8 w-8 mx-auto text-blue-500 dark:text-blue-400 mb-2" />
             <p className="text-sm font-semibold text-brand-text">Telefonía próximamente</p>
             <p className="text-xs text-brand-subtext mt-1">
               No hay tarifas de telefonía activas en el catálogo.
@@ -254,7 +245,7 @@ export function ProductosList({
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div key={filtered.map((product) => product.id).join("|")} className="animate-fade-in-ease">
               <ProductosTable
                 products={filtered}
@@ -269,7 +260,7 @@ export function ProductosList({
                   type="button"
                   onClick={onLoadMore}
                   disabled={loadingMore}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-brand-border bg-brand-panel text-xs font-bold text-brand-text hover:border-emerald-500/40 hover:text-emerald-600 disabled:opacity-60 cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-border bg-brand-panel text-xs font-bold text-brand-text hover:border-emerald-500/40 hover:text-emerald-600 disabled:opacity-60 cursor-pointer"
                 >
                   {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
                   {loadingMore ? "Cargando…" : `Cargar más (${filtered.length}/${totalFiltered})`}

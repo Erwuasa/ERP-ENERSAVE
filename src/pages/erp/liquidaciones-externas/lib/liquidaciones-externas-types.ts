@@ -1,5 +1,8 @@
 export type PendingLiquidacionContract = {
   id: string
+  /** ID del settlement en Supabase; clave de consolidación → pagado. */
+  settlementId: string
+  contractId: string
   code: string
   cups: string
   dateFirm: string

@@ -49,15 +49,26 @@ export function StaffFeedsProvider({ children }: { children: ReactNode }) {
     [avisos, activeUserId]
   )
 
-  const markAvisosVistos = useCallback(async () => {
-    if (unviewedAvisos.length === 0) return
-    for (const aviso of unviewedAvisos) {
-      const result = await marcarVisto(aviso.id, activeUserId)
-      if (result.ok) {
-        setAvisos((prev) => prev.map((item) => (item.id === aviso.id ? result.data : item)))
+  const markAvisosVistos = useCallback(
+    async (avisoIds?: string[]) => {
+      const targets =
+        avisoIds && avisoIds.length > 0
+          ? avisos.filter(
+              (aviso) => avisoIds.includes(aviso.id) && !aviso.vistoPor.includes(activeUserId)
+            )
+          : avisos.filter((aviso) => !aviso.vistoPor.includes(activeUserId))
+
+      if (targets.length === 0) return
+
+      for (const aviso of targets) {
+        const result = await marcarVisto(aviso.id, activeUserId)
+        if (result.ok) {
+          setAvisos((prev) => prev.map((item) => (item.id === aviso.id ? result.data : item)))
+        }
       }
-    }
-  }, [activeUserId, unviewedAvisos])
+    },
+    [activeUserId, avisos]
+  )
 
   const value = useMemo(
     () => ({

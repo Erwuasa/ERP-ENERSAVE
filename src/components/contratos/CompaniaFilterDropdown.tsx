@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react"
 import { Building2 } from "lucide-react"
+import { KPI_CARD } from "@/lib/enersave-ui-theme"
 import { FloatingPanelPortal } from "../ui/FloatingPanelPortal"
 import { FilterTriggerButton } from "../ui/FilterTriggerButton"
 
@@ -92,13 +93,13 @@ export function CompaniaFilterDropdown({
                 key={company.name}
                 type="button"
                 onClick={() => select(company.name)}
-                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-colors cursor-pointer min-h-[88px] ${
+                className={`flex flex-col items-start p-3 rounded-xl border text-left transition-[border-color,box-shadow] duration-200 cursor-pointer min-h-[88px] ${
                   isSelected
-                    ? "border-cyan-500 bg-cyan-500/5"
-                    : "border-brand-border hover:border-cyan-500/30 bg-brand-surface/50"
+                    ? KPI_CARD.selected
+                    : "border-brand-border hover:border-slate-300/70 dark:hover:border-slate-500/50 bg-brand-surface/50"
                 }`}
               >
-                <div className="mb-1.5 min-h-[20px] flex items-center">
+                <div className="mb-1.5 min-h-[2.5rem] flex items-center">
                   {renderCompaniaLogo?.(company.name) ?? (
                     <Building2 className="w-4 h-4 text-brand-subtext" />
                   )}

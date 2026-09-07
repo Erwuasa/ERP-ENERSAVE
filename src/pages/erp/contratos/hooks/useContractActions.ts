@@ -18,9 +18,11 @@ import type { Settlement } from "@/types/settlement"
 import { formatCurrency } from "@/lib/erp/format-currency"
 import {
   buildClawbackPendingContract,
-  computeClawback,
 } from "@/lib/erp/contract-clawback"
-import { buildActivationDistribution } from "@/lib/erp/contract-activation"
+import { cancelContractWithSettlement } from "@/lib/erp/cancel-contract-with-settlement"
+import { listRetrocomisionSchedules } from "@/lib/supabase/retrocomision-schedules"
+import { activateContractWithSettlement } from "@/lib/erp/activate-contract-with-settlement"
+import { normalizeContractEstado } from "@/lib/contract-estado"
 import { createContractFromForm } from "@/lib/erp/create-contract-from-form"
 import {
   buildOcrFormPatch,
@@ -270,33 +272,86 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     setSelectedContractForActivation(null)
   }, [])
 
+  const confirmContractActivation = useCallback(
+    async (
+      contract: Contract,
+      consumoAnual?: number
+    ): Promise<{ ok: true; contract: Contract; settlement: Settlement } | { ok: false; message: string }> => {
+      const result = await activateContractWithSettlement({
+        contract,
+        consumoAnual,
+        existingSettlements: settlements,
+        profiles,
+        audit: {
+          autorId: activeUserId,
+          autorNombre: activeUser.fullName,
+          estadoAnterior: normalizeContractEstado(contract.estado),
+        },
+      })
+
+      if (result.ok === false) {
+        return { ok: false, message: result.message }
+      }
+
+      setContracts((prev) =>
+        prev.map((item) => (item.id === contract.id ? result.contract : item))
+      )
+
+      setSettlements((prev) => {
+        const withoutDuplicate = prev.filter(
+          (item) =>
+            !(item.contractId === contract.id && item.tipoEvento === "activacion")
+        )
+        return [result.settlement, ...withoutDuplicate]
+      })
+
+      return {
+        ok: true,
+        contract: result.contract,
+        settlement: result.settlement,
+      }
+    },
+    [
+      settlements,
+      profiles,
+      activeUserId,
+      activeUser.fullName,
+      setContracts,
+      setSettlements,
+    ]
+  )
+
   const handleActivateAndDistribute = useCallback(
-    (contractId: string, consumoKwh: number, potenciaKw: number) => {
+    async (contractId: string, consumoKwh: number, _potenciaKw: number) => {
       const contract = contracts.find((c) => c.id === contractId)
       if (!contract) return
 
       setIsActivatingContractLoading(true)
 
-      setTimeout(() => {
-        const today = new Date().toISOString().split("T")[0]
-        const { updatedContract, settlements: newSettlements, comercialShare, jefeShare } =
-          buildActivationDistribution(contract, consumoKwh, potenciaKw, profiles, today)
+      try {
+        const result = await confirmContractActivation(contract, consumoKwh)
 
-        setContracts((prev) =>
-          prev.map((c) => (c.id === contractId ? updatedContract : c))
-        )
-        setSettlements((prev) => [...newSettlements, ...prev])
-        setIsActivatingContractLoading(false)
+        if (result.ok === false) {
+          toast.error(result.message)
+          return
+        }
+
         closeActivateModal()
         toast.success(
-          `¡Contrato activado de forma oficial! Comisión neta repartida: Asesor (50%: ${formatCurrency(comercialShare)}) y Jefe (20%: ${formatCurrency(jefeShare)}).`
+          `Contrato activado. Liquidación pendiente de ${formatCurrency(result.settlement.montoExterno)} registrada para ${contract.comercialName}.`
         )
-      }, 600)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error al activar el contrato"
+        toast.error(message)
+      } finally {
+        setIsActivatingContractLoading(false)
+      }
     },
-    [contracts, profiles, setContracts, setSettlements, closeActivateModal]
+    [contracts, confirmContractActivation, closeActivateModal]
   )
 
   const openBajaModal = useCallback((contract: Contract) => {
+    void listRetrocomisionSchedules()
     setSelectedContractForBaja(contract)
     setBajaDate(new Date().toISOString().split("T")[0])
     setIsBajaOpen(true)
@@ -308,65 +363,81 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   }, [])
 
   const handleCancelContract = useCallback(
-    (e: FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault()
       if (!selectedContractForBaja) return
-
-      const clawback = computeClawback(selectedContractForBaja, bajaDate)
-      if (clawback.isInvalidDate) {
-        toast.error("La fecha de baja no puede ser anterior a la fecha de activación.")
-        return
-      }
 
       setIsBajaLoading(true)
       const contract = selectedContractForBaja
 
-      setTimeout(() => {
-        setIsBajaLoading(false)
+      try {
+        const result = await cancelContractWithSettlement({
+          contract,
+          bajaDate,
+          existingSettlements: settlements,
+          audit: {
+            autorId: activeUserId,
+            autorNombre: activeUser.fullName,
+            estadoAnterior: normalizeContractEstado(contract.estado),
+          },
+        })
+
+        if (result.ok === false) {
+          toast.error(result.message)
+          return
+        }
 
         setContracts((prev) =>
-          prev.map((item) =>
-            item.id === contract.id
-              ? {
-                  ...item,
-                  estado: "Dado de Baja",
-                  fechaBaja: bajaDate,
-                  retrocomisionClawback: clawback.clawbackAmount,
-                }
-              : item
-          )
+          prev.map((item) => (item.id === contract.id ? result.contract : item))
         )
 
-        const negativeSettlement: Settlement = {
-          id: `liq-baja-${Date.now()}`,
-          comercialId: contract.comercialId,
-          comercialName: contract.comercialName,
-          montoInterno: -clawback.internalClawback,
-          montoExterno: -clawback.clawbackAmount,
-          estado: "pendiente",
-          tipo: contract.tipo,
-          descripcion: `Retrocomisión Proporcional - Baja de ${contract.clientName} (${contract.compania}) tras ${clawback.diffMonths.toFixed(1)}/${clawback.limitMonths} meses (${(clawback.clawbackPercent * 100).toFixed(0)}% de penalización)`,
-          createdAt: bajaDate,
-          contractId: contract.id,
-        }
-        setSettlements((prev) => [negativeSettlement, ...prev])
+        if (result.settlement) {
+          setSettlements((prev) => {
+            const withoutDuplicate = prev.filter(
+              (item) =>
+                !(
+                  item.contractId === contract.id && item.tipoEvento === "retrocomision"
+                )
+            )
+            return [result.settlement!, ...withoutDuplicate]
+          })
 
-        if (clawback.clawbackAmount > 0) {
           setPendingContracts((prev) => [
-            buildClawbackPendingContract(contract, bajaDate, clawback),
+            buildClawbackPendingContract(contract, bajaDate, {
+              clawbackAmount: result.clawbackAmount,
+              porcentajeAplicado:
+                result.clawbackAmount > 0 && contract.montoExterno > 0
+                  ? (result.clawbackAmount / contract.montoExterno) * 100
+                  : 0,
+            }),
             ...prev,
           ])
         }
 
         closeBajaModal()
-        toast.success(
-          `Contrato dado de baja con éxito. Se calculó una retrocomisión de -${formatCurrency(clawback.clawbackAmount)} (${(clawback.clawbackPercent * 100).toFixed(0)}% penalización) y se registró como saldo negativo.`
-        )
-      }, 750)
+
+        if (result.clawbackAmount > 0) {
+          toast.success(
+            `Contrato dado de baja. Retrocomisión registrada: -${formatCurrency(result.clawbackAmount)}.`
+          )
+        } else {
+          toast.success(
+            "Contrato dado de baja sin retrocomisión (periodo de cobertura superado)."
+          )
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error al dar de baja el contrato"
+        toast.error(message)
+      } finally {
+        setIsBajaLoading(false)
+      }
     },
     [
       selectedContractForBaja,
       bajaDate,
+      settlements,
+      activeUserId,
+      activeUser.fullName,
       setContracts,
       setSettlements,
       setPendingContracts,
@@ -444,6 +515,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     openActivateModal,
     closeActivateModal,
     handleActivateAndDistribute,
+    confirmContractActivation,
     isBajaOpen,
     selectedContractForBaja,
     bajaDate,

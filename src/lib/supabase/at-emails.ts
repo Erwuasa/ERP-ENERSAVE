@@ -1,3 +1,4 @@
+import { fetchOwnUserProfile } from "./user-profiles"
 import {
   resolveSupabaseClient,
   str,
@@ -19,6 +20,14 @@ export interface AtEmailLog {
 export async function listAtEmailLogs(): Promise<SupabaseResult<AtEmailLog[]>> {
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
+
+  const profileResult = await fetchOwnUserProfile()
+  if (profileResult.ok === false) {
+    return { ok: false, reason: "error", message: profileResult.message }
+  }
+  if (profileResult.data?.role !== "superadmin") {
+    return { ok: true, data: [] }
+  }
 
   const { data, error } = await resolved.client
     .from("at_email_logs")

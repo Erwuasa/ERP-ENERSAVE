@@ -1,5 +1,11 @@
 import type { Settlement } from "../../types/settlement"
 import type { Contract } from "../../types/contract"
+import {
+  ACTIVATION_SETTLEMENT_EVENTO,
+  RETROCOMISION_SETTLEMENT_EVENTO,
+  findActivationSettlement,
+  findContractCommissionSettlement,
+} from "../contract-settlements"
 import { isRetrocomisionSettlement } from "../liquidaciones-internas"
 import {
   buildMonthlySettlementFromDesglose,
@@ -40,6 +46,14 @@ export function mapRowToSettlement(row: Row): Settlement {
     descripcion: str(row.descripcion) ?? "",
     createdAt: isoDate(row.created_at) ?? "",
     contractId: str(row.contrato_id),
+    tipoEvento:
+      str(row.tipo_evento) === "activacion" ||
+      str(row.tipo_evento) === "retrocomision" ||
+      str(row.tipo_evento) === "mensual" ||
+      str(row.tipo_evento) === "ajuste"
+        ? (str(row.tipo_evento) as Settlement["tipoEvento"])
+        : undefined,
+    fechaBaja: isoDate(row.fecha_baja),
     source: row.source === "at" ? "at" : "manual",
     companyPaymentStatus: str(row.company_payment_status),
     collaboratorPaymentStatus: str(row.collaborator_payment_status),
@@ -55,6 +69,155 @@ const PATCH_COLUMNS: Partial<Record<keyof Settlement, string>> = {
   tipo: "tipo",
   descripcion: "descripcion",
   contractId: "contrato_id",
+  tipoEvento: "tipo_evento",
+  fechaBaja: "fecha_baja",
+}
+
+function settlementCreatedAtIso(createdAt: string): string {
+  const isoDateOnly = createdAt.trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDateOnly)) {
+    return new Date().toISOString()
+  }
+  return `${isoDateOnly}T12:00:00.000Z`
+}
+
+function buildSettlementInsertRow(settlement: Settlement): Row {
+  const row: Row = {
+    ...buildSettlementPatch(settlement),
+    es_retrocomision: isRetrocomisionSettlement(settlement),
+  }
+  if (settlement.createdAt) {
+    row.created_at = settlementCreatedAtIso(settlement.createdAt)
+  }
+  if (settlement.tipoEvento) {
+    row.tipo_evento = settlement.tipoEvento
+  }
+  if (settlement.fechaBaja) {
+    row.fecha_baja = settlementCreatedAtIso(settlement.fechaBaja)
+  }
+  return row
+}
+
+export { findActivationSettlement }
+
+export async function findActivationSettlementForContract(
+  contractId: string
+): Promise<SupabaseResult<Settlement | null>> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .select("*")
+    .eq("contrato_id", contractId)
+    .eq("tipo_evento", ACTIVATION_SETTLEMENT_EVENTO)
+    .maybeSingle()
+
+  if (error) return toFailure(error)
+  if (!data) return { ok: true, data: null }
+
+  return { ok: true, data: mapRowToSettlement(data as Row) }
+}
+
+export async function createActivationSettlement(
+  settlement: Settlement
+): Promise<SupabaseResult<{ settlement: Settlement; created: boolean }>> {
+  if (!settlement.contractId) {
+    return { ok: false, reason: "error", message: "Falta contrato_id en la liquidación." }
+  }
+
+  const existingResult = await findActivationSettlementForContract(settlement.contractId)
+  if (existingResult.ok === false) return existingResult
+
+  if (existingResult.data) {
+    const updateResult = await updateSettlement(existingResult.data.id, {
+      comercialId: settlement.comercialId,
+      comercialName: settlement.comercialName,
+      montoInterno: settlement.montoInterno,
+      montoExterno: settlement.montoExterno,
+      estado: "pendiente",
+      tipo: settlement.tipo,
+      descripcion: settlement.descripcion,
+      contractId: settlement.contractId,
+      tipoEvento: ACTIVATION_SETTLEMENT_EVENTO,
+      createdAt: settlement.createdAt,
+    })
+    if (updateResult.ok === false) return updateResult
+    return { ok: true, data: { settlement: updateResult.data, created: false } }
+  }
+
+  const createResult = await createSettlement({
+    ...settlement,
+    tipoEvento: ACTIVATION_SETTLEMENT_EVENTO,
+  })
+  if (createResult.ok === false) {
+    if (
+      createResult.reason === "error" &&
+      /duplicate key|unique constraint/i.test(createResult.message)
+    ) {
+      const retry = await findActivationSettlementForContract(settlement.contractId)
+      if (retry.ok && retry.data) {
+        return { ok: true, data: { settlement: retry.data, created: false } }
+      }
+    }
+    return createResult
+  }
+
+  return { ok: true, data: { settlement: createResult.data, created: true } }
+}
+
+export async function findRetrocomisionSettlementForContract(
+  contractId: string
+): Promise<SupabaseResult<Settlement | null>> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .select("*")
+    .eq("contrato_id", contractId)
+    .eq("tipo_evento", RETROCOMISION_SETTLEMENT_EVENTO)
+    .maybeSingle()
+
+  if (error) return toFailure(error)
+  if (!data) return { ok: true, data: null }
+
+  return { ok: true, data: mapRowToSettlement(data as Row) }
+}
+
+export async function createRetrocomisionSettlement(
+  settlement: Settlement
+): Promise<SupabaseResult<{ settlement: Settlement; created: boolean }>> {
+  if (!settlement.contractId) {
+    return { ok: false, reason: "error", message: "Falta contrato_id en la liquidación." }
+  }
+
+  const existingResult = await findRetrocomisionSettlementForContract(settlement.contractId)
+  if (existingResult.ok === false) return existingResult
+
+  if (existingResult.data) {
+    return { ok: true, data: { settlement: existingResult.data, created: false } }
+  }
+
+  const createResult = await createSettlement({
+    ...settlement,
+    tipoEvento: RETROCOMISION_SETTLEMENT_EVENTO,
+  })
+
+  if (createResult.ok === false) {
+    if (
+      createResult.reason === "error" &&
+      /duplicate key|unique constraint/i.test(createResult.message)
+    ) {
+      const retry = await findRetrocomisionSettlementForContract(settlement.contractId)
+      if (retry.ok && retry.data) {
+        return { ok: true, data: { settlement: retry.data, created: false } }
+      }
+    }
+    return createResult
+  }
+
+  return { ok: true, data: { settlement: createResult.data, created: true } }
 }
 
 export function buildSettlementPatch(patch: Partial<Settlement>): Row {
@@ -86,10 +249,7 @@ export async function createSettlement(
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
 
-  const row: Row = {
-    ...buildSettlementPatch(settlement),
-    es_retrocomision: isRetrocomisionSettlement(settlement),
-  }
+  const row = buildSettlementInsertRow(settlement)
 
   const { data, error } = await resolved.client.from(TABLE).insert(row).select("*").single()
   if (error) return toFailure(error)
@@ -107,10 +267,7 @@ export async function createSettlementsBatch(
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
 
-  const rows = settlements.map((settlement) => ({
-    ...buildSettlementPatch(settlement),
-    es_retrocomision: isRetrocomisionSettlement(settlement),
-  }))
+  const rows = settlements.map((settlement) => buildSettlementInsertRow(settlement))
 
   const { data, error } = await resolved.client.from(TABLE).insert(rows).select("*")
   if (error) return toFailure(error)
@@ -309,6 +466,38 @@ export async function generarLiquidacionesDelMesFromProfiles(
   }
 }
 
+export async function markSettlementsAsPagado(
+  ids: string[]
+): Promise<SupabaseResult<Settlement[]>> {
+  const uniqueIds = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    return { ok: false, reason: "error", message: "No hay liquidaciones que consolidar." }
+  }
+
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .update({ estado: "pagado" })
+    .in("id", uniqueIds)
+    .eq("estado", "pendiente")
+    .select("*")
+
+  if (error) return toFailure(error)
+
+  const rows = (data ?? []) as Row[]
+  if (rows.length === 0) {
+    return {
+      ok: false,
+      reason: "error",
+      message: "No se encontraron liquidaciones pendientes para consolidar.",
+    }
+  }
+
+  return { ok: true, data: rows.map((row) => mapRowToSettlement(row)) }
+}
+
 export async function updateSettlement(
   id: string,
   patch: Partial<Settlement>
@@ -317,6 +506,12 @@ export async function updateSettlement(
   if (resolved.ok === false) return resolved
 
   const row = buildSettlementPatch(patch)
+  if (patch.createdAt) {
+    row.created_at = settlementCreatedAtIso(patch.createdAt)
+  }
+  if (patch.fechaBaja) {
+    row.fecha_baja = settlementCreatedAtIso(patch.fechaBaja)
+  }
   if (Object.keys(row).length === 0) {
     return { ok: false, reason: "error", message: "No hay cambios que persistir." }
   }

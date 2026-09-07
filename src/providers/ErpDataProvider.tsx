@@ -18,6 +18,7 @@ import { listTeamContracts } from "@/lib/supabase/contracts"
 import { listClientes } from "@/lib/supabase/clientes"
 import { listSettlements } from "@/lib/supabase/settlements"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
+import { subscribeSettlementsChanges } from "@/lib/settlements-realtime"
 import type { SupabaseFailure, SupabaseResult } from "@/lib/supabase/result"
 import { toast } from "sonner"
 
@@ -230,6 +231,27 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
     }
     // Carga inicial de sesión; no reaccionar a mutations locales.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return
+
+    const unsubscribe = subscribeSettlementsChanges(({ event, settlement }) => {
+      setSettlements((prev) => {
+        if (event === "DELETE") {
+          return prev.filter((item) => item.id !== settlement.id)
+        }
+
+        const index = prev.findIndex((item) => item.id === settlement.id)
+        if (index === -1) return [settlement, ...prev]
+
+        const next = [...prev]
+        next[index] = settlement
+        return next
+      })
+    })
+
+    return unsubscribe ?? undefined
   }, [])
 
   const value = useMemo(

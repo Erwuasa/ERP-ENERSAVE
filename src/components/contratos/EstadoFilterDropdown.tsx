@@ -5,6 +5,7 @@ import {
   type ContractEstadoUiFilter,
 } from "../../lib/contract-estado-kpis"
 import { getContractEstadoBadgeClass } from "../../lib/contract-estado"
+import { listItemSelectedClass } from "@/lib/enersave-ui-theme"
 import { FloatingPanelPortal } from "../ui/FloatingPanelPortal"
 import { FilterTriggerButton } from "../ui/FilterTriggerButton"
 
@@ -72,9 +73,7 @@ export function EstadoFilterDropdown({ value, onChange, counts, onOpenChange }: 
               <button
                 type="button"
                 onClick={() => select(meta.id)}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${
-                  isSelected ? "bg-cyan-500/5" : ""
-                }`}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${listItemSelectedClass(isSelected)}`}
               >
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${getContractEstadoBadgeClass(meta.sampleEstado)}`}

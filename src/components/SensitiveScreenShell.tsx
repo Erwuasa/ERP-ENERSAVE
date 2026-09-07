@@ -10,6 +10,7 @@ interface SensitiveScreenShellProps {
   userLabel: string
   children: ReactNode
   className?: string
+  showWatermark?: boolean
 }
 
 const WATERMARK_TILE_COUNT = 28
@@ -28,7 +29,12 @@ function SensitiveScreenWatermark({ label }: { label: string }) {
   )
 }
 
-export function SensitiveScreenShell({ userLabel, children, className }: SensitiveScreenShellProps) {
+export function SensitiveScreenShell({
+  userLabel,
+  children,
+  className,
+  showWatermark = true,
+}: SensitiveScreenShellProps) {
   useSensitiveScreenContextMenu()
   const showDevToolsNotice = useDevToolsConfidentialityNotice()
   const trimmedLabel = userLabel.trim() || "Usuario"
@@ -38,7 +44,7 @@ export function SensitiveScreenShell({ userLabel, children, className }: Sensiti
       id={SENSITIVE_SCREEN_ROOT_ID}
       className={cn("sensitive-screen-root relative flex min-h-0 flex-1 flex-col", className)}
     >
-      <SensitiveScreenWatermark label={trimmedLabel} />
+      {showWatermark ? <SensitiveScreenWatermark label={trimmedLabel} /> : null}
 
       {showDevToolsNotice && (
         <div className="sensitive-screen-devtools-notice" role="status">

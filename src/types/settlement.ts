@@ -1,3 +1,5 @@
+export type SettlementTipoEvento = "activacion" | "retrocomision" | "mensual" | "ajuste"
+
 export interface Settlement {
   id: string
   comercialId: string
@@ -9,6 +11,8 @@ export interface Settlement {
   descripcion: string
   createdAt: string
   contractId?: string
+  tipoEvento?: SettlementTipoEvento
+  fechaBaja?: string
   source?: "manual" | "at"
   companyPaymentStatus?: string
   collaboratorPaymentStatus?: string

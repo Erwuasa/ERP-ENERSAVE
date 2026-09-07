@@ -25,6 +25,10 @@ import type { Contract } from "@/types/contract"
 import type { Client } from "@/types/client"
 import type { Settlement } from "@/types/settlement"
 import type { Profile } from "@/types/profile"
+import {
+  allocateContractReferencia,
+  collectExistingReferencias,
+} from "@/lib/contract-referencia"
 import { formatCurrency } from "@/lib/erp/format-currency"
 
 export interface CreateContractOptions {
@@ -172,9 +176,14 @@ export async function createContractFromForm(params: {
         : "")
 
   const contractEstado = isIncomplete ? CONTRACT_ESTADO_INCOMPLETO : CONTRACT_ESTADO_INICIAL
+  const referencia = allocateContractReferencia(
+    userAsSeller.fullName,
+    collectExistingReferencias(contracts)
+  )
 
   const newContractObj: Contract = {
     id: `con-${contracts.length + 1}`,
+    referencia,
     clientId: linkedClient.id,
     clientName: form.clientName.trim() || "Pendiente de información",
     cups: form.cups ? form.cups.toUpperCase().trim() : "PENDIENTE",

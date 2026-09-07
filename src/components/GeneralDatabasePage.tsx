@@ -24,6 +24,7 @@ import {
   sortGeneralDatabaseLeads,
 } from "../lib/general-database"
 import { isSupabaseConfigured } from "../lib/supabase/client"
+import { TABLE_ROW_SELECTED } from "@/lib/enersave-ui-theme"
 import type { GeneralDatabaseFilters, GeneralDatabaseLead, GeneralDatabaseSegment } from "../types/general-database"
 
 interface GeneralDatabasePageProps {
@@ -310,7 +311,7 @@ export function GeneralDatabasePage({
                   <tr
                     key={lead.id}
                     className={`border-b border-brand-border/50 transition-colors ${
-                      isHighlight ? "bg-cyan-500/5" : "hover:bg-brand-bg/50"
+                      isHighlight ? TABLE_ROW_SELECTED : "hover:bg-brand-bg/50"
                     }`}
                   >
                     <td className="py-3 px-3">

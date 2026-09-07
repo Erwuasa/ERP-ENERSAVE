@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import { mergeProviderCounts } from "@/lib/erp/compania-logos"
 import { tariffRowToProducto, type ProductoPeajeFilter, type ProductoSuministroTab, type ProductoTarifa, type ProductoTipoClienteFilter, type ProductoWebVisibilityFilter } from "@/lib/productos-catalog"
 import {
   listTariffCatalogPage,
@@ -35,6 +36,8 @@ export function useProductosPanel({ activeRole }: Options) {
   const [saving, setSaving] = useState(false)
 
   const canEditWeb = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canEditCalendario = activeRole === "superadmin"
+  const providerFilterRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS)
@@ -47,9 +50,14 @@ export function useProductosPanel({ activeRole }: Options) {
       else setLoading(true)
       setLoadError(null)
 
+      const providerFilter =
+        compania === "Todas"
+          ? "Todas"
+          : (providerFilterRef.current[compania] ?? compania)
+
       const result = await listTariffCatalogPage({
         suministro,
-        compania,
+        compania: providerFilter,
         tipoCliente,
         peaje,
         webVisibility,
@@ -138,20 +146,23 @@ export function useProductosPanel({ activeRole }: Options) {
   const providerCounts = catalogPage?.providerCounts ?? {}
   const summary = catalogPage?.summary
 
-  const companias = useMemo(
-    () => Object.keys(providerCounts).sort((a, b) => a.localeCompare(b, "es")),
-    [providerCounts]
-  )
+  const mergedProviders = useMemo(() => mergeProviderCounts(providerCounts), [providerCounts])
+
+  useEffect(() => {
+    providerFilterRef.current = mergedProviders.filterNameByLabel
+  }, [mergedProviders.filterNameByLabel])
+
+  const companias = mergedProviders.labels
 
   const countsByCompania = useMemo(() => {
     const counts: Record<string, number> = {
-      Todas: Object.values(providerCounts).reduce((sum, n) => sum + n, 0),
+      Todas: Object.values(mergedProviders.countsByLabel).reduce((sum, n) => sum + n, 0),
     }
-    for (const [name, count] of Object.entries(providerCounts)) {
-      counts[name] = count
+    for (const [label, count] of Object.entries(mergedProviders.countsByLabel)) {
+      counts[label] = count
     }
     return counts
-  }, [providerCounts])
+  }, [mergedProviders.countsByLabel])
 
   const totalActivas =
     suministro === "gas"
@@ -199,6 +210,7 @@ export function useProductosPanel({ activeRole }: Options) {
     modalProduct,
     saving,
     canEditWeb,
+    canEditCalendario,
     companias,
     countsByCompania,
     filtered,

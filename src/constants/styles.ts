@@ -42,6 +42,8 @@ export const labels = {
 
 export const inputs = {
   base: "w-full h-9 px-3 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text focus:border-ring focus:ring-2 focus:ring-ring/20 focus:outline-none",
+  search:
+    "w-full pl-9 pr-8 py-2 bg-brand-surface border border-brand-border rounded-lg focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20 text-xs text-brand-text font-medium",
   textarea:
     "w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg text-xs text-brand-text resize-none focus:border-ring focus:ring-2 focus:ring-ring/20 focus:outline-none",
 } as const

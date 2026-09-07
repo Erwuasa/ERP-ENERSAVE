@@ -1,9 +1,20 @@
 import type { Contract } from "../types/contract"
+import { resolveContractTipoCliente } from "./contract-registration"
 import { normalizeContractEstado } from "./contract-estado"
+import {
+  marcoHasSva,
+  marcoRowHasCompletePrices,
+} from "./marco-retributivo-display"
+import { inferIncluyeSvaFromMarcoText } from "./marco-comparador-meta"
 import { estimateMarcoCommissionEur } from "./marco-commission"
 import {
+  isMarcoEntryForSegment,
+  tipoClienteToSegment,
+  type ContractWizardSegment,
+} from "./contract-tariff-filter"
+import { marcoRowToProducto } from "./productos-catalog"
+import {
   calcularCosteAnualDesdeMarco,
-  calcularCosteAnualFallbackMercado,
   contractPeaje,
   normalizePeaje,
 } from "./tarifa-cost-calculator"
@@ -11,8 +22,8 @@ import { getRetroMonths, isRetroElegibleParaRecomendacion } from "./retro-period
 import {
   marcoRowToCatalogEntry,
   type MarcoRetributivoRow,
+  type MarcoSegmento,
 } from "./supabase/marco-retributivo"
-import { inferSegmentoFromText } from "./supabase/marco-retributivo"
 
 export interface TarifaRecommendation {
   contractId: string
@@ -26,7 +37,9 @@ export interface TarifaRecommendation {
   costeNuevoAnual: number
   ahorroAnualEur: number
   ahorroPct: number
+  comisionActualEur: number
   comisionNuevaEur: number
+  comisionMejoraEur: number
   mesesRetroNueva: number
   retroPeriodoEstimado: boolean
   score: number
@@ -36,7 +49,7 @@ export interface TarifaRecommendation {
 
 interface ScoredCandidate extends TarifaRecommendation {
   ahorroPctNorm: number
-  comisionNorm: number
+  comisionMejoraNorm: number
   retroMesesNorm: number
 }
 
@@ -55,75 +68,118 @@ function isSameCompania(a: string, b: string): boolean {
   return na === nb || na.includes(nb) || nb.includes(na)
 }
 
-function contractSegmento(contract: Contract): MarcoRetributivoRow["segmento"] {
-  if (contract.tipoCliente) {
-    const t = contract.tipoCliente.toLowerCase()
-    if (t.includes("pyme") || t.includes("empresa")) return "pyme"
-    if (t.includes("autonom")) return "autonomo"
-    if (t.includes("comunidad")) return "comunidades"
-  }
-  return inferSegmentoFromText(`${contract.tarifa} ${contract.compania}`)
+function contractTipoClienteToMarcoSegmento(
+  tipoCliente: ReturnType<typeof resolveContractTipoCliente>
+): MarcoSegmento {
+  if (tipoCliente === "pyme") return "pyme"
+  if (tipoCliente === "autonomo") return "autonomo"
+  if (tipoCliente === "comunidad_vecinos") return "comunidades"
+  return "residencial"
+}
+
+export function contractToMarcoSegmento(contract: Contract): MarcoSegmento {
+  return contractTipoClienteToMarcoSegmento(resolveContractTipoCliente(contract))
+}
+
+function contractWizardSegment(contract: Contract): ContractWizardSegment {
+  return tipoClienteToSegment(resolveContractTipoCliente(contract))
+}
+
+function companiaOffersSegmento(
+  compania: string,
+  segmento: MarcoSegmento,
+  tipo: MarcoRetributivoRow["tipo"],
+  marcoEntries: MarcoRetributivoRow[]
+): boolean {
+  return marcoEntries.some(
+    (entry) =>
+      entry.activo &&
+      entry.tipo === tipo &&
+      isSameCompania(entry.compania, compania) &&
+      entry.segmento === segmento
+  )
+}
+
+function contractHasSva(
+  contract: Contract,
+  currentEntry: MarcoRetributivoRow | null
+): boolean {
+  if (currentEntry) return marcoHasSva(currentEntry)
+  return inferIncluyeSvaFromMarcoText(contract.tarifa, "")
 }
 
 function findCurrentMarcoEntry(
   contract: Contract,
   marcoEntries: MarcoRetributivoRow[]
 ): MarcoRetributivoRow | null {
+  const segmento = contractToMarcoSegmento(contract)
+  const peaje = normalizePeaje(contractPeaje(contract))
+
   if (contract.marcoEntryId) {
     const byId = marcoEntries.find((e) => e.id === contract.marcoEntryId)
-    if (byId) return byId
+    if (byId && byId.segmento === segmento) return byId
   }
-  const peaje = contractPeaje(contract)
+
   return (
     marcoEntries.find(
       (e) =>
         e.tipo === contract.tipo &&
         isSameCompania(e.compania, contract.compania) &&
         e.tarifa === contract.tarifa &&
-        normalizePeaje(e.peaje) === normalizePeaje(peaje)
+        normalizePeaje(e.peaje) === peaje &&
+        e.segmento === segmento
     ) ??
     marcoEntries.find(
       (e) =>
         e.tipo === contract.tipo &&
         isSameCompania(e.compania, contract.compania) &&
-        normalizePeaje(e.peaje) === normalizePeaje(peaje)
+        normalizePeaje(e.peaje) === peaje &&
+        e.segmento === segmento
     ) ??
     null
   )
 }
 
-function computeCurrentAnnualCost(
+export function marcoEntryMatchesContractCliente(
+  entry: MarcoRetributivoRow,
   contract: Contract,
   marcoEntries: MarcoRetributivoRow[]
-): { cost: number; estimado: boolean } {
-  const currentEntry = findCurrentMarcoEntry(contract, marcoEntries)
-  if (currentEntry) {
-    return {
-      cost: calcularCosteAnualDesdeMarco(currentEntry, contract).totalAnual,
-      estimado: false,
-    }
+): boolean {
+  const contractTipo = resolveContractTipoCliente(contract)
+  const contractSegmento = contractToMarcoSegmento(contract)
+  const product = marcoRowToProducto(entry)
+
+  if (product.tipoCliente !== contractTipo) return false
+  if (entry.segmento !== contractSegmento) return false
+
+  const catalogEntry = marcoRowToCatalogEntry(entry)
+  if (!isMarcoEntryForSegment(catalogEntry, contractWizardSegment(contract))) return false
+
+  if (
+    !companiaOffersSegmento(entry.compania, contractSegmento, contract.tipo, marcoEntries)
+  ) {
+    return false
   }
-  return {
-    cost: calcularCosteAnualFallbackMercado(contract).totalAnual,
-    estimado: true,
-  }
+
+  return true
 }
 
-function filterCandidates(
+export function filterRecommendationCandidates(
   contract: Contract,
   marcoEntries: MarcoRetributivoRow[]
 ): MarcoRetributivoRow[] {
   const peaje = normalizePeaje(contractPeaje(contract))
-  const segmento = contractSegmento(contract)
+  const currentEntry = findCurrentMarcoEntry(contract, marcoEntries)
+  const currentHasSva = contractHasSva(contract, currentEntry)
 
   return marcoEntries.filter((entry) => {
     if (!entry.activo) return false
     if (entry.tipo !== contract.tipo) return false
     if (normalizePeaje(entry.peaje) !== peaje) return false
     if (isSameCompania(entry.compania, contract.compania)) return false
-    if (entry.segmento !== segmento && segmento !== "residencial") {
-      return entry.segmento === segmento
-    }
+    if (!marcoEntryMatchesContractCliente(entry, contract, marcoEntries)) return false
+    if (marcoHasSva(entry) !== currentHasSva) return false
+    if (!marcoRowHasCompletePrices(entry)) return false
     return true
   })
 }
@@ -138,13 +194,14 @@ function buildRecommendationBase(
   entry: MarcoRetributivoRow,
   costeActualAnual: number,
   costeNuevoAnual: number,
-  comisionNuevaEur: number,
-  costeActualEstimado: boolean
+  comisionActualEur: number,
+  comisionNuevaEur: number
 ): Omit<TarifaRecommendation, "score" | "calculadoEn"> {
   const ahorroAnualEur = costeActualAnual - costeNuevoAnual
   const ahorroPct =
     costeActualAnual > 0 ? (ahorroAnualEur / costeActualAnual) * 100 : 0
   const retro = getRetroMonths(entry.compania)
+  const comisionMejoraEur = comisionNuevaEur - comisionActualEur
 
   return {
     contractId: contract.id,
@@ -158,10 +215,12 @@ function buildRecommendationBase(
     costeNuevoAnual: Math.round(costeNuevoAnual * 100) / 100,
     ahorroAnualEur: Math.round(ahorroAnualEur * 100) / 100,
     ahorroPct: Math.round(ahorroPct * 10) / 10,
+    comisionActualEur: Math.round(comisionActualEur * 100) / 100,
     comisionNuevaEur: Math.round(comisionNuevaEur * 100) / 100,
+    comisionMejoraEur: Math.round(comisionMejoraEur * 100) / 100,
     mesesRetroNueva: retro.meses,
     retroPeriodoEstimado: retro.estimado,
-    costeActualEstimado,
+    costeActualEstimado: false,
   }
 }
 
@@ -171,34 +230,103 @@ function scoreCandidates(
   if (candidates.length === 0) return []
 
   const ahorroPcts = candidates.map((c) => c.ahorroPct)
-  const comisiones = candidates.map((c) => c.comisionNuevaEur)
+  const comisionMejoras = candidates.map((c) => c.comisionMejoraEur)
   const retroMeses = candidates.map((c) => c.mesesRetroNueva)
 
   const minAhorro = Math.min(...ahorroPcts)
   const maxAhorro = Math.max(...ahorroPcts)
-  const minCom = Math.min(...comisiones)
-  const maxCom = Math.max(...comisiones)
+  const minCom = Math.min(...comisionMejoras)
+  const maxCom = Math.max(...comisionMejoras)
   const minRetro = Math.min(...retroMeses)
   const maxRetro = Math.max(...retroMeses)
 
   return candidates
     .map((c) => {
       const ahorroPctNorm = minMaxNormalize(c.ahorroPct, minAhorro, maxAhorro)
-      const comisionNorm = minMaxNormalize(c.comisionNuevaEur, minCom, maxCom)
+      const comisionMejoraNorm = minMaxNormalize(c.comisionMejoraEur, minCom, maxCom)
       const retroMesesNorm = minMaxNormalize(c.mesesRetroNueva, minRetro, maxRetro)
       const score =
-        0.45 * ahorroPctNorm + 0.45 * comisionNorm - 0.1 * retroMesesNorm
+        0.45 * ahorroPctNorm + 0.45 * comisionMejoraNorm - 0.1 * retroMesesNorm
 
       return {
         ...c,
         ahorroPctNorm,
-        comisionNorm,
+        comisionMejoraNorm,
         retroMesesNorm,
         score: Math.round(score * 1000) / 1000,
         calculadoEn: new Date().toISOString(),
       }
     })
     .sort((a, b) => b.score - a.score)
+}
+
+function estimateCommissionForEntry(
+  entry: MarcoRetributivoRow | null,
+  contract: Contract,
+  comercialCommissionPct: number,
+  formatCurrency: (val: number) => string
+): number {
+  if (!entry) return 0
+  const catalogEntry = marcoRowToCatalogEntry(entry)
+  const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
+  return estimateMarcoCommissionEur(
+    catalogEntry,
+    comercialCommissionPct,
+    consumo,
+    formatCurrency
+  ).amountEur
+}
+
+function collectViableRecommendations(
+  contract: Contract,
+  marcoEntries: MarcoRetributivoRow[],
+  comercialCommissionPct: number,
+  formatCurrency: (val: number) => string
+): Omit<TarifaRecommendation, "score" | "calculadoEn">[] {
+  const currentEntry = findCurrentMarcoEntry(contract, marcoEntries)
+  if (!currentEntry || !marcoRowHasCompletePrices(currentEntry)) return []
+
+  const candidates = filterRecommendationCandidates(contract, marcoEntries)
+  if (candidates.length === 0) return []
+
+  const costeActualAnual = calcularCosteAnualDesdeMarco(currentEntry, contract).totalAnual
+  const comisionActualEur = estimateCommissionForEntry(
+    currentEntry,
+    contract,
+    comercialCommissionPct,
+    formatCurrency
+  )
+
+  const viable: Omit<TarifaRecommendation, "score" | "calculadoEn">[] = []
+
+  for (const entry of candidates) {
+    const costeNuevoAnual = calcularCosteAnualDesdeMarco(entry, contract).totalAnual
+    if (costeNuevoAnual > costeActualAnual) continue
+
+    const comisionNuevaEur = estimateCommissionForEntry(
+      entry,
+      contract,
+      comercialCommissionPct,
+      formatCurrency
+    )
+
+    if (costeNuevoAnual === costeActualAnual && comisionNuevaEur <= comisionActualEur) {
+      continue
+    }
+
+    viable.push(
+      buildRecommendationBase(
+        contract,
+        entry,
+        costeActualAnual,
+        costeNuevoAnual,
+        comisionActualEur,
+        comisionNuevaEur
+      )
+    )
+  }
+
+  return viable
 }
 
 export function calcularRecomendacionParaContrato(
@@ -209,39 +337,12 @@ export function calcularRecomendacionParaContrato(
 ): TarifaRecommendation | null {
   if (!isRetroElegibleParaRecomendacion(contract)) return null
 
-  const candidates = filterCandidates(contract, marcoEntries)
-  if (candidates.length === 0) return null
-
-  const { cost: costeActualAnual, estimado: costeActualEstimado } =
-    computeCurrentAnnualCost(contract, marcoEntries)
-
-  const viable: Omit<TarifaRecommendation, "score" | "calculadoEn">[] = []
-
-  for (const entry of candidates) {
-    const costeNuevoAnual = calcularCosteAnualDesdeMarco(entry, contract).totalAnual
-    if (costeNuevoAnual > costeActualAnual) continue
-
-    const catalogEntry = marcoRowToCatalogEntry(entry)
-    const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
-    const comision = estimateMarcoCommissionEur(
-      catalogEntry,
-      comercialCommissionPct,
-      consumo,
-      formatCurrency
-    )
-
-    viable.push(
-      buildRecommendationBase(
-        contract,
-        entry,
-        costeActualAnual,
-        costeNuevoAnual,
-        comision.amountEur,
-        costeActualEstimado
-      )
-    )
-  }
-
+  const viable = collectViableRecommendations(
+    contract,
+    marcoEntries,
+    comercialCommissionPct,
+    formatCurrency
+  )
   if (viable.length === 0) return null
 
   const scored = scoreCandidates(viable)
@@ -260,38 +361,12 @@ export function calcularTop2RecomendacionesParaContrato(
 ): TarifaRecommendation[] {
   if (!isRetroElegibleParaRecomendacion(contract)) return []
 
-  const candidates = filterCandidates(contract, marcoEntries)
-  if (candidates.length === 0) return []
-
-  const { cost: costeActualAnual, estimado: costeActualEstimado } =
-    computeCurrentAnnualCost(contract, marcoEntries)
-
-  const viable: Omit<TarifaRecommendation, "score" | "calculadoEn">[] = []
-
-  for (const entry of candidates) {
-    const costeNuevoAnual = calcularCosteAnualDesdeMarco(entry, contract).totalAnual
-    if (costeNuevoAnual > costeActualAnual) continue
-
-    const catalogEntry = marcoRowToCatalogEntry(entry)
-    const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
-    const comision = estimateMarcoCommissionEur(
-      catalogEntry,
-      comercialCommissionPct,
-      consumo,
-      formatCurrency
-    )
-
-    viable.push(
-      buildRecommendationBase(
-        contract,
-        entry,
-        costeActualAnual,
-        costeNuevoAnual,
-        comision.amountEur,
-        costeActualEstimado
-      )
-    )
-  }
+  const viable = collectViableRecommendations(
+    contract,
+    marcoEntries,
+    comercialCommissionPct,
+    formatCurrency
+  )
 
   const calculadoEn = new Date().toISOString()
   return scoreCandidates(viable)

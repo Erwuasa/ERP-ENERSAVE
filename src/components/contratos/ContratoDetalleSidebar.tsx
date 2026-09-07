@@ -14,7 +14,7 @@ export function ContratoDetalleSidebar({
 }: ContratoDetalleSidebarProps) {
   return (
     <nav
-      className="w-52 shrink-0 border-r border-brand-border bg-brand-panel/80 overflow-y-auto py-3 px-2 space-y-0.5"
+      className="w-52 shrink-0 space-y-0.5 self-start border-r border-brand-border bg-brand-panel/95 px-2 py-3"
       aria-label="Secciones del contrato"
     >
       {CONTRATO_DETALLE_TABS.map((tab) => {
@@ -24,10 +24,10 @@ export function ContratoDetalleSidebar({
             key={tab.id}
             type="button"
             onClick={() => onTabChange(tab.id)}
-            className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`w-full cursor-pointer rounded-lg border px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
               isActive
-                ? "bg-teal-500/15 text-teal-800 dark:text-teal-200 border border-teal-500/30 shadow-sm"
-                : "text-brand-subtext hover:text-brand-text hover:bg-brand-bg/80 border border-transparent"
+                ? "border-teal-500/30 bg-teal-500/15 text-teal-800 shadow-sm dark:text-teal-200"
+                : "border-transparent text-brand-subtext hover:bg-brand-bg/80 hover:text-brand-text"
             }`}
           >
             {tab.label}

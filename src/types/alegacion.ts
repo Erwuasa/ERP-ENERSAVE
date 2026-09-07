@@ -24,6 +24,8 @@ export interface Alegacion {
   estado: AlegacionEstado
   mensajes: AlegacionMensaje[]
   creadaEn: string
+  /** Importe acordado por superadmin; sustituye la comisión en KPIs y tabla */
+  comisionAjustada?: number | null
 }
 
 export interface CreateAlegacionInput {

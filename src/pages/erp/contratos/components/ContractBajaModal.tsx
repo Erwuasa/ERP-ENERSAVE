@@ -2,8 +2,12 @@ import { motion } from "motion/react"
 import { AlertTriangle, Trash2 } from "lucide-react"
 import type { FormEvent } from "react"
 import type { Contract } from "@/types/contract"
-import { computeClawback } from "@/lib/erp/contract-clawback"
+import {
+  computeRetrocomisionClawback,
+  resolveContractActivationDateIso,
+} from "@/lib/erp/contract-clawback"
 import { formatCurrency } from "@/lib/erp/format-currency"
+import { getCachedRetrocomisionSchedules } from "@/lib/supabase/retrocomision-schedules"
 
 export interface ContractBajaModalProps {
   contract: Contract
@@ -22,7 +26,11 @@ export function ContractBajaModal({
   onClose,
   onConfirm,
 }: ContractBajaModalProps) {
-  const clawback = computeClawback(contract, bajaDate)
+  const clawback = computeRetrocomisionClawback(
+    contract,
+    bajaDate,
+    getCachedRetrocomisionSchedules()
+  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -51,8 +59,9 @@ export function ContractBajaModal({
 
         <div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Al cancelar el suministro eléctrico o de gas antes del periodo de cobertura, se
-            genera una liquidación negativa proporcional contra la cuenta del comercial implicado:
+            Al cancelar el suministro antes del periodo de retrocomisión de la compañía, se
+            genera una liquidación negativa contra la cuenta del comercial según el calendario
+            data-driven del marco retributivo.
           </p>
         </div>
 
@@ -81,7 +90,9 @@ export function ContractBajaModal({
           </div>
           <div className="flex justify-between">
             <span className="text-slate-500 font-mono text-[10px]">FECHA DE ACTIVACIÓN:</span>
-            <span className="text-slate-300 font-mono">{contract.createdAt}</span>
+            <span className="text-slate-300 font-mono">
+              {resolveContractActivationDateIso(contract)}
+            </span>
           </div>
         </div>
 
@@ -103,19 +114,21 @@ export function ContractBajaModal({
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             Error: La fecha de baja no puede ser anterior a la de activación.
           </div>
-        ) : clawback.isSecure ? (
+        ) : !clawback.hasClawback ? (
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-md text-xs font-mono">
             <div className="text-emerald-400 font-bold text-center py-1">
-              ✓ SEGURO: El contrato ha consumido todo el periodo de cobertura (
-              {clawback.limitMonths} meses). No se aplicará retrocomisión negativa.
+              ✓ Sin retrocomisión: a los {clawback.mesesTranscurridos} meses el porcentaje
+              aplicable es 0%.
             </div>
           </div>
         ) : (
           <div className="p-3.5 bg-slate-950 border border-slate-800 rounded-md text-xs font-mono space-y-2">
             <div className="flex justify-between text-rose-400 border-b border-white/5 pb-1">
-              <span>PENALIZACIÓN CORRESPONDIENTE:</span>
+              <span>RETROCOMISIÓN APLICABLE:</span>
               <span className="font-extrabold">
-                {(clawback.clawbackPercent * 100).toFixed(0)} %
+                {(clawback.valorFijoEur ?? 0) > 0
+                  ? `${clawback.valorFijoEur!.toFixed(2)} € fijo`
+                  : `${clawback.porcentajeAplicado.toFixed(0)} %`}
               </span>
             </div>
             <div className="flex justify-between text-white font-bold text-[11px] pt-2">
@@ -124,10 +137,15 @@ export function ContractBajaModal({
                 -{formatCurrency(clawback.clawbackAmount)}
               </span>
             </div>
+            {clawback.estimado ? (
+              <p className="text-[9px] text-amber-400/90">
+                Estimación: no hay calendario de retro para esta compañía en BD.
+              </p>
+            ) : null}
             <p className="text-[9px] text-slate-500 mt-1 leading-snug">
-              Se deducirá {formatCurrency(clawback.clawbackAmount)} de las liquidaciones
-              pendientes para {contract.comercialName}. El contrato pasará a estado «Dado de
-              Baja».
+              Meses transcurridos: {clawback.mesesTranscurridos}. Se deducirá{" "}
+              {formatCurrency(clawback.clawbackAmount)} de las liquidaciones de{" "}
+              {contract.comercialName}.
             </p>
           </div>
         )}
@@ -163,12 +181,12 @@ export function ContractBajaModal({
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   />
                 </svg>
-                <span>Procesando Clawback...</span>
+                <span>Procesando retrocomisión...</span>
               </>
             ) : (
               <>
                 <AlertTriangle className="w-4 h-4 text-white" />
-                <span>Confirmar Clawback Negativo</span>
+                <span>Confirmar baja y retrocomisión</span>
               </>
             )}
           </button>

@@ -13,6 +13,7 @@ export function LiquidacionesInternasPage() {
     profiles,
     formatCurrency,
     canGenerateAutofactura,
+    autofacturaEnabled,
     canEditFiscalProfile,
     activeUserFiscalComplete,
     autofacturaTipoCliente,
@@ -22,7 +23,11 @@ export function LiquidacionesInternasPage() {
   } = ws
 
   return (
-    <SensitiveScreenShell userLabel={activeUser.fullName} className="min-h-0 overflow-hidden">
+    <SensitiveScreenShell
+      userLabel={activeUser.fullName}
+      showWatermark={false}
+      className="min-h-0 overflow-hidden"
+    >
       <LiquidacionesInternasPanel
         activeRole={
           activeRole === "superadmin" || activeRole === "tramitacion"
@@ -36,9 +41,8 @@ export function LiquidacionesInternasPage() {
         profiles={profiles}
         formatCurrency={formatCurrency}
         canGenerateAutofactura={canGenerateAutofactura}
+        autofacturaEnabled={autofacturaEnabled}
         fiscalProfileComplete={activeUserFiscalComplete}
-        autofacturaTipoCliente={autofacturaTipoCliente}
-        proximaFechaAutofacturaLabel={proximaFechaAutofacturaLabel}
         onGenerateAutofactura={handleGenerateAutofactura}
         onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
       />

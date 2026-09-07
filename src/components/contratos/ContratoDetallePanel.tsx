@@ -5,6 +5,8 @@ import type { Contract } from "@/types/contract"
 import { formatActivationDate } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import {
   formatContractDisplayId,
+  CONTRATO_DETALLE_TABS,
+  contratoDetalleSectionId,
   type ContratoDetalleTab,
 } from "@/components/contratos/contrato-detalle-types"
 import { ContratoDetalleSidebar } from "@/components/contratos/ContratoDetalleSidebar"
@@ -26,6 +28,13 @@ import type {
   AtContractNote,
 } from "@/lib/supabase/at-contract-notes"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
+
+const SELF_TITLED_DETALLE_TABS = new Set<ContratoDetalleTab>([
+  "suministro",
+  "tarifa_marco",
+  "comisiones",
+  "fechas",
+])
 
 const PANEL_MS = 90
 const BACKDROP_MS = 60
@@ -104,7 +113,7 @@ function renderActiveTab(
         />
       )
     case "fechas":
-      return <ContratoDetalleTabFechas />
+      return <ContratoDetalleTabFechas contract={contract} />
     case "documentos":
       return (
         <ContratoDetalleTabDocumentos
@@ -145,6 +154,7 @@ export function ContratoDetallePanel({
   const [isOpen, setIsOpen] = useState(false)
   const [showNotas, setShowNotas] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
+  const scrollContainerRef = useRef<HTMLElement | null>(null)
   const displayId = formatContractDisplayId(contract.id)
   const atExtras = useAtContractNotes({
     atContractId: contract.atContractId,
@@ -172,6 +182,48 @@ export function ContratoDetallePanel({
     setActiveTab("contrato")
     setShowNotas(true)
   }, [contract.id])
+
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const sections = CONTRATO_DETALLE_TABS.map((tab) => ({
+      id: tab.id,
+      element: container.querySelector<HTMLElement>(`#${contratoDetalleSectionId(tab.id)}`),
+    })).filter((entry): entry is { id: ContratoDetalleTab; element: HTMLElement } =>
+      Boolean(entry.element)
+    )
+
+    if (sections.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)
+        const top = visible[0]
+        if (!top) return
+        const matched = sections.find((section) => section.element === top.target)
+        if (matched) setActiveTab(matched.id)
+      },
+      {
+        root: container,
+        rootMargin: "-20% 0px -55% 0px",
+        threshold: [0.15, 0.35, 0.55, 0.75],
+      }
+    )
+
+    for (const section of sections) observer.observe(section.element)
+    return () => observer.disconnect()
+  }, [contract.id])
+
+  function scrollToTab(tab: ContratoDetalleTab) {
+    const container = scrollContainerRef.current
+    const target = container?.querySelector<HTMLElement>(`#${contratoDetalleSectionId(tab)}`)
+    if (!target) return
+    setActiveTab(tab)
+    target.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
 
   useLayoutEffect(() => {
     const previousOverflow = document.body.style.overflow
@@ -262,25 +314,53 @@ export function ContratoDetallePanel({
           </dl>
         </header>
 
-        <div className="flex flex-1 min-h-0">
-          <ContratoDetalleSidebar activeTab={activeTab} onTabChange={setActiveTab} />
-          <main className="flex-1 min-w-0 overflow-y-auto p-6 bg-brand-bg/30">
-            {renderActiveTab(activeTab, contract, {
-              comercialEmail,
-              profiles,
-              formatCurrency,
-              renderCompaniaLogo,
-              activeUserId,
-              activeUserName,
-              onContractUpdated,
-              atStatusNote: atExtras.statusNote,
-              atIncidentAt: atExtras.incidentAt,
-              atNotes: atExtras.notes,
-              atEvents: atExtras.events,
-              atDocuments: atExtras.documents,
-              atEmails: atExtras.emails,
-              atNotesLoading: atExtras.loading,
-            })}
+        <div className="flex min-h-0 flex-1">
+          <ContratoDetalleSidebar activeTab={activeTab} onTabChange={scrollToTab} />
+          <main
+            ref={scrollContainerRef}
+            className="min-w-0 flex-1 overflow-y-auto bg-brand-bg/30 p-6"
+          >
+            <div className="mx-auto max-w-4xl space-y-10 pb-16">
+              {CONTRATO_DETALLE_TABS.map((tab) => (
+                <section
+                  key={tab.id}
+                  id={contratoDetalleSectionId(tab.id)}
+                  aria-labelledby={`${contratoDetalleSectionId(tab.id)}-title`}
+                  className="scroll-mt-4"
+                >
+                  {!SELF_TITLED_DETALLE_TABS.has(tab.id) ? (
+                    <header className="mb-4 border-b border-brand-border/60 pb-2">
+                      <h2
+                        id={`${contratoDetalleSectionId(tab.id)}-title`}
+                        className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext"
+                      >
+                        {tab.label}
+                      </h2>
+                    </header>
+                  ) : (
+                    <h2 id={`${contratoDetalleSectionId(tab.id)}-title`} className="sr-only">
+                      {tab.label}
+                    </h2>
+                  )}
+                  {renderActiveTab(tab.id, contract, {
+                    comercialEmail,
+                    profiles,
+                    formatCurrency,
+                    renderCompaniaLogo,
+                    activeUserId,
+                    activeUserName,
+                    onContractUpdated,
+                    atStatusNote: atExtras.statusNote,
+                    atIncidentAt: atExtras.incidentAt,
+                    atNotes: atExtras.notes,
+                    atEvents: atExtras.events,
+                    atDocuments: atExtras.documents,
+                    atEmails: atExtras.emails,
+                    atNotesLoading: atExtras.loading,
+                  })}
+                </section>
+              ))}
+            </div>
           </main>
           {showNotas ? (
             <ContratoNotasPanel

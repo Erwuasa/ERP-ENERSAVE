@@ -1,9 +1,11 @@
 import { Flame, Globe, GlobeLock, Plus, Settings2, Zap } from "lucide-react"
+import { supplyBadgeClass } from "@/lib/enersave-ui-theme"
 import {
   formatPrecioEnergia,
   formatPrecioPotencia,
   type ProductoTarifa,
 } from "@/lib/productos-catalog"
+import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
 
 type Props = {
   products: ProductoTarifa[]
@@ -28,34 +30,51 @@ function firstPowerPrice(product: ProductoTarifa): string {
   return "—"
 }
 
+function SupplyTypeBadge({ product }: { product: ProductoTarifa }) {
+  return (
+    <span
+      className={`inline-flex w-fit items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${supplyBadgeClass(
+        product.tipo
+      )}`}
+    >
+      {product.tipo === "luz" ? (
+        <Zap className="h-2.5 w-2.5 shrink-0" aria-hidden />
+      ) : (
+        <Flame className="h-2.5 w-2.5 shrink-0" aria-hidden />
+      )}
+      {product.tipo}
+    </span>
+  )
+}
+
 export function ProductosTable({ products, canEditWeb, onCreateContract, onEditWeb }: Props) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-brand-border">
-      <table className="w-full min-w-[960px] text-left text-xs">
+      <table className="w-full min-w-[860px] text-left text-xs">
         <thead>
           <tr className="bg-slate-100 dark:bg-brand-surface/80 border-b border-brand-border">
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
-              Compañía
+            <th
+              colSpan={2}
+              className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold"
+            >
+              Compañía / Tarifa
             </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold min-w-[220px]">
-              Tarifa
-            </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
               Peaje
             </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
               Cliente
             </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
               Web
             </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
               Energía
             </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
               Potencia
             </th>
-            <th className="px-4 py-3 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right w-[140px]">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right w-[128px]">
               Acciones
             </th>
           </tr>
@@ -69,42 +88,38 @@ export function ProductosTable({ products, canEditWeb, onCreateContract, onEditW
                 key={product.id}
                 className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/50 transition-colors"
               >
-                <td className="px-4 py-3 align-top">
-                  <span className="font-mono text-[10px] font-bold uppercase text-brand-subtext tracking-wide">
-                    {product.compania}
-                  </span>
-                  <span
-                    className={`mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${
-                      product.tipo === "luz"
-                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                        : "bg-orange-500/15 text-orange-600 dark:text-orange-400"
-                    }`}
-                  >
-                    {product.tipo === "luz" ? (
-                      <Zap className="h-2.5 w-2.5" aria-hidden />
-                    ) : (
-                      <Flame className="h-2.5 w-2.5" aria-hidden />
-                    )}
-                    {product.tipo}
-                  </span>
+                <td colSpan={2} className="px-3 py-2 align-top">
+                  <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 items-start">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="font-mono text-[11px] font-bold uppercase text-brand-text tracking-wide leading-none">
+                        {formatCompaniaLabel(product.compania).toUpperCase()}
+                      </span>
+                      <SupplyTypeBadge product={product} />
+                    </div>
+                    <div className="min-w-0 pt-0">
+                      <span className="font-semibold text-[13px] text-brand-text leading-snug block">
+                        {product.displayName}
+                      </span>
+                      {hasAlias && (
+                        <span
+                          className="mt-0.5 block text-[10px] font-mono text-brand-subtext truncate"
+                          title={product.catalogName}
+                        >
+                          AT: {product.catalogName}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </td>
-                <td className="px-4 py-3 align-top">
-                  <span className="font-semibold text-brand-text block leading-snug">{product.displayName}</span>
-                  {hasAlias && (
-                    <span className="mt-0.5 block text-[10px] font-mono text-brand-subtext truncate max-w-xs" title={product.catalogName}>
-                      AT: {product.catalogName}
-                    </span>
-                  )}
-                </td>
-                <td className="px-4 py-3 align-top font-mono text-[10px] text-brand-subtext whitespace-nowrap">
+                <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-subtext whitespace-nowrap">
                   {product.peaje}
                 </td>
-                <td className="px-4 py-3 align-top">
+                <td className="px-3 py-2.5 align-top">
                   <span className="inline-flex px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
                     {product.tipoClienteLabel}
                   </span>
                 </td>
-                <td className="px-4 py-3 align-top">
+                <td className="px-3 py-2.5 align-top">
                   <span
                     className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border ${
                       product.webVisible
@@ -120,13 +135,13 @@ export function ProductosTable({ products, canEditWeb, onCreateContract, onEditW
                     {product.webVisible ? "Web" : "Oculta"}
                   </span>
                 </td>
-                <td className="px-4 py-3 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
+                <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
                   {firstEnergyPrice(product)}
                 </td>
-                <td className="px-4 py-3 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
+                <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
                   {firstPowerPrice(product)}
                 </td>
-                <td className="px-4 py-3 align-top">
+                <td className="px-3 py-2.5 align-top">
                   <div className="flex items-center justify-end gap-1.5">
                     <button
                       type="button"

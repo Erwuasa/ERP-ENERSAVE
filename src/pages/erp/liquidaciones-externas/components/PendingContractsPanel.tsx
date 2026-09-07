@@ -13,6 +13,7 @@ type PendingContractsPanelProps = {
   checkedSum: number
   formatCurrency: (val: number) => string
   isConsolidating: boolean
+  canConsolidate: boolean
   onConsolidate: () => void
   profiles: LiquidacionesProfile[]
   renderCompaniaLogo: (brandName: string) => ReactNode
@@ -27,6 +28,7 @@ export function PendingContractsPanel({
   checkedSum,
   formatCurrency,
   isConsolidating,
+  canConsolidate,
   onConsolidate,
   profiles,
   renderCompaniaLogo,
@@ -39,19 +41,21 @@ export function PendingContractsPanel({
           Contratos Pendientes ({visibleCount})
         </span>
 
-        <div className="flex items-center space-x-3 bg-blue-500/5 px-3 py-1.5 rounded-xl border border-blue-500/15">
-          <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-cyan-400 uppercase tracking-widest leading-none block text-right">
-            {checkedCount} sel. ({formatCurrency(checkedSum)})
-          </span>
-          <button
-            type="button"
-            onClick={onConsolidate}
-            disabled={checkedCount === 0 || isConsolidating}
-            className="px-3 py-1.5 text-[9px] font-mono tracking-widest text-[#0f172a] bg-amber-500 hover:bg-amber-600 font-extrabold rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isConsolidating ? "Closing..." : "✓ CONSOLIDAR"}
-          </button>
-        </div>
+        {canConsolidate && (
+          <div className="flex items-center space-x-3 bg-blue-500/5 px-3 py-1.5 rounded-xl border border-blue-500/15">
+            <span className="text-[10px] font-mono font-bold text-blue-600 dark:text-cyan-400 uppercase tracking-widest leading-none block text-right">
+              {checkedCount} sel. ({formatCurrency(checkedSum)})
+            </span>
+            <button
+              type="button"
+              onClick={onConsolidate}
+              disabled={checkedCount === 0 || isConsolidating}
+              className="px-3 py-1.5 text-[9px] font-mono tracking-widest text-[#0f172a] bg-amber-500 hover:bg-amber-600 font-extrabold rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isConsolidating ? "Closing..." : "✓ CONSOLIDAR"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
@@ -67,6 +71,7 @@ export function PendingContractsPanel({
                 profiles={profiles}
                 formatCurrency={formatCurrency}
                 renderCompaniaLogo={renderCompaniaLogo}
+                canSelect={canConsolidate}
                 onToggleChecked={onToggleChecked}
               />
             </div>

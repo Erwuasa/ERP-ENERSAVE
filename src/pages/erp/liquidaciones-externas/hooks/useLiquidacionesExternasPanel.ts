@@ -1,6 +1,9 @@
-import { useMemo, type Dispatch, type SetStateAction } from "react"
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { toast } from "sonner"
+import { buildPendingLiquidacionContractsFromSettlements } from "@/lib/liquidaciones-externas-pending"
 import type { LiquidacionesConsolidadasView } from "@/lib/liquidaciones-consolidadas"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
+import { markSettlementsAsPagado } from "@/lib/supabase/settlements"
 import {
   computeJefeComercialMetrics,
   countPendingByCompaniaTab,
@@ -13,7 +16,6 @@ import type {
   ConsolidatedLiquidacion,
   LiquidacionesProfile,
   LiquidacionesRole,
-  PendingLiquidacionContract,
 } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
 import type { Contract } from "@/types/contract"
 import type { Settlement } from "@/types/settlement"
@@ -25,8 +27,7 @@ type Options = {
   profiles: LiquidacionesProfile[]
   contracts: Contract[]
   settlements: Settlement[]
-  pendingContracts: PendingLiquidacionContract[]
-  setPendingContracts: Dispatch<SetStateAction<PendingLiquidacionContract[]>>
+  setSettlements: Dispatch<SetStateAction<Settlement[]>>
   consolidatedLiquidations: ConsolidatedLiquidacion[]
   setConsolidatedLiquidations: Dispatch<SetStateAction<ConsolidatedLiquidacion[]>>
   selectedCompaniaTab: string
@@ -46,8 +47,7 @@ export function useLiquidacionesExternasPanel({
   profiles,
   contracts,
   settlements,
-  pendingContracts,
-  setPendingContracts,
+  setSettlements,
   consolidatedLiquidations,
   setConsolidatedLiquidations,
   selectedCompaniaTab,
@@ -59,6 +59,15 @@ export function useLiquidacionesExternasPanel({
   formatCurrency,
   setLiquidacionesConsolidadasView,
 }: Options) {
+  const canConsolidate = activeRole === "superadmin" || activeRole === "tramitacion"
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set())
+
+  const pendingContracts = useMemo(
+    () =>
+      buildPendingLiquidacionContractsFromSettlements(settlements, contracts, checkedIds),
+    [settlements, contracts, checkedIds]
+  )
+
   const visiblePendingCount = useMemo(
     () =>
       pendingContracts.filter((c) =>
@@ -132,15 +141,49 @@ export function useLiquidacionesExternasPanel({
   )
 
   function toggleContractChecked(id: string) {
-    setPendingContracts((prev) =>
-      prev.map((pc) => (pc.id === id ? { ...pc, checked: !pc.checked } : pc))
-    )
+    if (!canConsolidate) return
+    setCheckedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  function handleConsolidate() {
-    if (checkedItems.length === 0) return
+  async function handleConsolidate() {
+    if (!canConsolidate || checkedItems.length === 0 || isConsolidating) return
+
+    const settlementIds = checkedItems.map((item) => item.settlementId)
     setIsConsolidating(true)
-    setTimeout(() => {
+
+    try {
+      let updatedSettlements: Settlement[] | null = null
+
+      if (isSupabaseConfigured()) {
+        const result = await markSettlementsAsPagado(settlementIds)
+        if (result.ok === false) {
+          toast.error(result.message ?? "No se pudo consolidar las liquidaciones.")
+          return
+        }
+        updatedSettlements = result.data
+      }
+
+      setSettlements((prev) => {
+        const updatedById = new Map(
+          (updatedSettlements ?? []).map((settlement) => [settlement.id, settlement])
+        )
+        const ids = new Set(settlementIds)
+
+        return prev.map((settlement) => {
+          const persisted = updatedById.get(settlement.id)
+          if (persisted) return persisted
+          if (ids.has(settlement.id) && settlement.estado === "pendiente") {
+            return { ...settlement, estado: "pagado" as const }
+          }
+          return settlement
+        })
+      })
+
       const randomCode = `CS-${Math.floor(1000 + Math.random() * 9000).toString()}${
         selectedCompaniaTab !== "Todos"
           ? selectedCompaniaTab.toUpperCase().substring(0, 2)
@@ -161,18 +204,24 @@ export function useLiquidacionesExternasPanel({
         amount: checkedSum,
         code: randomCode,
       }
+
       setConsolidatedLiquidations([newConsolidated, ...consolidatedLiquidations])
-      setPendingContracts((prev) =>
-        prev.filter((c) => !checkedItems.some((ci) => ci.id === c.id))
-      )
-      setIsConsolidating(false)
+      setCheckedIds((prev) => {
+        const next = new Set(prev)
+        for (const id of settlementIds) next.delete(id)
+        return next
+      })
+
       toast.success(`Cierre contable completado. Remesa ${randomCode} emitida con éxito.`)
-    }, 600)
+    } finally {
+      setIsConsolidating(false)
+    }
   }
 
   return {
-    showSuperadminSection: activeRole === "superadmin" || activeRole === "tramitacion",
+    showSuperadminSection: canConsolidate,
     showJefeSection: activeRole === "jefe_comercial",
+    canConsolidate,
     contracts,
     settlements,
     profiles,

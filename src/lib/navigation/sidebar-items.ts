@@ -28,6 +28,8 @@ export interface SidebarMenuItem {
   name: string
   icon: LucideIcon
   allowedRoles: UserRole[]
+  /** Visible en sidebar pero no navegable (solo superadmin, estilo atenuado). */
+  previewOnly?: boolean
 }
 
 export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
@@ -35,7 +37,7 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Liquidaciones internas", allowedRoles: ["superadmin", "jefe_comercial", "comercial"], icon: WalletCards },
   { name: "Liquidaciones externas", allowedRoles: ["superadmin", "tramitacion"], icon: WalletCards },
   { name: "Usuarios", allowedRoles: ["superadmin", "tramitacion"], icon: Users },
-  { name: "Cashflow", allowedRoles: ["superadmin"], icon: DollarSign },
+  { name: "Cashflow", allowedRoles: ["superadmin"], icon: DollarSign, previewOnly: true },
   { name: "Mi Equipo", allowedRoles: ["jefe_comercial"], icon: Users },
   { name: "Contratos", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: FileSpreadsheet },
   { name: "Mis Clientes", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: UserSquare2 },
@@ -94,6 +96,7 @@ export function getVisibleSidebarItems({
   }
 
   return ERP_SIDEBAR_ITEMS.filter((item) => {
+    if (item.previewOnly) return false
     if (item.name === "Marco Retributivo" && !canViewMarcoRetributivo) return false
     if (item.name === "Liquidaciones externas" && !canViewConsolidatedLiquidaciones) return false
     if (item.name === "Liquidaciones internas" && !canViewInternalLiquidaciones) return false
@@ -121,7 +124,6 @@ export function getVisibleSidebarItems({
         "Dashboard",
         "Liquidaciones externas",
         "Usuarios",
-        "Cashflow",
         "Contratos",
         "Mis Clientes",
         "Tarifas",
@@ -154,6 +156,15 @@ export function getVisibleSidebarItems({
 
     return item.allowedRoles.includes(activeRole)
   })
+}
+
+/** Ítems atenuados en sidebar: visibles pero no clicables (p. ej. Cashflow para superadmin). */
+export function getPreviewSidebarItems({
+  activeModule,
+  activeRole,
+}: Pick<SidebarVisibilityOptions, "activeModule" | "activeRole">): SidebarMenuItem[] {
+  if (activeModule !== "erp" || activeRole !== "superadmin") return []
+  return ERP_SIDEBAR_ITEMS.filter((item) => item.previewOnly && item.allowedRoles.includes(activeRole))
 }
 
 /** Etiqueta visible en sidebar (p. ej. "Clientes" en vista tramitación superadmin). */
