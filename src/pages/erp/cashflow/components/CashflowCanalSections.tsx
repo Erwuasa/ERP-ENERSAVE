@@ -1,4 +1,5 @@
 import { Search } from "lucide-react"
+import { KPI_CARD } from "@/lib/enersave-ui-theme"
 
 type CanalItem = { id: string; nombre: string; importe: number }
 
@@ -110,10 +111,10 @@ function CanalList({
                 <button
                   type="button"
                   onClick={() => onSelect(item.id)}
-                  className={`w-full text-left p-3 rounded-xl border transition-colors ${
+                  className={`w-full text-left p-3 rounded-xl border transition-[border-color,box-shadow] duration-200 cursor-pointer ${
                     selectedId === item.id
-                      ? "border-cyan-500 bg-cyan-500/5"
-                      : "border-brand-border hover:bg-slate-50 dark:hover:bg-brand-surface/50"
+                      ? KPI_CARD.selected
+                      : "border-brand-border hover:border-slate-300/70 dark:hover:border-slate-500/50 hover:bg-slate-50 dark:hover:bg-brand-surface/50"
                   }`}
                 >
                   <RowContent item={item} formatCurrency={formatCurrency} amountClass={amountClass} />

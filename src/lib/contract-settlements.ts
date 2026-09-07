@@ -2,6 +2,9 @@ import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
 import { isRetrocomisionSettlement } from "./liquidaciones-internas"
 
+export const ACTIVATION_SETTLEMENT_EVENTO = "activacion" as const
+export const RETROCOMISION_SETTLEMENT_EVENTO = "retrocomision" as const
+
 export interface PendingSettlementInput {
   id: string
   contractId: string
@@ -26,6 +29,86 @@ export function findContractCommissionSettlement(
       s.comercialId === comercialId &&
       !isRetrocomisionSettlement(s)
   )
+}
+
+export function findActivationSettlement(
+  settlements: Settlement[],
+  contractId: string
+): Settlement | undefined {
+  return settlements.find(
+    (settlement) =>
+      settlement.contractId === contractId &&
+      settlement.tipoEvento === ACTIVATION_SETTLEMENT_EVENTO &&
+      !isRetrocomisionSettlement(settlement)
+  )
+}
+
+export function resolveActivationDate(
+  contract: Contract,
+  overrideDate?: string
+): string {
+  const candidate = (overrideDate ?? contract.estadoEfectivoDesde ?? contract.createdAt ?? "")
+    .trim()
+    .slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return candidate
+  return new Date().toISOString().slice(0, 10)
+}
+
+export interface BuildActivationSettlementInput {
+  contract: Contract
+  activationDate: string
+  comisionEmpresa: number
+  comisionComercial: number
+  existing?: Settlement
+}
+
+export function buildActivationSettlement(
+  input: BuildActivationSettlementInput
+): Settlement {
+  const { contract, activationDate, comisionEmpresa, comisionComercial, existing } = input
+
+  return {
+    id: existing?.id ?? "",
+    contractId: contract.id,
+    comercialId: contract.comercialId,
+    comercialName: contract.comercialName,
+    montoInterno: comisionEmpresa,
+    montoExterno: comisionComercial,
+    estado: "pendiente",
+    tipo: contract.tipo,
+    tipoEvento: ACTIVATION_SETTLEMENT_EVENTO,
+    descripcion: `Comisión de activación — ${contract.clientName} (CUPS: ${contract.cups})`,
+    createdAt: activationDate,
+  }
+}
+
+export interface BuildRetrocomisionSettlementInput {
+  contract: Contract
+  bajaDate: string
+  comisionEmpresa: number
+  comisionComercial: number
+  descripcion: string
+}
+
+export function buildRetrocomisionSettlement(
+  input: BuildRetrocomisionSettlementInput
+): Settlement {
+  const { contract, bajaDate, comisionEmpresa, comisionComercial, descripcion } = input
+
+  return {
+    id: "",
+    contractId: contract.id,
+    comercialId: contract.comercialId,
+    comercialName: contract.comercialName,
+    montoInterno: comisionEmpresa <= 0 ? comisionEmpresa : -Math.abs(comisionEmpresa),
+    montoExterno: comisionComercial <= 0 ? comisionComercial : -Math.abs(comisionComercial),
+    estado: "pendiente",
+    tipo: contract.tipo,
+    tipoEvento: RETROCOMISION_SETTLEMENT_EVENTO,
+    descripcion,
+    createdAt: bajaDate,
+    fechaBaja: bajaDate,
+  }
 }
 
 /** Se crea al registrar el contrato: comisión provisional, pendiente de confirmación. */

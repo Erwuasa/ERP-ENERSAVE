@@ -11,7 +11,6 @@ import type {
   ConsolidatedLiquidacion,
   LiquidacionesProfile,
   LiquidacionesRole,
-  PendingLiquidacionContract,
 } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
 import type { LiquidacionesConsolidadasView } from "@/lib/liquidaciones-consolidadas"
 import type { Contract } from "@/types/contract"
@@ -25,8 +24,7 @@ export interface LiquidacionesExternasPanelProps {
   profiles: LiquidacionesProfile[]
   contracts: Contract[]
   settlements: Settlement[]
-  pendingContracts: PendingLiquidacionContract[]
-  setPendingContracts: Dispatch<SetStateAction<PendingLiquidacionContract[]>>
+  setSettlements: Dispatch<SetStateAction<Settlement[]>>
   consolidatedLiquidations: ConsolidatedLiquidacion[]
   setConsolidatedLiquidations: Dispatch<SetStateAction<ConsolidatedLiquidacion[]>>
   selectedCompaniaTab: string
@@ -84,6 +82,7 @@ export function LiquidacionesExternasPanel(props: LiquidacionesExternasPanelProp
           checkedSum={vm.checkedSum}
           formatCurrency={vm.formatCurrency}
           isConsolidating={vm.isConsolidating}
+          canConsolidate={vm.canConsolidate}
           onConsolidate={vm.handleConsolidate}
           profiles={vm.profiles}
           renderCompaniaLogo={props.renderCompaniaLogo}

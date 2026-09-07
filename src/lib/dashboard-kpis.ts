@@ -1,4 +1,5 @@
 import type { Contract } from "../types/contract"
+import type { Settlement } from "../types/settlement"
 import type { IncidenciaTicket } from "./incidencias"
 import { isIncidenciaAbierta } from "./incidencias"
 import {
@@ -39,11 +40,12 @@ export interface VariationResult {
   percentChange: number | null
 }
 
-export type PipelineBucket = "en_proceso" | "activo" | "bajas" | "ko"
+export type PipelineBucket = "en_proceso" | "activo" | "incidencias" | "bajas" | "ko"
 
 export interface PipelinePorEstado {
   en_proceso: number
   activo: number
+  incidencias: number
   bajas: number
   ko: number
   total: number
@@ -69,6 +71,7 @@ export const PIPELINE_BUCKET_META: {
 }[] = [
   { id: "en_proceso", label: "En proceso", barClass: "bg-amber-400" },
   { id: "activo", label: "Activo", barClass: "bg-emerald-500" },
+  { id: "incidencias", label: "Incidencias", barClass: "bg-violet-500" },
   { id: "bajas", label: "Bajas", barClass: "bg-rose-500" },
   { id: "ko", label: "KO", barClass: "bg-rose-900" },
 ]
@@ -96,9 +99,8 @@ export function getPipelineBucket(estado: string): PipelineBucket | null {
   const normalized = normalizeContractEstado(estado)
   if (normalized === "ACTIVADO") return "activo"
   if (normalized === "Dado de Baja") return "bajas"
-  if (normalized === "INCIDENCIA ADMINISTRATIVA" || normalized === "FIRMA CADUCADA") {
-    return "ko"
-  }
+  if (normalized === "INCIDENCIA ADMINISTRATIVA") return "incidencias"
+  if (normalized === "FIRMA CADUCADA") return "ko"
   if (
     normalized === "Borrador" ||
     normalized === "PTE DE TRAMITACIÓN" ||
@@ -133,9 +135,35 @@ export function contratosActivos(
   contracts: Contract[],
   filtros: DashboardFilters
 ): number {
-  return filterContractsByDashboard(contracts, filtros).filter((c) =>
-    isContractActivado(c.estado)
-  ).length
+  return contracts.filter((c) => {
+    if (!matchesComercialFilter(c.comercialId, filtros.comercialId)) return false
+    return isContractActivado(c.estado)
+  }).length
+}
+
+export function liquidacionesEsteMesEuros(
+  settlements: Settlement[],
+  options: {
+    activeUserId: string
+    activeRole: string
+    filtros?: DashboardFilters
+  },
+  reference = new Date()
+): number {
+  const year = reference.getFullYear()
+  const month = reference.getMonth()
+  const filtros = options.filtros ?? { comercialId: null, dateFrom: "", dateTo: "" }
+  const isOrgWide =
+    options.activeRole === "superadmin" || options.activeRole === "tramitacion"
+
+  return settlements
+    .filter((settlement) => {
+      if (!isInMonth(settlement.createdAt, year, month)) return false
+      if (!matchesComercialFilter(settlement.comercialId, filtros.comercialId)) return false
+      if (!isOrgWide && settlement.comercialId !== options.activeUserId) return false
+      return true
+    })
+    .reduce((sum, settlement) => sum + settlement.montoExterno, 0)
 }
 
 export function contratosNuevosEsteMes(
@@ -206,9 +234,6 @@ export function incidenciasAbiertas(
   return incidencias.filter((inc) => {
     if (!isIncidenciaAbierta(inc.estado)) return false
     if (!matchesComercialFilter(inc.comercialId, filtros.comercialId)) return false
-    if (inc.createdAt && !isDateInRange(inc.createdAt, filtros.dateFrom, filtros.dateTo)) {
-      return false
-    }
     return true
   }).length
 }
@@ -273,12 +298,14 @@ export function pipelinePorEstado(
   const counts: PipelinePorEstado = {
     en_proceso: 0,
     activo: 0,
+    incidencias: 0,
     bajas: 0,
     ko: 0,
     total: 0,
   }
 
-  for (const contract of filterContractsByDashboard(contracts, filtros)) {
+  for (const contract of contracts) {
+    if (!matchesComercialFilter(contract.comercialId, filtros.comercialId)) continue
     const bucket = getPipelineBucket(contract.estado)
     if (!bucket) continue
     counts[bucket] += 1

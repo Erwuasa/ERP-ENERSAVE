@@ -28,6 +28,7 @@ import { ContractQuickActionButton } from "@/components/contratos/ContractQuickA
 import { TarifaRecommendationPopover } from "@/components/TarifaRecommendationPopover"
 import { RenovacionProximaPopover } from "@/components/RenovacionProximaPopover"
 import { contractHasActiveRenewalAlert } from "@/lib/renewal-alert-dismissed"
+import { TABLE_ROW_SELECTED } from "@/lib/enersave-ui-theme"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import {
   CONTRACTS_TD,
@@ -213,7 +214,7 @@ export function ContratosPanelTable({
                   onOpenDetalle ? "cursor-pointer" : ""
                 } ${
                   isHighlighted
-                    ? "bg-cyan-500/5 ring-2 ring-inset ring-cyan-500/50"
+                    ? TABLE_ROW_SELECTED
                     : isIncompleteRow
                       ? "bg-slate-300/20 dark:bg-slate-700/30"
                       : ""

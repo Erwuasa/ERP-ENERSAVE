@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import type { Dispatch, SetStateAction } from "react"
 import type { Profile, UserRole } from "@/types/profile"
 import type { Contract } from "@/types/contract"
+import type { Settlement } from "@/types/settlement"
 import {
   erpComercialFromProfile,
   fiscalFormFromComercial,
@@ -11,14 +12,18 @@ import {
 } from "@/lib/comercial-fiscal-profile"
 import {
   formatAutofacturaFecha,
+  getAutofacturaPeriodoFacturacion,
   getProximaFechaAutofactura,
   type AutofacturaTipoCliente,
 } from "@/lib/autofactura-scheduler"
-import { normalizeTipoClienteSegment } from "@/lib/contract-segment-rules"
 import {
-  calcularLiquidacionMensualPorComercial,
-  erpComercialFromProfile as mapProfileToLiquidacionComercial,
-} from "@/lib/liquidaciones-mensuales"
+  buildAutofacturaLiquidacionFromRows,
+  filterPendingAutofacturaRows,
+  hasPendingAutofacturaRows,
+} from "@/lib/autofactura-liquidaciones"
+import { persistAutofacturaRecord } from "@/lib/autofactura-records"
+import { normalizeTipoClienteSegment } from "@/lib/contract-segment-rules"
+import { enrichSettlementRow, type ProfileRow } from "@/lib/liquidaciones-internas"
 import { downloadAutofacturaPdf, generateAutofacturaPdf } from "@/lib/pdf/autofactura-pdf"
 import { listMarcoRetributivo } from "@/lib/supabase/marco-retributivo"
 
@@ -28,9 +33,21 @@ interface Params {
   activeRole: UserRole
   superadminViewMode: "tramitacion" | "comercial"
   contracts: Contract[]
+  settlements: Settlement[]
   profiles: Profile[]
   setProfiles: Dispatch<SetStateAction<Profile[]>>
   formatCurrency: (value: number) => string
+}
+
+function mapProfilesToLiquidacionRows(profiles: Profile[]): ProfileRow[] {
+  return profiles.map((profile) => ({
+    id: profile.id,
+    fullName: profile.fullName,
+    role: profile.role,
+    managerId: profile.managerId,
+    commissionPercentage: profile.commissionPercentage,
+    status: profile.status,
+  }))
 }
 
 export function useErpFiscalProfile({
@@ -39,6 +56,7 @@ export function useErpFiscalProfile({
   activeRole,
   superadminViewMode,
   contracts,
+  settlements,
   profiles,
   setProfiles,
   formatCurrency,
@@ -78,8 +96,35 @@ export function useErpFiscalProfile({
     return pymeCount > mine.length / 2 ? "pyme" : "residencial"
   }, [contracts, activeUserId])
 
+  const autofacturaPeriodo = useMemo(
+    () => getAutofacturaPeriodoFacturacion(autofacturaTipoCliente),
+    [autofacturaTipoCliente]
+  )
+
   const proximaFechaAutofacturaLabel = formatAutofacturaFecha(
     getProximaFechaAutofactura(autofacturaTipoCliente)
+  )
+
+  const profileRows = useMemo(() => mapProfilesToLiquidacionRows(profiles), [profiles])
+
+  const liquidacionRowsForAutofactura = useMemo(
+    () =>
+      settlements
+        .filter((settlement) => settlement.comercialId === activeUserId)
+        .map((settlement) =>
+          enrichSettlementRow(settlement, contracts, profileRows, formatCurrency)
+        ),
+    [settlements, contracts, profileRows, activeUserId, formatCurrency]
+  )
+
+  const autofacturaEnabled = useMemo(
+    () =>
+      hasPendingAutofacturaRows(
+        liquidacionRowsForAutofactura,
+        autofacturaPeriodo,
+        activeUserId
+      ),
+    [liquidacionRowsForAutofactura, autofacturaPeriodo, activeUserId]
   )
 
   const openFiscalProfile = useCallback(() => setPerfilComercialOpen(true), [])
@@ -107,56 +152,69 @@ export function useErpFiscalProfile({
   )
 
   const handleGenerateAutofactura = useCallback(async () => {
-    const now = new Date()
-    const mes = now.getMonth() + 1
-    const año = now.getFullYear()
-    const comerciales = profiles
-      .filter(
-        (profile) =>
-          profile.role === "comercial" ||
-          profile.role === "jefe_comercial" ||
-          profile.role === "superadmin"
-      )
-      .map((profile) =>
-        mapProfileToLiquidacionComercial({
-          id: profile.id,
-          fullName: profile.fullName,
-          commissionPercentage: profile.commissionPercentage,
-          status: profile.status,
-        })
-      )
+    if (!autofacturaEnabled) {
+      toast.info("No tienes liquidaciones pendientes de cobro este periodo.")
+      return
+    }
 
     const marcos = await listMarcoRetributivo()
     const marcoRows = marcos.ok ? marcos.data : []
-    const liquidacion = calcularLiquidacionMensualPorComercial(
-      contracts,
+    const enrichedRows = settlements
+      .filter((settlement) => settlement.comercialId === activeUserId)
+      .map((settlement) =>
+        enrichSettlementRow(settlement, contracts, profileRows, formatCurrency, marcoRows)
+      )
+
+    const pendingRows = filterPendingAutofacturaRows(
+      enrichedRows,
+      autofacturaPeriodo,
+      activeUserId
+    )
+
+    const liquidacion = buildAutofacturaLiquidacionFromRows(
+      enrichedRows,
+      autofacturaPeriodo,
       activeUserId,
-      mes,
-      año,
-      comerciales,
-      formatCurrency,
-      marcoRows
+      activeUser.fullName
     )
 
     if (liquidacion.desglosePorContrato.length === 0) {
-      toast.info("No hay comisiones activadas este mes para autofacturar.")
+      toast.info("No hay liquidaciones pendientes de cobro en este periodo.")
       return
     }
 
     const comercial = erpComercialFromProfile(activeUser)
     const blob = await generateAutofacturaPdf(comercial, liquidacion, {
-      mes,
-      año,
+      mes: autofacturaPeriodo.mes,
+      año: autofacturaPeriodo.año,
       proximaFechaEmisionLabel: proximaFechaAutofacturaLabel,
     })
-    downloadAutofacturaPdf(blob, comercial.fullName, mes, año)
+    downloadAutofacturaPdf(
+      blob,
+      comercial.fullName,
+      autofacturaPeriodo.mes,
+      autofacturaPeriodo.año
+    )
+
+    await persistAutofacturaRecord({
+      comercialId: activeUserId,
+      comercialName: activeUser.fullName,
+      periodoMes: autofacturaPeriodo.mes,
+      periodoAnio: autofacturaPeriodo.año,
+      settlementIds: pendingRows.map((item) => item.settlement.id),
+      totalComisionado: liquidacion.totalComisionado,
+    })
+
     toast.success("Autofactura generada correctamente.")
   }, [
+    autofacturaEnabled,
+    settlements,
     contracts,
-    profiles,
+    profileRows,
     activeUser,
     activeUserId,
     formatCurrency,
+    autofacturaPeriodo,
     proximaFechaAutofacturaLabel,
   ])
 
@@ -165,8 +223,10 @@ export function useErpFiscalProfile({
     fiscalForm,
     canEditFiscalProfile,
     canGenerateAutofactura,
+    autofacturaEnabled,
     activeUserFiscalComplete,
     autofacturaTipoCliente,
+    autofacturaPeriodo,
     proximaFechaAutofacturaLabel,
     openFiscalProfile,
     closeFiscalProfile,

@@ -9,6 +9,7 @@ import {
   type JsonRecord,
 } from './at-api.ts'
 import { mapAtDocuments, mapAtEmails, mapAtEvents, mapAtNotes } from './at-contract-children.ts'
+import { isAtPlaceholderCompania, resolveAtCompania, resolveAtTarifa } from './at-compania.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
 
@@ -168,31 +169,22 @@ export async function runContractSync(ctx?: AtSyncContext) {
       const marcoId = asUuid(row.marco_id) ?? asString(row.marco_logical_id)
       const linkedTariff = rateId ? tariffByAt.get(rateId) : undefined
       const atStatus = asString(row.status ?? row.estado).toLowerCase()
-      const providerAtId = asUuid(row.provider_id)
-      const electricity = nested(row, 'electricity_data')
-      const gas = nested(row, 'gas_data')
+      const companiaResolved = resolveAtCompania(row, providerByAt)
+      const tarifaResolved = resolveAtTarifa(row, linkedTariff?.name ?? '')
       mapped.push({
         at_contract_id: atId,
         cliente_id: atClientId ? clientByAt.get(atClientId) ?? null : null,
         client_name: clientName(row),
         cups: pickCups(row),
         tipo: pickTipo(row),
-        compania:
-          asString(row.compania ?? row.company ?? row.provider_name) ||
-          (providerAtId ? providerByAt.get(providerAtId) : '') ||
-          'AT',
-        tarifa:
-          asString(row.tarifa ?? row.rate_name ?? row.tariff_name) ||
-          asString(electricity.rate_name ?? electricity.tariff_name) ||
-          asString(gas.rate_name ?? gas.tariff_name) ||
-          linkedTariff?.name ||
-          'Tarifa AT',
+        compania: companiaResolved || 'Sin compañía',
+        tarifa: tarifaResolved,
         tipo_precio: asString(row.tipo_precio) || null,
         consumo_anual: asNumber(row.consumo_anual) ?? 0,
         estado: AT_STATUS_TO_ERP[atStatus] ?? 'PTE DE TRAMITACIÓN',
         at_status: atStatus || null,
         comercial_id: null,
-        comercial_name: asString(row.comercial_name ?? row.responsible_name) || 'AT',
+        comercial_name: asString(row.comercial_name ?? row.responsible_name) || null,
         nif: asString(row.nif ?? row.dni_cif) || null,
         telefono: asString(row.phone ?? row.telefono) || null,
         email: asString(row.email) || null,

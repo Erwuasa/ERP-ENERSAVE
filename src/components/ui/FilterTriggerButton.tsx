@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { ChevronDown, X } from "lucide-react"
+import { filterTriggerBorderClass } from "@/lib/enersave-ui-theme"
 
 export interface FilterTriggerButtonProps {
   label: string
@@ -30,11 +31,7 @@ export function FilterTriggerButton({
   maxWidthClass = "max-w-[280px]",
   clearAriaLabel,
 }: FilterTriggerButtonProps) {
-  const borderClass = open
-    ? "border-cyan-500 ring-1 ring-cyan-500/30"
-    : isActive
-      ? "border-cyan-500/60"
-      : "border-brand-border hover:border-cyan-500/40"
+  const borderClass = filterTriggerBorderClass({ open, active: isActive })
 
   return (
     <div

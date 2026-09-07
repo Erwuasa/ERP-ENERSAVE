@@ -24,6 +24,7 @@ import {
   CONTRACT_ESTADOS,
   formatContractEstadoTableLabel,
   getContractEstadoBadgeClass,
+  isContractActivado,
   normalizeContractEstado,
   type ContractEstado,
 } from "@/lib/contract-estado"
@@ -37,6 +38,7 @@ import { isContractPendingTramitacionReview } from "@/lib/contratos-tramitacion-
 import { compareContractsByLastModified } from "@/lib/contrato-historial"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import { updateTeamContract } from "@/lib/supabase/contracts"
+import { useContractActionsContext } from "@/providers/ContractActionsProvider"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 
 type Options = {
@@ -89,6 +91,7 @@ export function useContratosPanel({
   const [excelImportOpen, setExcelImportOpen] = useState(false)
 
   const canEditEstado = canEditContractEstado
+  const { confirmContractActivation } = useContractActionsContext()
   const contractDateIso = useMemo(
     () => dateRangeToIsoStrings(contractDateRange),
     [contractDateRange]
@@ -113,6 +116,20 @@ export function useContratosPanel({
 
   async function persistEstadoChange(contract: Contract, nextEstado: ContractEstado) {
     const previousEstado = normalizeContractEstado(contract.estado)
+
+    if (nextEstado === "ACTIVADO" && !isContractActivado(previousEstado)) {
+      setEditingEstadoId(null)
+      const result = await confirmContractActivation(contract)
+      if (result.ok === false) {
+        toast.error(result.message)
+        return
+      }
+      toast.success(
+        `Contrato activado con liquidación pendiente de ${result.settlement.montoExterno.toFixed(2)} €.`
+      )
+      return
+    }
+
     updateContract(contract.id, "estado", nextEstado)
     setEditingEstadoId(null)
 

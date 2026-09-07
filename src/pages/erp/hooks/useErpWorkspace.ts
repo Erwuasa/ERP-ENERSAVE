@@ -70,6 +70,7 @@ export function useErpWorkspace() {
     activeRole,
     superadminViewMode,
     contracts,
+    settlements,
     profiles,
     setProfiles,
     formatCurrency,
@@ -154,6 +155,13 @@ export function useErpWorkspace() {
 
   function handleDashboardNavigate(target: DashboardNavigateTarget) {
     switch (target) {
+      case 'liquidaciones':
+        if (activeRole === 'tramitacion') {
+          navigateToTab('erp', 'Liquidaciones externas');
+        } else {
+          navigateToTab('erp', 'Liquidaciones internas');
+        }
+        break;
       case 'contratos_activos':
         setContractsListFilter('activado');
         navigateToTab('erp', 'Contratos');

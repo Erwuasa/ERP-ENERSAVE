@@ -9,7 +9,6 @@ import {
   Megaphone,
   MessageCircleWarning,
   Search,
-  Users,
   WalletCards,
   X,
 } from "lucide-react"
@@ -40,40 +39,58 @@ import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
 import { isoDateToDate, toIsoDate, type DateRangePickerValue } from "../lib/date-range"
 import { DateRangePicker } from "./ui/DateRangePicker"
+import { SearchableSelectFilterDropdown } from "./ui/SearchableSelectFilterDropdown"
+import { KpiMetricCard } from "./ui/KpiMetricCard"
+import { CompaniaFilterDropdown } from "./contratos/CompaniaFilterDropdown"
+import { filterPillClass, segmentTabClass } from "../lib/enersave-ui-theme"
 import type { SettlementReclamacion } from "../types/settlement-reclamacion"
 import {
   applyEffectiveComisionToRows,
   applyLiquidacionTableOrdering,
-  cycleLiquidacionesSegmentoFilter,
+  adminScopeRequiresTarget,
+  buildLiquidacionCompaniaFilterOptions,
   defaultLiquidacionesDateRange,
   enrichSettlementRow,
-  countLiquidacionRowsByCompania,
   computeKpiLiquidacionesTotales,
   computeKpiPendientesCobro,
   filterLiquidacionRows,
   filterLiquidacionRowsByScope,
+  filterLiquidacionRowsForCompaniaCounts,
   filterRowsForAdminScope,
   filterSettlementsForRole,
   formatLiquidacionPeajeLabel,
   formatLiquidacionSegmentoLabel,
-  groupRowsByEquipoDirector,
   isRetrocomisionSettlement,
-  LIQUIDACIONES_COMPANIA_FILTERS,
+  LIQUIDACIONES_ADMIN_SCOPE_OPTIONS,
+  listActiveProfilesByRole,
+  matchesCompaniaFilter,
   normalizeLiquidacionSegmentoKey,
   sumComisionRows,
+  type LiquidacionCompaniaFilterOption,
   type LiquidacionInternaRow,
   type LiquidacionesAdminScopeMode,
-  type LiquidacionesSegmentoFilter,
   type LiquidacionesSortDirection,
   type ProfileRow,
 } from "../lib/liquidaciones-internas"
+import { renderCompaniaLogo } from "../lib/erp/render-compania-logo"
 import {
   AlegacionChatModal,
   persistAlegacionMessageAttachments,
 } from "./liquidaciones/AlegacionChatModal"
+import { LiquidacionesTramitacionPanel } from "./liquidaciones/LiquidacionesTramitacionPanel"
+import {
+  AUTOFACTURA_GENERATED_EVENT,
+  fetchAutofacturaRecords,
+} from "../lib/autofactura-records"
+import {
+  buildAlegacionGestionRows,
+  filterAutofacturaRecordsForGestion,
+} from "../lib/liquidaciones-tramitacion"
+import type { AutofacturaRecord } from "../types/autofactura-record"
 
 type LiquidacionesTab = "totales" | "pendientes" | "retrocomisiones"
-type LiquidacionesView = "listado" | "por_comercial"
+type JefeLiquidacionesView = "equipo" | "solo"
+type AdminLiquidacionesContentTab = "listado" | "gestion"
 
 const QUICK_DATE_RANGES = [
   {
@@ -124,6 +141,7 @@ interface LiquidacionesInternasPanelProps {
     totalComisionado: number
   } | null>
   canGenerateAutofactura?: boolean
+  autofacturaEnabled?: boolean
   fiscalProfileComplete?: boolean
   onGenerateAutofactura?: () => Promise<void>
   onOpenFiscalProfile?: () => void
@@ -166,12 +184,6 @@ function enrichAlegacion(alegacion: Alegacion): Alegacion {
     ...alegacion,
     mensajes: enrichMensajesWithSessionAttachments(alegacion.mensajes),
   }
-}
-
-function segmentoFilterBadge(filter: LiquidacionesSegmentoFilter): string | null {
-  if (filter === "residencial") return "Residencial"
-  if (filter === "pyme") return "PYME"
-  return null
 }
 
 function segmentoBadgeClass(segmento: string): string {
@@ -222,63 +234,49 @@ function LiquidacionesTableToolbar({
   onSearchChange,
   compania,
   onCompaniaChange,
-  companiaCounts,
+  companiaOptions,
+  companiaTotalCount,
+  leading,
 }: {
   search: string
   onSearchChange: (value: string) => void
   compania: string
   onCompaniaChange: (value: string) => void
-  companiaCounts: Record<string, number>
+  companiaOptions: LiquidacionCompaniaFilterOption[]
+  companiaTotalCount: number
+  leading?: ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-      <div className="relative w-full lg:w-[min(100%,320px)] lg:shrink-0">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-subtext" />
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      {leading}
+      <div className="relative w-full min-w-[12rem] max-w-[16rem] shrink-0 sm:w-56 md:w-60">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-subtext pointer-events-none" />
         <input
           type="search"
-          placeholder="Buscar ID, cliente, CUPS, comercial, compañía…"
+          placeholder="Buscar ID, cliente, CUPS…"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
-          className="w-full pl-9 pr-8 py-2 rounded-lg border border-brand-border bg-brand-surface text-xs text-brand-text"
+          className="w-full pl-9 pr-8 py-2 rounded-lg border border-brand-border bg-brand-surface text-xs text-brand-text focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
         />
         {search ? (
           <button
             type="button"
             onClick={() => onSearchChange("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-brand-subtext"
+            className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-brand-subtext hover:text-brand-text transition-colors"
             aria-label="Limpiar búsqueda"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         ) : null}
       </div>
-      <div className="flex min-w-0 flex-1 flex-wrap gap-1.5 lg:justify-end">
-        {LIQUIDACIONES_COMPANIA_FILTERS.map((filter) => {
-          const count = companiaCounts[filter] ?? 0
-          return (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => onCompaniaChange(filter)}
-              className={`px-2 py-1 text-[9px] font-mono font-bold uppercase rounded-lg border transition-colors cursor-pointer ${
-                compania === filter
-                  ? "bg-cyan-600 text-white border-cyan-600"
-                  : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-              }`}
-            >
-              {filter}
-              <span
-                className={`ml-1 px-1 rounded-full text-[8px] font-bold tabular-nums ${
-                  compania === filter
-                    ? "bg-white/20 text-white"
-                    : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-          )
-        })}
+      <div className="ml-auto shrink-0">
+        <CompaniaFilterDropdown
+          value={compania === "Todos" ? "todas" : compania}
+          onChange={(value) => onCompaniaChange(value === "todas" ? "Todos" : value)}
+          companies={companiaOptions}
+          totalCount={companiaTotalCount}
+          renderCompaniaLogo={(name) => renderCompaniaLogo(name, "md")}
+        />
       </div>
     </div>
   )
@@ -296,7 +294,7 @@ function LiquidacionesTable({
   onOpenAlegacion,
   onToggleReclamar,
   highlightAlegaciones = false,
-  segmentoFilter,
+  segmentoSort,
   activacionSort,
   comisionSort,
   onSegmentoHeaderClick,
@@ -315,7 +313,7 @@ function LiquidacionesTable({
   onOpenAlegacion?: (row: LiquidacionInternaRow) => void
   onToggleReclamar?: (row: LiquidacionInternaRow) => void
   highlightAlegaciones?: boolean
-  segmentoFilter: LiquidacionesSegmentoFilter
+  segmentoSort: LiquidacionesSortDirection | null
   activacionSort: LiquidacionesSortDirection
   comisionSort: LiquidacionesSortDirection | null
   onSegmentoHeaderClick: () => void
@@ -331,8 +329,6 @@ function LiquidacionesTable({
     )
   }
 
-  const activeSegmentoFilter = segmentoFilterBadge(segmentoFilter)
-
   return (
     <div className="rounded-xl border border-brand-border/60">
       <table className="w-full table-auto text-xs">
@@ -343,6 +339,7 @@ function LiquidacionesTable({
           <col className="w-[88px]" />
           <col className="w-[14%]" />
           <col className="w-[84px]" />
+          <col className="w-[84px]" />
           {showComercial || showRowActions ? <col className="w-[128px]" /> : null}
           <col className="w-[76px]" />
         </colgroup>
@@ -351,22 +348,15 @@ function LiquidacionesTable({
             <th className="px-2 py-2 text-left">ID Contrato</th>
             <th className="px-2 py-2 text-left">Cliente / CUPS</th>
             <th className="px-2 py-2 text-left">Dirección</th>
-            <th className="px-2 py-2 text-left align-bottom">
+            <th className="px-2 py-2 text-left align-bottom min-w-[96px]">
               <button
                 type="button"
                 onClick={onSegmentoHeaderClick}
-                className="flex flex-col items-start gap-0.5 hover:text-brand-text transition-colors cursor-pointer text-left"
-                title="Clic: Todos → Residencial → PYME"
+                className="inline-flex items-center gap-1 hover:text-brand-text transition-colors cursor-pointer"
+                title="Ordenar por segmento"
               >
-                <span className="inline-flex items-center gap-1">
-                  Segmento
-                  <SortIndicator active={segmentoFilter !== "all"} direction="desc" />
-                </span>
-                {activeSegmentoFilter ? (
-                  <span className="text-[8px] font-mono font-bold normal-case text-cyan-600 dark:text-cyan-400 leading-none">
-                    {activeSegmentoFilter}
-                  </span>
-                ) : null}
+                Segmento / Peaje
+                <SortIndicator active={segmentoSort != null} direction={segmentoSort ?? "asc"} />
               </button>
             </th>
             <th className="px-2 py-2 text-left">Compañía / Tarifa</th>
@@ -378,9 +368,13 @@ function LiquidacionesTable({
                 title="Ordenar por activación"
               >
                 Activación
-                <SortIndicator active={comisionSort == null} direction={activacionSort} />
+                <SortIndicator
+                  active={segmentoSort == null && comisionSort == null}
+                  direction={activacionSort}
+                />
               </button>
             </th>
+            <th className="px-2 py-2 text-left">Baja</th>
             {showComercial || showRowActions ? (
               <th className="px-2 py-2 text-left">Comercial</th>
             ) : null}
@@ -443,13 +437,13 @@ function LiquidacionesTable({
                   {row.direccion}
                 </td>
                 <td className="px-2 py-2 align-top">
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     <span
                       className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${segmentoBadgeClass(row.segmento)}`}
                     >
                       {formatLiquidacionSegmentoLabel(row.segmento)}
                     </span>
-                    <p className="text-[10px] font-mono font-semibold text-brand-text">
+                    <p className="text-[10px] font-mono font-semibold text-brand-text leading-none">
                       {formatLiquidacionPeajeLabel(row.peaje)}
                     </p>
                   </div>
@@ -462,6 +456,11 @@ function LiquidacionesTable({
                 </td>
                 <td className="px-2 py-2.5 align-top font-mono tabular-nums text-brand-text whitespace-nowrap">
                   {formatActivationDate(row.fechaActivacion)}
+                </td>
+                <td className="px-2 py-2.5 align-top font-mono tabular-nums text-brand-text whitespace-nowrap">
+                  {row.fechaBaja && row.fechaBaja !== "—"
+                    ? formatActivationDate(row.fechaBaja)
+                    : "—"}
                 </td>
                 {showComercial || showRowActions ? (
                   <td className="px-2 py-2 align-top">
@@ -539,91 +538,6 @@ function LiquidacionesTable({
   )
 }
 
-function LiquidacionesGroupedTables({
-  groups,
-  emptyLabel,
-  formatCurrency,
-  showComercial,
-  showRowActions = false,
-  highlightAlegaciones = false,
-  alegacionBySettlementId,
-  reclamacionBySettlementId,
-  showAlegacionIcon,
-  showReclamarIcon,
-  onOpenAlegacion,
-  onToggleReclamar,
-  segmentoFilter,
-  activacionSort,
-  comisionSort,
-  onSegmentoHeaderClick,
-  onActivacionHeaderClick,
-  onComisionHeaderClick,
-}: {
-  groups: {
-    key: string
-    title: string
-    rows: LiquidacionInternaRow[]
-    extra?: ReactNode
-  }[]
-  emptyLabel: string
-  formatCurrency: (value: number) => string
-  showComercial: boolean
-  showRowActions?: boolean
-  highlightAlegaciones?: boolean
-  alegacionBySettlementId: Map<string, Alegacion>
-  reclamacionBySettlementId: Map<string, SettlementReclamacion>
-  showAlegacionIcon?: (row: LiquidacionInternaRow) => boolean
-  showReclamarIcon?: (row: LiquidacionInternaRow) => boolean
-  onOpenAlegacion?: (row: LiquidacionInternaRow) => void
-  onToggleReclamar?: (row: LiquidacionInternaRow) => void
-  segmentoFilter: LiquidacionesSegmentoFilter
-  activacionSort: LiquidacionesSortDirection
-  comisionSort: LiquidacionesSortDirection | null
-  onSegmentoHeaderClick: () => void
-  onActivacionHeaderClick: () => void
-  onComisionHeaderClick: () => void
-}) {
-  if (groups.length === 0) {
-    return (
-      <p className="text-center text-xs font-mono text-brand-subtext py-10 border border-dashed border-brand-border rounded-xl">
-        {emptyLabel}
-      </p>
-    )
-  }
-
-  return (
-    <div className="space-y-6 pb-2">
-      {groups.map((group) => (
-        <section key={group.key} className="space-y-2">
-          <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
-            {group.title}
-            {group.extra}
-          </h3>
-          <LiquidacionesTable
-            rows={group.rows}
-            formatCurrency={formatCurrency}
-            showComercial={showComercial}
-            showRowActions={showRowActions}
-            highlightAlegaciones={highlightAlegaciones}
-            alegacionBySettlementId={alegacionBySettlementId}
-            reclamacionBySettlementId={reclamacionBySettlementId}
-            showAlegacionIcon={showAlegacionIcon}
-            showReclamarIcon={showReclamarIcon}
-            onOpenAlegacion={onOpenAlegacion}
-            onToggleReclamar={onToggleReclamar}
-            segmentoFilter={segmentoFilter}
-            activacionSort={activacionSort}
-            comisionSort={comisionSort}
-            onSegmentoHeaderClick={onSegmentoHeaderClick}
-            onActivacionHeaderClick={onActivacionHeaderClick}
-            onComisionHeaderClick={onComisionHeaderClick}
-          />
-        </section>
-      ))}
-    </div>
-  )
-}
-
 export function LiquidacionesInternasPanel({
   activeRole,
   activeUserId,
@@ -635,6 +549,7 @@ export function LiquidacionesInternasPanel({
   canGenerateMonthlyLiquidaciones = false,
   onGenerateMonthlyLiquidaciones,
   canGenerateAutofactura = false,
+  autofacturaEnabled = false,
   fiscalProfileComplete = false,
   onGenerateAutofactura,
   onOpenFiscalProfile,
@@ -642,16 +557,17 @@ export function LiquidacionesInternasPanel({
   const [isGeneratingMonthly, setIsGeneratingMonthly] = useState(false)
   const [isGeneratingAutofactura, setIsGeneratingAutofactura] = useState(false)
   const [alegaciones, setAlegaciones] = useState<Alegacion[]>([])
-  const [alegacionesLoading, setAlegacionesLoading] = useState(false)
   const [reclamaciones, setReclamaciones] = useState<SettlementReclamacion[]>([])
   const [chatOpen, setChatOpen] = useState(false)
   const [chatRow, setChatRow] = useState<LiquidacionInternaRow | null>(null)
   const [chatAlegacion, setChatAlegacion] = useState<Alegacion | null>(null)
   const [chatComisionOriginal, setChatComisionOriginal] = useState(0)
   const [sendingMessage, setSendingMessage] = useState(false)
-  const [panelView, setPanelView] = useState<LiquidacionesView>("listado")
   const [adminScopeMode, setAdminScopeMode] = useState<LiquidacionesAdminScopeMode>("todos")
-  const [adminScopeTargetId, setAdminScopeTargetId] = useState<string>("all")
+  const [adminScopeTargetId, setAdminScopeTargetId] = useState("")
+  const [adminContentTab, setAdminContentTab] = useState<AdminLiquidacionesContentTab>("listado")
+  const [autofacturaRecords, setAutofacturaRecords] = useState<AutofacturaRecord[]>([])
+  const [jefeTeamView, setJefeTeamView] = useState<JefeLiquidacionesView>("equipo")
 
   const defaults = defaultLiquidacionesDateRange()
   const defaultDateRangeValue = useMemo(
@@ -668,7 +584,7 @@ export function LiquidacionesInternasPanel({
   const [activeTab, setActiveTab] = useState<LiquidacionesTab>("totales")
   const [compania, setCompania] = useState<string>("Todos")
   const [search, setSearch] = useState("")
-  const [segmentoFilter, setSegmentoFilter] = useState<LiquidacionesSegmentoFilter>("all")
+  const [segmentoSort, setSegmentoSort] = useState<LiquidacionesSortDirection | null>(null)
   const [activacionSort, setActivacionSort] = useState<LiquidacionesSortDirection>("desc")
   const [comisionSort, setComisionSort] = useState<LiquidacionesSortDirection | null>(null)
   const [marcoRows, setMarcoRows] = useState<MarcoRetributivoRow[]>([])
@@ -681,7 +597,6 @@ export function LiquidacionesInternasPanel({
       setAlegaciones([])
       return
     }
-    setAlegacionesLoading(true)
     try {
       const result = await listAlegaciones()
       if (!result.ok) {
@@ -692,8 +607,6 @@ export function LiquidacionesInternasPanel({
     } catch (error) {
       console.error(error)
       toast.error("No se pudieron cargar las alegaciones.")
-    } finally {
-      setAlegacionesLoading(false)
     }
   }, [])
 
@@ -715,10 +628,38 @@ export function LiquidacionesInternasPanel({
     }
   }, [])
 
+  const loadAutofacturas = useCallback(async () => {
+    try {
+      const records = await fetchAutofacturaRecords()
+      setAutofacturaRecords(records)
+    } catch (error) {
+      console.error(error)
+    }
+  }, [])
+
   useEffect(() => {
     void loadAlegaciones()
     void loadReclamaciones()
-  }, [loadAlegaciones, loadReclamaciones])
+    void loadAutofacturas()
+  }, [loadAlegaciones, loadReclamaciones, loadAutofacturas])
+
+  useEffect(() => {
+    if (!isAdminLiquidaciones || adminContentTab !== "gestion") return
+    void loadAutofacturas()
+  }, [isAdminLiquidaciones, adminContentTab, loadAutofacturas])
+
+  useEffect(() => {
+    if (!isAdminLiquidaciones) return
+
+    function handleAutofacturaGenerated() {
+      void loadAutofacturas()
+    }
+
+    window.addEventListener(AUTOFACTURA_GENERATED_EVENT, handleAutofacturaGenerated)
+    return () => {
+      window.removeEventListener(AUTOFACTURA_GENERATED_EVENT, handleAutofacturaGenerated)
+    }
+  }, [isAdminLiquidaciones, loadAutofacturas])
 
   useEffect(() => {
     void listMarcoRetributivo().then((result) => {
@@ -774,23 +715,50 @@ export function LiquidacionesInternasPanel({
 
   const jefeComercialOptions = useMemo(
     () =>
-      profiles
-        .filter((p) => p.role === "jefe_comercial")
-        .map((p) => ({ id: p.id, name: p.fullName }))
-        .sort((a, b) => a.name.localeCompare(b.name, "es")),
+      listActiveProfilesByRole(profiles, "jefe_comercial").map((profile) => ({
+        id: profile.id,
+        label: profile.fullName,
+      })),
     [profiles]
   )
 
-  const comercialFilterOptions = useMemo(() => {
-    if (!isAdminLiquidaciones) return []
-    const ids = new Set(enrichedBaseRows.map((row) => row.comercialId))
-    return [...ids]
-      .map((id) => ({
-        id,
-        name: profiles.find((p) => p.id === id)?.fullName ?? id,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, "es"))
-  }, [isAdminLiquidaciones, enrichedBaseRows, profiles])
+  const comercialOptions = useMemo(
+    () =>
+      listActiveProfilesByRole(profiles, "comercial").map((profile) => ({
+        id: profile.id,
+        label: profile.fullName,
+      })),
+    [profiles]
+  )
+
+  const gestionAlegacionRows = useMemo(
+    () => buildAlegacionGestionRows(baseRows, alegacionBySettlementId),
+    [baseRows, alegacionBySettlementId]
+  )
+
+  const gestionAutofacturaRecords = useMemo(
+    () =>
+      filterAutofacturaRecordsForGestion(autofacturaRecords, {
+        profiles,
+        adminScopeMode,
+        adminScopeTargetId,
+        dateFrom,
+        dateTo,
+      }),
+    [
+      autofacturaRecords,
+      profiles,
+      adminScopeMode,
+      adminScopeTargetId,
+      dateFrom,
+      dateTo,
+    ]
+  )
+
+  const adminGestionesCount = gestionAlegacionRows.length + gestionAutofacturaRecords.length
+
+  const adminScopeTargetRequired =
+    isAdminLiquidaciones && adminScopeRequiresTarget(adminScopeMode) && !adminScopeTargetId
 
   const filterOpts = { tab: activeTab, dateFrom, dateTo, compania, search }
 
@@ -800,8 +768,8 @@ export function LiquidacionesInternasPanel({
   )
 
   const tableOrderOptions = useMemo(
-    () => ({ segmentoFilter, activacionSort, comisionSort }),
-    [segmentoFilter, activacionSort, comisionSort]
+    () => ({ segmentoSort, activacionSort, comisionSort }),
+    [segmentoSort, activacionSort, comisionSort]
   )
 
   const tableRows = useMemo(
@@ -830,9 +798,9 @@ export function LiquidacionesInternasPanel({
       ),
     [scopedRows]
   )
-  const companiaCounts = useMemo(
+  const rowsForCompaniaCounts = useMemo(
     () =>
-      countLiquidacionRowsByCompania(baseRows, {
+      filterLiquidacionRowsForCompaniaCounts(baseRows, {
         tab: activeTab,
         dateFrom,
         dateTo,
@@ -841,18 +809,28 @@ export function LiquidacionesInternasPanel({
     [baseRows, activeTab, dateFrom, dateTo, search]
   )
 
-  const myRows =
-    activeRole === "jefe_comercial"
-      ? tableRows.filter((r) => r.comercialId === activeUserId)
-      : tableRows
-  const teamRows =
-    activeRole === "jefe_comercial"
-      ? tableRows.filter((r) => r.comercialId !== activeUserId)
-      : []
+  const companiaFilterOptions = useMemo(
+    () => buildLiquidacionCompaniaFilterOptions(rowsForCompaniaCounts),
+    [rowsForCompaniaCounts]
+  )
 
-  const superadminGroups = isAdminLiquidaciones
-    ? groupRowsByEquipoDirector(tableRows)
-    : []
+  const companiaTotalCount = rowsForCompaniaCounts.length
+
+  useEffect(() => {
+    if (compania === "Todos") return
+    const stillAvailable = companiaFilterOptions.some((option) =>
+      matchesCompaniaFilter(option.name, compania)
+    )
+    if (!stillAvailable) setCompania("Todos")
+  }, [compania, companiaFilterOptions])
+
+  const jefeVisibleRows = useMemo(() => {
+    if (activeRole !== "jefe_comercial") return tableRows
+    if (jefeTeamView === "solo") {
+      return tableRows.filter((row) => row.comercialId === activeUserId)
+    }
+    return tableRows.filter((row) => row.comercialId !== activeUserId)
+  }, [activeRole, activeUserId, jefeTeamView, tableRows])
 
   const showRowActions =
     activeRole === "comercial" ||
@@ -1118,16 +1096,20 @@ export function LiquidacionesInternasPanel({
     showReclamarIcon,
     onOpenAlegacion: openAlegacionChat,
     onToggleReclamar: handleToggleReclamar,
-    segmentoFilter,
+    segmentoSort,
     activacionSort,
     comisionSort,
-    onSegmentoHeaderClick: () =>
-      setSegmentoFilter((current) => cycleLiquidacionesSegmentoFilter(current)),
+    onSegmentoHeaderClick: () => {
+      setComisionSort(null)
+      setSegmentoSort((current) => (current === "asc" ? "desc" : "asc"))
+    },
     onActivacionHeaderClick: () => {
       setComisionSort(null)
+      setSegmentoSort(null)
       setActivacionSort((current) => (current === "desc" ? "asc" : "desc"))
     },
     onComisionHeaderClick: () => {
+      setSegmentoSort(null)
       setComisionSort((current) => (current === "desc" ? "asc" : "desc"))
     },
   }
@@ -1138,7 +1120,58 @@ export function LiquidacionesInternasPanel({
       onSearchChange={setSearch}
       compania={compania}
       onCompaniaChange={setCompania}
-      companiaCounts={companiaCounts}
+      companiaOptions={companiaFilterOptions}
+      companiaTotalCount={companiaTotalCount}
+    />
+  )
+
+  const adminContentTabList = (
+    <div
+      className="inline-flex items-center gap-0.5 rounded-lg border border-brand-border bg-brand-panel p-0.5 shrink-0"
+      role="tablist"
+      aria-label="Vista de tramitación"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={adminContentTab === "listado"}
+        onClick={() => setAdminContentTab("listado")}
+        className={segmentTabClass(adminContentTab === "listado")}
+      >
+        Listado
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={adminContentTab === "gestion"}
+        onClick={() => setAdminContentTab("gestion")}
+        className={`inline-flex items-center gap-1.5 ${segmentTabClass(adminContentTab === "gestion")}`}
+      >
+        Gestión tramitación
+        {adminGestionesCount > 0 ? (
+          <span
+            className={`rounded-full px-1.5 py-0.5 text-[8px] font-bold tabular-nums ${
+              adminContentTab === "gestion"
+                ? "bg-white/20 text-white"
+                : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+            }`}
+          >
+            {adminGestionesCount}
+          </span>
+        ) : null}
+      </button>
+    </div>
+  )
+
+  const adminTableToolbar = (
+    <LiquidacionesTableToolbar
+      search={search}
+      onSearchChange={setSearch}
+      compania={compania}
+      onCompaniaChange={setCompania}
+      companiaOptions={companiaFilterOptions}
+      companiaTotalCount={companiaTotalCount}
+      leading={adminContentTabList}
     />
   )
 
@@ -1147,104 +1180,90 @@ export function LiquidacionesInternasPanel({
       <div className="shrink-0 space-y-5">
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-              {isAdminLiquidaciones ? (
+          {isAdminLiquidaciones ? (
             <>
-              <button
-                type="button"
-                onClick={() => setPanelView("listado")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
-                  panelView === "listado"
-                    ? "bg-cyan-600 text-white border-cyan-600"
-                    : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-                }`}
+              <div
+                className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-brand-border bg-brand-panel p-1"
+                role="tablist"
+                aria-label="Vista de liquidaciones"
               >
-                Por equipo
-              </button>
-              <button
-                type="button"
-                onClick={() => setPanelView("por_comercial")}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
-                  panelView === "por_comercial"
-                    ? "bg-cyan-600 text-white border-cyan-600"
-                    : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                Por comercial
-                {alegacionesLoading ? null : (
-                  <span className="opacity-80">
-                    ·{" "}
-                    {
-                      alegaciones.filter(
-                        (a) => a.estado === "abierta" || a.estado === "en_revision"
-                      ).length
-                    }{" "}
-                    activas
-                  </span>
-                )}
-              </button>
-              <label className="inline-flex items-center gap-1.5">
-                <span className="sr-only">Alcance de liquidaciones</span>
-                <select
-                  value={adminScopeMode}
-                  onChange={(event) => {
-                    setAdminScopeMode(event.target.value as LiquidacionesAdminScopeMode)
-                    setAdminScopeTargetId("all")
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[160px]"
-                >
-                  <option value="todos">Todos</option>
-                  <option value="comercial">Comercial</option>
-                  <option value="director">Director comercial</option>
-                  <option value="equipo">Equipo de director</option>
-                </select>
-              </label>
-              {adminScopeMode === "comercial" && comercialFilterOptions.length > 0 ? (
-                <label className="inline-flex items-center gap-1.5">
-                  <span className="sr-only">Filtrar por comercial</span>
-                  <select
-                    value={adminScopeTargetId}
-                    onChange={(event) => setAdminScopeTargetId(event.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[180px]"
+                {LIQUIDACIONES_ADMIN_SCOPE_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={adminScopeMode === option.id}
+                    onClick={() => {
+                      setAdminScopeMode(option.id)
+                      setAdminScopeTargetId("")
+                    }}
+                    className={segmentTabClass(adminScopeMode === option.id)}
                   >
-                    <option value="all">Seleccionar comercial</option>
-                    {comercialFilterOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {adminScopeMode === "comercial" ? (
+                <SearchableSelectFilterDropdown
+                  label="Comercial"
+                  value={adminScopeTargetId}
+                  placeholder="Buscar comercial…"
+                  options={comercialOptions}
+                  onChange={setAdminScopeTargetId}
+                  minWidthClass="min-w-[220px]"
+                />
               ) : null}
-              {(adminScopeMode === "director" || adminScopeMode === "equipo") &&
-              jefeComercialOptions.length > 0 ? (
-                <label className="inline-flex items-center gap-1.5">
-                  <span className="sr-only">
-                    {adminScopeMode === "director"
-                      ? "Filtrar por director comercial"
-                      : "Filtrar por equipo de director"}
-                  </span>
-                  <select
-                    value={adminScopeTargetId}
-                    onChange={(event) => setAdminScopeTargetId(event.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[200px]"
-                  >
-                    <option value="all">
-                      {adminScopeMode === "director"
-                        ? "Seleccionar director"
-                        : "Seleccionar equipo"}
-                    </option>
-                    {jefeComercialOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {adminScopeMode === "equipo"
-                          ? `Equipo de ${option.name}`
-                          : option.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+
+              {adminScopeMode === "director" ? (
+                <SearchableSelectFilterDropdown
+                  label="Director comercial"
+                  value={adminScopeTargetId}
+                  placeholder="Buscar director…"
+                  options={jefeComercialOptions}
+                  onChange={setAdminScopeTargetId}
+                  minWidthClass="min-w-[220px]"
+                />
+              ) : null}
+
+              {adminScopeMode === "equipo" ? (
+                <SearchableSelectFilterDropdown
+                  label="Equipo de director"
+                  value={adminScopeTargetId}
+                  placeholder="Buscar director…"
+                  options={jefeComercialOptions}
+                  onChange={setAdminScopeTargetId}
+                  minWidthClass="min-w-[220px]"
+                />
               ) : null}
             </>
+          ) : null}
+
+          {activeRole === "jefe_comercial" ? (
+            <div
+              className="inline-flex items-center gap-1 rounded-lg border border-brand-border bg-brand-panel p-1"
+              role="tablist"
+              aria-label="Alcance del jefe comercial"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={jefeTeamView === "equipo"}
+                onClick={() => setJefeTeamView("equipo")}
+                className={segmentTabClass(jefeTeamView === "equipo")}
+              >
+                Mi equipo
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={jefeTeamView === "solo"}
+                onClick={() => setJefeTeamView("solo")}
+                className={segmentTabClass(jefeTeamView === "solo")}
+              >
+                Solo yo
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -1254,11 +1273,15 @@ export function LiquidacionesInternasPanel({
               <button
                 type="button"
                 onClick={() => void handleGenerateAutofactura()}
-                disabled={isGeneratingAutofactura || !fiscalProfileComplete}
+                disabled={
+                  isGeneratingAutofactura || !fiscalProfileComplete || !autofacturaEnabled
+                }
                 title={
-                  fiscalProfileComplete
-                    ? undefined
-                    : "Completa tu perfil fiscal para generar autofacturas"
+                  !fiscalProfileComplete
+                    ? "Completa tu perfil fiscal para generar autofacturas"
+                    : !autofacturaEnabled
+                      ? "No tienes liquidaciones pendientes de cobro este periodo"
+                      : undefined
                 }
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-colors hover:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
               >
@@ -1298,32 +1321,30 @@ export function LiquidacionesInternasPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {kpiCards.map((kpi) => (
-          <button
+          <KpiMetricCard
             key={kpi.id}
-            type="button"
+            label={kpi.label}
+            displayValue={formatCurrency(kpi.value)}
+            hint={kpi.hint}
+            valueClass={
+              kpi.id === "retrocomisiones"
+                ? "text-rose-700 dark:text-rose-400"
+                : kpi.id === "pendientes"
+                  ? "text-amber-700 dark:text-amber-400"
+                  : "text-emerald-700 dark:text-emerald-400"
+            }
+            accentClass={
+              kpi.id === "retrocomisiones"
+                ? "bg-rose-500"
+                : kpi.id === "pendientes"
+                  ? "bg-amber-500"
+                  : "bg-emerald-500"
+            }
+            selected={activeTab === kpi.id}
             onClick={() => setActiveTab(kpi.id)}
-            className={`text-left p-4 rounded-xl border transition-colors duration-200 cursor-pointer ${
-              activeTab === kpi.id
-                ? "border-cyan-500/50 bg-cyan-500/5 shadow-sm"
-                : "border-brand-border bg-brand-panel hover:border-cyan-500/30"
-            }`}
-          >
-            <p className="text-[10px] font-mono uppercase text-brand-subtext">{kpi.label}</p>
-            <p
-              className={`text-2xl font-black font-display tabular-nums mt-1 ${
-                kpi.id === "retrocomisiones"
-                  ? "text-rose-600 dark:text-rose-400"
-                  : kpi.id === "pendientes"
-                    ? "text-amber-600 dark:text-amber-400"
-                    : "text-emerald-600 dark:text-emerald-400"
-              }`}
-            >
-              {formatCurrency(kpi.value)}
-            </p>
-            <p className="text-[9px] font-mono text-brand-subtext mt-1">{kpi.hint}</p>
-          </button>
+          />
         ))}
       </div>
 
@@ -1336,11 +1357,7 @@ export function LiquidacionesInternasPanel({
               const { from, to } = preset.getRange()
               setDateRange({ from, to, presetId: preset.id })
             }}
-            className={`px-2 py-1 rounded-lg text-[9px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
-              dateRange.presetId === preset.id
-                ? "bg-cyan-600 text-white border-cyan-600"
-                : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-            }`}
+            className={filterPillClass(dateRange.presetId === preset.id)}
           >
             {preset.label}
           </button>
@@ -1369,47 +1386,51 @@ export function LiquidacionesInternasPanel({
 
       {activeRole === "jefe_comercial" && (
         <LiquidacionesTableSection toolbar={tableToolbar}>
-          <div className="space-y-6 pb-2">
-            <section className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
-                Mis liquidaciones · {activeUserName}
-              </h3>
-              <LiquidacionesTable
-                rows={myRows}
-                showComercial={false}
-                {...tableCommonProps}
-              />
-            </section>
-            <section className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
-                Equipo comercial
-              </h3>
-              <LiquidacionesTable rows={teamRows} showComercial {...tableCommonProps} />
-            </section>
-          </div>
-        </LiquidacionesTableSection>
-      )}
-
-      {isAdminLiquidaciones && panelView === "por_comercial" && (
-        <LiquidacionesTableSection toolbar={tableToolbar}>
           <LiquidacionesTable
-            rows={tableRows}
-            showComercial
-            highlightAlegaciones
+            rows={jefeVisibleRows}
+            showComercial={jefeTeamView === "equipo"}
             {...tableCommonProps}
           />
         </LiquidacionesTableSection>
       )}
 
-      {isAdminLiquidaciones && panelView === "listado" && (
-        <LiquidacionesTableSection toolbar={tableToolbar}>
-          <LiquidacionesGroupedTables
-            groups={superadminGroups}
-            emptyLabel="Sin equipos en este filtro"
-            showComercial
-            {...tableCommonProps}
-          />
-        </LiquidacionesTableSection>
+      {isAdminLiquidaciones && (
+        <>
+          {adminContentTab === "listado" ? (
+            <LiquidacionesTableSection toolbar={adminTableToolbar}>
+              {adminScopeTargetRequired ? (
+                <p className="text-center text-xs font-mono text-brand-subtext py-10 border border-dashed border-brand-border rounded-xl">
+                  Selecciona{" "}
+                  {adminScopeMode === "comercial"
+                    ? "un comercial"
+                    : adminScopeMode === "director"
+                      ? "un director comercial"
+                      : "un director comercial para ver su equipo"}{" "}
+                  para mostrar liquidaciones.
+                </p>
+              ) : (
+                <LiquidacionesTable
+                  rows={tableRows}
+                  showComercial
+                  highlightAlegaciones
+                  {...tableCommonProps}
+                />
+              )}
+            </LiquidacionesTableSection>
+          ) : (
+            <LiquidacionesTableSection toolbar={adminTableToolbar}>
+              <LiquidacionesTramitacionPanel
+                alegacionRows={gestionAlegacionRows}
+                autofacturaRecords={gestionAutofacturaRecords}
+                settlements={settlements}
+                alegacionBySettlementId={alegacionBySettlementId}
+                formatCurrency={formatCurrency}
+                onOpenAlegacion={openAlegacionChat}
+                adminScopeTargetRequired={adminScopeTargetRequired}
+              />
+            </LiquidacionesTableSection>
+          )}
+        </>
       )}
       </div>
 

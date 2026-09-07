@@ -78,7 +78,7 @@ export function ProductosFiltersSidebar({
                 className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                   tipoCliente === opt.id
                     ? "bg-emerald-600 text-white"
-                    : "text-brand-subtext hover:bg-cyan-500/5 hover:text-brand-text"
+                    : "text-brand-subtext hover:bg-brand-surface/80 hover:text-brand-text"
                 }`}
               >
                 {opt.label}
@@ -100,7 +100,7 @@ export function ProductosFiltersSidebar({
                 className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
                   webVisibility === opt.id
                     ? "bg-emerald-600 text-white"
-                    : "text-brand-subtext hover:bg-cyan-500/5 hover:text-brand-text"
+                    : "text-brand-subtext hover:bg-brand-surface/80 hover:text-brand-text"
                 }`}
               >
                 {opt.label}

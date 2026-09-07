@@ -15,24 +15,40 @@ import {
   resolveCompaniaLogoKey,
 } from "./erp/compania-logos"
 
-export type LiquidacionesSegmentoFilter = "all" | "residencial" | "pyme"
 export type LiquidacionesSortDirection = "asc" | "desc"
-
-export function cycleLiquidacionesSegmentoFilter(
-  current: LiquidacionesSegmentoFilter
-): LiquidacionesSegmentoFilter {
-  if (current === "all") return "residencial"
-  if (current === "residencial") return "pyme"
-  return "all"
-}
 
 export function resolveLiquidacionPeaje(contract: Contract | undefined, tarifa: string): string {
   if (contract?.atr?.trim()) return normalizePeaje(contract.atr)
-  const normalized = tarifa.toLowerCase()
-  if (normalized.includes("6.0") || normalized.includes("6.1")) return "6.0TD"
-  if (normalized.includes("3.0")) return "3.0TD"
-  if (normalized.includes("2.0")) return "2.0TD"
+
+  const tarifaCandidates = [
+    contract?.tarifa,
+    tarifa,
+    contract?.tipo === "gas" ? "RL1" : undefined,
+  ].filter(Boolean) as string[]
+
+  for (const candidate of tarifaCandidates) {
+    const normalized = candidate.toLowerCase()
+    if (normalized.includes("6.1")) return "6.1TD"
+    if (normalized.includes("6.0")) return "6.0TD"
+    if (normalized.includes("3.0")) return "3.0TD"
+    if (normalized.includes("2.0")) return "2.0TD"
+  }
+
   return "—"
+}
+
+function canonicalLiquidacionSegmento(
+  contract: Contract,
+  compania: string
+): "residencial" | "pyme" {
+  const inferred = normalizeTipoClienteSegment({
+    tipoCliente: contract.tipoCliente,
+    compania,
+    clientName: contract.clientName,
+    nif: contract.nif,
+  })
+  if (inferred === "residencial") return "residencial"
+  return "pyme"
 }
 
 export function resolveLiquidacionComercialDisplayName(
@@ -49,17 +65,46 @@ export function normalizeLiquidacionSegmentoKey(
   segmento: string
 ): "residencial" | "pyme" | null {
   const value = segmento.toLowerCase().trim()
-  if (value === "residencial" || value === "particular") return "residencial"
+  if (!value || value === "—" || value === "luz" || value === "gas") return null
+  if (
+    value === "residencial" ||
+    value === "particular" ||
+    value === "domestico" ||
+    value === "doméstico"
+  ) {
+    return "residencial"
+  }
   if (
     value === "pyme" ||
+    value === "empresa" ||
+    value === "empresas" ||
     value === "autonomo" ||
     value === "autónomo" ||
     value === "comunidades" ||
-    value === "comunidad_vecinos"
+    value === "comunidad_vecinos" ||
+    value === "comunidad"
   ) {
     return "pyme"
   }
   return null
+}
+
+export function resolveLiquidacionSegmentoKey(
+  row: Pick<LiquidacionInternaRow, "segmento" | "contract">
+): "residencial" | "pyme" | null {
+  const fromRow = normalizeLiquidacionSegmentoKey(row.segmento)
+  if (fromRow) return fromRow
+
+  if (!row.contract) return null
+
+  const inferred = normalizeTipoClienteSegment({
+    tipoCliente: row.contract.tipoCliente,
+    compania: row.contract.compania,
+    clientName: row.contract.clientName,
+    nif: row.contract.nif,
+  })
+  if (inferred === "residencial") return "residencial"
+  return "pyme"
 }
 
 export function formatLiquidacionSegmentoLabel(segmento: string): string {
@@ -71,34 +116,56 @@ export function formatLiquidacionSegmentoLabel(segmento: string): string {
 
 export function formatLiquidacionPeajeLabel(peaje: string): string {
   if (!peaje || peaje === "—") return "—"
+  const normalized = peaje.toUpperCase().replace(/\s+/g, "")
+  if (normalized.includes("6.1")) return "6.1TD"
+  if (normalized.includes("6.0")) return "6.0TD"
+  if (normalized.includes("3.0")) return "3.0TD"
+  if (normalized.includes("2.0")) return "2.0TD"
   const match = peaje.match(/(\d\.\d)/)
-  if (match) return match[1]!
+  if (match) return `${match[1]}TD`
   return peaje.replace(/TD/gi, "").trim() || "—"
 }
 
-export function matchesLiquidacionSegmentoFilter(
-  row: LiquidacionInternaRow,
-  filter: LiquidacionesSegmentoFilter
-): boolean {
-  if (filter === "all") return true
-  const key = normalizeLiquidacionSegmentoKey(row.segmento)
-  if (filter === "residencial") return key === "residencial"
-  return key === "pyme"
+function liquidacionSegmentoSortRank(
+  row: Pick<LiquidacionInternaRow, "segmento" | "contract">
+): number {
+  const key = resolveLiquidacionSegmentoKey(row)
+  if (key === "residencial") return 0
+  if (key === "pyme") return 1
+  return 2
+}
+
+export function compareLiquidacionSegmentoSort(
+  left: Pick<LiquidacionInternaRow, "segmento" | "contract">,
+  right: Pick<LiquidacionInternaRow, "segmento" | "contract">,
+  direction: LiquidacionesSortDirection
+): number {
+  const leftRank = liquidacionSegmentoSortRank(left)
+  const rightRank = liquidacionSegmentoSortRank(right)
+
+  if (leftRank === 2 && rightRank !== 2) return 1
+  if (rightRank === 2 && leftRank !== 2) return -1
+  if (leftRank === 2 && rightRank === 2) return 0
+
+  const diff = leftRank - rightRank
+  if (diff === 0) return 0
+  return direction === "asc" ? diff : -diff
 }
 
 export function applyLiquidacionTableOrdering(
   rows: LiquidacionInternaRow[],
   options: {
-    segmentoFilter: LiquidacionesSegmentoFilter
+    segmentoSort: LiquidacionesSortDirection | null
     activacionSort: LiquidacionesSortDirection
     comisionSort: LiquidacionesSortDirection | null
   }
 ): LiquidacionInternaRow[] {
-  const filtered = rows.filter((row) =>
-    matchesLiquidacionSegmentoFilter(row, options.segmentoFilter)
-  )
+  return [...rows].sort((left, right) => {
+    if (options.segmentoSort) {
+      const segmentDiff = compareLiquidacionSegmentoSort(left, right, options.segmentoSort)
+      if (segmentDiff !== 0) return segmentDiff
+    }
 
-  return [...filtered].sort((left, right) => {
     if (options.comisionSort) {
       const diff = left.comision - right.comision
       if (diff !== 0) {
@@ -118,6 +185,7 @@ export interface ProfileRow {
   role: string
   managerId?: string | null
   commissionPercentage?: number
+  status?: "activo" | "suspendido" | "pendiente"
 }
 
 export interface LiquidacionInternaRow {
@@ -131,6 +199,7 @@ export interface LiquidacionInternaRow {
   compania: string
   tarifa: string
   fechaActivacion: string
+  fechaBaja: string
   comision: number
   comercialId: string
   comercialName: string
@@ -141,28 +210,50 @@ export interface LiquidacionInternaRow {
 
 export type LiquidacionesAdminScopeMode = "todos" | "comercial" | "director" | "equipo"
 
+export const LIQUIDACIONES_ADMIN_SCOPE_OPTIONS: ReadonlyArray<{
+  id: LiquidacionesAdminScopeMode
+  label: string
+}> = [
+  { id: "todos", label: "Todos" },
+  { id: "comercial", label: "Por comercial" },
+  { id: "director", label: "Por director comercial" },
+  { id: "equipo", label: "Por equipo de director" },
+]
+
+export function adminScopeRequiresTarget(mode: LiquidacionesAdminScopeMode): boolean {
+  return mode !== "todos"
+}
+
+export function isActiveProfileRow(profile: ProfileRow): boolean {
+  if (!profile.status) return true
+  return profile.status === "activo"
+}
+
+export function listActiveProfilesByRole(
+  profiles: ProfileRow[],
+  role: ProfileRow["role"]
+): ProfileRow[] {
+  return profiles
+    .filter((profile) => profile.role === role && isActiveProfileRow(profile))
+    .sort((left, right) => left.fullName.localeCompare(right.fullName, "es"))
+}
+
 export interface LiquidacionEquipoGroup {
   key: string
   title: string
   rows: LiquidacionInternaRow[]
 }
 
-export const LIQUIDACIONES_COMPANIA_FILTERS = [
-  "Todos",
-  "Repsol",
-  "Naturgy",
-  "Endesa",
-  "Iberdrola",
-  "Niba",
-  "Ignis",
-  "Axpo",
-  "TotalEnergies",
-  "Factorenergia",
-] as const
+export interface LiquidacionCompaniaFilterOption {
+  name: string
+  count: number
+}
 
 function isPlaceholderCompania(name: string | null | undefined): boolean {
   const raw = name?.trim() ?? ""
   if (!raw || raw === "—") return true
+  const lowered = raw.toLowerCase()
+  if (lowered === "sin compañía" || lowered === "sin compania") return true
   return normalizeCompaniaKey(raw) === "at"
 }
 
@@ -214,7 +305,7 @@ export function resolveLiquidacionCompania(
   return (
     inferCompaniaFromText(settlement.descripcion) ||
     inferCompaniaFromText(contract?.tarifa ?? "") ||
-    fromContract ||
+    (fromContract && !isPlaceholderCompania(fromContract) ? fromContract : undefined) ||
     "—"
   )
 }
@@ -296,23 +387,16 @@ export function enrichSettlementRow(
       contract?.direccionCompleta ??
       contract?.direccionFiscal ??
       "—",
-    segmento: contract
-      ? normalizeTipoClienteSegment({
-          tipoCliente: contract.tipoCliente,
-          compania,
-          clientName: contract.clientName,
-          nif: contract.nif,
-        })
-      : "—",
-    peaje: resolveLiquidacionPeaje(
-      contract,
-      contract?.tarifa ?? settlement.descripcion
-    ),
+    segmento: contract ? canonicalLiquidacionSegmento(contract, compania) : "—",
+    peaje: resolveLiquidacionPeaje(contract, contract?.tarifa ?? settlement.descripcion),
     compania,
     tarifa: contract?.tarifa ?? "—",
-    fechaActivacion: contract?.createdAt ?? settlement.createdAt,
-    comision:
-      contract != null
+    fechaActivacion:
+      contract?.estadoEfectivoDesde ?? contract?.createdAt ?? settlement.createdAt,
+    fechaBaja: settlement.fechaBaja ?? contract?.fechaBaja ?? "—",
+    comision: isRetrocomisionSettlement(settlement)
+      ? settlement.montoExterno
+      : contract != null
         ? resolveComisionComercialFromContract(
             { ...contract, compania },
             profiles,
@@ -363,6 +447,7 @@ export function applyEffectiveComisionToRows(
 }
 
 export function isRetrocomisionSettlement(settlement: Settlement): boolean {
+  if (settlement.tipoEvento === "retrocomision") return true
   if (settlement.montoExterno < 0) return true
   return /retrocomisi/i.test(settlement.descripcion)
 }
@@ -476,16 +561,59 @@ export function filterLiquidacionRows(
   })
 }
 
-export function countLiquidacionRowsByCompania(
+function getLiquidacionCompaniaGroupKey(compania: string): string | null {
+  if (isPlaceholderCompania(compania)) return null
+  const logoKey = resolveCompaniaLogoKey(compania)
+  if (logoKey) return logoKey
+  const normalized = normalizeCompaniaKey(compania)
+  return normalized || null
+}
+
+function getLiquidacionCompaniaDisplayName(compania: string): string {
+  const logoKey = resolveCompaniaLogoKey(compania)
+  if (logoKey) return formatCompaniaLabel(logoKey)
+  return formatCompaniaLabel(compania)
+}
+
+export function filterLiquidacionRowsForCompaniaCounts(
   rows: LiquidacionInternaRow[],
-  options: Omit<Parameters<typeof filterLiquidacionRows>[1], "compania">
-): Record<string, number> {
-  return Object.fromEntries(
-    LIQUIDACIONES_COMPANIA_FILTERS.map((filter) => [
-      filter,
-      filterLiquidacionRows(rows, { ...options, compania: filter }).length,
-    ])
-  )
+  options: {
+    tab: "totales" | "pendientes" | "retrocomisiones"
+    dateFrom: string
+    dateTo: string
+    search: string
+  }
+): LiquidacionInternaRow[] {
+  return filterLiquidacionRows(rows, { ...options, compania: "Todos" })
+}
+
+export function buildLiquidacionCompaniaFilterOptions(
+  rows: LiquidacionInternaRow[]
+): LiquidacionCompaniaFilterOption[] {
+  const counts = new Map<string, LiquidacionCompaniaFilterOption>()
+
+  for (const row of rows) {
+    const groupKey = getLiquidacionCompaniaGroupKey(row.compania)
+    if (!groupKey) continue
+
+    const existing = counts.get(groupKey)
+    if (existing) {
+      existing.count += 1
+      continue
+    }
+
+    counts.set(groupKey, {
+      name: getLiquidacionCompaniaDisplayName(row.compania),
+      count: 1,
+    })
+  }
+
+  return [...counts.values()]
+    .filter((option) => option.count > 0)
+    .sort((left, right) => {
+      if (right.count !== left.count) return right.count - left.count
+      return left.name.localeCompare(right.name, "es")
+    })
 }
 
 export function sumComisionRows(rows: LiquidacionInternaRow[]): number {
@@ -505,38 +633,21 @@ export function filterRowsForAdminScope(
   targetId: string
 ): LiquidacionInternaRow[] {
   if (mode === "todos") return rows
+  if (!targetId) return []
 
   if (mode === "comercial") {
-    if (!targetId || targetId === "all") return rows
     return rows.filter((row) => row.comercialId === targetId)
   }
 
   if (mode === "director") {
-    if (targetId === "all") {
-      return rows.filter((row) => {
-        const profile = profiles.find((p) => p.id === row.comercialId)
-        return profile?.role === "jefe_comercial"
-      })
-    }
-    return rows.filter((row) => {
-      const profile = profiles.find((p) => p.id === row.comercialId)
-      return profile?.role === "jefe_comercial" && row.comercialId === targetId
-    })
+    return rows.filter((row) => row.comercialId === targetId)
   }
 
   if (mode === "equipo") {
-    if (targetId === "all") {
-      const teamMemberIds = new Set(
-        profiles
-          .filter((p) => p.role === "comercial" && p.managerId)
-          .map((p) => p.id)
-      )
-      return rows.filter((row) => teamMemberIds.has(row.comercialId))
-    }
     const teamIds = new Set(
       profiles
-        .filter((p) => p.managerId === targetId && p.role === "comercial")
-        .map((p) => p.id)
+        .filter((profile) => profile.managerId === targetId && profile.role === "comercial")
+        .map((profile) => profile.id)
     )
     return rows.filter((row) => teamIds.has(row.comercialId))
   }

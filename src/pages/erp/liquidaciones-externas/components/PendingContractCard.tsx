@@ -8,6 +8,7 @@ type PendingContractCardProps = {
   profiles: LiquidacionesProfile[]
   formatCurrency: (val: number) => string
   renderCompaniaLogo: (brandName: string) => ReactNode
+  canSelect?: boolean
   onToggleChecked: (id: string) => void
 }
 
@@ -16,6 +17,7 @@ export function PendingContractCard({
   profiles,
   formatCurrency,
   renderCompaniaLogo,
+  canSelect = false,
   onToggleChecked,
 }: PendingContractCardProps) {
   const realCommission = computeRealCommission(contract, profiles)
@@ -29,12 +31,16 @@ export function PendingContractCard({
       }`}
     >
       <div className="pt-0.5">
-        <input
-          type="checkbox"
-          checked={contract.checked || false}
-          onChange={() => onToggleChecked(contract.id)}
-          className="w-4 h-4 text-blue-600 dark:text-cyan-400 bg-slate-950/40 rounded border border-white/15 focus:ring-0 cursor-pointer accent-blue-600"
-        />
+        {canSelect ? (
+          <input
+            type="checkbox"
+            checked={contract.checked || false}
+            onChange={() => onToggleChecked(contract.id)}
+            className="w-4 h-4 text-blue-600 dark:text-cyan-400 bg-slate-950/40 rounded border border-white/15 focus:ring-0 cursor-pointer accent-blue-600"
+          />
+        ) : (
+          <span className="inline-block w-4" aria-hidden />
+        )}
       </div>
 
       <div className="flex-1 space-y-2.5 min-w-0">

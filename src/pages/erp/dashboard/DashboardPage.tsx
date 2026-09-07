@@ -30,10 +30,12 @@ export function DashboardPage() {
                         {/* PROFILE: SUPERADMIN (EXECUTIVE CONTROL BOARD) */}
                         {(activeRole === 'superadmin' || activeRole === 'tramitacion') && (
                           <SuperadminDashboard
-                            welcomeName={activeUser.fullName}
-                            activeRole={activeRole}
                             contracts={contracts}
+                            settlements={settlements}
                             incidencias={incidencias}
+                            activeUserId={activeUserId}
+                            activeRole={activeRole}
+                            formatCurrency={formatCurrency}
                             comerciales={profiles.map((p) => ({
                               id: p.id,
                               fullName: p.fullName,

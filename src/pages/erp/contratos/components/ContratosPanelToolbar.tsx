@@ -10,6 +10,7 @@ import type { ContractEstadoUiFilter } from "@/lib/contract-estado-kpis"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { DateRangePickerValue } from "@/lib/date-range"
 import { profileRoleLabel, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
+import { SEARCH_INPUT } from "@/lib/enersave-ui-theme"
 
 type Props = {
   contractsSearchQuery: string
@@ -71,7 +72,7 @@ export function ContratosPanelToolbar({
               placeholder="Buscar cliente, CUPS, NIF…"
               value={contractsSearchQuery}
               onChange={(e) => setContractsSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-9 py-2 bg-brand-surface border border-brand-border rounded-xl focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/15 text-xs text-brand-text font-medium"
+              className={`${SEARCH_INPUT} rounded-xl pr-9`}
             />
             {contractsSearchQuery ? (
               <button

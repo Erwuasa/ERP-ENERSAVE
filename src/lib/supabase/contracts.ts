@@ -175,11 +175,28 @@ export function resolveContractCompania(
   if (stored && stored.toUpperCase() !== "AT") return stored
 
   const payload = payloadRecord(row)
+  const fromText =
+    str(payload.compania) ??
+    str(payload.company) ??
+    str(payload.provider_name) ??
+    str(payload.compania_nombre) ??
+    str(payload.proveedor_nombre) ??
+    str(payload.billing_company_name) ??
+    str(payload.company_name)
+  if (fromText?.trim() && fromText.trim().toUpperCase() !== "AT") return fromText.trim()
+
+  const provider = nestedPayload(payload, "provider")
+  const fromProviderObject =
+    str(provider.nombre) ?? str(provider.name)
+  if (fromProviderObject?.trim() && fromProviderObject.trim().toUpperCase() !== "AT") {
+    return fromProviderObject.trim()
+  }
+
   const providerAtId = str(payload.provider_id)
   const fromProvider = providerAtId ? providerByAtCompanyId.get(providerAtId) : undefined
   if (fromProvider?.trim()) return fromProvider.trim()
 
-  return stored
+  return "—"
 }
 
 export function resolveContractTarifa(row: Row): string {
@@ -250,6 +267,26 @@ function mapAtEmails(raw: unknown): Contract["atEmails"] {
   return emails.length > 0 ? emails : undefined
 }
 
+function resolveContractAtr(row: Row): string | undefined {
+  const metadata = metadataOf(row)
+  const fromMetadata = str(metadata.atr)
+  if (fromMetadata) return fromMetadata
+
+  const payload = payloadRecord(row)
+  const electricity = nestedPayload(payload, "electricity_data")
+  const gas = nestedPayload(payload, "gas_data")
+
+  return (
+    str(electricity.access_tariff) ??
+    str(electricity.tariff_access) ??
+    str(electricity.atr) ??
+    str(gas.access_tariff) ??
+    str(gas.tariff_access) ??
+    str(payload.access_tariff) ??
+    str(payload.atr)
+  )
+}
+
 export function mapRowToContract(
   row: Row,
   providerByAtCompanyId: Map<string, string> = new Map()
@@ -283,7 +320,7 @@ export function mapRowToContract(
     fechaRenovacion: str(row.fecha_renovacion),
     diasRenovacion: num(row.dias_renovacion),
     consumoAnualManual: num(row.consumo_anual_manual) ?? null,
-    atr: str(metadata.atr),
+    atr: resolveContractAtr(row),
     nif: str(row.nif),
     telefono: str(row.telefono),
     email: str(row.email),

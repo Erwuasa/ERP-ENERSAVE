@@ -13,6 +13,7 @@ export function LiquidacionesInternasPage() {
     profiles,
     formatCurrency,
     canGenerateAutofactura,
+    autofacturaEnabled,
     canEditFiscalProfile,
     activeUserFiscalComplete,
     autofacturaTipoCliente,
@@ -40,6 +41,7 @@ export function LiquidacionesInternasPage() {
         profiles={profiles}
         formatCurrency={formatCurrency}
         canGenerateAutofactura={canGenerateAutofactura}
+        autofacturaEnabled={autofacturaEnabled}
         fiscalProfileComplete={activeUserFiscalComplete}
         onGenerateAutofactura={handleGenerateAutofactura}
         onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}

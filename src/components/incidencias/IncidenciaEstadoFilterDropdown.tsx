@@ -6,6 +6,7 @@ import {
 } from "../../lib/incidencias-filters"
 import { FloatingPanelPortal } from "../ui/FloatingPanelPortal"
 import { FilterTriggerButton } from "../ui/FilterTriggerButton"
+import { listItemSelectedClass } from "@/lib/enersave-ui-theme"
 
 const DEFAULT_VALUE: IncidenciaEstadoFilter = "todos"
 
@@ -65,9 +66,7 @@ export function IncidenciaEstadoFilterDropdown({
                   onChange(meta.id)
                   setOpen(false)
                 }}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${
-                  isSelected ? "bg-cyan-500/5" : ""
-                }`}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${listItemSelectedClass(isSelected)}`}
               >
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${meta.badgeClass}`}

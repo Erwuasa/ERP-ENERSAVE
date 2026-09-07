@@ -3,8 +3,11 @@ import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
 import {
   applyActivationSettlements,
+  buildActivationSettlement,
   buildPendingContractSettlement,
+  findActivationSettlement,
   findContractCommissionSettlement,
+  resolveActivationDate,
 } from "./contract-settlements"
 
 const baseContract: Contract = {
@@ -24,6 +27,49 @@ const baseContract: Contract = {
 }
 
 describe("contract-settlements", () => {
+  it("buildActivationSettlement marca tipo_evento activacion y fecha del contrato", () => {
+    const settlement = buildActivationSettlement({
+      contract: baseContract,
+      activationDate: "2026-06-15",
+      comisionEmpresa: 120,
+      comisionComercial: 84,
+    })
+
+    expect(settlement.estado).toBe("pendiente")
+    expect(settlement.tipoEvento).toBe("activacion")
+    expect(settlement.createdAt).toBe("2026-06-15")
+    expect(settlement.montoExterno).toBe(84)
+    expect(settlement.descripcion).toContain("activación")
+  })
+
+  it("resolveActivationDate prioriza estadoEfectivoDesde sobre createdAt", () => {
+    expect(
+      resolveActivationDate({
+        ...baseContract,
+        estadoEfectivoDesde: "2026-07-01",
+        createdAt: "2026-06-01",
+      })
+    ).toBe("2026-07-01")
+  })
+
+  it("findActivationSettlement localiza liquidación de activación", () => {
+    const activation: Settlement = {
+      id: "liq-act",
+      contractId: "con-1",
+      comercialId: "usr-3",
+      comercialName: "Ignacio Ortiz",
+      montoInterno: 120,
+      montoExterno: 84,
+      estado: "pendiente",
+      tipo: "luz",
+      tipoEvento: "activacion",
+      descripcion: "Comisión de activación",
+      createdAt: "2026-06-15",
+    }
+
+    expect(findActivationSettlement([activation], "con-1")?.id).toBe("liq-act")
+  })
+
   it("buildPendingContractSettlement crea comisión provisional pendiente", () => {
     const settlement = buildPendingContractSettlement({
       id: "liq-1",

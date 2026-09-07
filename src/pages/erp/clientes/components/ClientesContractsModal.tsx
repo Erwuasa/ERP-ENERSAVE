@@ -1,7 +1,7 @@
 import { FilePenLine, X } from "lucide-react"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
-import { supplyBadgeClass } from "@/lib/enersave-ui-theme"
+import { supplyBadgeClass, INTERACTIVE_CARD } from "@/lib/enersave-ui-theme"
 
 type Props = {
   client: Client
@@ -46,7 +46,7 @@ export function ClientesContractsModal({
                 key={contract.id}
                 type="button"
                 onClick={() => onSelectContract(contract)}
-                className="w-full text-left p-3 rounded-xl border border-brand-border hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-colors cursor-pointer"
+                className={`w-full text-left p-3 rounded-xl border border-brand-border ${INTERACTIVE_CARD.hover} cursor-pointer`}
               >
                 <div className="flex justify-between items-start gap-2">
                   <span

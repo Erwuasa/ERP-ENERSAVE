@@ -6,6 +6,7 @@ import {
 } from "../../lib/incidencias-filters"
 import { FloatingPanelPortal } from "../ui/FloatingPanelPortal"
 import { FilterTriggerButton } from "../ui/FilterTriggerButton"
+import { listItemSelectedClass } from "@/lib/enersave-ui-theme"
 
 const DEFAULT_VALUE: IncidenciaOrigenFilter = "todos"
 
@@ -64,9 +65,7 @@ export function IncidenciaOrigenFilterDropdown({
                 onChange(meta.id)
                 setOpen(false)
               }}
-              className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${
-                isSelected ? "bg-cyan-500/5" : ""
-              }`}
+              className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${listItemSelectedClass(isSelected)}`}
             >
               <span className="text-xs font-mono font-bold text-brand-text">{meta.label}</span>
               <span className="text-[10px] font-mono font-bold text-brand-subtext tabular-nums">
