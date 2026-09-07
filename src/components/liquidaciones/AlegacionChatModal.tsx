@@ -14,15 +14,19 @@ interface AlegacionChatModalProps {
   alegacion: Alegacion | null
   settlementLabel: string
   comercialName: string
+  comisionOriginal: number
   activeUserId: string
   activeUserName: string
   canChangeEstado: boolean
+  canAdjustComision?: boolean
+  formatCurrency?: (value: number) => string
   sending?: boolean
   onSendMessage: (payload: {
     texto: string
     adjuntos: AlegacionAdjunto[]
   }) => void | Promise<void>
   onEstadoChange?: (estado: AlegacionEstado) => void | Promise<void>
+  onComisionAjustadaChange?: (value: number | null) => void | Promise<void>
 }
 
 const ESTADO_OPTIONS: { value: AlegacionEstado; label: string }[] = [
@@ -99,17 +103,23 @@ export function AlegacionChatModal({
   alegacion,
   settlementLabel,
   comercialName,
+  comisionOriginal,
   activeUserId,
   activeUserName,
   canChangeEstado,
+  canAdjustComision = false,
+  formatCurrency,
   sending = false,
   onSendMessage,
   onEstadoChange,
+  onComisionAjustadaChange,
 }: AlegacionChatModalProps) {
   const [draftText, setDraftText] = useState("")
   const [draftAdjuntos, setDraftAdjuntos] = useState<AlegacionAdjunto[]>([])
   const [showAttach, setShowAttach] = useState(false)
   const [changingEstado, setChangingEstado] = useState(false)
+  const [comisionDraft, setComisionDraft] = useState("")
+  const [savingComision, setSavingComision] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -117,8 +127,18 @@ export function AlegacionChatModal({
       setDraftText("")
       setDraftAdjuntos([])
       setShowAttach(false)
+      setComisionDraft("")
     }
   }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const value =
+      alegacion?.comisionAjustada != null
+        ? String(alegacion.comisionAjustada)
+        : String(comisionOriginal)
+    setComisionDraft(value)
+  }, [open, alegacion?.comisionAjustada, alegacion?.id, comisionOriginal])
 
   useEffect(() => {
     if (!open || !scrollRef.current) return
@@ -155,6 +175,40 @@ export function AlegacionChatModal({
       await onEstadoChange(next)
     } finally {
       setChangingEstado(false)
+    }
+  }
+
+  async function handleSaveComisionAjustada() {
+    if (!onComisionAjustadaChange || !alegacion) return
+    const parsed = Number(comisionDraft.replace(",", "."))
+    if (!Number.isFinite(parsed)) {
+      toast.error("Introduce un importe válido.")
+      return
+    }
+    setSavingComision(true)
+    try {
+      await onComisionAjustadaChange(parsed)
+      toast.success("Comisión ajustada.")
+    } catch (error) {
+      console.error(error)
+      toast.error("No se pudo guardar la comisión ajustada.")
+    } finally {
+      setSavingComision(false)
+    }
+  }
+
+  async function handleResetComisionAjustada() {
+    if (!onComisionAjustadaChange || !alegacion) return
+    setSavingComision(true)
+    try {
+      await onComisionAjustadaChange(null)
+      setComisionDraft(String(comisionOriginal))
+      toast.success("Comisión restaurada al importe original.")
+    } catch (error) {
+      console.error(error)
+      toast.error("No se pudo restaurar la comisión.")
+    } finally {
+      setSavingComision(false)
     }
   }
 
@@ -224,6 +278,58 @@ export function AlegacionChatModal({
                 {ESTADO_OPTIONS.find((o) => o.value === alegacion.estado)?.label ?? alegacion.estado}
               </span>
             </p>
+          ) : null}
+
+          {canAdjustComision && alegacion && onComisionAjustadaChange ? (
+            <div className="rounded-lg border border-brand-border bg-brand-surface p-2.5 space-y-2">
+              <p className="text-[9px] font-mono font-bold uppercase text-brand-subtext">
+                Comisión de liquidación
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex-1 min-w-[120px]">
+                  <span className="sr-only">Importe ajustado</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={comisionDraft}
+                    disabled={savingComision || sending}
+                    onChange={(event) => setComisionDraft(event.target.value)}
+                    className="w-full px-2 py-1.5 rounded-lg border border-brand-border bg-brand-panel text-xs font-mono tabular-nums text-brand-text"
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={savingComision || sending}
+                  onClick={() => void handleSaveComisionAjustada()}
+                  className="px-2.5 py-1.5 rounded-lg bg-cyan-600 text-white text-[10px] font-bold uppercase disabled:opacity-50 cursor-pointer"
+                >
+                  {savingComision ? "Guardando…" : "Aplicar"}
+                </button>
+                {alegacion.comisionAjustada != null ? (
+                  <button
+                    type="button"
+                    disabled={savingComision || sending}
+                    onClick={() => void handleResetComisionAjustada()}
+                    className="px-2 py-1.5 rounded-lg border border-brand-border text-[10px] font-mono text-brand-subtext hover:text-brand-text cursor-pointer"
+                  >
+                    Original
+                  </button>
+                ) : null}
+              </div>
+              <p className="text-[9px] text-brand-subtext font-mono">
+                Original:{" "}
+                {formatCurrency ? formatCurrency(comisionOriginal) : comisionOriginal}
+                {alegacion.comisionAjustada != null ? (
+                  <>
+                    {" "}
+                    · Ajustada:{" "}
+                    {formatCurrency
+                      ? formatCurrency(alegacion.comisionAjustada)
+                      : alegacion.comisionAjustada}
+                  </>
+                ) : null}
+              </p>
+            </div>
           ) : null}
 
           <p className="text-[9px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-1.5 leading-snug">

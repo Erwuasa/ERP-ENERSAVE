@@ -1,16 +1,116 @@
+import type { Alegacion } from "../types/alegacion"
 import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
+import { liquidacionRowMatchesSearch, resolveContractReferencia } from "./contract-referencia"
 import { computeComisionBreakdown } from "./marco-commission"
 import {
   resolveMarcoCatalogEntry,
   type MarcoRetributivoRow,
 } from "./supabase/marco-retributivo"
 import { normalizeTipoClienteSegment } from "./contract-segment-rules"
+import { normalizePeaje } from "./tarifa-cost-calculator"
 import {
   formatCompaniaLabel,
   normalizeCompaniaKey,
   resolveCompaniaLogoKey,
 } from "./erp/compania-logos"
+
+export type LiquidacionesSegmentoFilter = "all" | "residencial" | "pyme"
+export type LiquidacionesSortDirection = "asc" | "desc"
+
+export function cycleLiquidacionesSegmentoFilter(
+  current: LiquidacionesSegmentoFilter
+): LiquidacionesSegmentoFilter {
+  if (current === "all") return "residencial"
+  if (current === "residencial") return "pyme"
+  return "all"
+}
+
+export function resolveLiquidacionPeaje(contract: Contract | undefined, tarifa: string): string {
+  if (contract?.atr?.trim()) return normalizePeaje(contract.atr)
+  const normalized = tarifa.toLowerCase()
+  if (normalized.includes("6.0") || normalized.includes("6.1")) return "6.0TD"
+  if (normalized.includes("3.0")) return "3.0TD"
+  if (normalized.includes("2.0")) return "2.0TD"
+  return "—"
+}
+
+export function resolveLiquidacionComercialDisplayName(
+  row: Pick<LiquidacionInternaRow, "comercialId" | "comercialName">,
+  profiles: ProfileRow[]
+): string {
+  const profile = profiles.find((item) => item.id === row.comercialId)
+  const candidate = profile?.fullName?.trim() || row.comercialName?.trim() || ""
+  if (!candidate || candidate.toUpperCase() === "AT") return profile?.fullName?.trim() || "—"
+  return candidate
+}
+
+export function normalizeLiquidacionSegmentoKey(
+  segmento: string
+): "residencial" | "pyme" | null {
+  const value = segmento.toLowerCase().trim()
+  if (value === "residencial" || value === "particular") return "residencial"
+  if (
+    value === "pyme" ||
+    value === "autonomo" ||
+    value === "autónomo" ||
+    value === "comunidades" ||
+    value === "comunidad_vecinos"
+  ) {
+    return "pyme"
+  }
+  return null
+}
+
+export function formatLiquidacionSegmentoLabel(segmento: string): string {
+  const key = normalizeLiquidacionSegmentoKey(segmento)
+  if (key === "residencial") return "Residencial"
+  if (key === "pyme") return "PYME"
+  return "—"
+}
+
+export function formatLiquidacionPeajeLabel(peaje: string): string {
+  if (!peaje || peaje === "—") return "—"
+  const match = peaje.match(/(\d\.\d)/)
+  if (match) return match[1]!
+  return peaje.replace(/TD/gi, "").trim() || "—"
+}
+
+export function matchesLiquidacionSegmentoFilter(
+  row: LiquidacionInternaRow,
+  filter: LiquidacionesSegmentoFilter
+): boolean {
+  if (filter === "all") return true
+  const key = normalizeLiquidacionSegmentoKey(row.segmento)
+  if (filter === "residencial") return key === "residencial"
+  return key === "pyme"
+}
+
+export function applyLiquidacionTableOrdering(
+  rows: LiquidacionInternaRow[],
+  options: {
+    segmentoFilter: LiquidacionesSegmentoFilter
+    activacionSort: LiquidacionesSortDirection
+    comisionSort: LiquidacionesSortDirection | null
+  }
+): LiquidacionInternaRow[] {
+  const filtered = rows.filter((row) =>
+    matchesLiquidacionSegmentoFilter(row, options.segmentoFilter)
+  )
+
+  return [...filtered].sort((left, right) => {
+    if (options.comisionSort) {
+      const diff = left.comision - right.comision
+      if (diff !== 0) {
+        return options.comisionSort === "desc" ? -diff : diff
+      }
+    }
+
+    const leftTime = parseIsoDate(left.fechaActivacion).getTime()
+    const rightTime = parseIsoDate(right.fechaActivacion).getTime()
+    return options.activacionSort === "desc" ? rightTime - leftTime : leftTime - rightTime
+  })
+}
 
 export interface ProfileRow {
   id: string
@@ -27,14 +127,24 @@ export interface LiquidacionInternaRow {
   cups: string
   direccion: string
   segmento: string
+  peaje: string
   compania: string
   tarifa: string
   fechaActivacion: string
   comision: number
   comercialId: string
   comercialName: string
+  contractReferencia: string
   jefeEquipoId?: string | null
   jefeEquipoName?: string
+}
+
+export type LiquidacionesAdminScopeMode = "todos" | "comercial" | "director" | "equipo"
+
+export interface LiquidacionEquipoGroup {
+  key: string
+  title: string
+  rows: LiquidacionInternaRow[]
 }
 
 export const LIQUIDACIONES_COMPANIA_FILTERS = [
@@ -169,10 +279,12 @@ export function enrichSettlementRow(
 ): LiquidacionInternaRow {
   const contract = findContractForSettlement(settlement, contracts)
   const compania = resolveLiquidacionCompania(contract, settlement, marcoRows)
-  const manager = contract
-    ? profiles.find((p) => p.id === contract.comercialId)?.managerId
-    : profiles.find((p) => p.id === settlement.comercialId)?.managerId
-  const jefe = manager ? profiles.find((p) => p.id === manager) : undefined
+  const contractComercialId = contract?.comercialId ?? settlement.comercialId
+  const contractComercialProfile = profiles.find((p) => p.id === contractComercialId)
+  const managerId =
+    contractComercialProfile?.managerId ??
+    profiles.find((p) => p.id === settlement.comercialId)?.managerId
+  const jefe = managerId ? profiles.find((p) => p.id === managerId) : undefined
 
   return {
     settlement,
@@ -191,7 +303,11 @@ export function enrichSettlementRow(
           clientName: contract.clientName,
           nif: contract.nif,
         })
-      : settlement.tipo,
+      : "—",
+    peaje: resolveLiquidacionPeaje(
+      contract,
+      contract?.tarifa ?? settlement.descripcion
+    ),
     compania,
     tarifa: contract?.tarifa ?? "—",
     fechaActivacion: contract?.createdAt ?? settlement.createdAt,
@@ -204,11 +320,46 @@ export function enrichSettlementRow(
             marcoRows
           ) ?? settlement.montoExterno
         : settlement.montoExterno,
-    comercialId: settlement.comercialId,
-    comercialName: settlement.comercialName,
+    comercialId: contractComercialId,
+    comercialName: resolveLiquidacionComercialDisplayName(
+      {
+        comercialId: contractComercialId,
+        comercialName:
+          contract?.comercialName ??
+          contractComercialProfile?.fullName ??
+          settlement.comercialName,
+      },
+      profiles
+    ),
+    contractReferencia: resolveContractReferencia(contract),
     jefeEquipoId: jefe?.id ?? null,
     jefeEquipoName: jefe?.fullName,
   }
+}
+
+export function resolveEffectiveComision(
+  row: LiquidacionInternaRow,
+  alegacion?: Alegacion | null
+): number {
+  if (
+    alegacion?.comisionAjustada != null &&
+    Number.isFinite(alegacion.comisionAjustada)
+  ) {
+    return alegacion.comisionAjustada
+  }
+  return row.comision
+}
+
+export function applyEffectiveComisionToRows(
+  rows: LiquidacionInternaRow[],
+  alegacionBySettlementId: Map<string, Alegacion>
+): LiquidacionInternaRow[] {
+  return rows.map((row) => {
+    const alegacion = alegacionBySettlementId.get(row.settlement.id)
+    const comision = resolveEffectiveComision(row, alegacion)
+    if (comision === row.comision) return row
+    return { ...row, comision }
+  })
 }
 
 export function isRetrocomisionSettlement(settlement: Settlement): boolean {
@@ -296,13 +447,7 @@ export function filterLiquidacionRowsByScope(
     }
 
     if (options.search.trim()) {
-      const q = options.search.toLowerCase()
-      return (
-        row.clientName.toLowerCase().includes(q) ||
-        row.cups.toLowerCase().includes(q) ||
-        row.compania.toLowerCase().includes(q) ||
-        row.comercialName.toLowerCase().includes(q)
-      )
+      if (!liquidacionRowMatchesSearch(row, options.search)) return false
     }
     return true
   })
@@ -353,10 +498,79 @@ export function defaultLiquidacionesDateRange(reference = new Date()) {
   return { dateFrom: start.toISOString().slice(0, 10), dateTo }
 }
 
+export function filterRowsForAdminScope(
+  rows: LiquidacionInternaRow[],
+  profiles: ProfileRow[],
+  mode: LiquidacionesAdminScopeMode,
+  targetId: string
+): LiquidacionInternaRow[] {
+  if (mode === "todos") return rows
+
+  if (mode === "comercial") {
+    if (!targetId || targetId === "all") return rows
+    return rows.filter((row) => row.comercialId === targetId)
+  }
+
+  if (mode === "director") {
+    if (targetId === "all") {
+      return rows.filter((row) => {
+        const profile = profiles.find((p) => p.id === row.comercialId)
+        return profile?.role === "jefe_comercial"
+      })
+    }
+    return rows.filter((row) => {
+      const profile = profiles.find((p) => p.id === row.comercialId)
+      return profile?.role === "jefe_comercial" && row.comercialId === targetId
+    })
+  }
+
+  if (mode === "equipo") {
+    if (targetId === "all") {
+      const teamMemberIds = new Set(
+        profiles
+          .filter((p) => p.role === "comercial" && p.managerId)
+          .map((p) => p.id)
+      )
+      return rows.filter((row) => teamMemberIds.has(row.comercialId))
+    }
+    const teamIds = new Set(
+      profiles
+        .filter((p) => p.managerId === targetId && p.role === "comercial")
+        .map((p) => p.id)
+    )
+    return rows.filter((row) => teamIds.has(row.comercialId))
+  }
+
+  return rows
+}
+
+export function groupRowsByEquipoDirector(
+  rows: LiquidacionInternaRow[]
+): LiquidacionEquipoGroup[] {
+  const map = new Map<string, LiquidacionInternaRow[]>()
+
+  for (const row of rows) {
+    if (!row.jefeEquipoId || !row.jefeEquipoName) continue
+    const list = map.get(row.jefeEquipoId) ?? []
+    list.push(row)
+    map.set(row.jefeEquipoId, list)
+  }
+
+  return [...map.entries()]
+    .map(([key, teamRows]) => ({
+      key,
+      title: `Equipo de ${teamRows[0]?.jefeEquipoName ?? ""}`,
+      rows: teamRows,
+    }))
+    .sort((a, b) => a.title.localeCompare(b.title, "es"))
+}
+
+/** @deprecated Use groupRowsByEquipoDirector */
 export function groupRowsByJefe(rows: LiquidacionInternaRow[]): Map<string, LiquidacionInternaRow[]> {
   const map = new Map<string, LiquidacionInternaRow[]>()
   for (const row of rows) {
-    const key = row.jefeEquipoName ?? "Sin jefe asignado"
+    if (!row.jefeEquipoName || !row.jefeEquipoId) continue
+    const key = row.jefeEquipoName
     const list = map.get(key) ?? []
     list.push(row)
     map.set(key, list)

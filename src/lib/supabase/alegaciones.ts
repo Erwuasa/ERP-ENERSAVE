@@ -15,7 +15,7 @@ import {
 const TABLE = "alegaciones"
 
 const ALEGACION_SELECT =
-  "id, settlement_id, contrato_id, comercial_id, estado, mensajes, created_at, updated_at"
+  "id, settlement_id, contrato_id, comercial_id, estado, mensajes, comision_ajustada, created_at, updated_at"
 
 const ESTADOS: AlegacionEstado[] = ["abierta", "en_revision", "resuelta"]
 
@@ -68,6 +68,10 @@ function persistedToMensaje(entry: PersistedAlegacionMensaje): AlegacionMensaje 
 }
 
 export function mapRowToAlegacion(row: Row): Alegacion {
+  const comisionRaw = row.comision_ajustada
+  const comisionAjustada =
+    comisionRaw != null && comisionRaw !== "" ? Number(comisionRaw) : null
+
   return {
     id: String(row.id ?? ""),
     settlementId: str(row.settlement_id) ?? "",
@@ -76,6 +80,10 @@ export function mapRowToAlegacion(row: Row): Alegacion {
     estado: parseEstado(row.estado),
     mensajes: parseMensajes(row.mensajes).map(persistedToMensaje),
     creadaEn: str(row.created_at) ?? new Date().toISOString(),
+    comisionAjustada:
+      comisionAjustada != null && Number.isFinite(comisionAjustada)
+        ? comisionAjustada
+        : null,
   }
 }
 
@@ -179,6 +187,28 @@ export async function updateAlegacionEstado(
     .from(TABLE)
     .update({
       estado,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", alegacionId)
+    .select(ALEGACION_SELECT)
+    .single()
+
+  if (error) return toFailure(error)
+
+  return { ok: true, data: mapRowToAlegacion(data as Row) }
+}
+
+export async function updateAlegacionComisionAjustada(
+  alegacionId: string,
+  comisionAjustada: number | null
+): Promise<SupabaseResult<Alegacion>> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .update({
+      comision_ajustada: comisionAjustada,
       updated_at: new Date().toISOString(),
     })
     .eq("id", alegacionId)

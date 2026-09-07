@@ -51,6 +51,7 @@ export interface TeamContractInsert {
   comentarios_internos: unknown
   documentos: unknown
   metadata: Record<string, unknown>
+  referencia?: string | null
 }
 
 export function buildTeamContractRow(
@@ -103,6 +104,7 @@ export function buildTeamContractRow(
       potencia_p6: form.potenciaP6,
       peaje_segment: form.peajeSegment,
     },
+    referencia: contract.referencia ?? null,
   }
 }
 
@@ -258,6 +260,7 @@ export function mapRowToContract(
 
   return {
     id: String(row.id ?? ""),
+    referencia: str(row.referencia),
     clientId: str(row.cliente_id) ?? str(metadata.client_id),
     clientName: str(row.client_name) ?? "",
     cups: str(row.cups) ?? "",

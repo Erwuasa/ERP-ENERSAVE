@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { endOfDay, startOfDay, subDays, subMonths, subYears } from "date-fns"
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   FileText,
   Loader2,
+  Megaphone,
   MessageCircleWarning,
   Search,
   Users,
@@ -18,8 +22,14 @@ import {
   appendAlegacionMensaje,
   createAlegacion,
   listAlegaciones,
+  updateAlegacionComisionAjustada,
   updateAlegacionEstado,
 } from "../lib/supabase/alegaciones"
+import {
+  createSettlementReclamacion,
+  deleteSettlementReclamacion,
+  listSettlementReclamaciones,
+} from "../lib/supabase/settlement-reclamaciones"
 import { isSupabaseConfigured } from "../lib/supabase/client"
 import {
   listMarcoRetributivo,
@@ -30,7 +40,11 @@ import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
 import { isoDateToDate, toIsoDate, type DateRangePickerValue } from "../lib/date-range"
 import { DateRangePicker } from "./ui/DateRangePicker"
+import type { SettlementReclamacion } from "../types/settlement-reclamacion"
 import {
+  applyEffectiveComisionToRows,
+  applyLiquidacionTableOrdering,
+  cycleLiquidacionesSegmentoFilter,
   defaultLiquidacionesDateRange,
   enrichSettlementRow,
   countLiquidacionRowsByCompania,
@@ -38,12 +52,19 @@ import {
   computeKpiPendientesCobro,
   filterLiquidacionRows,
   filterLiquidacionRowsByScope,
+  filterRowsForAdminScope,
   filterSettlementsForRole,
-  groupRowsByJefe,
+  formatLiquidacionPeajeLabel,
+  formatLiquidacionSegmentoLabel,
+  groupRowsByEquipoDirector,
   isRetrocomisionSettlement,
   LIQUIDACIONES_COMPANIA_FILTERS,
+  normalizeLiquidacionSegmentoKey,
   sumComisionRows,
   type LiquidacionInternaRow,
+  type LiquidacionesAdminScopeMode,
+  type LiquidacionesSegmentoFilter,
+  type LiquidacionesSortDirection,
   type ProfileRow,
 } from "../lib/liquidaciones-internas"
 import {
@@ -147,23 +168,159 @@ function enrichAlegacion(alegacion: Alegacion): Alegacion {
   }
 }
 
+function segmentoFilterBadge(filter: LiquidacionesSegmentoFilter): string | null {
+  if (filter === "residencial") return "Residencial"
+  if (filter === "pyme") return "PYME"
+  return null
+}
+
+function segmentoBadgeClass(segmento: string): string {
+  const key = normalizeLiquidacionSegmentoKey(segmento)
+  if (key === "residencial") {
+    return "bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25"
+  }
+  if (key === "pyme") {
+    return "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25"
+  }
+  return "bg-brand-surface text-brand-subtext border-brand-border"
+}
+
+function SortIndicator({
+  active,
+  direction,
+}: {
+  active: boolean
+  direction: LiquidacionesSortDirection
+}) {
+  if (!active) return <ArrowUpDown className="w-3 h-3 opacity-40" />
+  return direction === "desc" ? (
+    <ArrowDown className="w-3 h-3" />
+  ) : (
+    <ArrowUp className="w-3 h-3" />
+  )
+}
+
+function LiquidacionesTableSection({
+  toolbar,
+  children,
+}: {
+  toolbar: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 pb-2">{toolbar}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto scrollbar-overlay overscroll-contain">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function LiquidacionesTableToolbar({
+  search,
+  onSearchChange,
+  compania,
+  onCompaniaChange,
+  companiaCounts,
+}: {
+  search: string
+  onSearchChange: (value: string) => void
+  compania: string
+  onCompaniaChange: (value: string) => void
+  companiaCounts: Record<string, number>
+}) {
+  return (
+    <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+      <div className="relative w-full lg:w-[min(100%,320px)] lg:shrink-0">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-subtext" />
+        <input
+          type="search"
+          placeholder="Buscar ID, cliente, CUPS, comercial, compañía…"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          className="w-full pl-9 pr-8 py-2 rounded-lg border border-brand-border bg-brand-surface text-xs text-brand-text"
+        />
+        {search ? (
+          <button
+            type="button"
+            onClick={() => onSearchChange("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-brand-subtext"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1.5 lg:justify-end">
+        {LIQUIDACIONES_COMPANIA_FILTERS.map((filter) => {
+          const count = companiaCounts[filter] ?? 0
+          return (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => onCompaniaChange(filter)}
+              className={`px-2 py-1 text-[9px] font-mono font-bold uppercase rounded-lg border transition-colors cursor-pointer ${
+                compania === filter
+                  ? "bg-cyan-600 text-white border-cyan-600"
+                  : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
+              }`}
+            >
+              {filter}
+              <span
+                className={`ml-1 px-1 rounded-full text-[8px] font-bold tabular-nums ${
+                  compania === filter
+                    ? "bg-white/20 text-white"
+                    : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function LiquidacionesTable({
   rows,
   formatCurrency,
   showComercial,
+  showRowActions = false,
   alegacionBySettlementId,
+  reclamacionBySettlementId,
   showAlegacionIcon,
+  showReclamarIcon,
   onOpenAlegacion,
+  onToggleReclamar,
   highlightAlegaciones = false,
+  segmentoFilter,
+  activacionSort,
+  comisionSort,
+  onSegmentoHeaderClick,
+  onActivacionHeaderClick,
+  onComisionHeaderClick,
   stickyHeadClassName = "sticky top-0 z-10 bg-brand-panel",
 }: {
   rows: LiquidacionInternaRow[]
   formatCurrency: (value: number) => string
   showComercial: boolean
+  showRowActions?: boolean
   alegacionBySettlementId: Map<string, Alegacion>
+  reclamacionBySettlementId: Map<string, SettlementReclamacion>
   showAlegacionIcon?: (row: LiquidacionInternaRow) => boolean
+  showReclamarIcon?: (row: LiquidacionInternaRow) => boolean
   onOpenAlegacion?: (row: LiquidacionInternaRow) => void
+  onToggleReclamar?: (row: LiquidacionInternaRow) => void
   highlightAlegaciones?: boolean
+  segmentoFilter: LiquidacionesSegmentoFilter
+  activacionSort: LiquidacionesSortDirection
+  comisionSort: LiquidacionesSortDirection | null
+  onSegmentoHeaderClick: () => void
+  onActivacionHeaderClick: () => void
+  onComisionHeaderClick: () => void
   stickyHeadClassName?: string
 }) {
   if (rows.length === 0) {
@@ -174,65 +331,98 @@ function LiquidacionesTable({
     )
   }
 
+  const activeSegmentoFilter = segmentoFilterBadge(segmentoFilter)
+
   return (
     <div className="rounded-xl border border-brand-border/60">
-      <table className="w-full min-w-[960px] table-fixed text-xs">
+      <table className="w-full table-auto text-xs">
+        <colgroup>
+          <col className="w-[72px]" />
+          <col />
+          <col className="w-[12%]" />
+          <col className="w-[88px]" />
+          <col className="w-[14%]" />
+          <col className="w-[84px]" />
+          {showComercial || showRowActions ? <col className="w-[128px]" /> : null}
+          <col className="w-[76px]" />
+        </colgroup>
         <thead className={stickyHeadClassName}>
           <tr className="text-[10px] uppercase text-brand-subtext">
-            <th className="px-3 py-2.5 text-left w-[4%]" aria-label="Alegación" />
-            <th className="px-3 py-2.5 text-left w-[14%]">Cliente / CUPS</th>
-            <th className="px-3 py-2.5 text-left w-[12%]">Dirección</th>
-            <th className="px-3 py-2.5 text-left w-[7%]">Segmento</th>
-            <th className="px-3 py-2.5 text-left w-[11%]">Compañía / Tarifa</th>
-            <th className="px-3 py-2.5 text-left w-[8%]">Activación</th>
-            {showComercial && <th className="px-3 py-2.5 text-left w-[9%]">Comercial</th>}
-            <th className="px-3 py-2.5 text-right w-[11%]">Comisión</th>
+            <th className="px-2 py-2 text-left">ID Contrato</th>
+            <th className="px-2 py-2 text-left">Cliente / CUPS</th>
+            <th className="px-2 py-2 text-left">Dirección</th>
+            <th className="px-2 py-2 text-left align-bottom">
+              <button
+                type="button"
+                onClick={onSegmentoHeaderClick}
+                className="flex flex-col items-start gap-0.5 hover:text-brand-text transition-colors cursor-pointer text-left"
+                title="Clic: Todos → Residencial → PYME"
+              >
+                <span className="inline-flex items-center gap-1">
+                  Segmento
+                  <SortIndicator active={segmentoFilter !== "all"} direction="desc" />
+                </span>
+                {activeSegmentoFilter ? (
+                  <span className="text-[8px] font-mono font-bold normal-case text-cyan-600 dark:text-cyan-400 leading-none">
+                    {activeSegmentoFilter}
+                  </span>
+                ) : null}
+              </button>
+            </th>
+            <th className="px-2 py-2 text-left">Compañía / Tarifa</th>
+            <th className="px-2 py-2 text-left">
+              <button
+                type="button"
+                onClick={onActivacionHeaderClick}
+                className="inline-flex items-center gap-1 hover:text-brand-text transition-colors cursor-pointer"
+                title="Ordenar por activación"
+              >
+                Activación
+                <SortIndicator active={comisionSort == null} direction={activacionSort} />
+              </button>
+            </th>
+            {showComercial || showRowActions ? (
+              <th className="px-2 py-2 text-left">Comercial</th>
+            ) : null}
+            <th className="px-2 py-2 text-right">
+              <button
+                type="button"
+                onClick={onComisionHeaderClick}
+                className="inline-flex items-center gap-1 ml-auto hover:text-brand-text transition-colors cursor-pointer"
+                title="Ordenar por comisión"
+              >
+                Comisión
+                <SortIndicator active={comisionSort != null} direction={comisionSort ?? "desc"} />
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => {
             const alegacion = alegacionBySettlementId.get(row.settlement.id)
             const badge = alegacion ? alegacionBadge(alegacion.estado) : null
-            const canShowIcon = showAlegacionIcon?.(row) ?? false
+            const canShowAlegacion = showAlegacionIcon?.(row) ?? false
+            const canShowReclamar = showReclamarIcon?.(row) ?? false
+            const isReclamada = reclamacionBySettlementId.has(row.settlement.id)
 
             return (
               <tr
                 key={row.settlement.id}
                 className={`border-t border-brand-border/60 hover:bg-brand-surface/50 transition-colors ${
                   highlightAlegaciones && alegacion ? alegacionRowClass(alegacion.estado) : ""
-                }`}
+                } ${isReclamada ? "ring-1 ring-inset ring-violet-500/20" : ""}`}
               >
-                <td className="px-2 py-3 align-top text-center">
-                  {canShowIcon || (highlightAlegaciones && alegacion) ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenAlegacion?.(row)}
-                      className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                        alegacion?.estado === "abierta"
-                          ? "text-amber-600 dark:text-amber-400 hover:bg-amber-500/15"
-                          : alegacion
-                            ? "text-sky-600 dark:text-sky-400 hover:bg-sky-500/15"
-                            : "text-brand-subtext hover:text-brand-text hover:bg-brand-surface"
-                      }`}
-                      title={
-                        alegacion
-                          ? `Ver alegación (${badge?.label ?? alegacion.estado})`
-                          : "Abrir alegación"
-                      }
-                      aria-label={
-                        alegacion ? `Ver alegación: ${badge?.label}` : "Abrir alegación sobre liquidación"
-                      }
-                    >
-                      <MessageCircleWarning className="w-4 h-4" />
-                    </button>
-                  ) : null}
+                <td className="px-2 py-2.5 align-top">
+                  <span className="font-mono font-bold text-[10px] text-cyan-700 dark:text-cyan-300 tabular-nums whitespace-nowrap">
+                    {row.contractReferencia}
+                  </span>
                 </td>
-                <td className="px-3 py-3 align-top">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-brand-text leading-snug break-words">
+                <td className="px-2 py-2.5 align-top">
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-brand-text leading-snug break-words line-clamp-2">
                       {row.clientName}
                     </p>
-                    <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 break-all">
+                    <p className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400 break-all line-clamp-2">
                       {row.cups}
                     </p>
                     {highlightAlegaciones && badge ? (
@@ -242,31 +432,91 @@ function LiquidacionesTable({
                         {badge.label}
                       </span>
                     ) : null}
+                    {isReclamada ? (
+                      <span className="inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30">
+                        Reclamada
+                      </span>
+                    ) : null}
                   </div>
                 </td>
-                <td className="px-3 py-3 align-top text-[10px] text-brand-subtext line-clamp-2">
+                <td className="px-2 py-2.5 align-top text-[10px] text-brand-subtext line-clamp-3">
                   {row.direccion}
                 </td>
-                <td className="px-3 py-3 align-top">
-                  <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase bg-brand-surface border border-brand-border">
-                    {row.segmento}
-                  </span>
+                <td className="px-2 py-2 align-top">
+                  <div className="space-y-0.5">
+                    <span
+                      className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border ${segmentoBadgeClass(row.segmento)}`}
+                    >
+                      {formatLiquidacionSegmentoLabel(row.segmento)}
+                    </span>
+                    <p className="text-[10px] font-mono font-semibold text-brand-text">
+                      {formatLiquidacionPeajeLabel(row.peaje)}
+                    </p>
+                  </div>
                 </td>
-                <td className="px-3 py-3 align-top">
-                  <p className="font-medium text-brand-text">{row.compania}</p>
-                  <p className="text-[10px] font-mono text-brand-subtext mt-0.5">{row.tarifa}</p>
+                <td className="px-2 py-2.5 align-top">
+                  <p className="font-medium text-brand-text line-clamp-1">{row.compania}</p>
+                  <p className="text-[10px] font-mono text-brand-subtext mt-0.5 line-clamp-2">
+                    {row.tarifa}
+                  </p>
                 </td>
-                <td className="px-3 py-3 align-top font-mono tabular-nums text-brand-text">
+                <td className="px-2 py-2.5 align-top font-mono tabular-nums text-brand-text whitespace-nowrap">
                   {formatActivationDate(row.fechaActivacion)}
                 </td>
-                {showComercial && (
-                  <td className="px-3 py-3 align-top text-[10px] text-brand-subtext">
-                    {row.comercialName}
+                {showComercial || showRowActions ? (
+                  <td className="px-2 py-2 align-top">
+                    <div className="flex items-start gap-1 min-w-0">
+                      {showComercial ? (
+                        <span className="flex-1 min-w-0 text-[10px] text-brand-subtext leading-snug line-clamp-2">
+                          {row.comercialName}
+                        </span>
+                      ) : null}
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        {canShowReclamar ? (
+                          <button
+                            type="button"
+                            onClick={() => onToggleReclamar?.(row)}
+                            className={`p-1 rounded-md transition-colors cursor-pointer ${
+                              isReclamada
+                                ? "text-violet-600 dark:text-violet-400 bg-violet-500/15"
+                                : "text-brand-subtext hover:text-brand-text hover:bg-brand-surface"
+                            }`}
+                            title={isReclamada ? "Liquidación reclamada" : "Reclamar liquidación"}
+                            aria-label={
+                              isReclamada ? "Liquidación reclamada" : "Reclamar liquidación"
+                            }
+                          >
+                            <Megaphone className="w-3.5 h-3.5" />
+                          </button>
+                        ) : null}
+                        {canShowAlegacion || (highlightAlegaciones && alegacion) ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenAlegacion?.(row)}
+                            className={`p-1 rounded-md transition-colors cursor-pointer ${
+                              alegacion
+                                ? "text-rose-600 dark:text-rose-400 bg-rose-500/15 hover:bg-rose-500/25"
+                                : "text-rose-600 dark:text-rose-500 hover:bg-rose-500/10"
+                            }`}
+                            title={
+                              alegacion
+                                ? `Alegación (${badge?.label ?? alegacion.estado})`
+                                : "Abrir alegación"
+                            }
+                            aria-label={
+                              alegacion ? `Ver alegación: ${badge?.label}` : "Abrir alegación"
+                            }
+                          >
+                            <MessageCircleWarning className="w-3.5 h-3.5" />
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                   </td>
-                )}
-                <td className="px-3 py-3 align-top text-right">
+                ) : null}
+                <td className="px-2 py-2 align-top text-right whitespace-nowrap">
                   <p
-                    className={`text-lg font-black font-mono tabular-nums leading-none ${
+                    className={`text-base font-black font-mono tabular-nums leading-none ${
                       row.comision < 0
                         ? "text-rose-600 dark:text-rose-400"
                         : row.settlement.estado === "pendiente"
@@ -294,10 +544,20 @@ function LiquidacionesGroupedTables({
   emptyLabel,
   formatCurrency,
   showComercial,
+  showRowActions = false,
   highlightAlegaciones = false,
   alegacionBySettlementId,
+  reclamacionBySettlementId,
   showAlegacionIcon,
+  showReclamarIcon,
   onOpenAlegacion,
+  onToggleReclamar,
+  segmentoFilter,
+  activacionSort,
+  comisionSort,
+  onSegmentoHeaderClick,
+  onActivacionHeaderClick,
+  onComisionHeaderClick,
 }: {
   groups: {
     key: string
@@ -308,10 +568,20 @@ function LiquidacionesGroupedTables({
   emptyLabel: string
   formatCurrency: (value: number) => string
   showComercial: boolean
+  showRowActions?: boolean
   highlightAlegaciones?: boolean
   alegacionBySettlementId: Map<string, Alegacion>
+  reclamacionBySettlementId: Map<string, SettlementReclamacion>
   showAlegacionIcon?: (row: LiquidacionInternaRow) => boolean
+  showReclamarIcon?: (row: LiquidacionInternaRow) => boolean
   onOpenAlegacion?: (row: LiquidacionInternaRow) => void
+  onToggleReclamar?: (row: LiquidacionInternaRow) => void
+  segmentoFilter: LiquidacionesSegmentoFilter
+  activacionSort: LiquidacionesSortDirection
+  comisionSort: LiquidacionesSortDirection | null
+  onSegmentoHeaderClick: () => void
+  onActivacionHeaderClick: () => void
+  onComisionHeaderClick: () => void
 }) {
   if (groups.length === 0) {
     return (
@@ -322,31 +592,34 @@ function LiquidacionesGroupedTables({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <section key={group.key} className="space-y-2">
-            <h3 className="sticky top-0 z-20 bg-brand-bg text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
-              {group.title}
-              <span className="ml-2 text-[10px] font-mono text-brand-subtext normal-case">
-                {group.rows.length} movimiento{group.rows.length !== 1 ? "s" : ""} ·{" "}
-                {formatCurrency(sumComisionRows(group.rows))}
-              </span>
-              {group.extra}
-            </h3>
-            <LiquidacionesTable
-              rows={group.rows}
-              formatCurrency={formatCurrency}
-              showComercial={showComercial}
-              highlightAlegaciones={highlightAlegaciones}
-              alegacionBySettlementId={alegacionBySettlementId}
-              showAlegacionIcon={showAlegacionIcon}
-              onOpenAlegacion={onOpenAlegacion}
-              stickyHeadClassName="sticky top-8 z-10 bg-brand-panel"
-            />
-          </section>
-        ))}
-      </div>
+    <div className="space-y-6 pb-2">
+      {groups.map((group) => (
+        <section key={group.key} className="space-y-2">
+          <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
+            {group.title}
+            {group.extra}
+          </h3>
+          <LiquidacionesTable
+            rows={group.rows}
+            formatCurrency={formatCurrency}
+            showComercial={showComercial}
+            showRowActions={showRowActions}
+            highlightAlegaciones={highlightAlegaciones}
+            alegacionBySettlementId={alegacionBySettlementId}
+            reclamacionBySettlementId={reclamacionBySettlementId}
+            showAlegacionIcon={showAlegacionIcon}
+            showReclamarIcon={showReclamarIcon}
+            onOpenAlegacion={onOpenAlegacion}
+            onToggleReclamar={onToggleReclamar}
+            segmentoFilter={segmentoFilter}
+            activacionSort={activacionSort}
+            comisionSort={comisionSort}
+            onSegmentoHeaderClick={onSegmentoHeaderClick}
+            onActivacionHeaderClick={onActivacionHeaderClick}
+            onComisionHeaderClick={onComisionHeaderClick}
+          />
+        </section>
+      ))}
     </div>
   )
 }
@@ -370,12 +643,15 @@ export function LiquidacionesInternasPanel({
   const [isGeneratingAutofactura, setIsGeneratingAutofactura] = useState(false)
   const [alegaciones, setAlegaciones] = useState<Alegacion[]>([])
   const [alegacionesLoading, setAlegacionesLoading] = useState(false)
+  const [reclamaciones, setReclamaciones] = useState<SettlementReclamacion[]>([])
   const [chatOpen, setChatOpen] = useState(false)
   const [chatRow, setChatRow] = useState<LiquidacionInternaRow | null>(null)
   const [chatAlegacion, setChatAlegacion] = useState<Alegacion | null>(null)
+  const [chatComisionOriginal, setChatComisionOriginal] = useState(0)
   const [sendingMessage, setSendingMessage] = useState(false)
   const [panelView, setPanelView] = useState<LiquidacionesView>("listado")
-  const [selectedComercialId, setSelectedComercialId] = useState<string>("all")
+  const [adminScopeMode, setAdminScopeMode] = useState<LiquidacionesAdminScopeMode>("todos")
+  const [adminScopeTargetId, setAdminScopeTargetId] = useState<string>("all")
 
   const defaults = defaultLiquidacionesDateRange()
   const defaultDateRangeValue = useMemo(
@@ -392,6 +668,9 @@ export function LiquidacionesInternasPanel({
   const [activeTab, setActiveTab] = useState<LiquidacionesTab>("totales")
   const [compania, setCompania] = useState<string>("Todos")
   const [search, setSearch] = useState("")
+  const [segmentoFilter, setSegmentoFilter] = useState<LiquidacionesSegmentoFilter>("all")
+  const [activacionSort, setActivacionSort] = useState<LiquidacionesSortDirection>("desc")
+  const [comisionSort, setComisionSort] = useState<LiquidacionesSortDirection | null>(null)
   const [marcoRows, setMarcoRows] = useState<MarcoRetributivoRow[]>([])
 
   const isAdminLiquidaciones = activeRole === "superadmin" || activeRole === "tramitacion"
@@ -418,9 +697,28 @@ export function LiquidacionesInternasPanel({
     }
   }, [])
 
+  const loadReclamaciones = useCallback(async () => {
+    if (!isSupabaseConfigured()) {
+      setReclamaciones([])
+      return
+    }
+    try {
+      const result = await listSettlementReclamaciones()
+      if (!result.ok) {
+        toast.error(result.message)
+        return
+      }
+      setReclamaciones(result.data)
+    } catch (error) {
+      console.error(error)
+      toast.error("No se pudieron cargar las reclamaciones.")
+    }
+  }, [])
+
   useEffect(() => {
     void loadAlegaciones()
-  }, [loadAlegaciones])
+    void loadReclamaciones()
+  }, [loadAlegaciones, loadReclamaciones])
 
   useEffect(() => {
     void listMarcoRetributivo().then((result) => {
@@ -436,13 +734,19 @@ export function LiquidacionesInternasPanel({
     return map
   }, [alegaciones])
 
-  const baseRows = useMemo(() => {
+  const reclamacionBySettlementId = useMemo(() => {
+    const map = new Map<string, SettlementReclamacion>()
+    for (const reclamacion of reclamaciones) {
+      map.set(reclamacion.settlementId, reclamacion)
+    }
+    return map
+  }, [reclamaciones])
+
+  const enrichedBaseRows = useMemo(() => {
     const scoped = filterSettlementsForRole(settlements, activeRole, activeUserId, profiles)
-    const enriched = scoped.map((s) =>
+    return scoped.map((s) =>
       enrichSettlementRow(s, contracts, profiles, formatCurrency, marcoRows)
     )
-    if (!isAdminLiquidaciones || selectedComercialId === "all") return enriched
-    return enriched.filter((row) => row.comercialId === selectedComercialId)
   }, [
     settlements,
     contracts,
@@ -451,27 +755,58 @@ export function LiquidacionesInternasPanel({
     activeUserId,
     formatCurrency,
     marcoRows,
-    isAdminLiquidaciones,
-    selectedComercialId,
   ])
+
+  const scopedBaseRows = useMemo(() => {
+    if (!isAdminLiquidaciones) return enrichedBaseRows
+    return filterRowsForAdminScope(
+      enrichedBaseRows,
+      profiles,
+      adminScopeMode,
+      adminScopeTargetId
+    )
+  }, [enrichedBaseRows, isAdminLiquidaciones, profiles, adminScopeMode, adminScopeTargetId])
+
+  const baseRows = useMemo(
+    () => applyEffectiveComisionToRows(scopedBaseRows, alegacionBySettlementId),
+    [scopedBaseRows, alegacionBySettlementId]
+  )
+
+  const jefeComercialOptions = useMemo(
+    () =>
+      profiles
+        .filter((p) => p.role === "jefe_comercial")
+        .map((p) => ({ id: p.id, name: p.fullName }))
+        .sort((a, b) => a.name.localeCompare(b.name, "es")),
+    [profiles]
+  )
 
   const comercialFilterOptions = useMemo(() => {
     if (!isAdminLiquidaciones) return []
-    const scoped = filterSettlementsForRole(settlements, activeRole, activeUserId, profiles)
-    const ids = new Set(scoped.map((s) => s.comercialId))
+    const ids = new Set(enrichedBaseRows.map((row) => row.comercialId))
     return [...ids]
       .map((id) => ({
         id,
         name: profiles.find((p) => p.id === id)?.fullName ?? id,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "es"))
-  }, [isAdminLiquidaciones, settlements, activeRole, activeUserId, profiles])
+  }, [isAdminLiquidaciones, enrichedBaseRows, profiles])
 
   const filterOpts = { tab: activeTab, dateFrom, dateTo, compania, search }
 
   const filteredRows = useMemo(
     () => filterLiquidacionRows(baseRows, filterOpts),
     [baseRows, activeTab, dateFrom, dateTo, compania, search]
+  )
+
+  const tableOrderOptions = useMemo(
+    () => ({ segmentoFilter, activacionSort, comisionSort }),
+    [segmentoFilter, activacionSort, comisionSort]
+  )
+
+  const tableRows = useMemo(
+    () => applyLiquidacionTableOrdering(filteredRows, tableOrderOptions),
+    [filteredRows, tableOrderOptions]
   )
 
   const scopeOpts = { dateFrom, dateTo, compania, search }
@@ -508,50 +843,44 @@ export function LiquidacionesInternasPanel({
 
   const myRows =
     activeRole === "jefe_comercial"
-      ? filteredRows.filter((r) => r.comercialId === activeUserId)
-      : filteredRows
+      ? tableRows.filter((r) => r.comercialId === activeUserId)
+      : tableRows
   const teamRows =
     activeRole === "jefe_comercial"
-      ? filteredRows.filter((r) => r.comercialId !== activeUserId)
+      ? tableRows.filter((r) => r.comercialId !== activeUserId)
       : []
 
-  const superadminGroups =
-    isAdminLiquidaciones ? groupRowsByJefe(filteredRows) : new Map<string, LiquidacionInternaRow[]>()
+  const superadminGroups = isAdminLiquidaciones
+    ? groupRowsByEquipoDirector(tableRows)
+    : []
 
-  const comercialesForAdminView = useMemo(() => {
-    const ids = new Set<string>()
-    for (const row of baseRows) ids.add(row.comercialId)
-    return [...ids]
-      .map((id) => {
-        const profile = profiles.find((p) => p.id === id)
-        const rows = filterLiquidacionRows(
-          baseRows.filter((row) => row.comercialId === id),
-          filterOpts
-        )
-        const abiertas = rows.filter(
-          (row) => alegacionBySettlementId.get(row.settlement.id)?.estado === "abierta"
-        ).length
-        return {
-          id,
-          name: profile?.fullName ?? rows[0]?.comercialName ?? id,
-          rows,
-          abiertas,
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name, "es"))
-  }, [baseRows, filterOpts, profiles, alegacionBySettlementId])
-
-  const showComercialColumn = activeRole !== "comercial"
+  const showRowActions =
+    activeRole === "comercial" ||
+    activeRole === "jefe_comercial" ||
+    isAdminLiquidaciones
 
   const showAlegacionIcon = useCallback(
-    (row: LiquidacionInternaRow) => row.comercialId === activeUserId,
-    [activeUserId]
+    (row: LiquidacionInternaRow) => {
+      if (isAdminLiquidaciones) return true
+      return row.comercialId === activeUserId
+    },
+    [activeUserId, isAdminLiquidaciones]
+  )
+
+  const showReclamarIcon = useCallback(
+    (row: LiquidacionInternaRow) =>
+      activeRole === "comercial" &&
+      row.comercialId === activeUserId &&
+      !isRetrocomisionSettlement(row.settlement),
+    [activeRole, activeUserId]
   )
 
   function openAlegacionChat(row: LiquidacionInternaRow) {
     const existing = alegacionBySettlementId.get(row.settlement.id) ?? null
+    const originalRow = scopedBaseRows.find((item) => item.settlement.id === row.settlement.id)
     setChatRow(row)
     setChatAlegacion(existing)
+    setChatComisionOriginal(originalRow?.comision ?? row.comision)
     setChatOpen(true)
   }
 
@@ -660,6 +989,71 @@ export function LiquidacionesInternasPanel({
     setAlegaciones((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
   }
 
+  async function handleComisionAjustadaChange(value: number | null) {
+    if (!chatAlegacion) return
+
+    if (!isSupabaseConfigured()) {
+      const updated = enrichAlegacion({ ...chatAlegacion, comisionAjustada: value })
+      setChatAlegacion(updated)
+      setAlegaciones((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+      return
+    }
+
+    const result = await updateAlegacionComisionAjustada(chatAlegacion.id, value)
+    if (!result.ok) {
+      toast.error(result.message)
+      throw new Error(result.message)
+    }
+    const updated = enrichAlegacion(result.data)
+    setChatAlegacion(updated)
+    setAlegaciones((prev) => prev.map((a) => (a.id === updated.id ? updated : a)))
+  }
+
+  async function handleToggleReclamar(row: LiquidacionInternaRow) {
+    const existing = reclamacionBySettlementId.get(row.settlement.id)
+
+    if (!isSupabaseConfigured()) {
+      if (existing) {
+        setReclamaciones((prev) =>
+          prev.filter((item) => item.settlementId !== row.settlement.id)
+        )
+        toast.success("Reclamación retirada (modo demo).")
+        return
+      }
+      setReclamaciones((prev) => [
+        {
+          settlementId: row.settlement.id,
+          comercialId: activeUserId,
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ])
+      toast.success("Liquidación reclamada (modo demo).")
+      return
+    }
+
+    if (existing) {
+      const result = await deleteSettlementReclamacion(row.settlement.id)
+      if (!result.ok) {
+        toast.error(result.message)
+        return
+      }
+      setReclamaciones((prev) =>
+        prev.filter((item) => item.settlementId !== row.settlement.id)
+      )
+      toast.success("Reclamación retirada.")
+      return
+    }
+
+    const result = await createSettlementReclamacion(row.settlement.id, activeUserId)
+    if (!result.ok) {
+      toast.error(result.message)
+      return
+    }
+    setReclamaciones((prev) => [result.data, ...prev])
+    toast.success("Liquidación reclamada.")
+  }
+
   async function handleGenerateAutofactura() {
     if (!onGenerateAutofactura) return
     setIsGeneratingAutofactura(true)
@@ -718,15 +1112,42 @@ export function LiquidacionesInternasPanel({
   const tableCommonProps = {
     formatCurrency,
     alegacionBySettlementId,
+    reclamacionBySettlementId,
+    showRowActions,
+    showAlegacionIcon,
+    showReclamarIcon,
     onOpenAlegacion: openAlegacionChat,
+    onToggleReclamar: handleToggleReclamar,
+    segmentoFilter,
+    activacionSort,
+    comisionSort,
+    onSegmentoHeaderClick: () =>
+      setSegmentoFilter((current) => cycleLiquidacionesSegmentoFilter(current)),
+    onActivacionHeaderClick: () => {
+      setComisionSort(null)
+      setActivacionSort((current) => (current === "desc" ? "asc" : "desc"))
+    },
+    onComisionHeaderClick: () => {
+      setComisionSort((current) => (current === "desc" ? "asc" : "desc"))
+    },
   }
+
+  const tableToolbar = (
+    <LiquidacionesTableToolbar
+      search={search}
+      onSearchChange={setSearch}
+      compania={compania}
+      onCompaniaChange={setCompania}
+      companiaCounts={companiaCounts}
+    />
+  )
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-5 overflow-hidden animate-fade-in font-sans">
       <div className="shrink-0 space-y-5">
       <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
-          {isAdminLiquidaciones ? (
+              {isAdminLiquidaciones ? (
             <>
               <button
                 type="button"
@@ -737,7 +1158,7 @@ export function LiquidacionesInternasPanel({
                     : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
                 }`}
               >
-                Listado
+                Por equipo
               </button>
               <button
                 type="button"
@@ -762,18 +1183,62 @@ export function LiquidacionesInternasPanel({
                   </span>
                 )}
               </button>
-              {comercialFilterOptions.length > 0 ? (
+              <label className="inline-flex items-center gap-1.5">
+                <span className="sr-only">Alcance de liquidaciones</span>
+                <select
+                  value={adminScopeMode}
+                  onChange={(event) => {
+                    setAdminScopeMode(event.target.value as LiquidacionesAdminScopeMode)
+                    setAdminScopeTargetId("all")
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[160px]"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="comercial">Comercial</option>
+                  <option value="director">Director comercial</option>
+                  <option value="equipo">Equipo de director</option>
+                </select>
+              </label>
+              {adminScopeMode === "comercial" && comercialFilterOptions.length > 0 ? (
                 <label className="inline-flex items-center gap-1.5">
                   <span className="sr-only">Filtrar por comercial</span>
                   <select
-                    value={selectedComercialId}
-                    onChange={(event) => setSelectedComercialId(event.target.value)}
+                    value={adminScopeTargetId}
+                    onChange={(event) => setAdminScopeTargetId(event.target.value)}
                     className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[180px]"
                   >
-                    <option value="all">Todos los comerciales</option>
+                    <option value="all">Seleccionar comercial</option>
                     {comercialFilterOptions.map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {(adminScopeMode === "director" || adminScopeMode === "equipo") &&
+              jefeComercialOptions.length > 0 ? (
+                <label className="inline-flex items-center gap-1.5">
+                  <span className="sr-only">
+                    {adminScopeMode === "director"
+                      ? "Filtrar por director comercial"
+                      : "Filtrar por equipo de director"}
+                  </span>
+                  <select
+                    value={adminScopeTargetId}
+                    onChange={(event) => setAdminScopeTargetId(event.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg border border-brand-border bg-brand-surface text-[10px] font-mono font-bold uppercase text-brand-text max-w-[200px]"
+                  >
+                    <option value="all">
+                      {adminScopeMode === "director"
+                        ? "Seleccionar director"
+                        : "Seleccionar equipo"}
+                    </option>
+                    {jefeComercialOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {adminScopeMode === "equipo"
+                          ? `Equipo de ${option.name}`
+                          : option.name}
                       </option>
                     ))}
                   </select>
@@ -784,33 +1249,6 @@ export function LiquidacionesInternasPanel({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 justify-start xl:justify-end min-w-0">
-          <div className="flex flex-wrap gap-1">
-            {QUICK_DATE_RANGES.map((preset) => (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => {
-                  const { from, to } = preset.getRange()
-                  setDateRange({ from, to, presetId: preset.id })
-                }}
-                className={`px-2 py-1 rounded-lg text-[9px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
-                  dateRange.presetId === preset.id
-                    ? "bg-cyan-600 text-white border-cyan-600"
-                    : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-                }`}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-          <DateRangePicker
-            value={dateRange}
-            onChange={(next) =>
-              setDateRange({ from: next.from, to: next.to, presetId: next.presetId })
-            }
-            defaultValue={defaultDateRangeValue}
-            align="right"
-          />
           {canGenerateAutofactura && onGenerateAutofactura ? (
             <div className="flex items-center gap-2">
               <button
@@ -889,125 +1327,89 @@ export function LiquidacionesInternasPanel({
         ))}
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-        <div className="flex flex-wrap gap-1.5">
-          {LIQUIDACIONES_COMPANIA_FILTERS.map((c) => {
-            const count = companiaCounts[c] ?? 0
-            return (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCompania(c)}
-              className={`px-2 py-1 text-[9px] font-mono font-bold uppercase rounded-lg border transition-colors cursor-pointer ${
-                compania === c
-                  ? "bg-cyan-600 text-white border-cyan-600"
-                  : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
-              }`}
-            >
-              {c}
-              <span
-                className={`ml-1 px-1 rounded-full text-[8px] font-bold tabular-nums ${
-                  compania === c
-                    ? "bg-white/20 text-white"
-                    : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
-                }`}
-              >
-                {count}
-              </span>
-            </button>
-            )
-          })}
-        </div>
-        <div className="relative w-full lg:max-w-xs">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-subtext" />
-          <input
-            type="search"
-            placeholder="Buscar cliente, CUPS, comercial…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-8 py-2 rounded-lg border border-brand-border bg-brand-surface text-xs text-brand-text"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-brand-subtext"
-              aria-label="Limpiar búsqueda"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {QUICK_DATE_RANGES.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => {
+              const { from, to } = preset.getRange()
+              setDateRange({ from, to, presetId: preset.id })
+            }}
+            className={`px-2 py-1 rounded-lg text-[9px] font-mono font-bold uppercase border transition-colors cursor-pointer ${
+              dateRange.presetId === preset.id
+                ? "bg-cyan-600 text-white border-cyan-600"
+                : "bg-brand-panel border-brand-border text-brand-subtext hover:text-brand-text"
+            }`}
+          >
+            {preset.label}
+          </button>
+        ))}
+        <DateRangePicker
+          value={dateRange}
+          onChange={(next) =>
+            setDateRange({ from: next.from, to: next.to, presetId: next.presetId })
+          }
+          defaultValue={defaultDateRangeValue}
+          align="left"
+        />
       </div>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {activeRole === "comercial" && (
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain pr-1">
+        <LiquidacionesTableSection toolbar={tableToolbar}>
           <LiquidacionesTable
-            rows={filteredRows}
+            rows={tableRows}
             showComercial={false}
-            showAlegacionIcon={showAlegacionIcon}
             {...tableCommonProps}
           />
-        </div>
+        </LiquidacionesTableSection>
       )}
 
       {activeRole === "jefe_comercial" && (
-        <div className="min-h-0 flex-1 overflow-auto overscroll-contain pr-1">
-          <div className="space-y-6">
+        <LiquidacionesTableSection toolbar={tableToolbar}>
+          <div className="space-y-6 pb-2">
             <section className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide">
+              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
                 Mis liquidaciones · {activeUserName}
               </h3>
               <LiquidacionesTable
                 rows={myRows}
                 showComercial={false}
-                showAlegacionIcon={showAlegacionIcon}
                 {...tableCommonProps}
               />
             </section>
             <section className="space-y-2">
-              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide">
+              <h3 className="text-[11px] font-bold uppercase text-brand-text tracking-wide border-b border-brand-border py-2">
                 Equipo comercial
               </h3>
               <LiquidacionesTable rows={teamRows} showComercial {...tableCommonProps} />
             </section>
           </div>
-        </div>
+        </LiquidacionesTableSection>
       )}
 
       {isAdminLiquidaciones && panelView === "por_comercial" && (
-        <LiquidacionesGroupedTables
-          groups={comercialesForAdminView.map((comercial) => ({
-            key: comercial.id,
-            title: comercial.name,
-            rows: comercial.rows,
-            extra:
-              comercial.abiertas > 0 ? (
-                <span className="ml-2 text-[10px] font-mono font-bold uppercase text-amber-600 dark:text-amber-400">
-                  · {comercial.abiertas} requiere acción
-                </span>
-              ) : null,
-          }))}
-          emptyLabel="Sin comerciales en este filtro"
-          showComercial
-          highlightAlegaciones
-          {...tableCommonProps}
-        />
+        <LiquidacionesTableSection toolbar={tableToolbar}>
+          <LiquidacionesTable
+            rows={tableRows}
+            showComercial
+            highlightAlegaciones
+            {...tableCommonProps}
+          />
+        </LiquidacionesTableSection>
       )}
 
       {isAdminLiquidaciones && panelView === "listado" && (
-        <LiquidacionesGroupedTables
-          groups={[...superadminGroups.entries()].map(([jefeName, rows]) => ({
-            key: jefeName,
-            title: jefeName,
-            rows,
-          }))}
-          emptyLabel="Sin liquidaciones en este filtro"
-          showComercial
-          {...tableCommonProps}
-        />
+        <LiquidacionesTableSection toolbar={tableToolbar}>
+          <LiquidacionesGroupedTables
+            groups={superadminGroups}
+            emptyLabel="Sin equipos en este filtro"
+            showComercial
+            {...tableCommonProps}
+          />
+        </LiquidacionesTableSection>
       )}
       </div>
 
@@ -1017,6 +1419,7 @@ export function LiquidacionesInternasPanel({
           setChatOpen(false)
           setChatRow(null)
           setChatAlegacion(null)
+          setChatComisionOriginal(0)
         }}
         alegacion={chatAlegacion}
         settlementLabel={
@@ -1025,12 +1428,18 @@ export function LiquidacionesInternasPanel({
             : "Liquidación"
         }
         comercialName={chatRow?.comercialName ?? ""}
+        comisionOriginal={chatComisionOriginal}
         activeUserId={activeUserId}
         activeUserName={activeUserName}
         canChangeEstado={canChangeAlegacionEstado}
+        canAdjustComision={canChangeAlegacionEstado}
+        formatCurrency={formatCurrency}
         sending={sendingMessage}
         onSendMessage={handleSendMessage}
         onEstadoChange={canChangeAlegacionEstado ? handleEstadoChange : undefined}
+        onComisionAjustadaChange={
+          canChangeAlegacionEstado && chatAlegacion ? handleComisionAjustadaChange : undefined
+        }
       />
     </div>
   )

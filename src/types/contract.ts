@@ -2,6 +2,8 @@ import type { ContractEstado } from "../lib/contract-estado"
 
 export interface Contract {
   id: string
+  /** Referencia legible (ej. NH - 837) */
+  referencia?: string
   clientId?: string
   clientName: string
   cups: string
