@@ -8,85 +8,104 @@
  * Enersave ERP — Design System
  * Tipografía: SF Pro Text (UI) + SF Pro Display (titulares / KPIs)
  * Fuentes locales: src/assets/fonts/*.otf
+ * @font-face va FUERA de @layer para que el navegador las cargue.
  */
 
-@layer base {
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('./assets/fonts/SanFranciscoDisplay-Semibold.otf') format('opentype');
-    font-weight: 600;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('./assets/fonts/SanFranciscoDisplay-Bold.otf') format('opentype');
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Display';
-    src: url('./assets/fonts/SanFranciscoDisplay-Bold.otf') format('opentype');
-    font-weight: 800 900;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-Regular.otf') format('opentype');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-RegularItalic.otf') format('opentype');
-    font-weight: 400;
-    font-style: italic;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-LightItalic.otf') format('opentype');
-    font-weight: 300;
-    font-style: italic;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-Medium.otf') format('opentype');
-    font-weight: 500;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-Semibold.otf') format('opentype');
-    font-weight: 600;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-Bold.otf') format('opentype');
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: 'SF Pro Text';
-    src: url('./assets/fonts/SanFranciscoText-Bold.otf') format('opentype');
-    font-weight: 800 900;
-    font-style: normal;
-    font-display: swap;
-  }
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("./assets/fonts/SanFranciscoDisplay-Semibold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("./assets/fonts/SanFranciscoDisplay-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("./assets/fonts/SanFranciscoDisplay-Bold.otf") format("opentype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Display";
+  src: url("./assets/fonts/SanFranciscoDisplay-Bold.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-LightItalic.otf") format("opentype");
+  font-weight: 300;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-RegularItalic.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-Semibold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-Bold.otf") format("opentype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "SF Pro Text";
+  src: url("./assets/fonts/SanFranciscoText-Bold.otf") format("opentype");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: "SF Pro Text", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "SF Pro Text", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 @theme inline {
-  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-sans: 'SF Pro Text', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: 'SF Pro Text', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: "SF Pro Text", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "SF Pro Text", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -255,7 +274,6 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv11";
   }
 
   h1,
@@ -264,6 +282,7 @@
   h4,
   h5,
   h6 {
+    font-family: var(--font-display);
     letter-spacing: -0.02em;
   }
 
