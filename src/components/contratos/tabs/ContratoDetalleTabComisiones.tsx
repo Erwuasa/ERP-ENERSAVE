@@ -25,25 +25,16 @@ export function ContratoDetalleTabComisiones({
 }: ContratoDetalleTabComisionesProps) {
   const { entry, isLoading } = useContratoMarcoRow(contract)
   const comercial = profiles.find((p) => p.id === contract.comercialId)
-  const commissionPercentage = comercial?.commissionPercentage
+  const commissionPercentage = comercial?.commissionPercentage ?? (contract.comercialId ? 70 : 100)
   const consumo = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
   const isActivated = isContractActivado(contract.estado)
   const cobradorNombre = resolveContratoComercialDisplayName(contract, profiles)
   const cobradorRol = resolveContratoComercialRoleLabel(contract, profiles)
 
   const estimate =
-    entry && isActivated && commissionPercentage != null
+    entry && isActivated
       ? estimateMarcoCommissionEur(entry, commissionPercentage, consumo, formatCurrency)
       : null
-
-  const amountFromMarco = estimate?.amountEur
-  const amountFromAt = contract.atCommissionCompany
-  const amountLabel =
-    amountFromMarco != null
-      ? formatCurrency(amountFromMarco)
-      : amountFromAt != null
-        ? formatCurrency(amountFromAt)
-        : null
 
   if (isLoading) {
     return (
@@ -67,28 +58,14 @@ export function ContratoDetalleTabComisiones({
         <div className="flex items-center justify-between gap-4 px-4 py-3">
           <span className="text-sm font-semibold text-brand-text">Contrato</span>
           <span className="font-mono text-sm font-bold tabular-nums text-brand-text">
-            {amountLabel ?? "—"}
+            {estimate ? formatCurrency(estimate.amountEur) : "—"}
           </span>
         </div>
-        {contract.atCommissionCollaborator != null ? (
-          <div className="flex items-center justify-between gap-4 border-t border-brand-border/60 px-4 py-3">
-            <span className="text-sm font-semibold text-brand-text">Colaborador</span>
-            <span className="font-mono text-sm font-bold tabular-nums text-brand-text">
-              {formatCurrency(contract.atCommissionCollaborator)}
-            </span>
-          </div>
-        ) : null}
       </div>
 
-      {!entry && amountFromAt == null ? (
+      {!entry ? (
         <p className="text-xs italic text-brand-subtext">
           Sin marco retributivo vinculado en el catálogo.
-        </p>
-      ) : null}
-
-      {amountFromAt != null && !entry ? (
-        <p className="text-xs italic text-brand-subtext">
-          Importe que viene del CRM.
         </p>
       ) : null}
 

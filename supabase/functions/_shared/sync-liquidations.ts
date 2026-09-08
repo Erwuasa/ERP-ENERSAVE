@@ -12,6 +12,7 @@ import {
   resolveAtTarifa,
 } from './at-compania.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
+import { omitOverriddenFields, parseManualOverrides } from './manual-overrides.ts'
 
 const LOCK = 'liquidations-at'
 
@@ -190,11 +191,39 @@ export async function runLiquidationSync() {
       }
     }
 
+    const atLiquidationIds = mapped.map((row) => row.at_liquidation_id)
+    const existingByAt = new Map<string, unknown>()
+    if (atLiquidationIds.length > 0) {
+      const { data: existingRows } = await supabase
+        .from('settlements')
+        .select('at_liquidation_id, manual_overrides')
+        .in('at_liquidation_id', atLiquidationIds)
+      for (const row of existingRows ?? []) {
+        const atId = asUuid(row.at_liquidation_id)
+        if (atId) existingByAt.set(atId, row.manual_overrides)
+      }
+    }
+
+    const contractOverrideById = new Map<string, unknown>()
+    const patchIds = [...contractPatches.keys()]
+    if (patchIds.length > 0) {
+      const { data: contractOverrideRows } = await supabase
+        .from('contratos_equipo')
+        .select('id, manual_overrides')
+        .in('id', patchIds)
+      for (const row of contractOverrideRows ?? []) {
+        contractOverrideById.set(String(row.id), row.manual_overrides)
+      }
+    }
+
     let upserted = 0
     for (let offset = 0; offset < mapped.length; offset += 100) {
       const batch = mapped.slice(offset, offset + 100).map((row) => {
         const { _compania_resolved, _tarifa_resolved, _linked_contract_id, ...persisted } = row
-        return persisted
+        return omitOverriddenFields(
+          persisted as Record<string, unknown>,
+          parseManualOverrides(existingByAt.get(row.at_liquidation_id))
+        )
       })
       const { error } = await supabase.from('settlements').upsert(batch, {
         onConflict: 'at_liquidation_id',
@@ -205,7 +234,12 @@ export async function runLiquidationSync() {
 
     let contracts_patched = 0
     for (const [contractId, patch] of contractPatches.entries()) {
-      const { error } = await supabase.from('contratos_equipo').update(patch).eq('id', contractId)
+      const safePatch = omitOverriddenFields(
+        patch as Record<string, unknown>,
+        parseManualOverrides(contractOverrideById.get(contractId))
+      )
+      if (Object.keys(safePatch).length === 0) continue
+      const { error } = await supabase.from('contratos_equipo').update(safePatch).eq('id', contractId)
       if (error) throw new Error(`contratos_equipo patch failed: ${error.message}`)
       contracts_patched += 1
     }

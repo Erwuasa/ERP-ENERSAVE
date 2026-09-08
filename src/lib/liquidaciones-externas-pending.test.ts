@@ -38,7 +38,7 @@ const pendingSettlement: Settlement = {
 }
 
 describe("liquidaciones-externas-pending", () => {
-  it("expone solo settlements pendientes positivos no retro", () => {
+  it("expone settlements ERP pendientes con importe distinto de cero", () => {
     expect(isSettlementEligibleForExternasConsolidation(pendingSettlement)).toBe(true)
     expect(
       isSettlementEligibleForExternasConsolidation({ ...pendingSettlement, estado: "pagado" })
@@ -46,8 +46,21 @@ describe("liquidaciones-externas-pending", () => {
     expect(
       isSettlementEligibleForExternasConsolidation({
         ...pendingSettlement,
+        source: "at",
+      })
+    ).toBe(false)
+    expect(
+      isSettlementEligibleForExternasConsolidation({
+        ...pendingSettlement,
         tipoEvento: "retrocomision",
+        montoInterno: -50,
         montoExterno: -50,
+      })
+    ).toBe(true)
+    expect(
+      isSettlementEligibleForExternasConsolidation({
+        ...pendingSettlement,
+        montoInterno: 0,
       })
     ).toBe(false)
   })

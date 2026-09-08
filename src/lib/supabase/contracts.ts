@@ -1,6 +1,11 @@
 import type { Contract } from "../../types/contract"
 import { normalizeContractEstado } from "../contract-estado"
 import { flattenDocumentosPorTipo } from "../contrato-documentos"
+import {
+  CONTRACT_FIELD_TO_OVERRIDE_COLUMN,
+  mergeManualOverrides,
+  parseManualOverrides,
+} from "../manual-overrides"
 import { insertContratoHistorialCambioEstado } from "./contrato-historial"
 import type { NewContractFormState } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
@@ -333,6 +338,14 @@ function resolveContractAtr(row: Row): string | undefined {
   )
 }
 
+function metadataString(metadata: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = str(metadata[key])
+    if (value) return value
+  }
+  return undefined
+}
+
 export function mapRowToContract(
   row: Row,
   providerByAtCompanyId: Map<string, string> = new Map()
@@ -341,10 +354,11 @@ export function mapRowToContract(
   const payload = payloadRecord(row)
   const electricity = nestedPayload(payload, "electricity_data")
   const gas = nestedPayload(payload, "gas_data")
-  const atPowers = asPowerMap(electricity.powers ?? gas.powers)
   const atPrices = mapAtPrices(row.at_prices)
-  const consumoPayload = num(electricity.consumo_anual_kwh) ?? num(gas.consumo_anual_kwh)
-  const consumoAnual = num(row.consumo_anual) || consumoPayload || 0
+  const atPowers =
+    asPowerMap(metadata.powers) ??
+    asPowerMap(electricity.powers ?? gas.powers)
+  const consumoAnual = num(row.consumo_anual) ?? 0
   const tipoPrecio = str(row.tipo_precio)
 
   return {
@@ -365,17 +379,13 @@ export function mapRowToContract(
     comercialId: str(row.comercial_id) ?? "",
     comercialName: str(row.comercial_name) ?? "",
     createdAt:
-      str(payload.created_at) ??
-      str(payload.contract_date) ??
       str(row.fecha_inicio) ??
+      metadataString(metadata, "created_at_at") ??
       str(row.created_at)?.slice(0, 10) ??
       "",
-    fechaActivacion:
-      str(row.estado_efectivo_desde) ??
-      str(payload.activation_date) ??
-      str(payload.fecha_activacion),
-    signedAt: str(payload.signed_at) ?? str(payload.signedAt),
-    updatedAt: str(payload.updated_at) ?? str(row.updated_at),
+    fechaActivacion: str(row.estado_efectivo_desde),
+    signedAt: metadataString(metadata, "signed_at") ?? str(payload.signed_at ?? payload.signedAt),
+    updatedAt: metadataString(metadata, "updated_at_at") ?? str(row.updated_at),
     fechaBaja: str(row.fecha_baja),
     retrocomisionClawback: num(row.retrocomision_clawback),
     estadoRenovacion: str(row.estado_renovacion),
@@ -393,23 +403,17 @@ export function mapRowToContract(
     poblacion: str(row.poblacion),
     provincia: str(row.provincia),
     pisoPuerta:
+      metadataString(metadata, "address_line_2") ??
       str(payload.address_line_2) ??
-      str(payload.address_line2) ??
-      str(electricity.address_line_2) ??
-      str(gas.address_line_2) ??
-      str(metadata.address_line_2) ??
-      str(payload.piso_puerta) ??
-      str(payload.aclarador),
-    isNewSupply: bool(payload.is_new_supply ?? electricity.is_new_supply ?? metadata.is_new_supply),
+      str(payload.address_line2),
+    isNewSupply: bool(metadata.is_new_supply ?? payload.is_new_supply ?? electricity.is_new_supply),
     isOwnershipChange: bool(
-      payload.is_ownership_change ?? electricity.is_ownership_change ?? metadata.is_ownership_change
+      metadata.is_ownership_change ?? payload.is_ownership_change ?? electricity.is_ownership_change
     ),
-    atCommissionCompany: num(payload.commission_company),
-    atCommissionCollaborator: num(payload.commission_collaborator),
     potenciaContratada:
       num(row.potencia_contratada_kw) ??
       str(row.potencia_contratada) ??
-      formatPowersLabel(electricity.powers ?? gas.powers),
+      formatPowersLabel(atPowers),
     tipoPrecio: tipoPrecio === "fijo" || tipoPrecio === "mercado" ? tipoPrecio : undefined,
     precioFijoConsumo: num(row.precio_fijo_consumo) ?? firstEnergyPrice(atPrices),
     tipoCliente: str(row.tipo_cliente),
@@ -417,21 +421,23 @@ export function mapRowToContract(
     nombreComercial: str(row.nombre_comercial),
     jefeEquipo: str(row.jefe_equipo),
     marcoEntryId: str(row.marco_entry_id),
-    atMarcoId: str(row.at_marco_id) ?? str(payload.marco_id),
-    atRateId:
-      str(row.at_rate_id) ??
-      str(payload.rates_id) ??
-      str(electricity.rate_id ?? electricity.tariff_id ?? gas.rate_id ?? gas.tariff_id),
-    atAccessTariff: str(electricity.access_tariff ?? gas.access_tariff ?? payload.access_tariff),
-    atRateName: str(electricity.rate_name ?? electricity.tariff_name ?? gas.rate_name ?? gas.tariff_name),
+    atMarcoId: str(row.at_marco_id),
+    atRateId: str(row.at_rate_id),
+    atAccessTariff:
+      metadataString(metadata, "atr") ??
+      str(electricity.access_tariff ?? gas.access_tariff ?? payload.access_tariff),
+    atRateName:
+      metadataString(metadata, "rate_name") ??
+      str(row.tarifa) ??
+      str(electricity.rate_name ?? electricity.tariff_name ?? gas.rate_name ?? gas.tariff_name),
     atPowers,
-    atSvas: payload.svas ?? metadata.svas,
+    atSvas: metadata.svas ?? payload.svas,
     atPrices,
     source: row.source === "at" ? "at" : "manual",
     atStatus: str(row.at_status),
     atContractId: str(row.at_contract_id),
-    atStatusNote: str(row.at_status_note) ?? str(payload.status_note),
-    atIncidentAt: str(row.at_incident_at) ?? str(payload.incident_at),
+    atStatusNote: str(row.at_status_note),
+    atIncidentAt: str(row.at_incident_at),
     atNotes: mapAtNotes(row.at_notes),
     atEvents: mapAtEvents(row.at_events),
     atDocuments: mapAtDocuments(row.at_documents),
@@ -549,6 +555,25 @@ export async function updateTeamContract(
   const row = buildTeamContractPatch(patch)
   if (Object.keys(row).length === 0) {
     return { ok: false, reason: "error", message: "No hay cambios que persistir." }
+  }
+
+  const overrideColumns = Object.entries(patch)
+    .filter(([, value]) => value !== undefined)
+    .map(([field]) => CONTRACT_FIELD_TO_OVERRIDE_COLUMN[field])
+    .filter((column): column is string => Boolean(column))
+  if (patch.potenciaContratada !== undefined) {
+    overrideColumns.push("potencia_contratada")
+  }
+  if (overrideColumns.length > 0) {
+    const { data: current } = await resolved.client
+      .from(TABLE)
+      .select("manual_overrides")
+      .eq("id", id)
+      .maybeSingle()
+    row.manual_overrides = mergeManualOverrides(
+      parseManualOverrides(current?.manual_overrides),
+      overrideColumns
+    )
   }
 
   const { data, error } = await resolved.client

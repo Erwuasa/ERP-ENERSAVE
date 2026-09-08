@@ -1,4 +1,3 @@
-import { isRetrocomisionSettlement } from "@/lib/liquidaciones-internas"
 import type { PendingLiquidacionContract } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
 import type { Contract } from "@/types/contract"
 import type { Settlement } from "@/types/settlement"
@@ -22,8 +21,8 @@ function contractCode(contract: Contract): string {
 
 export function isSettlementEligibleForExternasConsolidation(settlement: Settlement): boolean {
   if (settlement.estado !== "pendiente") return false
-  if (isRetrocomisionSettlement(settlement)) return false
-  return settlement.montoInterno > 0
+  if (settlement.source === "at") return false
+  return settlement.montoInterno !== 0
 }
 
 export function buildPendingLiquidacionContractsFromSettlements(

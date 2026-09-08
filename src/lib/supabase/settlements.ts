@@ -27,6 +27,7 @@ import {
   type Row,
   type SupabaseResult,
 } from "./result"
+import { mergeManualOverrides, parseManualOverrides } from "../manual-overrides"
 
 const TABLE = "settlements"
 
@@ -57,6 +58,7 @@ export function mapRowToSettlement(row: Row): Settlement {
     source: row.source === "at" ? "at" : "manual",
     companyPaymentStatus: str(row.company_payment_status),
     collaboratorPaymentStatus: str(row.collaborator_payment_status),
+    manualOverrides: parseManualOverrides(row.manual_overrides),
   }
 }
 
@@ -85,6 +87,7 @@ function buildSettlementInsertRow(settlement: Settlement): Row {
   const row: Row = {
     ...buildSettlementPatch(settlement),
     es_retrocomision: isRetrocomisionSettlement(settlement),
+    source: settlement.source === "at" ? "at" : "manual",
   }
   if (settlement.createdAt) {
     row.created_at = settlementCreatedAtIso(settlement.createdAt)
@@ -130,18 +133,28 @@ export async function createActivationSettlement(
   if (existingResult.ok === false) return existingResult
 
   if (existingResult.data) {
-    const updateResult = await updateSettlement(existingResult.data.id, {
-      comercialId: settlement.comercialId,
-      comercialName: settlement.comercialName,
-      montoInterno: settlement.montoInterno,
-      montoExterno: settlement.montoExterno,
-      estado: "pendiente",
-      tipo: settlement.tipo,
-      descripcion: settlement.descripcion,
-      contractId: settlement.contractId,
-      tipoEvento: ACTIVATION_SETTLEMENT_EVENTO,
-      createdAt: settlement.createdAt,
-    })
+    if (
+      existingResult.data.manualOverrides?.monto_interno ||
+      existingResult.data.manualOverrides?.monto_externo
+    ) {
+      return { ok: true, data: { settlement: existingResult.data, created: false } }
+    }
+    const updateResult = await updateSettlement(
+      existingResult.data.id,
+      {
+        comercialId: settlement.comercialId,
+        comercialName: settlement.comercialName,
+        montoInterno: settlement.montoInterno,
+        montoExterno: settlement.montoExterno,
+        estado: "pendiente",
+        tipo: settlement.tipo,
+        descripcion: settlement.descripcion,
+        contractId: settlement.contractId,
+        tipoEvento: ACTIVATION_SETTLEMENT_EVENTO,
+        createdAt: settlement.createdAt,
+      },
+      { markManualOverrides: false }
+    )
     if (updateResult.ok === false) return updateResult
     return { ok: true, data: { settlement: updateResult.data, created: false } }
   }
@@ -500,7 +513,8 @@ export async function markSettlementsAsPagado(
 
 export async function updateSettlement(
   id: string,
-  patch: Partial<Settlement>
+  patch: Partial<Settlement>,
+  options?: { markManualOverrides?: boolean }
 ): Promise<SupabaseResult<Settlement>> {
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
@@ -512,6 +526,23 @@ export async function updateSettlement(
   if (patch.fechaBaja) {
     row.fecha_baja = settlementCreatedAtIso(patch.fechaBaja)
   }
+
+  const markOverrides = options?.markManualOverrides !== false
+  const overrideColumns: string[] = []
+  if (markOverrides && patch.montoInterno !== undefined) overrideColumns.push("monto_interno")
+  if (markOverrides && patch.montoExterno !== undefined) overrideColumns.push("monto_externo")
+  if (overrideColumns.length > 0) {
+    const { data: current } = await resolved.client
+      .from(TABLE)
+      .select("manual_overrides")
+      .eq("id", id)
+      .maybeSingle()
+    row.manual_overrides = mergeManualOverrides(
+      parseManualOverrides(current?.manual_overrides),
+      overrideColumns
+    )
+  }
+
   if (Object.keys(row).length === 0) {
     return { ok: false, reason: "error", message: "No hay cambios que persistir." }
   }

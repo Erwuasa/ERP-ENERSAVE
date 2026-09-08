@@ -1,5 +1,5 @@
 import { Flame, Lightbulb } from "lucide-react"
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import type { LiquidacionesProfile, PendingLiquidacionContract } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
 import { computeRealCommission } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-utils"
 
@@ -9,7 +9,9 @@ type PendingContractCardProps = {
   formatCurrency: (val: number) => string
   renderCompaniaLogo: (brandName: string) => ReactNode
   canSelect?: boolean
+  canEditAmount?: boolean
   onToggleChecked: (id: string) => void
+  onAmountChange?: (settlementId: string, amount: number) => void
 }
 
 export function PendingContractCard({
@@ -18,9 +20,25 @@ export function PendingContractCard({
   formatCurrency,
   renderCompaniaLogo,
   canSelect = false,
+  canEditAmount = false,
   onToggleChecked,
+  onAmountChange,
 }: PendingContractCardProps) {
   const realCommission = computeRealCommission(contract, profiles)
+  const [amountDraft, setAmountDraft] = useState(String(contract.price))
+
+  useEffect(() => {
+    setAmountDraft(String(contract.price))
+  }, [contract.price])
+
+  function commitAmount() {
+    const parsed = Number(amountDraft.replace(",", "."))
+    if (!Number.isFinite(parsed) || parsed === contract.price) {
+      setAmountDraft(String(contract.price))
+      return
+    }
+    onAmountChange?.(contract.settlementId, parsed)
+  }
 
   return (
     <div
@@ -101,7 +119,27 @@ export function PendingContractCard({
 
         <div className="flex items-center justify-between border-t border-brand-border pt-2 text-[10px] font-mono text-slate-500">
           <span>Firma: {contract.dateFirm}</span>
-          <div className="text-right shrink-0">
+          <div className="text-right shrink-0 space-y-1">
+            {canEditAmount ? (
+              <label className="block">
+                <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold block leading-none">
+                  Importe
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={amountDraft}
+                  onChange={(e) => setAmountDraft(e.target.value)}
+                  onBlur={commitAmount}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.currentTarget.blur()
+                    }
+                  }}
+                  className="mt-0.5 w-24 rounded-md border border-brand-border bg-brand-panel px-1.5 py-0.5 text-right text-xs font-black text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-cyan-500"
+                />
+              </label>
+            ) : null}
             <span className="text-[8px] text-slate-500 uppercase tracking-widest font-bold block leading-none">
               Tu Neto Recibido
             </span>

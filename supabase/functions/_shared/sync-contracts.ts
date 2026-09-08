@@ -18,9 +18,12 @@ import {
   resolveAtPriceTariffId,
   resolveAtTariffId,
 } from './at-contract-children.ts'
-import { isAtPlaceholderCompania, resolveAtCompania, resolveAtTarifa } from './at-compania.ts'
+import { resolveAtCompania, resolveAtTarifa } from './at-compania.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
+import { omitErpOwnedContractFields, omitOverriddenFields, parseManualOverrides } from './manual-overrides.ts'
+import { resolveMarcoEntryId, type MarcoLinkRow } from './marco-link.ts'
+import { ensureMarcoSettlements } from './sync-marco-settlements.ts'
 
 const LOCK = 'contracts-at'
 const UPSERT_BATCH = 50
@@ -210,13 +213,17 @@ export async function runContractSync(ctx?: AtSyncContext) {
         .update({ estado: 'Dado de Baja', at_status: 'deleted', at_synced_at: syncedAt })
         .eq('at_contract_id', incrementalId)
         .eq('source', 'at')
+        .not('manual_overrides', 'cs', '{"estado":true}')
         .select('id')
       if (error) throw new Error(`contratos delete failed: ${error.message}`)
+      const deletedIds = (data ?? []).map((row) => String(row.id))
+      const settlementStats = await ensureMarcoSettlements(supabase, deletedIds)
       return {
         stats: {
           mode: 'incremental',
-          deleted: data?.length ?? 0,
+          deleted: deletedIds.length,
           at_contract_id: incrementalId,
+          settlements: settlementStats,
         },
       }
     }
@@ -269,11 +276,15 @@ export async function runContractSync(ctx?: AtSyncContext) {
 
     const { data: marcos } = await supabase
       .from('marco_retributivo')
-      .select('id, at_marco_id')
-      .not('at_marco_id', 'is', null)
-    const marcoByAt = new Map(
-      (marcos ?? []).map((row) => [String(row.at_marco_id), String(row.id)])
-    )
+      .select('id, at_marco_id, at_rate_id, tarifa, compania, tipo')
+    const marcoRows: MarcoLinkRow[] = (marcos ?? []).map((row) => ({
+      id: String(row.id),
+      at_marco_id: asUuid(row.at_marco_id) ?? (asString(row.at_marco_id) || null),
+      at_rate_id: asUuid(row.at_rate_id) ?? (asString(row.at_rate_id) || null),
+      tarifa: asString(row.tarifa),
+      compania: asString(row.compania),
+      tipo: asString(row.tipo),
+    }))
 
     const { data: providers } = await supabase
       .from('providers')
@@ -315,7 +326,6 @@ export async function runContractSync(ctx?: AtSyncContext) {
           0,
         estado: AT_STATUS_TO_ERP[atStatus] ?? 'PTE DE TRAMITACIÓN',
         at_status: atStatus || null,
-        comercial_id: null,
         comercial_name: asString(row.comercial_name ?? row.responsible_name) || '',
         nif: asString(row.nif ?? row.dni_cif) || null,
         telefono: asString(row.phone ?? row.telefono) || null,
@@ -333,7 +343,13 @@ export async function runContractSync(ctx?: AtSyncContext) {
         fecha_inicio: (asString(row.created_at ?? row.contract_date ?? row.fecha_inicio) || syncedAt).slice(0, 10),
         estado_efectivo_desde: activationDate,
         tipo_cliente: asString(row.tipo_cliente) || null,
-        marco_entry_id: marcoId ? marcoByAt.get(marcoId) ?? null : null,
+        marco_entry_id: resolveMarcoEntryId(marcoRows, {
+          atMarcoId: marcoId,
+          atRateId: rateId,
+          tarifa: tarifaResolved,
+          compania: companiaResolved,
+          tipo: pickTipo(row),
+        }),
         at_rate_id: rateId,
         tariff_id: linkedTariff?.id ?? null,
         at_marco_id: marcoId || null,
@@ -350,16 +366,74 @@ export async function runContractSync(ctx?: AtSyncContext) {
         at_payload: row,
         metadata: {
           at: true,
-          electricity_data: row.electricity_data ?? null,
-          gas_data: row.gas_data ?? null,
+          atr:
+            asString(electricity.access_tariff ?? gas.access_tariff ?? row.access_tariff) || null,
+          address_line_2:
+            asString(row.address_line_2 ?? row.address_line2 ?? electricity.address_line_2) || null,
+          is_new_supply: row.is_new_supply === true || electricity.is_new_supply === true,
+          is_ownership_change:
+            row.is_ownership_change === true || electricity.is_ownership_change === true,
           svas: row.svas ?? null,
+          powers: electricity.powers ?? gas.powers ?? null,
+          rate_name:
+            asString(electricity.rate_name ?? electricity.tariff_name ?? gas.rate_name) || null,
+          signed_at: asString(row.signed_at ?? row.signedAt) || null,
+          created_at_at: asString(row.created_at) || null,
+          updated_at_at: asString(row.updated_at) || null,
         },
       })
     }
 
+    const atIds = mapped.map((row) => row.at_contract_id)
+    const existingByAt = new Map<
+      string,
+      {
+        id: string
+        comercial_id: string | null
+        comercial_name: string | null
+        marco_entry_id: string | null
+        manual_overrides: unknown
+      }
+    >()
+    if (atIds.length > 0) {
+      const { data: existingRows, error: existingError } = await supabase
+        .from('contratos_equipo')
+        .select('id, at_contract_id, comercial_id, comercial_name, marco_entry_id, manual_overrides')
+        .in('at_contract_id', atIds)
+      if (existingError) throw new Error(`contratos existing lookup failed: ${existingError.message}`)
+      for (const row of existingRows ?? []) {
+        const atId = asUuid(row.at_contract_id)
+        if (!atId) continue
+        existingByAt.set(atId, {
+          id: String(row.id),
+          comercial_id: asUuid(row.comercial_id),
+          comercial_name: asString(row.comercial_name) || null,
+          marco_entry_id: asUuid(row.marco_entry_id) ?? (asString(row.marco_entry_id) || null),
+          manual_overrides: row.manual_overrides,
+        })
+      }
+    }
+
+    const toUpsert = mapped.map((row) => {
+      const existing = existingByAt.get(row.at_contract_id)
+      let next = omitErpOwnedContractFields(
+        omitOverriddenFields(
+          row as Record<string, unknown>,
+          parseManualOverrides(existing?.manual_overrides)
+        )
+      )
+      if (existing?.marco_entry_id) {
+        delete next.marco_entry_id
+      }
+      if (existing?.comercial_id) {
+        delete next.comercial_name
+      }
+      return next
+    })
+
     let upserted = 0
-    for (let offset = 0; offset < mapped.length; offset += UPSERT_BATCH) {
-      const batch = mapped.slice(offset, offset + UPSERT_BATCH)
+    for (let offset = 0; offset < toUpsert.length; offset += UPSERT_BATCH) {
+      const batch = toUpsert.slice(offset, offset + UPSERT_BATCH)
       const { error } = await supabase.from('contratos_equipo').upsert(batch, {
         onConflict: 'at_contract_id',
       })
@@ -369,6 +443,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
 
     const seen = new Set(mapped.map((row) => row.at_contract_id))
     let deactivated = 0
+    const deactivatedIds: string[] = []
     if (!incrementalId && seen.size > 0) {
       const { data, error } = await supabase
         .from('contratos_equipo')
@@ -376,10 +451,25 @@ export async function runContractSync(ctx?: AtSyncContext) {
         .eq('source', 'at')
         .neq('estado', 'Dado de Baja')
         .lt('at_synced_at', syncedAt)
+        .not('manual_overrides', 'cs', '{"estado":true}')
         .select('id')
       if (error) throw new Error(`contratos deactivate failed: ${error.message}`)
       deactivated = data?.length ?? 0
+      for (const row of data ?? []) deactivatedIds.push(String(row.id))
     }
+
+    const syncedIds = [...existingByAt.values()].map((row) => row.id)
+    if (atIds.length > 0) {
+      const { data: persisted } = await supabase
+        .from('contratos_equipo')
+        .select('id')
+        .in('at_contract_id', atIds)
+      for (const row of persisted ?? []) syncedIds.push(String(row.id))
+    }
+
+    const settlementStats = await ensureMarcoSettlements(supabase, [
+      ...new Set([...syncedIds, ...deactivatedIds]),
+    ])
 
     return {
       stats: {
@@ -398,6 +488,8 @@ export async function runContractSync(ctx?: AtSyncContext) {
         deactivated,
         clients_linked: mapped.filter((row) => row.cliente_id).length,
         tariffs_linked: mapped.filter((row) => row.tariff_id).length,
+        marcos_linked: mapped.filter((row) => row.marco_entry_id).length,
+        settlements: settlementStats,
       },
     }
   } finally {

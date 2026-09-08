@@ -60,14 +60,10 @@ export interface Contract {
   codigoPostal?: string
   poblacion?: string
   provincia?: string
-  /** `address_line_2` del payload AT (piso, puerta, aclarador). */
+  /** `address_line_2` persistido en metadata. */
   pisoPuerta?: string
   isNewSupply?: boolean
   isOwnershipChange?: boolean
-  /** Comisión compañía del payload AT (`commission_company`). */
-  atCommissionCompany?: number
-  /** Comisión colaborador del payload AT (`commission_collaborator`). */
-  atCommissionCollaborator?: number
   nombreComercial?: string
   jefeEquipo?: string
   comentariosInternos?: Array<{

@@ -112,6 +112,25 @@ export function useContratosPanel({
             }
       )
     )
+    if (field !== "estado") {
+      void persistContractField(id, field, value)
+    }
+  }
+
+  async function persistContractField(
+    id: string,
+    field: keyof Contract & string,
+    value: unknown
+  ) {
+    if (!isSupabaseConfigured()) return
+    const result = await updateTeamContract(id, { [field]: value } as Partial<Contract>)
+    if (result.ok === false) {
+      if (result.message !== "No hay cambios que persistir.") {
+        toast.error(result.message)
+      }
+      return
+    }
+    setContracts((prev) => prev.map((item) => (item.id === id ? result.data : item)))
   }
 
   async function persistEstadoChange(contract: Contract, nextEstado: ContractEstado) {

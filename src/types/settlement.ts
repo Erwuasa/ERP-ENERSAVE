@@ -16,6 +16,7 @@ export interface Settlement {
   source?: "manual" | "at"
   companyPaymentStatus?: string
   collaboratorPaymentStatus?: string
+  manualOverrides?: Record<string, boolean>
 }
 
 export type LiquidacionesInternasTab = "totales" | "pendientes" | "retrocomisiones"

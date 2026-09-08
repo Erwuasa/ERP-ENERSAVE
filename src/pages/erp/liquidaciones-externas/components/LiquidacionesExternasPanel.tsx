@@ -87,6 +87,7 @@ export function LiquidacionesExternasPanel(props: LiquidacionesExternasPanelProp
           profiles={vm.profiles}
           renderCompaniaLogo={props.renderCompaniaLogo}
           onToggleChecked={vm.toggleContractChecked}
+          onAmountChange={vm.handleAmountChange}
         />
 
         <div className="xl:col-span-5 space-y-6">

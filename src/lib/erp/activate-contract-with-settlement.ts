@@ -10,8 +10,10 @@ import { formatCurrency } from "@/lib/erp/format-currency"
 import { updateTeamContract } from "@/lib/supabase/contracts"
 import {
   getMarcoEntryById,
+  getMarcoRowByAtIds,
   resolveMarcoCatalogEntry,
   listMarcoRetributivo,
+  marcoRowToCatalogEntry,
 } from "@/lib/supabase/marco-retributivo"
 import {
   createActivationSettlement,
@@ -63,13 +65,6 @@ export async function activateContractWithSettlement(
   const activationDate = resolveActivationDate(contract, activationDateInput)
   const consumoAnual = consumoInput ?? contract.consumoAnualManual ?? contract.consumoAnual ?? 0
 
-  if (consumoAnual <= 0) {
-    return {
-      ok: false,
-      message: "Indica un consumo anual válido para calcular la comisión.",
-    }
-  }
-
   let marcoEntry = null
   if (contract.marcoEntryId) {
     const marcoResult = await getMarcoEntryById(contract.marcoEntryId)
@@ -88,6 +83,14 @@ export async function activateContractWithSettlement(
     )
   }
 
+  if (!marcoEntry && (contract.atMarcoId || contract.atRateId)) {
+    const byAt = await getMarcoRowByAtIds({
+      atMarcoId: contract.atMarcoId,
+      atRateId: contract.atRateId,
+    })
+    if (byAt.ok) marcoEntry = marcoRowToCatalogEntry(byAt.data)
+  }
+
   if (!marcoEntry) {
     return {
       ok: false,
@@ -96,11 +99,19 @@ export async function activateContractWithSettlement(
     }
   }
 
+  if (consumoAnual <= 0 && marcoEntry.comisionTipo !== "fija") {
+    return {
+      ok: false,
+      message: "Indica un consumo anual válido para calcular la comisión.",
+    }
+  }
+
   const comercialProfile =
     profiles.find((profile) => profile.id === contract.comercialId) ??
     profiles.find((profile) => profile.fullName === contract.comercialName)
 
-  const commissionPct = comercialProfile?.commissionPercentage ?? 70
+  const commissionPct =
+    comercialProfile?.commissionPercentage ?? (contract.comercialId ? 70 : 0)
   const breakdown = computeComisionBreakdown(
     marcoEntry,
     commissionPct,
@@ -138,6 +149,7 @@ export async function activateContractWithSettlement(
     consumoAnual,
     montoInterno: breakdown.comisionEmpresa,
     montoExterno: breakdown.comisionComercial,
+    marcoEntryId: contract.marcoEntryId || marcoEntry.id,
     fechaFin: renewalSchedule.fechaRenovacion,
     fechaRenovacion: renewalSchedule.fechaRenovacion,
     diasRenovacion: renewalSchedule.diasRenovacion,

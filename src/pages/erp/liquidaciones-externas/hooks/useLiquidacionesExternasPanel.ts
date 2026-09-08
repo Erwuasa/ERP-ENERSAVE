@@ -3,7 +3,7 @@ import { toast } from "sonner"
 import { buildPendingLiquidacionContractsFromSettlements } from "@/lib/liquidaciones-externas-pending"
 import type { LiquidacionesConsolidadasView } from "@/lib/liquidaciones-consolidadas"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
-import { markSettlementsAsPagado } from "@/lib/supabase/settlements"
+import { markSettlementsAsPagado, updateSettlement } from "@/lib/supabase/settlements"
 import {
   computeJefeComercialMetrics,
   countPendingByCompaniaTab,
@@ -150,6 +150,41 @@ export function useLiquidacionesExternasPanel({
     })
   }
 
+  async function handleAmountChange(settlementId: string, montoInterno: number) {
+    if (!canConsolidate) return
+    const current = settlements.find((settlement) => settlement.id === settlementId)
+    if (!current || current.montoInterno === montoInterno) return
+
+    const ratio = current.montoInterno !== 0 ? current.montoExterno / current.montoInterno : 1
+    const montoExterno = Math.round(montoInterno * ratio * 100) / 100
+
+    if (isSupabaseConfigured()) {
+      const result = await updateSettlement(settlementId, { montoInterno, montoExterno })
+      if (result.ok === false) {
+        toast.error(result.message ?? "No se pudo actualizar el importe.")
+        return
+      }
+      setSettlements((prev) =>
+        prev.map((settlement) => (settlement.id === settlementId ? result.data : settlement))
+      )
+      toast.success("Importe actualizado.")
+      return
+    }
+
+    setSettlements((prev) =>
+      prev.map((settlement) =>
+        settlement.id === settlementId
+          ? {
+              ...settlement,
+              montoInterno,
+              montoExterno,
+              manualOverrides: { ...settlement.manualOverrides, monto_interno: true, monto_externo: true },
+            }
+          : settlement
+      )
+    )
+  }
+
   async function handleConsolidate() {
     if (!canConsolidate || checkedItems.length === 0 || isConsolidating) return
 
@@ -239,6 +274,7 @@ export function useLiquidacionesExternasPanel({
     isConsolidating,
     handleConsolidate,
     toggleContractChecked,
+    handleAmountChange,
     pendingByBrand,
     consolidatedLiquidations,
     jefeMetrics,

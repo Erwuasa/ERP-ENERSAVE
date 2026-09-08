@@ -18,6 +18,7 @@ type PendingContractsPanelProps = {
   profiles: LiquidacionesProfile[]
   renderCompaniaLogo: (brandName: string) => ReactNode
   onToggleChecked: (id: string) => void
+  onAmountChange?: (settlementId: string, amount: number) => void
 }
 
 export function PendingContractsPanel({
@@ -33,6 +34,7 @@ export function PendingContractsPanel({
   profiles,
   renderCompaniaLogo,
   onToggleChecked,
+  onAmountChange,
 }: PendingContractsPanelProps) {
   return (
     <div className="xl:col-span-7 bg-brand-panel p-5 rounded-2xl border border-brand-border space-y-4 bg-white dark:bg-[#0f172a] shadow-sm">
@@ -72,7 +74,9 @@ export function PendingContractsPanel({
                 formatCurrency={formatCurrency}
                 renderCompaniaLogo={renderCompaniaLogo}
                 canSelect={canConsolidate}
+                canEditAmount={canConsolidate}
                 onToggleChecked={onToggleChecked}
+                onAmountChange={onAmountChange}
               />
             </div>
           ))
