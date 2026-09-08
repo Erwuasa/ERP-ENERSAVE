@@ -41,6 +41,8 @@ export function resolveMarcoEntryId(
   if (input.atMarcoId) {
     const byMarco = marcos.find((row) => row.at_marco_id === input.atMarcoId)
     if (byMarco) return byMarco.id
+    const byMarcoAsRate = marcos.find((row) => row.at_rate_id === input.atMarcoId)
+    if (byMarcoAsRate) return byMarcoAsRate.id
   }
   if (input.atRateId) {
     const byRate = marcos.find((row) => row.at_rate_id === input.atRateId)

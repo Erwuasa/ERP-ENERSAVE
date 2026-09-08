@@ -385,7 +385,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
       for (const row of mapped) {
         row.marco_entry_id = resolveMarcoEntryId(catalog, {
           atMarcoId: row.at_marco_id,
-          atRateId: row.at_rate_id,
+          atRateId: row.at_rate_id || row.at_marco_id,
           tarifa: row.tarifa,
           compania: row.compania,
           tipo: row.tipo,

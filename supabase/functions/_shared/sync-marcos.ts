@@ -461,10 +461,34 @@ export async function upsertMarcosFromAtIds(ids: string[]): Promise<{ fetched: n
   if (unique.length === 0) return { fetched: 0, upserted: 0 }
 
   const rows: JsonRecord[] = []
+  const asRates: string[] = []
+
   for (const id of unique) {
     const record = await fetchAtRecord(`/marcos/${id}`)
-    if (!record) continue
-    rows.push(...flattenMarcoRows([record]))
+    if (record) {
+      rows.push(...flattenMarcoRows([record]))
+    } else {
+      asRates.push(id)
+    }
+  }
+
+  for (let offset = 0; offset < asRates.length; offset += COMMISSION_BATCH) {
+    const batch = asRates.slice(offset, offset + COMMISSION_BATCH)
+    try {
+      const payload = await fetchFromAt(
+        '/marcos/commissions',
+        new URLSearchParams({ rate_ids: batch.join(',') })
+      )
+      const { rows: commissionRows } = normalizeListPayload(payload)
+      for (const row of flattenMarcoRows(commissionRows)) {
+        if (!asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id) && batch.length === 1) {
+          row.rate_id = batch[0]
+        }
+        rows.push(row)
+      }
+    } catch (error) {
+      console.warn('[upsertMarcosFromAtIds] commissions failed', batch.length, error)
+    }
   }
 
   if (rows.length === 0) return { fetched: 0, upserted: 0 }
