@@ -9,6 +9,7 @@ type Props = {
   contratosActivos: number
   tipoFilter?: ClienteTipoFilter
   onTipoFilterChange?: (value: ClienteTipoFilter) => void
+  onContratosActivosClick?: () => void
 }
 
 type KpiCardId = ClienteTipoFilter | "contratos"
@@ -31,6 +32,7 @@ export function ClientesKpiStrip({
   contratosActivos,
   tipoFilter,
   onTipoFilterChange,
+  onContratosActivosClick,
 }: Props) {
   const cards: KpiCardConfig[] = [
     {
@@ -71,7 +73,7 @@ export function ClientesKpiStrip({
       accentClass: "bg-emerald-500",
       icon: CheckCircle,
       iconClass: "text-emerald-600/70 dark:text-emerald-500/80",
-      selectable: false,
+      selectable: Boolean(onContratosActivosClick),
     },
   ]
 
@@ -88,9 +90,11 @@ export function ClientesKpiStrip({
           iconClass={kpi.iconClass}
           selected={kpi.selectable && tipoFilter === kpi.id}
           onClick={
-            kpi.selectable && onTipoFilterChange
-              ? () => onTipoFilterChange(kpi.id as ClienteTipoFilter)
-              : undefined
+            kpi.id === "contratos"
+              ? onContratosActivosClick
+              : kpi.selectable && onTipoFilterChange
+                ? () => onTipoFilterChange(kpi.id as ClienteTipoFilter)
+                : undefined
           }
         />
       ))}

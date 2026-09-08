@@ -230,14 +230,9 @@ export function AppShell({
                 </button>
 
                 {isExpanded && (
-                  <div className="font-extrabold tracking-tight shrink-0 leading-tight">
-                    <span className="text-[12px] text-[#1e3a8a] dark:text-[#60a5fa] block font-black leading-none uppercase">
-                      ENERSAVE
-                    </span>
-                    <span className="block text-[8px] font-mono text-slate-400 tracking-wider leading-none mt-1">
-                      PLATFORM CORE
-                    </span>
-                  </div>
+                  <span className="text-[12px] text-[#1e3a8a] dark:text-[#60a5fa] font-black leading-none uppercase tracking-tight shrink-0">
+                    ENERSAVE
+                  </span>
                 )}
               </div>
 

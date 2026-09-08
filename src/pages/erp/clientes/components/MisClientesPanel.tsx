@@ -20,10 +20,11 @@ export interface MisClientesPanelProps {
   clientesSearchQuery: string
   setClientesSearchQuery: (value: string) => void
   onNavigateToContract: (contract: Contract) => void
+  onNavigateToContratosActivos?: () => void
 }
 
 export function MisClientesPanel(props: MisClientesPanelProps) {
-  const { clientesSearchQuery, setClientesSearchQuery, onNavigateToContract } = props
+  const { clientesSearchQuery, setClientesSearchQuery, onNavigateToContract, onNavigateToContratosActivos } = props
   const vm = useMisClientesPanel(props)
 
   return (
@@ -36,6 +37,7 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
         contratosActivos={vm.kpiContratosActivos}
         tipoFilter={vm.tipoFilter}
         onTipoFilterChange={vm.setTipoFilter}
+        onContratosActivosClick={onNavigateToContratosActivos}
       />
 
       <ClientesPanelToolbar

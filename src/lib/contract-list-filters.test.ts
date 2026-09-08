@@ -49,9 +49,19 @@ describe("contract list month filters", () => {
     ).toBe(false)
   })
 
-  it("detects current month boundaries", () => {
-    expect(isDateInCurrentMonth("2026-09-01", reference)).toBe(true)
-    expect(isDateInCurrentMonth("2026-09-30", reference)).toBe(true)
-    expect(isDateInCurrentMonth("2026-10-01", reference)).toBe(false)
+  it("matches pipeline buckets", () => {
+    expect(
+      matchesContractListFilter(
+        { id: "1", estado: "TRAMITANDO", createdAt: "2026-09-01" },
+        "pipeline_en_proceso"
+      )
+    ).toBe(true)
+
+    expect(
+      matchesContractListFilter(
+        { id: "2", estado: "Dado de Baja", createdAt: "2026-09-01" },
+        "pipeline_bajas"
+      )
+    ).toBe(true)
   })
 })

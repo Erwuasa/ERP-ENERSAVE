@@ -300,7 +300,11 @@ export function useContratosPanel({
       return isContractPendingTramitacionReview(c, reviewedContractIds ?? new Set())
     }
     if (
-      (contractsListFilter === "creados_este_mes" || contractsListFilter === "bajas_este_mes") &&
+      (contractsListFilter === "creados_este_mes" ||
+        contractsListFilter === "bajas_este_mes" ||
+        contractsListFilter === "pipeline_en_proceso" ||
+        contractsListFilter === "pipeline_bajas" ||
+        contractsListFilter === "pipeline_ko") &&
       !matchesContractListFilter(c, contractsListFilter)
     ) {
       return false

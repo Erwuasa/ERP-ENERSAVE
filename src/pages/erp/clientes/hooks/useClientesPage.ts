@@ -7,12 +7,14 @@ export interface UseClientesPageOptions {
   clientesSearchQuery: string
   setClientesSearchQuery: (value: string) => void
   onNavigateToContract: (contract: Contract) => void
+  onNavigateToContratosActivos?: () => void
 }
 
 export function useClientesPage({
   clientesSearchQuery,
   setClientesSearchQuery,
   onNavigateToContract,
+  onNavigateToContratosActivos,
 }: UseClientesPageOptions) {
   const { profiles, activeUserId, activeUser } = useAuth()
   const { clients, setClients, contracts } = useErpData()
@@ -31,6 +33,7 @@ export function useClientesPage({
       clientesSearchQuery,
       setClientesSearchQuery,
       onNavigateToContract,
+      onNavigateToContratosActivos,
     },
   }
 }

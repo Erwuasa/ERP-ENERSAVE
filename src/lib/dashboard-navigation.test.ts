@@ -43,8 +43,14 @@ describe("resolveDashboardNavigation", () => {
     expect(resolveDashboardNavigation("comparativas", { activeRole: "superadmin" })).toMatchObject({
       tab: "Comparador",
     })
-    expect(resolveDashboardNavigation("comerciales", { activeRole: "superadmin" })).toMatchObject({
-      tab: "Usuarios",
+  })
+
+  it("routes pipeline buckets to contratos filters", () => {
+    expect(resolveDashboardNavigation("pipeline_en_proceso", { activeRole: "superadmin" })).toMatchObject({
+      contractsListFilter: "pipeline_en_proceso",
+    })
+    expect(resolveDashboardNavigation("pipeline_bajas", { activeRole: "superadmin" })).toMatchObject({
+      contractsListFilter: "pipeline_bajas",
     })
   })
 

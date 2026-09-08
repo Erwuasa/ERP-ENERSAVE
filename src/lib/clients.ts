@@ -148,7 +148,7 @@ export function linkContractsToClients(
   clients: Client[]
 ): Contract[] {
   return contracts.map((c) => {
-    if (c.clientId) return c
+    if (c.clientId && clients.some((cl) => cl.id === c.clientId)) return c
     const match = clients.find(
       (cl) =>
         clientMatchKey(c.clientName, c.nif, c.comercialId) ===
@@ -156,6 +156,43 @@ export function linkContractsToClients(
     )
     return match ? { ...c, clientId: match.id } : c
   })
+}
+
+/** Une clientes de BD con los derivados de contratos, enlaza CUPS y sincroniza estados. */
+export function mergeErpCrmState(
+  clients: Client[],
+  contracts: Contract[]
+): { clients: Client[]; contracts: Contract[] } {
+  const byKey = new Map<string, Client>()
+  const byId = new Map<string, Client>()
+
+  for (const client of clients) {
+    byKey.set(clientMatchKey(client.nombre, client.documento, client.comercialId), client)
+    byId.set(client.id, client)
+  }
+
+  const mergedClients = [...clients]
+
+  for (const contract of contracts) {
+    if (contract.clientId && byId.has(contract.clientId)) continue
+
+    const key = clientMatchKey(contract.clientName, contract.nif, contract.comercialId)
+    if (byKey.has(key)) continue
+
+    const [derived] = buildClientsFromContracts([contract])
+    if (!derived) continue
+
+    const uniqueId = `cli-${contract.id}`
+    const withId = { ...derived, id: uniqueId }
+    mergedClients.push(withId)
+    byKey.set(key, withId)
+    byId.set(uniqueId, withId)
+  }
+
+  const linkedContracts = linkContractsToClients(contracts, mergedClients)
+  const syncedClients = syncClientEstados(mergedClients, linkedContracts)
+
+  return { clients: syncedClients, contracts: linkedContracts }
 }
 
 export function getContractsForClient(client: Client, contracts: Contract[]): Contract[] {

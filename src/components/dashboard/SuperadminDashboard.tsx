@@ -2,7 +2,6 @@ import { useMemo } from "react"
 import {
   AlertTriangle,
   ArrowUpRight,
-  Briefcase,
   Clock,
   FileText,
   Lightbulb,
@@ -35,9 +34,7 @@ import {
   liquidacionesEsteMesEuros,
   pipelinePorEstado,
   PIPELINE_BUCKET_META,
-  totalComerciales,
   type ComparativaEntry,
-  type DashboardComercial,
   type DashboardFilters,
 } from "../../lib/dashboard-kpis"
 
@@ -48,10 +45,14 @@ export type DashboardNavigateTarget =
   | "bajas"
   | "incidencias"
   | "comparativas"
-  | "comerciales"
   | "contratos"
   | "oportunidades_mejora"
   | "renovaciones_proximas"
+  | "pipeline_en_proceso"
+  | "pipeline_activo"
+  | "pipeline_incidencias"
+  | "pipeline_bajas"
+  | "pipeline_ko"
 
 const NO_FILTERS: DashboardFilters = {
   comercialId: null,
@@ -63,7 +64,6 @@ interface SuperadminDashboardProps {
   contracts: Contract[]
   settlements: Settlement[]
   incidencias: IncidenciaTicket[]
-  comerciales: DashboardComercial[]
   comparativas: ComparativaEntry[]
   activeUserId: string
   activeRole: string
@@ -77,7 +77,6 @@ export function SuperadminDashboard({
   contracts,
   settlements,
   incidencias,
-  comerciales,
   comparativas,
   activeUserId,
   activeRole,
@@ -115,10 +114,6 @@ export function SuperadminDashboard({
     () => comparativasSemana(comparativas, NO_FILTERS),
     [comparativas]
   )
-  const comercialesTotal = useMemo(
-    () => totalComerciales(comerciales, NO_FILTERS),
-    [comerciales]
-  )
   const pipeline = useMemo(
     () => pipelinePorEstado(contracts, NO_FILTERS),
     [contracts]
@@ -134,7 +129,7 @@ export function SuperadminDashboard({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1.5">
         <KpiMetricCard
           compact
           label={isOrgLiquidaciones ? "Liquidaciones este mes" : "Mis liquidaciones"}
@@ -221,16 +216,6 @@ export function SuperadminDashboard({
             onClick={() => onNavigate?.("renovaciones_proximas")}
           />
         )}
-        <KpiMetricCard
-          compact
-          label="Comerciales"
-          displayValue={comercialesTotal.toLocaleString("es-ES")}
-          icon={Briefcase}
-          iconClass="text-brand-subtext"
-          valueClass="text-brand-text"
-          accentClass="bg-slate-500"
-          onClick={() => onNavigate?.("comerciales")}
-        />
       </div>
 
       <section className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm space-y-4">
@@ -257,8 +242,15 @@ export function SuperadminDashboard({
           {PIPELINE_BUCKET_META.map((meta) => {
             const count = pipeline[meta.id]
             const pct = pipeline.total > 0 ? (count / pipeline.total) * 100 : 0
+            const pipelineTarget = `pipeline_${meta.id}` as DashboardNavigateTarget
             return (
-              <div key={meta.id} className="space-y-1">
+              <button
+                key={meta.id}
+                type="button"
+                onClick={() => onNavigate?.(pipelineTarget)}
+                className="w-full space-y-1 text-left rounded-lg px-1 py-0.5 -mx-1 hover:bg-brand-surface/60 transition-colors cursor-pointer"
+                title={`Ver contratos: ${meta.label}`}
+              >
                 <div className="flex justify-between text-[10px] font-mono">
                   <span className="text-brand-text font-semibold">{meta.label}</span>
                   <span className="font-bold text-brand-text tabular-nums">{count}</span>
@@ -269,7 +261,7 @@ export function SuperadminDashboard({
                     style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }}
                   />
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>

@@ -82,11 +82,50 @@ export function resolveDashboardNavigation(
         tab: "Comparador",
         toastMessage: "Comparativas recientes",
       }
-    case "comerciales":
+    case "pipeline_en_proceso":
       return {
         kind: "tab",
-        tab: "Usuarios",
-        toastMessage: "Equipo comercial",
+        tab: "Contratos",
+        contractsListFilter: "pipeline_en_proceso",
+        clearContractsSearch: true,
+        clearHighlight: true,
+        toastMessage: "Contratos en proceso",
+      }
+    case "pipeline_activo":
+      return {
+        kind: "tab",
+        tab: "Contratos",
+        contractsListFilter: "activado",
+        clearContractsSearch: true,
+        clearHighlight: true,
+        toastMessage: "Contratos activos",
+      }
+    case "pipeline_incidencias":
+      return {
+        kind: "tab",
+        tab: "Contratos",
+        contractsListFilter: "incidencia_administrativa",
+        clearContractsSearch: true,
+        clearHighlight: true,
+        toastMessage: "Contratos con incidencia administrativa",
+      }
+    case "pipeline_bajas":
+      return {
+        kind: "tab",
+        tab: "Contratos",
+        contractsListFilter: "pipeline_bajas",
+        clearContractsSearch: true,
+        clearHighlight: true,
+        toastMessage: "Contratos dados de baja",
+      }
+    case "pipeline_ko":
+      return {
+        kind: "tab",
+        tab: "Contratos",
+        contractsListFilter: "pipeline_ko",
+        clearContractsSearch: true,
+        clearHighlight: true,
+        toastMessage: "Contratos KO (firma caducada)",
       }
     case "oportunidades_mejora":
       if (!ctx.canViewTarifaRecommendations) return { kind: "noop" }

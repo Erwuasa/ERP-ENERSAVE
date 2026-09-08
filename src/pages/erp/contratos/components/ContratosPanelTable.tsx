@@ -423,9 +423,15 @@ export function ContratosPanelTable({
               ? "No hay contratos con recomendación tarifaria."
               : contractsListFilter === "creados_este_mes"
                 ? "No hay contratos creados este mes."
-                : contractsListFilter === "bajas_este_mes"
-                  ? "No hay bajas registradas este mes."
-                  : isContractEstadoKpiFilter(contractsListFilter)
+              : contractsListFilter === "bajas_este_mes"
+                ? "No hay bajas registradas este mes."
+                : contractsListFilter === "pipeline_en_proceso"
+                  ? "No hay contratos en proceso."
+                  : contractsListFilter === "pipeline_bajas"
+                    ? "No hay contratos dados de baja."
+                    : contractsListFilter === "pipeline_ko"
+                      ? "No hay contratos KO (firma caducada)."
+                      : isContractEstadoKpiFilter(contractsListFilter)
                     ? `No hay contratos en estado «${contractsListFilterLabel(contractsListFilter).replace(/^ · /, "")}».`
                     : "No hay contratos que coincidan con la búsqueda."}
         </p>

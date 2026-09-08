@@ -43,12 +43,6 @@ export function DashboardPage() {
                             activeUserId={activeUserId}
                             activeRole={activeRole}
                             formatCurrency={formatCurrency}
-                            comerciales={profiles.map((p) => ({
-                              id: p.id,
-                              fullName: p.fullName,
-                              role: p.role,
-                              status: p.status,
-                            }))}
                             comparativas={comparisonsHistory.map((c) => ({
                               id: c.id,
                               date: c.date,

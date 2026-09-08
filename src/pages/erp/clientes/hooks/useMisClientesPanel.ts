@@ -109,8 +109,8 @@ export function useMisClientesPanel({
   )
 
   const kpiContratosActivos = useMemo(
-    () => countContratosActivosForClients(filtered, contracts),
-    [filtered, contracts]
+    () => countContratosActivosForClients(visibleClients, contracts),
+    [visibleClients, contracts]
   )
 
   const folderClient = folderClientId ? clients.find((c) => c.id === folderClientId) : null

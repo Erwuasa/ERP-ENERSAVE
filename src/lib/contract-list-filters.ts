@@ -1,4 +1,5 @@
 import { normalizeContractEstado } from "@/lib/contract-estado"
+import { getPipelineBucket } from "@/lib/dashboard-kpis"
 import { isDateInRange, toIsoDate } from "@/lib/date-range"
 import type { ContractsListFilter } from "@/lib/contract-estado-kpis"
 
@@ -36,6 +37,16 @@ export function matchesContractListFilter(
     if (normalizeContractEstado(contract.estado) !== "Dado de Baja") return false
     const bajaDate = (contract.fechaBaja ?? contract.createdAt).slice(0, 10)
     return isDateInCurrentMonth(bajaDate, reference)
+  }
+
+  if (filter === "pipeline_en_proceso") {
+    return getPipelineBucket(contract.estado) === "en_proceso"
+  }
+  if (filter === "pipeline_bajas") {
+    return getPipelineBucket(contract.estado) === "bajas"
+  }
+  if (filter === "pipeline_ko") {
+    return getPipelineBucket(contract.estado) === "ko"
   }
 
   return true

@@ -11,7 +11,7 @@ import {
 import type { Contract } from "@/types/contract"
 import type { Client } from "@/types/client"
 import type { Settlement } from "@/types/settlement"
-import { syncClientEstados } from "@/lib/clients"
+import { syncClientEstados, mergeErpCrmState } from "@/lib/clients"
 import { INITIAL_CRM } from "@/lib/erp/initial-crm-state"
 import { buildClientsFromContracts, linkContractsToClients } from "@/lib/clients"
 import { listTeamContracts } from "@/lib/supabase/contracts"
@@ -172,8 +172,33 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    setClients((prev) => syncClientEstados(prev, contracts))
-  }, [contracts])
+    setClients((prevClients) => {
+      const { clients: mergedClients, contracts: linkedContracts } = mergeErpCrmState(
+        prevClients,
+        contracts
+      )
+
+      const prevClientIds = new Map(prevClients.map((client) => [client.id, client.estado]))
+      const clientsUnchanged =
+        mergedClients.length === prevClients.length &&
+        mergedClients.every(
+          (client) => prevClientIds.get(client.id) === client.estado
+        )
+
+      const prevContractLinks = new Map(contracts.map((contract) => [contract.id, contract.clientId]))
+      const needsLink = linkedContracts.some(
+        (contract) => contract.clientId !== prevContractLinks.get(contract.id)
+      )
+
+      if (needsLink) {
+        queueMicrotask(() => {
+          setContracts((prevContracts) => mergeErpCrmState(mergedClients, prevContracts).contracts)
+        })
+      }
+
+      return clientsUnchanged ? prevClients : mergedClients
+    })
+  }, [contracts, setClients, setContracts])
 
   useEffect(() => {
     if (!highlightContractId) return
@@ -210,11 +235,14 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       const effectiveClients =
         loadedClients ?? (loadedContracts ? buildClientsFromContracts(loadedContracts) : null)
 
-      if (effectiveClients) {
+      if (loadedContracts && effectiveClients) {
+        const merged = mergeErpCrmState(effectiveClients, loadedContracts)
+        setClients(merged.clients)
+        setContracts(merged.contracts)
+      } else if (effectiveClients) {
         setClients(syncClientEstados(effectiveClients, loadedContracts ?? contracts))
-      }
-      if (loadedContracts) {
-        setContracts(linkContractsToClients(loadedContracts, effectiveClients ?? clients))
+      } else if (loadedContracts) {
+        setContracts(linkContractsToClients(loadedContracts, clients))
       }
       if (loadedSettlements) setSettlements(loadedSettlements)
 

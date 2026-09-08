@@ -6,17 +6,20 @@ export interface ClientesPageProps {
   clientesSearchQuery: string
   setClientesSearchQuery: (value: string) => void
   onNavigateToContract: (contract: Contract) => void
+  onNavigateToContratosActivos?: () => void
 }
 
 export function ClientesPage({
   clientesSearchQuery,
   setClientesSearchQuery,
   onNavigateToContract,
+  onNavigateToContratosActivos,
 }: ClientesPageProps) {
   const { panelProps } = useClientesPage({
     clientesSearchQuery,
     setClientesSearchQuery,
     onNavigateToContract,
+    onNavigateToContratosActivos,
   })
 
   return (
