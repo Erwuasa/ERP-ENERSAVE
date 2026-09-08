@@ -165,6 +165,21 @@ async function resolveContractPriceSources(rows: JsonRecord[], supabase: ReturnT
   return { pricesByTariff, rateByMarco }
 }
 
+function formatPowersForDb(raw: unknown): string | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const parts = Object.entries(raw as Record<string, unknown>)
+    .map(([key, value]) => {
+      const periodo = /(\d+)/.exec(key)?.[1]
+      const kw = asNumber(value)
+      if (!periodo || kw == null) return null
+      return { periodo: Number(periodo), kw }
+    })
+    .filter((row): row is { periodo: number; kw: number } => row != null)
+    .sort((left, right) => left.periodo - right.periodo)
+    .map((row) => `P${row.periodo}: ${row.kw}`)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 function clientName(row: JsonRecord): string {
   const business = asString(row.business_name ?? row.razon_social)
   if (business) return business
@@ -276,11 +291,14 @@ export async function runContractSync(ctx?: AtSyncContext) {
       const marcoId = asUuid(row.marco_id) ?? asString(row.marco_logical_id)
       const rateId = resolveAtTariffId(row) ?? (marcoId ? rateByMarco.get(marcoId) ?? null : null)
       const activationDate = (asString(row.activation_date ?? row.fecha_activacion) || '').slice(0, 10) || null
+      const electricity = nested(row, 'electricity_data')
+      const gas = nested(row, 'gas_data')
       const linkedTariff = rateId ? tariffByAt.get(rateId) : undefined
       const atStatus = asString(row.status ?? row.estado).toLowerCase()
       const companiaResolved = resolveAtCompania(row, providerByAt)
       const tarifaResolved = resolveAtTarifa(row, linkedTariff?.name ?? '')
       const contractPrices = rateId ? pricesByTariff.get(rateId) : undefined
+      const p1Energy = contractPrices?.find((item) => item.period === 'P1')?.energy
       mapped.push({
         at_contract_id: atId,
         cliente_id: atClientId ? clientByAt.get(atClientId) ?? null : null,
@@ -290,11 +308,15 @@ export async function runContractSync(ctx?: AtSyncContext) {
         compania: companiaResolved || 'Sin compañía',
         tarifa: tarifaResolved,
         tipo_precio: asString(row.tipo_precio) || null,
-        consumo_anual: asNumber(row.consumo_anual) ?? 0,
+        consumo_anual:
+          asNumber(row.consumo_anual) ??
+          asNumber(electricity.consumo_anual_kwh) ??
+          asNumber(gas.consumo_anual_kwh) ??
+          0,
         estado: AT_STATUS_TO_ERP[atStatus] ?? 'PTE DE TRAMITACIÓN',
         at_status: atStatus || null,
         comercial_id: null,
-        comercial_name: asString(row.comercial_name ?? row.responsible_name) || null,
+        comercial_name: asString(row.comercial_name ?? row.responsible_name) || 'AT',
         nif: asString(row.nif ?? row.dni_cif) || null,
         telefono: asString(row.phone ?? row.telefono) || null,
         email: asString(row.email) || null,
@@ -304,7 +326,10 @@ export async function runContractSync(ctx?: AtSyncContext) {
         codigo_postal: asString(row.address_postal_code ?? row.codigo_postal) || null,
         poblacion: asString(row.address_city ?? row.poblacion) || null,
         provincia: asString(row.address_province ?? row.provincia) || null,
-        potencia_contratada: asString(row.potencia_contratada) || null,
+        potencia_contratada:
+          asString(row.potencia_contratada) ||
+          formatPowersForDb(electricity.powers ?? gas.powers),
+        precio_fijo_consumo: asNumber(row.precio_fijo_consumo) ?? p1Energy ?? null,
         fecha_inicio: (asString(row.created_at ?? row.contract_date ?? row.fecha_inicio) || syncedAt).slice(0, 10),
         estado_efectivo_desde: activationDate,
         tipo_cliente: asString(row.tipo_cliente) || null,
@@ -321,7 +346,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
         ...(events ? { at_events: mapAtEvents(events) } : {}),
         ...(documents ? { at_documents: mapAtDocuments(documents) } : {}),
         ...(emails ? { at_emails: mapAtEmails(emails) } : {}),
-        ...(contractPrices && contractPrices.length > 0 ? { at_prices: contractPrices } : {}),
+        at_prices: contractPrices && contractPrices.length > 0 ? contractPrices : [],
         at_payload: row,
         metadata: {
           at: true,

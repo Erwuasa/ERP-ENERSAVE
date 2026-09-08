@@ -44,7 +44,7 @@ Cada webhook AT trae su propio `secret` (`whsec_…`) **solo en el POST de alta*
 `active: false` **no envía nada** (ni ping). Para comprobar que llega:
 
 1. Pull (sin webhook): `POST …/sync-clients-at?mode=sync` con Bearer.
-2. Entrega AT: si la API tiene `POST /v1/webhooks/{id}/test`, manda `webhook.test` → `ate-webhooks` responde `{ ok: true }`. Si no, edita un cliente/contrato en AT y mira logs de la edge.
+2. Entrega AT: `POST /v1/webhooks/{id}/test` manda `webhook.test` → `ate-webhooks` lanza sync masivo de contratos.
 3. Primer volcado: un sync por dominio. A partir de ahí los webhooks mantienen el delta.
 
 Base: `https://unxrvwuaqhwogwvynoyq.supabase.co/functions/v1`

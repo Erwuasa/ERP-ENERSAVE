@@ -71,7 +71,15 @@ Deno.serve(async (request) => {
 
   try {
     if (event === 'webhook.test') {
-      return respondWithJson({ ok: true, event, ignored: false })
+      const result = await runContractSync()
+      return respondWithJson({
+        ok: true,
+        event,
+        routed: 'sync-contracts-at',
+        skipped: Boolean(result.skipped),
+        reason: result.skip_reason,
+        stats: result.stats,
+      })
     }
 
     const route = ROUTES.find((item) => event.startsWith(item.prefix))

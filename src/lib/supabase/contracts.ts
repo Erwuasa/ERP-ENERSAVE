@@ -278,6 +278,27 @@ function mapAtEmails(raw: unknown): Contract["atEmails"] {
   return emails.length > 0 ? emails : undefined
 }
 
+function formatPowersLabel(raw: unknown): string | undefined {
+  const map = asPowerMap(raw)
+  if (!map) return undefined
+  const entries = Object.entries(map)
+    .map(([key, kw]) => {
+      const periodo = Number(/(\d+)/.exec(key)?.[1])
+      return Number.isFinite(periodo) && periodo > 0 ? { periodo, kw } : null
+    })
+    .filter((row): row is { periodo: number; kw: number } => row != null)
+    .sort((left, right) => left.periodo - right.periodo)
+  if (entries.length === 0) return undefined
+  return entries.map((row) => `P${row.periodo}: ${row.kw}`).join(" · ")
+}
+
+function firstEnergyPrice(
+  prices: Contract["atPrices"]
+): number | undefined {
+  const p1 = prices?.find((row) => row.period?.toUpperCase() === "P1" && row.energy != null)
+  return p1?.energy ?? prices?.find((row) => row.energy != null)?.energy
+}
+
 function asPowerMap(raw: unknown): Record<string, number> | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined
   const entries = Object.entries(raw as Record<string, unknown>)
@@ -314,6 +335,10 @@ export function mapRowToContract(
   const payload = payloadRecord(row)
   const electricity = nestedPayload(payload, "electricity_data")
   const gas = nestedPayload(payload, "gas_data")
+  const atPowers = asPowerMap(electricity.powers ?? gas.powers)
+  const atPrices = mapAtPrices(row.at_prices)
+  const consumoPayload = num(electricity.consumo_anual_kwh) ?? num(gas.consumo_anual_kwh)
+  const consumoAnual = num(row.consumo_anual) || consumoPayload || 0
   const tipoPrecio = str(row.tipo_precio)
 
   return {
@@ -325,7 +350,7 @@ export function mapRowToContract(
     tipo: row.tipo === "gas" ? "gas" : "luz",
     compania: resolveContractCompania(row, providerByAtCompanyId),
     tarifa: resolveContractTarifa(row),
-    consumoAnual: num(row.consumo_anual) ?? 0,
+    consumoAnual,
     montoInterno: num(row.monto_interno) ?? 0,
     montoExterno: num(row.monto_externo) ?? 0,
     estado: normalizeContractEstado(str(row.estado) ?? ""),
@@ -361,9 +386,12 @@ export function mapRowToContract(
     codigoPostal: str(row.codigo_postal),
     poblacion: str(row.poblacion),
     provincia: str(row.provincia),
-    potenciaContratada: num(row.potencia_contratada_kw) ?? str(row.potencia_contratada),
+    potenciaContratada:
+      num(row.potencia_contratada_kw) ??
+      str(row.potencia_contratada) ??
+      formatPowersLabel(electricity.powers ?? gas.powers),
     tipoPrecio: tipoPrecio === "fijo" || tipoPrecio === "mercado" ? tipoPrecio : undefined,
-    precioFijoConsumo: num(row.precio_fijo_consumo),
+    precioFijoConsumo: num(row.precio_fijo_consumo) ?? firstEnergyPrice(atPrices),
     tipoCliente: str(row.tipo_cliente),
     formaPago: str(row.forma_pago),
     nombreComercial: str(row.nombre_comercial),
@@ -376,9 +404,9 @@ export function mapRowToContract(
       str(electricity.rate_id ?? electricity.tariff_id ?? gas.rate_id ?? gas.tariff_id),
     atAccessTariff: str(electricity.access_tariff ?? gas.access_tariff ?? payload.access_tariff),
     atRateName: str(electricity.rate_name ?? electricity.tariff_name ?? gas.rate_name ?? gas.tariff_name),
-    atPowers: asPowerMap(electricity.powers ?? gas.powers),
+    atPowers,
     atSvas: payload.svas ?? metadata.svas,
-    atPrices: mapAtPrices(row.at_prices),
+    atPrices,
     source: row.source === "at" ? "at" : "manual",
     atStatus: str(row.at_status),
     atContractId: str(row.at_contract_id),

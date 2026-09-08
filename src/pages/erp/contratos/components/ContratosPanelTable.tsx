@@ -15,6 +15,7 @@ import {
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { isRenovacionProxima } from "@/lib/contract-renewal"
 import { formatAtPricesInline } from "@/components/contratos/contrato-tarifa-marco-view"
+import { formatPotenciaContratadaDisplay } from "@/lib/contract-registration"
 import {
   contractsListFilterLabel,
   isContractEstadoKpiFilter,
@@ -191,13 +192,14 @@ export function ContratosPanelTable({
             const showRenewalCountdown = renewal.estadoRenovacion !== "No aplica"
             const aplicaPenalizacion = aplicaPenalizacionCincoPorCiento(c)
             const nibaRenovPct = getNibaRenovacionComisionPct(c)
+            const consumoTabla = c.consumoAnualManual ?? (c.consumoAnual > 0 ? c.consumoAnual : null)
             const penalizacion = calcularPenalizacion({
               tipoCliente: c.tipoCliente,
               compania: c.compania,
               clientName: c.clientName,
               nif: c.nif,
               precioFijoConsumo: c.precioFijoConsumo,
-              consumoAnual: c.consumoAnualManual ?? undefined,
+              consumoAnual: consumoTabla ?? undefined,
               diasHastaRenovacion: aplicaPenalizacion ? dias : undefined,
             })
 
@@ -346,17 +348,19 @@ export function ContratosPanelTable({
                 </td>
                 <td className={`${CONTRACTS_TD} text-center font-mono text-brand-text`}>
                   <p className="tabular-nums">
-                    {renderEditableCell(c, "potenciaContratada", {
-                      display: (v) => (v != null && v !== "" ? `${v} kW` : null),
-                    })}
+                    {c.potenciaContratada ? (
+                      formatPotenciaContratadaDisplay(c.potenciaContratada)
+                    ) : (
+                      <TableEmptyDash />
+                    )}
                   </p>
                   <p className="mt-1 tabular-nums text-[10px] text-brand-subtext">
-                    {renderEditableCell(c, "precioFijoConsumo", {
-                      display: (v) =>
-                        v != null && Number(v) > 0
-                          ? `${Number(v).toFixed(4)} €/kWh`
-                          : null,
-                    })}
+                    {c.precioFijoConsumo != null && Number(c.precioFijoConsumo) > 0
+                      ? `${Number(c.precioFijoConsumo).toLocaleString("es-ES", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 6,
+                        })} €/kWh`
+                      : <TableEmptyDash />}
                   </p>
                 </td>
                 <td className={`${CONTRACTS_TD} max-w-0 text-center`}>
@@ -368,12 +372,9 @@ export function ContratosPanelTable({
                   </p>
                 </td>
                 <td className={`${CONTRACTS_TD_MIDDLE} text-center font-mono tabular-nums`}>
-                  {renderEditableCell(c, "consumoAnualManual", {
-                    display: (v) =>
-                      v != null && Number(v) > 0
-                        ? `${Number(v).toLocaleString("es-ES")} kWh`
-                        : null,
-                  })}
+                  {consumoTabla != null
+                    ? `${Number(consumoTabla).toLocaleString("es-ES")} kWh`
+                    : <TableEmptyDash />}
                 </td>
                 <td className={`${CONTRACTS_TD} text-center`}>
                   {!aplicaPenalizacion ? (
@@ -382,8 +383,8 @@ export function ContratosPanelTable({
                     </div>
                   ) : penalizacion != null &&
                     c.precioFijoConsumo != null &&
-                    c.consumoAnualManual != null &&
-                    c.consumoAnualManual > 0 ? (
+                    consumoTabla != null &&
+                    consumoTabla > 0 ? (
                     <div>
                       <p className="font-mono font-bold text-rose-600 dark:text-rose-400">
                         {formatPenalizacionDisplay(penalizacion)}
@@ -394,7 +395,7 @@ export function ContratosPanelTable({
                       >
                         {formatPenalizacionFormula(
                           c.precioFijoConsumo,
-                          c.consumoAnualManual,
+                          consumoTabla,
                           dias
                         )}{" "}
                         × ({mesesFraccionRenovacion(dias)})
