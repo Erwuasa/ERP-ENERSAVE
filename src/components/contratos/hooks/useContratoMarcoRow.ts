@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import type { Contract } from "@/types/contract"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
+  getMarcoRowByAtIds,
   getMarcoRowById,
   listMarcoRetributivo,
   marcoRowToCatalogEntry,
@@ -22,6 +23,13 @@ function resolveMarcoRow(
     const byId = localRows.find((r) => r.id === contract.marcoEntryId)
     if (byId) return byId
   }
+  const atIds = [contract.atMarcoId, contract.atRateId].filter(Boolean)
+  const byAt = localRows.find(
+    (r) =>
+      (r.at_marco_id && atIds.includes(r.at_marco_id)) ||
+      (r.at_rate_id && atIds.includes(r.at_rate_id))
+  )
+  if (byAt) return byAt
   return (
     localRows.find(
       (r) =>
@@ -32,7 +40,7 @@ function resolveMarcoRow(
   )
 }
 
-export function useContratoMarcoRow(contract: Contract): UseContratoMarcoRowResult {
+export function useContratoMarcoRow(contract?: Contract | null): UseContratoMarcoRowResult {
   const [row, setRow] = useState<MarcoRetributivoRow | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -40,6 +48,12 @@ export function useContratoMarcoRow(contract: Contract): UseContratoMarcoRowResu
     let cancelled = false
 
     void (async () => {
+      if (!contract) {
+        setRow(null)
+        setIsLoading(false)
+        return
+      }
+
       setIsLoading(true)
 
       if (contract.marcoEntryId) {
@@ -47,6 +61,19 @@ export function useContratoMarcoRow(contract: Contract): UseContratoMarcoRowResu
         if (cancelled) return
         if (byId.ok) {
           setRow(byId.data)
+          setIsLoading(false)
+          return
+        }
+      }
+
+      if (contract.atMarcoId || contract.atRateId) {
+        const byAt = await getMarcoRowByAtIds({
+          atMarcoId: contract.atMarcoId,
+          atRateId: contract.atRateId,
+        })
+        if (cancelled) return
+        if (byAt.ok) {
+          setRow(byAt.data)
           setIsLoading(false)
           return
         }
@@ -67,7 +94,7 @@ export function useContratoMarcoRow(contract: Contract): UseContratoMarcoRowResu
     return () => {
       cancelled = true
     }
-  }, [contract.marcoEntryId, contract.compania, contract.tarifa, contract.tipo])
+  }, [contract, contract?.marcoEntryId, contract?.atMarcoId, contract?.atRateId, contract?.compania, contract?.tarifa, contract?.tipo])
 
   return {
     row,

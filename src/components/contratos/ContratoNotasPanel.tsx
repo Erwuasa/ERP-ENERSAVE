@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { MessageCircle, Paperclip, Send } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -10,6 +10,10 @@ import {
 } from "@/lib/supabase/contrato-notas"
 import type { AtContractNote } from "@/lib/supabase/at-contract-notes"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
+import type { Contract } from "@/types/contract"
+import { ContratoTarifaMarcoCard } from "@/components/contratos/ContratoTarifaMarcoCard"
+import { buildContratoTarifaMarcoView } from "@/components/contratos/contrato-tarifa-marco-view"
+import { useContratoMarcoRow } from "@/components/contratos/hooks/useContratoMarcoRow"
 
 type Props = {
   contratoId: string
@@ -18,6 +22,8 @@ type Props = {
   activeUserName: string
   atNotes?: AtContractNote[]
   atNotesLoading?: boolean
+  contract?: Contract
+  renderCompaniaLogo?: (brandName: string) => ReactNode
 }
 
 function formatNotaTime(iso: string): string {
@@ -38,7 +44,11 @@ export function ContratoNotasPanel({
   activeUserName,
   atNotes = [],
   atNotesLoading = false,
+  contract,
+  renderCompaniaLogo,
 }: Props) {
+  const { row: marcoRow } = useContratoMarcoRow(contract)
+  const tarifaView = contract ? buildContratoTarifaMarcoView(contract, marcoRow) : null
   const [notas, setNotas] = useState<ContratoNota[]>([])
   const [draft, setDraft] = useState("")
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
@@ -158,6 +168,14 @@ export function ContratoNotasPanel({
           </div>
         </div>
       </header>
+
+      {tarifaView && renderCompaniaLogo ? (
+        <ContratoTarifaMarcoCard
+          view={tarifaView}
+          renderCompaniaLogo={renderCompaniaLogo}
+          compact
+        />
+      ) : null}
 
       <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {isLoading || atNotesLoading ? (

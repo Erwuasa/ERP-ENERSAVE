@@ -414,6 +414,31 @@ export async function getMarcoRowById(
   return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
 }
 
+export async function getMarcoRowByAtIds(input: {
+  atMarcoId?: string
+  atRateId?: string
+}): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
+  const clientOrError = requireClient()
+  if (isMarcoClientError(clientOrError)) {
+    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
+  }
+
+  const ids = [...new Set([input.atMarcoId, input.atRateId].filter(Boolean))] as string[]
+  for (const id of ids) {
+    for (const column of ["at_marco_id", "at_rate_id"] as const) {
+      const { data, error } = await clientOrError
+        .from("marco_retributivo")
+        .select(MARCO_SELECT)
+        .eq(column, id)
+        .maybeSingle()
+      if (error) return mapError(error)
+      if (data) return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
+    }
+  }
+
+  return { ok: false, message: "Entrada de marco retributivo no encontrada" }
+}
+
 async function fetchComercialCommissionPercentage(comercialId: string): Promise<number> {
   if (!isSupabaseConfigured()) return DEFAULT_COMMISSION_PERCENTAGE
 

@@ -267,6 +267,14 @@ function mapAtEmails(raw: unknown): Contract["atEmails"] {
   return emails.length > 0 ? emails : undefined
 }
 
+function asPowerMap(raw: unknown): Record<string, number> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined
+  const entries = Object.entries(raw as Record<string, unknown>)
+    .map(([key, value]) => [key, num(value)] as const)
+    .filter((entry): entry is readonly [string, number] => entry[1] != null)
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
 function resolveContractAtr(row: Row): string | undefined {
   const metadata = metadataOf(row)
   const fromMetadata = str(metadata.atr)
@@ -293,6 +301,8 @@ export function mapRowToContract(
 ): Contract {
   const metadata = metadataOf(row)
   const payload = payloadRecord(row)
+  const electricity = nestedPayload(payload, "electricity_data")
+  const gas = nestedPayload(payload, "gas_data")
   const tipoPrecio = str(row.tipo_precio)
 
   return {
@@ -338,6 +348,15 @@ export function mapRowToContract(
     nombreComercial: str(row.nombre_comercial),
     jefeEquipo: str(row.jefe_equipo),
     marcoEntryId: str(row.marco_entry_id),
+    atMarcoId: str(row.at_marco_id) ?? str(payload.marco_id),
+    atRateId:
+      str(row.at_rate_id) ??
+      str(payload.rates_id) ??
+      str(electricity.rate_id ?? electricity.tariff_id ?? gas.rate_id ?? gas.tariff_id),
+    atAccessTariff: str(electricity.access_tariff ?? gas.access_tariff ?? payload.access_tariff),
+    atRateName: str(electricity.rate_name ?? electricity.tariff_name ?? gas.rate_name ?? gas.tariff_name),
+    atPowers: asPowerMap(electricity.powers ?? gas.powers),
+    atSvas: payload.svas ?? metadata.svas,
     source: row.source === "at" ? "at" : "manual",
     atStatus: str(row.at_status),
     atContractId: str(row.at_contract_id),

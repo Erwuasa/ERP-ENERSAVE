@@ -370,6 +370,8 @@ export function ContratoDetallePanel({
               activeUserName={activeUserName}
               atNotes={atExtras.notes}
               atNotesLoading={atExtras.loading}
+              contract={contract}
+              renderCompaniaLogo={renderCompaniaLogo}
             />
           ) : (
             <div className="hidden w-72 shrink-0 border-l border-brand-border bg-brand-panel/50 xl:block" />

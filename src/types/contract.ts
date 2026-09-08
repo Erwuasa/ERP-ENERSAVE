@@ -66,6 +66,12 @@ export interface Contract {
     createdAt: string
   }>
   marcoEntryId?: string
+  atMarcoId?: string
+  atRateId?: string
+  atAccessTariff?: string
+  atRateName?: string
+  atPowers?: Record<string, number>
+  atSvas?: unknown
   source?: "manual" | "at"
   atStatus?: string
   atContractId?: string
