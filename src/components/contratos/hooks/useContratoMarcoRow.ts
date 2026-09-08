@@ -77,6 +77,9 @@ export function useContratoMarcoRow(contract?: Contract | null): UseContratoMarc
           setIsLoading(false)
           return
         }
+        setRow(null)
+        setIsLoading(false)
+        return
       }
 
       const listed = await listMarcoRetributivo()
@@ -94,7 +97,7 @@ export function useContratoMarcoRow(contract?: Contract | null): UseContratoMarc
     return () => {
       cancelled = true
     }
-  }, [contract, contract?.marcoEntryId, contract?.atMarcoId, contract?.atRateId, contract?.compania, contract?.tarifa, contract?.tipo])
+  }, [contract?.id, contract?.marcoEntryId, contract?.atMarcoId, contract?.atRateId, contract?.compania, contract?.tarifa, contract?.tipo])
 
   return {
     row,

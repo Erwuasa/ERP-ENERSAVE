@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { FileText, X } from "lucide-react"
 import type { Contract } from "@/types/contract"
@@ -165,7 +165,32 @@ export function ContratoDetallePanel({
     initialEmails: contract.atEmails,
     initialStatusNote: contract.atStatusNote,
     initialIncidentAt: contract.atIncidentAt,
+    initialPrices: contract.atPrices,
+    initialActivationDate: contract.fechaActivacion,
   })
+  const liveContract = useMemo<Contract>(
+    () => ({
+      ...contract,
+      atPrices: atExtras.prices.length > 0 ? atExtras.prices : contract.atPrices,
+      fechaActivacion: atExtras.activationDate || contract.fechaActivacion,
+      estadoEfectivoDesde: atExtras.activationDate || contract.estadoEfectivoDesde,
+      atNotes: atExtras.notes,
+      atEvents: atExtras.events,
+      atDocuments: atExtras.documents,
+      atEmails: atExtras.emails,
+      atStatusNote: atExtras.statusNote || contract.atStatusNote,
+    }),
+    [
+      atExtras.activationDate,
+      atExtras.documents,
+      atExtras.emails,
+      atExtras.events,
+      atExtras.notes,
+      atExtras.prices,
+      atExtras.statusNote,
+      contract,
+    ]
+  )
 
   useLayoutEffect(() => {
     const openFrame = requestAnimationFrame(() => setIsOpen(true))
@@ -342,7 +367,7 @@ export function ContratoDetallePanel({
                       {tab.label}
                     </h2>
                   )}
-                  {renderActiveTab(tab.id, contract, {
+                  {renderActiveTab(tab.id, liveContract, {
                     comercialEmail,
                     profiles,
                     formatCurrency,
@@ -370,7 +395,7 @@ export function ContratoDetallePanel({
               activeUserName={activeUserName}
               atNotes={atExtras.notes}
               atNotesLoading={atExtras.loading}
-              contract={contract}
+              contract={liveContract}
               renderCompaniaLogo={renderCompaniaLogo}
             />
           ) : (

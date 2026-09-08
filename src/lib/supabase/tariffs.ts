@@ -243,4 +243,62 @@ export async function updateTariffWebSettings(
   }
 }
 
+function normalizeRateKey(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/(\d)\s*\.\s*(\d)\s*TD/g, "$1.$2TD")
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+    .join(" ")
+}
+
+export async function getCatalogPricesForContract(input: {
+  atRateId?: string
+  rateName?: string
+  peaje?: string
+}): Promise<Array<{ period: string; energy?: number; power?: number }>> {
+  if (!isSupabaseConfigured()) return []
+  const client = getSupabaseClient()
+  if (!client) return []
+
+  let tariffId: string | null = null
+  if (input.atRateId) {
+    const { data } = await client
+      .from("tariffs")
+      .select("id")
+      .eq("at_rate_id", input.atRateId)
+      .maybeSingle()
+    tariffId = data?.id ?? null
+  }
+
+  if (!tariffId && input.rateName) {
+    const { data } = await client
+      .from("tariffs")
+      .select("id, name, access_tariff, at_rate_id")
+      .not("at_rate_id", "is", null)
+    const key = normalizeRateKey(input.rateName)
+    const match =
+      data?.find(
+        (row) =>
+          normalizeRateKey(String(row.name ?? "")) === key &&
+          (!input.peaje || String(row.access_tariff ?? "") === input.peaje)
+      ) ?? data?.find((row) => normalizeRateKey(String(row.name ?? "")) === key)
+    tariffId = match?.id ?? null
+  }
+
+  if (!tariffId) return []
+  const { data: prices } = await client
+    .from("tariff_prices")
+    .select("period, energy_price_kwh, power_price_kw_day")
+    .eq("tariff_id", tariffId)
+    .order("period")
+
+  return (prices ?? []).map((row) => ({
+    period: String(row.period ?? "P1"),
+    energy: Number(row.energy_price_kwh),
+    power: Number(row.power_price_kw_day),
+  }))
+}
+
 export { PAGE_SIZE as TARIFF_CATALOG_PAGE_SIZE }

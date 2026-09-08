@@ -14,6 +14,7 @@ import type { Contract } from "@/types/contract"
 import { ContratoTarifaMarcoCard } from "@/components/contratos/ContratoTarifaMarcoCard"
 import { buildContratoTarifaMarcoView } from "@/components/contratos/contrato-tarifa-marco-view"
 import { useContratoMarcoRow } from "@/components/contratos/hooks/useContratoMarcoRow"
+import { useContratoTarifaPrices } from "@/components/contratos/hooks/useContratoTarifaPrices"
 
 type Props = {
   contratoId: string
@@ -48,7 +49,13 @@ export function ContratoNotasPanel({
   renderCompaniaLogo,
 }: Props) {
   const { row: marcoRow } = useContratoMarcoRow(contract)
-  const tarifaView = contract ? buildContratoTarifaMarcoView(contract, marcoRow) : null
+  const catalogPrices = useContratoTarifaPrices(contract)
+  const tarifaView = contract
+    ? buildContratoTarifaMarcoView(
+        catalogPrices?.length ? { ...contract, atPrices: catalogPrices } : contract,
+        marcoRow
+      )
+    : null
   const [notas, setNotas] = useState<ContratoNota[]>([])
   const [draft, setDraft] = useState("")
   const [pendingFiles, setPendingFiles] = useState<File[]>([])

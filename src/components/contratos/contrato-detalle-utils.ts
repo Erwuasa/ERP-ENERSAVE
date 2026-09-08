@@ -76,6 +76,13 @@ export function resolveClientNameParts(contract: Contract): {
 }
 
 export function resolvePotenciaPeriods(contract: Contract): { periodo: number; kw: number }[] {
+  const fromAt = Object.entries(contract.atPowers ?? {})
+    .map(([key, kw]) => {
+      const periodo = Number(/(\d+)/.exec(key)?.[1])
+      return Number.isFinite(periodo) && periodo > 0 ? { periodo, kw } : null
+    })
+    .filter((row): row is { periodo: number; kw: number } => row != null)
+  if (fromAt.length > 0) return fromAt.sort((a, b) => a.periodo - b.periodo)
   return parsePotenciaPeriodsKw(contract.potenciaContratada)
 }
 
@@ -174,6 +181,7 @@ function addMonthsToIsoDate(isoDate: string, months: number): string {
 }
 
 function resolveContratoFirmaDate(contract: Contract): string | null {
+  if (contract.signedAt) return contract.signedAt
   const signedEvent = contract.atEvents?.find((event) => {
     const blob = `${event.title ?? ""} ${event.type ?? ""} ${event.toStatus ?? ""}`.toLowerCase()
     return blob.includes("firm") || blob.includes("sign")

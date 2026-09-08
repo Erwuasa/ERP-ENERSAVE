@@ -256,6 +256,17 @@ function mapAtDocuments(raw: unknown): Contract["atDocuments"] {
   return documents.length > 0 ? documents : undefined
 }
 
+function mapAtPrices(raw: unknown): Contract["atPrices"] {
+  const prices = mapObjectRows(raw)
+    .map((row) => ({
+      period: str(row.period) ?? "",
+      energy: num(row.energy) ?? undefined,
+      power: num(row.power) ?? undefined,
+    }))
+    .filter((row) => row.period && (row.energy != null || row.power != null))
+  return prices.length > 0 ? prices : undefined
+}
+
 function mapAtEmails(raw: unknown): Contract["atEmails"] {
   const emails = mapObjectRows(raw).map((email) => ({
     id: str(email.id),
@@ -322,8 +333,18 @@ export function mapRowToContract(
     motivoCambioEstado: str(row.motivo_cambio_estado),
     comercialId: str(row.comercial_id) ?? "",
     comercialName: str(row.comercial_name) ?? "",
-    createdAt: str(row.fecha_inicio) ?? str(row.created_at)?.slice(0, 10) ?? "",
-    updatedAt: str(row.updated_at),
+    createdAt:
+      str(payload.created_at) ??
+      str(payload.contract_date) ??
+      str(row.fecha_inicio) ??
+      str(row.created_at)?.slice(0, 10) ??
+      "",
+    fechaActivacion:
+      str(row.estado_efectivo_desde) ??
+      str(payload.activation_date) ??
+      str(payload.fecha_activacion),
+    signedAt: str(payload.signed_at) ?? str(payload.signedAt),
+    updatedAt: str(payload.updated_at) ?? str(row.updated_at),
     fechaBaja: str(row.fecha_baja),
     retrocomisionClawback: num(row.retrocomision_clawback),
     estadoRenovacion: str(row.estado_renovacion),
@@ -357,6 +378,7 @@ export function mapRowToContract(
     atRateName: str(electricity.rate_name ?? electricity.tariff_name ?? gas.rate_name ?? gas.tariff_name),
     atPowers: asPowerMap(electricity.powers ?? gas.powers),
     atSvas: payload.svas ?? metadata.svas,
+    atPrices: mapAtPrices(row.at_prices),
     source: row.source === "at" ? "at" : "manual",
     atStatus: str(row.at_status),
     atContractId: str(row.at_contract_id),

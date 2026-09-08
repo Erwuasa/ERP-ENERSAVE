@@ -6,7 +6,14 @@ import {
   fetchAtRecord,
   getSupabaseAdmin,
 } from '../_shared/at-api.ts'
-import { mapAtDocuments, mapAtEmails, mapAtEvents, mapAtNotes } from '../_shared/at-contract-children.ts'
+import {
+  mapAtDocuments,
+  mapAtEmails,
+  mapAtEvents,
+  mapAtNotes,
+  mapAtPrices,
+  resolveAtPriceTariffId,
+} from '../_shared/at-contract-children.ts'
 
 declare const Deno: {
   serve: (handler: (request: Request) => Response | Promise<Response>) => void
@@ -62,9 +69,36 @@ Deno.serve(async (request) => {
     const events = mapAtEvents(eventRows)
     const documents = mapAtDocuments(documentRows)
     const emails = mapAtEmails(emailRows)
+    const tariffId = await resolveAtPriceTariffId(record)
+    const tariff = tariffId
+      ? await fetchAtRecord(`/tariffs/${tariffId}`).catch((error) => {
+          console.warn('[at-contract-notes] tariff failed', error)
+          return null
+        })
+      : null
+    let prices = mapAtPrices(tariff)
+    if (prices.length === 0 && tariffId) {
+      const { data: localTariff } = await admin
+        .from('tariffs')
+        .select('id')
+        .eq('at_rate_id', tariffId)
+        .maybeSingle()
+      if (localTariff?.id) {
+        const { data: localPrices } = await admin
+          .from('tariff_prices')
+          .select('period, energy_price_kwh, power_price_kw_day')
+          .eq('tariff_id', localTariff.id)
+        prices = (localPrices ?? []).map((row) => ({
+          period: asString(row.period) || 'P1',
+          energy: Number(row.energy_price_kwh),
+          power: Number(row.power_price_kw_day),
+        }))
+      }
+    }
     const statusNote = asString(record?.status_note ?? record?.incident_reason) || null
     const incidentAt = asString(record?.incident_at) || null
     const status = asString(record?.status ?? record?.estado) || null
+    const activationDate = (asString(record?.activation_date ?? record?.fecha_activacion) || '').slice(0, 10) || null
 
     const contratoId = asUuid(body.contrato_id ?? body.contratoId)
     if (contratoId) {
@@ -78,12 +112,15 @@ Deno.serve(async (request) => {
           at_documents: documents,
           at_emails: emails,
           at_status: status,
+          ...(activationDate ? { estado_efectivo_desde: activationDate } : {}),
+          ...(tariffId ? { at_rate_id: tariffId } : {}),
+          ...(prices.length > 0 ? { at_prices: prices } : {}),
         })
         .eq('id', contratoId)
         .eq('source', 'at')
       if (
         error &&
-        !/at_notes|at_status_note|at_incident_at|at_events|at_documents|at_emails/.test(error.message)
+        !/at_notes|at_status_note|at_incident_at|at_events|at_documents|at_emails|at_prices/.test(error.message)
       ) {
         console.warn('[at-contract-notes] persist failed', error.message)
       }
@@ -95,6 +132,9 @@ Deno.serve(async (request) => {
       status,
       status_note: statusNote,
       incident_at: incidentAt,
+      activation_date: activationDate,
+      tariff_id: tariffId,
+      prices,
       notes,
       events,
       documents,

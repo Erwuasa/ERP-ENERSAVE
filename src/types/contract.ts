@@ -20,6 +20,10 @@ export interface Contract {
   comercialId: string
   comercialName: string
   createdAt: string
+  /** Fecha de activación del CRM (`activation_date`), distinta de la creación. */
+  fechaActivacion?: string
+  /** Fecha de firma (`signed_at`) si el CRM la envía. */
+  signedAt?: string
   /** ISO timestamp de la última modificación persistida (updated_at en BD). */
   updatedAt?: string
   fechaBaja?: string
@@ -72,6 +76,11 @@ export interface Contract {
   atRateName?: string
   atPowers?: Record<string, number>
   atSvas?: unknown
+  atPrices?: Array<{
+    period: string
+    energy?: number
+    power?: number
+  }>
   source?: "manual" | "at"
   atStatus?: string
   atContractId?: string

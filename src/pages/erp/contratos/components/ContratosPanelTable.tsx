@@ -14,6 +14,7 @@ import {
 } from "@/lib/contract-segment-rules"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { isRenovacionProxima } from "@/lib/contract-renewal"
+import { formatAtPricesInline } from "@/components/contratos/contrato-tarifa-marco-view"
 import {
   contractsListFilterLabel,
   isContractEstadoKpiFilter,
@@ -186,6 +187,7 @@ export function ContratosPanelTable({
             const renewal = getRenewalSchedule(c)
             const dias = renewal.diasRenovacion ?? 0
             const activationDate = getContractActivationDate(c)
+            const preciosInline = formatAtPricesInline(c.atPrices, c.atAccessTariff || c.atr)
             const showRenewalCountdown = renewal.estadoRenovacion !== "No aplica"
             const aplicaPenalizacion = aplicaPenalizacionCincoPorCiento(c)
             const nibaRenovPct = getNibaRenovacionComisionPct(c)
@@ -306,6 +308,11 @@ export function ContratosPanelTable({
                   <p className="mt-1 break-words font-mono text-[10px] text-brand-subtext">
                     {renderEditableCell(c, "tarifa")}
                   </p>
+                  {preciosInline ? (
+                    <p className="mt-1 font-mono text-[9px] leading-snug text-brand-subtext">
+                      {preciosInline}
+                    </p>
+                  ) : null}
                 </td>
                 <td className={`${CONTRACTS_TD} text-center`}>
                   <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text leading-snug">

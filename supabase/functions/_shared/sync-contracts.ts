@@ -8,7 +8,16 @@ import {
   getSupabaseAdmin,
   type JsonRecord,
 } from './at-api.ts'
-import { mapAtDocuments, mapAtEmails, mapAtEvents, mapAtNotes } from './at-contract-children.ts'
+import {
+  mapAtDocuments,
+  mapAtEmails,
+  mapAtEvents,
+  mapAtNotes,
+  mapAtPrices,
+  resolveAtMarcoId,
+  resolveAtPriceTariffId,
+  resolveAtTariffId,
+} from './at-contract-children.ts'
 import { isAtPlaceholderCompania, resolveAtCompania, resolveAtTarifa } from './at-compania.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
@@ -57,6 +66,103 @@ function pickTipo(row: JsonRecord): 'luz' | 'gas' {
   if (tipo.includes('gas')) return 'gas'
   if (nested(row, 'gas_data').cups || nested(row, 'gas_data').CUPS) return 'gas'
   return 'luz'
+}
+
+type AtPriceRows = ReturnType<typeof mapAtPrices>
+
+function normalizeRateKey(value: string): string {
+  return value
+    .toUpperCase()
+    .replace(/(\d)\s*\.\s*(\d)\s*TD/g, '$1.$2TD')
+    .split(/\s+/)
+    .filter(Boolean)
+    .sort()
+    .join(' ')
+}
+
+async function fetchLocalTariffPrices(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  rateId: string
+): Promise<AtPriceRows> {
+  const { data: tariff } = await supabase
+    .from('tariffs')
+    .select('id')
+    .eq('at_rate_id', rateId)
+    .maybeSingle()
+  if (!tariff?.id) return []
+  const { data } = await supabase
+    .from('tariff_prices')
+    .select('period, energy_price_kwh, power_price_kw_day')
+    .eq('tariff_id', tariff.id)
+  return (data ?? []).map((row) => ({
+    period: asString(row.period) || 'P1',
+    energy: asNumber(row.energy_price_kwh),
+    power: asNumber(row.power_price_kw_day),
+  }))
+}
+
+async function findLocalRateIdByName(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  name: string | null,
+  peaje: string | null
+): Promise<string | null> {
+  if (!name) return null
+  const { data } = await supabase
+    .from('tariffs')
+    .select('at_rate_id, name, access_tariff')
+    .not('at_rate_id', 'is', null)
+  const key = normalizeRateKey(name)
+  const rows = data ?? []
+  const match =
+    rows.find(
+      (row) =>
+        normalizeRateKey(asString(row.name)) === key &&
+        (!peaje || asString(row.access_tariff) === peaje)
+    ) ?? rows.find((row) => normalizeRateKey(asString(row.name)) === key)
+  return asUuid(match?.at_rate_id)
+}
+
+async function resolveContractPriceSources(rows: JsonRecord[], supabase: ReturnType<typeof getSupabaseAdmin>) {
+  const rateByMarco = new Map<string, string>()
+  const uniqueRateIds = new Set<string>()
+
+  for (const row of rows) {
+    let rateId = resolveAtTariffId(row)
+    if (!rateId) {
+      const marcoId = resolveAtMarcoId(row)
+      if (marcoId) {
+        rateId = rateByMarco.get(marcoId) ?? (await resolveAtPriceTariffId(row))
+        if (rateId) rateByMarco.set(marcoId, rateId)
+      }
+    }
+    if (!rateId) {
+      const electricity = nested(row, 'electricity_data')
+      rateId = await findLocalRateIdByName(
+        supabase,
+        asString(electricity.rate_name ?? electricity.tariff_name),
+        asString(electricity.access_tariff)
+      )
+      const marcoId = resolveAtMarcoId(row)
+      if (rateId && marcoId) rateByMarco.set(marcoId, rateId)
+    }
+    if (rateId) uniqueRateIds.add(rateId)
+  }
+
+  const pricesByTariff = new Map<string, AtPriceRows>()
+  for (const tariffId of uniqueRateIds) {
+    try {
+      const tariff = await fetchAtRecord(`/tariffs/${tariffId}`)
+      let mapped = mapAtPrices(tariff)
+      if (mapped.length === 0) mapped = await fetchLocalTariffPrices(supabase, tariffId)
+      if (mapped.length > 0) pricesByTariff.set(tariffId, mapped)
+    } catch (error) {
+      console.warn('[sync-contracts] tariff prices failed', tariffId, error)
+      const local = await fetchLocalTariffPrices(supabase, tariffId)
+      if (local.length > 0) pricesByTariff.set(tariffId, local)
+    }
+  }
+
+  return { pricesByTariff, rateByMarco }
 }
 
 function clientName(row: JsonRecord): string {
@@ -125,6 +231,8 @@ export async function runContractSync(ctx?: AtSyncContext) {
       pagesFetched = listed.pagesFetched
     }
 
+    const { pricesByTariff, rateByMarco } = await resolveContractPriceSources(rows, supabase)
+
     const { data: clients } = await supabase
       .from('clientes')
       .select('id, at_client_id')
@@ -165,12 +273,14 @@ export async function runContractSync(ctx?: AtSyncContext) {
       const atId = asUuid(row.id)
       if (!atId) continue
       const atClientId = asUuid(row.cliente_id ?? row.client_id)
-      const rateId = asUuid(row.rates_id ?? row.rate_id ?? row.tariff_id)
       const marcoId = asUuid(row.marco_id) ?? asString(row.marco_logical_id)
+      const rateId = resolveAtTariffId(row) ?? (marcoId ? rateByMarco.get(marcoId) ?? null : null)
+      const activationDate = (asString(row.activation_date ?? row.fecha_activacion) || '').slice(0, 10) || null
       const linkedTariff = rateId ? tariffByAt.get(rateId) : undefined
       const atStatus = asString(row.status ?? row.estado).toLowerCase()
       const companiaResolved = resolveAtCompania(row, providerByAt)
       const tarifaResolved = resolveAtTarifa(row, linkedTariff?.name ?? '')
+      const contractPrices = rateId ? pricesByTariff.get(rateId) : undefined
       mapped.push({
         at_contract_id: atId,
         cliente_id: atClientId ? clientByAt.get(atClientId) ?? null : null,
@@ -195,7 +305,8 @@ export async function runContractSync(ctx?: AtSyncContext) {
         poblacion: asString(row.address_city ?? row.poblacion) || null,
         provincia: asString(row.address_province ?? row.provincia) || null,
         potencia_contratada: asString(row.potencia_contratada) || null,
-        fecha_inicio: (asString(row.contract_date ?? row.fecha_inicio) || syncedAt).slice(0, 10),
+        fecha_inicio: (asString(row.created_at ?? row.contract_date ?? row.fecha_inicio) || syncedAt).slice(0, 10),
+        estado_efectivo_desde: activationDate,
         tipo_cliente: asString(row.tipo_cliente) || null,
         marco_entry_id: marcoId ? marcoByAt.get(marcoId) ?? null : null,
         at_rate_id: rateId,
@@ -210,6 +321,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
         ...(events ? { at_events: mapAtEvents(events) } : {}),
         ...(documents ? { at_documents: mapAtDocuments(documents) } : {}),
         ...(emails ? { at_emails: mapAtEmails(emails) } : {}),
+        ...(contractPrices && contractPrices.length > 0 ? { at_prices: contractPrices } : {}),
         at_payload: row,
         metadata: {
           at: true,
@@ -252,6 +364,8 @@ export async function runContractSync(ctx?: AtSyncContext) {
         events_synced: events?.length ?? null,
         documents_synced: documents?.length ?? null,
         emails_synced: emails?.length ?? null,
+        tariffs_priced: pricesByTariff.size,
+        prices_synced: mapped.filter((row) => Array.isArray(row.at_prices) && row.at_prices.length > 0).length,
         pages_fetched: pagesFetched,
         rows_from_at: rows.length,
         rows_mapped: mapped.length,

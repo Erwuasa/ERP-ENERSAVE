@@ -1,7 +1,8 @@
-import { Loader2 } from "lucide-react"
 import type { ReactNode } from "react"
+import { Loader2 } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import { useContratoMarcoRow } from "@/components/contratos/hooks/useContratoMarcoRow"
+import { useContratoTarifaPrices } from "@/components/contratos/hooks/useContratoTarifaPrices"
 import { ContratoTarifaMarcoCard } from "@/components/contratos/ContratoTarifaMarcoCard"
 import { buildContratoTarifaMarcoView } from "@/components/contratos/contrato-tarifa-marco-view"
 import { ContratoDetalleDataCard } from "@/components/contratos/contrato-detalle-ui"
@@ -16,9 +17,13 @@ export function ContratoDetalleTabTarifaMarco({
   renderCompaniaLogo,
 }: ContratoDetalleTabTarifaMarcoProps) {
   const { row, isLoading } = useContratoMarcoRow(contract)
-  const view = buildContratoTarifaMarcoView(contract, row)
+  const catalogPrices = useContratoTarifaPrices(contract)
+  const view = buildContratoTarifaMarcoView(
+    catalogPrices?.length ? { ...contract, atPrices: catalogPrices } : contract,
+    row
+  )
 
-  if (isLoading) {
+  if (isLoading && !view) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-brand-border/80 bg-brand-panel px-4 py-8 text-sm text-brand-subtext shadow-sm">
         <Loader2 className="h-4 w-4 animate-spin" />

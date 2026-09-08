@@ -35,10 +35,18 @@ export interface AtContractEmail {
   createdAt?: string
 }
 
+export interface AtContractPrice {
+  period: string
+  energy?: number
+  power?: number
+}
+
 export interface AtContractExtras {
   status: string | null
   statusNote: string | null
   incidentAt: string | null
+  activationDate: string | null
+  prices: AtContractPrice[]
   notes: AtContractNote[]
   events: AtContractEvent[]
   documents: AtContractDocument[]
@@ -94,6 +102,25 @@ function mapDocuments(rows: Array<Record<string, unknown>> | undefined): AtContr
   }))
 }
 
+function asNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function mapPrices(rows: Array<Record<string, unknown>> | undefined): AtContractPrice[] {
+  return (rows ?? [])
+    .map((row) => ({
+      period: asText(row.period) ?? "",
+      energy: asNumber(row.energy),
+      power: asNumber(row.power),
+    }))
+    .filter((row) => row.period && (row.energy != null || row.power != null))
+}
+
 function mapEmails(rows: Array<Record<string, unknown>> | undefined): AtContractEmail[] {
   return (rows ?? []).map((email) => ({
     id: asText(email.id),
@@ -145,6 +172,8 @@ export async function fetchAtContractExtras(input: {
         status?: string | null
         status_note?: string | null
         incident_at?: string | null
+        activation_date?: string | null
+        prices?: Array<Record<string, unknown>>
         notes?: Array<Record<string, unknown>>
         events?: Array<Record<string, unknown>>
         documents?: Array<Record<string, unknown>>
@@ -166,6 +195,8 @@ export async function fetchAtContractExtras(input: {
       status: payload?.status ?? null,
       statusNote: payload?.status_note ?? null,
       incidentAt: payload?.incident_at ?? null,
+      activationDate: payload?.activation_date ?? null,
+      prices: mapPrices(payload?.prices),
       notes: mapNotes(payload?.notes),
       events: mapEvents(payload?.events),
       documents: mapDocuments(payload?.documents),

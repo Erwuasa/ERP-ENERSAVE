@@ -105,14 +105,19 @@ export function computeRenewalSchedule(
   }
 }
 
-/** Fecha ISO (YYYY-MM-DD) de activación para contratos ACTIVADO. */
+/** Fecha ISO (YYYY-MM-DD) de activación. Prioriza `activation_date` del CRM. */
 export function getContractActivationDate(contract: {
   estado?: string
   createdAt?: string
   estadoEfectivoDesde?: string
+  fechaActivacion?: string
 }): string | null {
-  if (!contract.estado || !isContractActivado(contract.estado)) return null
-  const raw = (contract.estadoEfectivoDesde ?? contract.createdAt ?? "").trim()
+  const raw = (
+    contract.fechaActivacion ??
+    contract.estadoEfectivoDesde ??
+    (contract.estado && isContractActivado(contract.estado) ? contract.createdAt : "") ??
+    ""
+  ).trim()
   if (!raw) return null
   const iso = raw.slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null
@@ -124,6 +129,7 @@ export function getRenewalSchedule(
     estado?: string
     createdAt?: string
     estadoEfectivoDesde?: string
+    fechaActivacion?: string
     fechaRenovacion?: string
     diasRenovacion?: number
     estadoRenovacion?: string

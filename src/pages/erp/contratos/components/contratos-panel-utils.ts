@@ -22,8 +22,9 @@ export interface ProfileOption {
 }
 
 export function formatActivationDate(iso: string): string {
-  const [y, m, d] = iso.split("-")
-  if (!y || !m || !d) return iso
+  const day = iso.trim().slice(0, 10)
+  const [y, m, d] = day.split("-")
+  if (!y || !m || !d || d.length > 2) return iso
   return `${d}/${m}/${y}`
 }
 
