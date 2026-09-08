@@ -3,6 +3,7 @@ import {
   asNumber,
   asString,
   asUuid,
+  fetchAtRecord,
   fetchFromAt,
   getSupabaseAdmin,
   normalizeListPayload,
@@ -390,7 +391,10 @@ async function mapAtRowToDb(
   }
 }
 
-export async function syncMarcosToDatabase(rows: JsonRecord[]): Promise<{
+export async function syncMarcosToDatabase(
+  rows: JsonRecord[],
+  options: { deactivateMissing?: boolean } = {}
+): Promise<{
   stats: MarcoSyncStats
 }> {
   const supabase = getSupabaseAdmin()
@@ -436,7 +440,7 @@ export async function syncMarcosToDatabase(rows: JsonRecord[]): Promise<{
     stats.rows_upserted += data?.length ?? batch.length
   }
 
-  if (seen.size > 0) {
+  if (options.deactivateMissing !== false && seen.size > 0) {
     const { data: deactivated, error: deactivateError } = await supabase
       .from('marco_retributivo')
       .update({ activo: false })
@@ -450,6 +454,23 @@ export async function syncMarcosToDatabase(rows: JsonRecord[]): Promise<{
   }
 
   return { stats }
+}
+
+export async function upsertMarcosFromAtIds(ids: string[]): Promise<{ fetched: number; upserted: number }> {
+  const unique = [...new Set(ids.filter(Boolean))]
+  if (unique.length === 0) return { fetched: 0, upserted: 0 }
+
+  const rows: JsonRecord[] = []
+  for (const id of unique) {
+    const record = await fetchAtRecord(`/marcos/${id}`)
+    if (!record) continue
+    rows.push(...flattenMarcoRows([record]))
+  }
+
+  if (rows.length === 0) return { fetched: 0, upserted: 0 }
+
+  const result = await syncMarcosToDatabase(rows, { deactivateMissing: false })
+  return { fetched: rows.length, upserted: result.stats.rows_upserted }
 }
 
 function emptyMarcoStats(): MarcoSyncStats {

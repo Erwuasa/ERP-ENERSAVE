@@ -24,6 +24,7 @@ import { resolveAtSyncIds, type AtSyncContext } from './at-webhook-entity.ts'
 import { omitErpOwnedContractFields, omitOverriddenFields, parseManualOverrides } from './manual-overrides.ts'
 import { resolveMarcoEntryId, type MarcoLinkRow } from './marco-link.ts'
 import { ensureMarcoSettlements } from './sync-marco-settlements.ts'
+import { upsertMarcosFromAtIds } from './sync-marcos.ts'
 
 const LOCK = 'contracts-at'
 const UPSERT_BATCH = 50
@@ -274,18 +275,6 @@ export async function runContractSync(ctx?: AtSyncContext) {
       ])
     )
 
-    const { data: marcos } = await supabase
-      .from('marco_retributivo')
-      .select('id, at_marco_id, at_rate_id, tarifa, compania, tipo')
-    const marcoRows: MarcoLinkRow[] = (marcos ?? []).map((row) => ({
-      id: String(row.id),
-      at_marco_id: asUuid(row.at_marco_id) ?? (asString(row.at_marco_id) || null),
-      at_rate_id: asUuid(row.at_rate_id) ?? (asString(row.at_rate_id) || null),
-      tarifa: asString(row.tarifa),
-      compania: asString(row.compania),
-      tipo: asString(row.tipo),
-    }))
-
     const { data: providers } = await supabase
       .from('providers')
       .select('name, at_company_id')
@@ -343,13 +332,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
         fecha_inicio: (asString(row.created_at ?? row.contract_date ?? row.fecha_inicio) || syncedAt).slice(0, 10),
         estado_efectivo_desde: activationDate,
         tipo_cliente: asString(row.tipo_cliente) || null,
-        marco_entry_id: resolveMarcoEntryId(marcoRows, {
-          atMarcoId: marcoId,
-          atRateId: rateId,
-          tarifa: tarifaResolved,
-          compania: companiaResolved,
-          tipo: pickTipo(row),
-        }),
+        marco_entry_id: null as string | null,
         at_rate_id: rateId,
         tariff_id: linkedTariff?.id ?? null,
         at_marco_id: marcoId || null,
@@ -382,6 +365,48 @@ export async function runContractSync(ctx?: AtSyncContext) {
           updated_at_at: asString(row.updated_at) || null,
         },
       })
+    }
+
+    async function loadMarcoRows(): Promise<MarcoLinkRow[]> {
+      const { data } = await supabase
+        .from('marco_retributivo')
+        .select('id, at_marco_id, at_rate_id, tarifa, compania, tipo')
+      return (data ?? []).map((row) => ({
+        id: String(row.id),
+        at_marco_id: asUuid(row.at_marco_id) ?? (asString(row.at_marco_id) || null),
+        at_rate_id: asUuid(row.at_rate_id) ?? (asString(row.at_rate_id) || null),
+        tarifa: asString(row.tarifa),
+        compania: asString(row.compania),
+        tipo: asString(row.tipo),
+      }))
+    }
+
+    function assignMarcoEntryIds(catalog: MarcoLinkRow[]) {
+      for (const row of mapped) {
+        row.marco_entry_id = resolveMarcoEntryId(catalog, {
+          atMarcoId: row.at_marco_id,
+          atRateId: row.at_rate_id,
+          tarifa: row.tarifa,
+          compania: row.compania,
+          tipo: row.tipo,
+        })
+      }
+    }
+
+    let marcoRows = await loadMarcoRows()
+    assignMarcoEntryIds(marcoRows)
+
+    const missingMarcoIds = [
+      ...new Set(
+        mapped
+          .filter((row) => !row.marco_entry_id && row.at_marco_id)
+          .map((row) => row.at_marco_id as string)
+      ),
+    ]
+    const importedMarcos = await upsertMarcosFromAtIds(missingMarcoIds)
+    if (importedMarcos.upserted > 0) {
+      marcoRows = await loadMarcoRows()
+      assignMarcoEntryIds(marcoRows)
     }
 
     const atIds = mapped.map((row) => row.at_contract_id)
@@ -489,6 +514,8 @@ export async function runContractSync(ctx?: AtSyncContext) {
         clients_linked: mapped.filter((row) => row.cliente_id).length,
         tariffs_linked: mapped.filter((row) => row.tariff_id).length,
         marcos_linked: mapped.filter((row) => row.marco_entry_id).length,
+        marcos_imported: importedMarcos.upserted,
+        marcos_missing: missingMarcoIds.length,
         settlements: settlementStats,
       },
     }

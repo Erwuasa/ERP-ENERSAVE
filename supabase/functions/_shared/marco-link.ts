@@ -7,14 +7,25 @@ export type MarcoLinkRow = {
   tipo: string
 }
 
-function normalizeKey(value: string): string {
+function normalizeCompany(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+export function tarifaCore(value: string): string {
   return value
     .toUpperCase()
     .replace(/(\d)\s*\.\s*(\d)\s*TD/g, '$1.$2TD')
-    .split(/\s+/)
-    .filter(Boolean)
-    .sort()
-    .join(' ')
+    .replace(/^\d+\.\d+TD\s+/, '')
+    .replace(/^(RL\d+|R\d+)\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function sameCompany(left: string, right: string): boolean {
+  const a = normalizeCompany(left)
+  const b = normalizeCompany(right)
+  if (!a || !b) return false
+  return a === b
 }
 
 export function resolveMarcoEntryId(
@@ -35,14 +46,15 @@ export function resolveMarcoEntryId(
     const byRate = marcos.find((row) => row.at_rate_id === input.atRateId)
     if (byRate) return byRate.id
   }
-  const tarifaKey = normalizeKey(input.tarifa)
-  const companiaKey = input.compania.trim().toLowerCase()
-  if (!tarifaKey || !companiaKey) return null
-  const byMeta = marcos.find(
-    (row) =>
-      row.tipo === input.tipo &&
-      normalizeKey(row.tarifa) === tarifaKey &&
-      row.compania.trim().toLowerCase() === companiaKey
-  )
-  return byMeta?.id ?? null
+
+  const core = tarifaCore(input.tarifa)
+  if (!core) return null
+
+  const typed = marcos.filter((row) => row.tipo === input.tipo)
+  const sameName = typed.filter((row) => tarifaCore(row.tarifa) === core)
+  const withCompany = sameName.filter((row) => sameCompany(row.compania, input.compania))
+  if (withCompany.length === 1) return withCompany[0].id
+  if (withCompany.length > 1) return withCompany[0].id
+  if (!input.compania.trim() && sameName.length === 1) return sameName[0].id
+  return null
 }
