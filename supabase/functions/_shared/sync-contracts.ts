@@ -305,7 +305,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
         client_name: clientName(row),
         cups: pickCups(row),
         tipo: pickTipo(row),
-        compania: companiaResolved || 'Sin compañía',
+        compania: companiaResolved || '',
         tarifa: tarifaResolved,
         tipo_precio: asString(row.tipo_precio) || null,
         consumo_anual:
@@ -316,7 +316,7 @@ export async function runContractSync(ctx?: AtSyncContext) {
         estado: AT_STATUS_TO_ERP[atStatus] ?? 'PTE DE TRAMITACIÓN',
         at_status: atStatus || null,
         comercial_id: null,
-        comercial_name: asString(row.comercial_name ?? row.responsible_name) || 'AT',
+        comercial_name: asString(row.comercial_name ?? row.responsible_name) || '',
         nif: asString(row.nif ?? row.dni_cif) || null,
         telefono: asString(row.phone ?? row.telefono) || null,
         email: asString(row.email) || null,

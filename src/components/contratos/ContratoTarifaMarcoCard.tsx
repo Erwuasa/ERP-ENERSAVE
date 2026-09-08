@@ -53,7 +53,7 @@ export function ContratoTarifaMarcoCard({ view, renderCompaniaLogo, compact = fa
 
       <ContratoDetalleLabeledBlock label="Servicios">
         <span className={view.hasSva ? "text-violet-700 dark:text-violet-300" : "font-normal text-brand-subtext"}>
-          {view.servicios}
+          {view.servicios || "—"}
         </span>
       </ContratoDetalleLabeledBlock>
     </>

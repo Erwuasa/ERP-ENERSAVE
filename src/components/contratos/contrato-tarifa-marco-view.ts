@@ -17,7 +17,7 @@ export interface ContratoTarifaMarcoView {
   marcoNombre?: string
   tarifaNombre?: string
   preciosInline?: string
-  servicios: string
+  servicios?: string
   hasSva: boolean
 }
 
@@ -92,24 +92,26 @@ export function formatAtPricesInline(
   return chunks.length > 0 ? chunks.join(" ") : undefined
 }
 
-function peajePotenciaRango(peaje?: string): string | undefined {
-  if (!peaje) return undefined
-  if (peaje.includes("2.0")) return "DE 0 A 15 KW"
-  if (peaje.includes("3.0")) return "MÁS DE 15 KW"
-  if (peaje.includes("6.")) return "ALTA TENSIÓN"
-  return undefined
+function isPlaceholderLabel(value?: string): boolean {
+  const trimmed = (value ?? "").trim()
+  if (!trimmed || trimmed === "—") return true
+  const upper = trimmed.toUpperCase()
+  return upper === "AT" || upper === "TARIFA AT" || upper === "SIN COMPAÑÍA"
 }
 
 export function buildContratoTarifaMarcoView(
   contract: Contract,
   marco?: MarcoRetributivoRow | null
 ): ContratoTarifaMarcoView | null {
-  const peaje = normalizePeaje(marco?.peaje || contract.atAccessTariff || contract.atr)
+  const peajeRaw = marco?.peaje || contract.atAccessTariff || contract.atr
+  const peaje = peajeRaw ? normalizePeaje(peajeRaw) : undefined
   const svaLabel = formatSvas(contract.atSvas)
   const hasSva = marco ? marcoHasSva(marco) : Boolean(svaLabel)
-  const tarifaNombre = contract.atRateName || (contract.tarifa !== "Tarifa AT" ? contract.tarifa : undefined)
-  const company =
-    contract.compania && contract.compania !== "AT" ? contract.compania : marco?.compania || contract.compania
+  const storedTarifa = isPlaceholderLabel(contract.tarifa) ? undefined : contract.tarifa
+  const tarifaNombre = contract.atRateName || storedTarifa
+  const company = !isPlaceholderLabel(contract.compania)
+    ? contract.compania
+    : marco?.compania
   const hasCrmData = Boolean(
     marco ||
       contract.atRateName ||
@@ -121,16 +123,17 @@ export function buildContratoTarifaMarcoView(
   )
   if (!hasCrmData) return null
 
+  const potenciaRango = marco ? formatMarcoPotenciaRango(marco) : undefined
+
   return {
-    company: company || "—",
+    company: company || "",
     supply: contract.tipo === "gas" ? "GAS" : "LUZ",
     peaje,
-    potenciaRango:
-      (marco ? formatMarcoPotenciaRango(marco) : undefined) || peajePotenciaRango(peaje),
+    potenciaRango: potenciaRango && potenciaRango !== "—" ? potenciaRango : undefined,
     marcoNombre: marco ? formatMarcoRetributivoNombre(marco) : tarifaNombre,
     tarifaNombre,
     preciosInline: formatAtPricesInline(contract.atPrices, peaje),
-    servicios: svaLabel ?? (hasSva ? "Servicios / SVA incluidos" : "Sin servicios añadidos"),
+    servicios: svaLabel ?? undefined,
     hasSva,
   }
 }

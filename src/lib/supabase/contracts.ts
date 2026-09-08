@@ -167,6 +167,12 @@ function nestedPayload(payload: Record<string, unknown>, key: string): Record<st
     : {}
 }
 
+function bool(raw: unknown): boolean | undefined {
+  if (raw === true || raw === "true" || raw === 1 || raw === "1") return true
+  if (raw === false || raw === "false" || raw === 0 || raw === "0") return false
+  return undefined
+}
+
 export function resolveContractCompania(
   row: Row,
   providerByAtCompanyId: Map<string, string> = new Map()
@@ -386,6 +392,20 @@ export function mapRowToContract(
     codigoPostal: str(row.codigo_postal),
     poblacion: str(row.poblacion),
     provincia: str(row.provincia),
+    pisoPuerta:
+      str(payload.address_line_2) ??
+      str(payload.address_line2) ??
+      str(electricity.address_line_2) ??
+      str(gas.address_line_2) ??
+      str(metadata.address_line_2) ??
+      str(payload.piso_puerta) ??
+      str(payload.aclarador),
+    isNewSupply: bool(payload.is_new_supply ?? electricity.is_new_supply ?? metadata.is_new_supply),
+    isOwnershipChange: bool(
+      payload.is_ownership_change ?? electricity.is_ownership_change ?? metadata.is_ownership_change
+    ),
+    atCommissionCompany: num(payload.commission_company),
+    atCommissionCollaborator: num(payload.commission_collaborator),
     potenciaContratada:
       num(row.potencia_contratada_kw) ??
       str(row.potencia_contratada) ??

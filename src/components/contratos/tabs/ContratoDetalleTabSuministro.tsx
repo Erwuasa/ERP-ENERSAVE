@@ -10,6 +10,7 @@ import {
   formatConsumoAnualKwh,
   formatContratoPeaje,
   formatPotenciasInline,
+  formatSuministroAccion,
 } from "@/components/contratos/contrato-detalle-utils"
 
 interface ContratoDetalleTabSuministroProps {
@@ -18,6 +19,7 @@ interface ContratoDetalleTabSuministroProps {
 
 export function ContratoDetalleTabSuministro({ contract }: ContratoDetalleTabSuministroProps) {
   const peaje = formatContratoPeaje(contract)
+  const accion = formatSuministroAccion(contract)
   const isLuz = contract.tipo === "luz"
 
   return (
@@ -36,15 +38,17 @@ export function ContratoDetalleTabSuministro({ contract }: ContratoDetalleTabSum
           >
             {isLuz ? "Luz" : "Gas"}
           </ContratoDetalleMetaBadge>
-          <ContratoDetalleMetaBadge
-            tone="action"
-            icon={<RefreshCw className="h-3.5 w-3.5" />}
-            className="opacity-80"
-          >
-            Cambio tarifa
-          </ContratoDetalleMetaBadge>
+          {accion ? (
+            <ContratoDetalleMetaBadge
+              tone="action"
+              icon={<RefreshCw className="h-3.5 w-3.5" />}
+              className="opacity-80"
+            >
+              {accion}
+            </ContratoDetalleMetaBadge>
+          ) : null}
         </div>
-        <ContratoDetalleMetaBadge tone="peaje">{peaje}</ContratoDetalleMetaBadge>
+        {peaje ? <ContratoDetalleMetaBadge tone="peaje">{peaje}</ContratoDetalleMetaBadge> : null}
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -58,7 +62,7 @@ export function ContratoDetalleTabSuministro({ contract }: ContratoDetalleTabSum
         <ContratoDetalleCompactField
           label="IBAN"
           value={contract.iban}
-          subValue={extractBankNameFromIban(contract.iban)}
+          subValue={contract.iban ? extractBankNameFromIban(contract.iban) : undefined}
           mono
           emphasize
         />
@@ -69,7 +73,7 @@ export function ContratoDetalleTabSuministro({ contract }: ContratoDetalleTabSum
           label="Dirección"
           value={contract.direccionSuministro || contract.direccionCompleta}
         />
-        <ContratoDetalleCompactField label="Piso / puerta · aclarador" value={null} />
+        <ContratoDetalleCompactField label="Piso / puerta · aclarador" value={contract.pisoPuerta} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">

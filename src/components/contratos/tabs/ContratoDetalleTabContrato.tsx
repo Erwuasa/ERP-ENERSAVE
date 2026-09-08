@@ -10,6 +10,7 @@ import {
   contractHasOpenIncidencia,
   formatContratoCanal,
   formatIncidenciaAbiertaHace,
+  resolveContratoComercialDisplayName,
 } from "@/components/contratos/contrato-detalle-utils"
 import {
   getContractEstadoBadgeClass,
@@ -73,7 +74,7 @@ export function ContratoDetalleTabContrato({
         <ContratoDetalleFieldGrid>
           <ContratoDetalleField
             label="Nombre"
-            value={contract.nombreComercial || contract.comercialName}
+            value={resolveContratoComercialDisplayName(contract)}
           />
           <ContratoDetalleField
             label="Email"
@@ -85,9 +86,7 @@ export function ContratoDetalleTabContrato({
                 >
                   {comercialEmail}
                 </a>
-              ) : (
-                "—"
-              )
+              ) : null
             }
           />
           {contract.jefeEquipo ? (

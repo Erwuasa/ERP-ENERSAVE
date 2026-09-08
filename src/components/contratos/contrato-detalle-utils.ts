@@ -1,9 +1,7 @@
 import type { Contract } from "@/types/contract"
 import {
-  contractToNewContractForm,
   parsePotenciaPeriodsKw,
   splitClientNameToParts,
-  type TipoClienteContrato,
 } from "@/lib/contract-registration"
 import { normalizeContractEstado } from "@/lib/contract-estado"
 import { getContractActivationDate } from "@/lib/contract-segment-rules"
@@ -26,29 +24,22 @@ const SPANISH_BANK_ENTITIES: Record<string, string> = {
   "0239": "EVO Banco",
 }
 
-export function formatContratoCanal(contract: Contract): string {
+export function formatContratoCanal(contract: Contract): string | undefined {
   if (contract.source === "at") return "Alta Tensión"
-  return "ENERSAVE"
+  if (contract.source === "manual") return "ENERSAVE"
+  return undefined
 }
 
-export function formatContratoPeaje(contract: Contract): string {
-  if (contract.atr?.trim()) return normalizePeaje(contract.atr)
-  const tarifa = contract.tarifa.toLowerCase()
-  if (tarifa.includes("6.0") || tarifa.includes("6.1")) return "6.0TD"
-  if (tarifa.includes("3.0")) return "3.0TD"
-  if (tarifa.includes("2.0")) return "2.0TD"
-  return "2.0TD"
+export function formatContratoPeaje(contract: Contract): string | undefined {
+  const raw = contract.atAccessTariff?.trim() || contract.atr?.trim()
+  if (!raw) return undefined
+  return normalizePeaje(raw)
 }
 
-export function formatTipoClienteLabel(tipo?: string): string {
-  if (tipo === "pyme" || tipo === "autonomo" || tipo === "comunidad_vecinos") return "PYME"
-  if (tipo === "residencial") return "Residencial"
+export function formatTipoClienteLabel(tipo?: string): string | undefined {
+  if (!tipo?.trim()) return undefined
   const match = TIPO_CLIENTE_OPTIONS.find((opt) => opt.value === tipo)
-  return match?.label ?? "Residencial"
-}
-
-export function resolveTipoCliente(contract: Contract): TipoClienteContrato {
-  return contractToNewContractForm(contract).tipoCliente
+  return match?.label ?? tipo.trim()
 }
 
 export function resolveClientNameParts(contract: Contract): {
@@ -56,21 +47,22 @@ export function resolveClientNameParts(contract: Contract): {
   apellidos: string
   esEmpresa: boolean
 } {
-  const form = contractToNewContractForm(contract)
+  const tipo = (contract.tipoCliente ?? "").trim().toLowerCase()
   const esEmpresa =
-    form.tipoCliente === "pyme" || form.tipoCliente === "comunidad_vecinos"
+    tipo === "pyme" || tipo === "empresa" || tipo === "comunidad_vecinos"
 
   if (esEmpresa) {
     return {
-      nombre: form.razonSocial || contract.clientName,
+      nombre: contract.clientName,
       apellidos: "",
       esEmpresa: true,
     }
   }
 
+  const parts = splitClientNameToParts(contract.clientName)
   return {
-    nombre: form.clientNombre || splitClientNameToParts(contract.clientName).clientNombre,
-    apellidos: form.clientApellidos || splitClientNameToParts(contract.clientName).clientApellidos,
+    nombre: parts.clientNombre,
+    apellidos: parts.clientApellidos,
     esEmpresa: false,
   }
 }
@@ -104,18 +96,19 @@ export function extractBankNameFromIban(iban?: string): string {
   return label.split(" · ")[0] ?? label
 }
 
-export function formatPotenciasInline(contract: Contract): string {
-  const peaje = formatContratoPeaje(contract)
-  const periodCount = peaje.startsWith("2.0") ? 2 : 6
+export function formatPotenciasInline(contract: Contract): string | undefined {
   const periods = resolvePotenciaPeriods(contract)
-  const parts: string[] = []
+  if (periods.length === 0) return undefined
+  return periods.map((row) => `p${row.periodo}: ${row.kw}`).join(" · ")
+}
 
-  for (let periodo = 1; periodo <= periodCount; periodo++) {
-    const match = periods.find((p) => p.periodo === periodo)
-    parts.push(`p${periodo}: ${match ? match.kw : "—"}`)
+export function formatSuministroAccion(contract: Contract): string | undefined {
+  if (contract.isNewSupply) return "Alta nueva"
+  if (contract.isOwnershipChange) return "Cambio de titularidad"
+  if (contract.isNewSupply === false && contract.isOwnershipChange === false) {
+    return "Cambio tarifa"
   }
-
-  return parts.join(" · ")
+  return undefined
 }
 
 function isPlaceholderComercialName(name?: string | null): boolean {
@@ -225,9 +218,9 @@ export function resolveContratoDetalleFechas(contract: Contract): ContratoDetall
   }
 }
 
-export function formatConsumoAnualKwh(contract: Contract): string {
+export function formatConsumoAnualKwh(contract: Contract): string | undefined {
   const value = contract.consumoAnualManual ?? contract.consumoAnual
-  if (value == null || value <= 0) return "—"
+  if (value == null || value <= 0) return undefined
   return `${value.toLocaleString("es-ES")} kWh`
 }
 

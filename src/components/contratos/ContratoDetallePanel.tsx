@@ -328,7 +328,9 @@ export function ContratoDetallePanel({
             </div>
             <div className="rounded-lg border border-brand-border/70 bg-brand-bg/40 px-3 py-2">
               <dt className="text-[9px] font-mono uppercase text-brand-subtext tracking-wide">Tarifa</dt>
-              <dd className="text-brand-text mt-0.5 break-words">{contract.tarifa || "—"}</dd>
+              <dd className="text-brand-text mt-0.5 break-words">
+                {contract.atRateName || contract.tarifa || "—"}
+              </dd>
             </div>
             <div className="rounded-lg border border-brand-border/70 bg-brand-bg/40 px-3 py-2">
               <dt className="text-[9px] font-mono uppercase text-brand-subtext tracking-wide">Creación</dt>

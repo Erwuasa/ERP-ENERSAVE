@@ -7,7 +7,6 @@ import {
 import {
   formatTipoClienteLabel,
   resolveClientNameParts,
-  resolveTipoCliente,
 } from "@/components/contratos/contrato-detalle-utils"
 
 interface ContratoDetalleTabClienteProps {
@@ -15,7 +14,6 @@ interface ContratoDetalleTabClienteProps {
 }
 
 export function ContratoDetalleTabCliente({ contract }: ContratoDetalleTabClienteProps) {
-  const tipoCliente = resolveTipoCliente(contract)
   const { nombre, apellidos, esEmpresa } = resolveClientNameParts(contract)
 
   return (
@@ -24,7 +22,7 @@ export function ContratoDetalleTabCliente({ contract }: ContratoDetalleTabClient
         <ContratoDetalleFieldGrid>
           <ContratoDetalleField
             label="Tipo de cliente"
-            value={formatTipoClienteLabel(tipoCliente)}
+            value={formatTipoClienteLabel(contract.tipoCliente)}
           />
           <ContratoDetalleField
             label={esEmpresa ? "Razón social" : "Nombre"}
