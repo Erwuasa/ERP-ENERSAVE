@@ -117,18 +117,27 @@ export async function fetchAtContractExtras(input: {
     return { ok: false, reason: "error", message: "Inicia sesión para leer datos AT." }
   }
 
-  const response = await fetch(`${envUrl()}/functions/v1/at-contract-notes`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      apikey: envAnonKey(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      at_contract_id: input.atContractId,
-      contrato_id: input.contratoId,
-    }),
-  })
+  let response: Response
+  try {
+    response = await fetch(`${envUrl()}/functions/v1/at-contract-notes`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: envAnonKey(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        at_contract_id: input.atContractId,
+        contrato_id: input.contratoId,
+      }),
+    })
+  } catch {
+    return {
+      ok: false,
+      reason: "error",
+      message: "No se pudo contactar con AT (CORS o red). Recarga e inténtalo de nuevo.",
+    }
+  }
 
   const payload = (await response.json().catch(() => null)) as
     | {

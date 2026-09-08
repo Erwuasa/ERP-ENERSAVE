@@ -1,9 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1"
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-}
+import { corsHeaders, handleOptions } from "./cors.ts"
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -55,10 +51,7 @@ export async function assertErpOpsAdmin(req: Request): Promise<{ ok: true } | Re
 }
 
 export function handleCors(req: Request): Response | null {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders })
-  }
-  return null
+  return handleOptions(req)
 }
 
 export { corsHeaders, json }

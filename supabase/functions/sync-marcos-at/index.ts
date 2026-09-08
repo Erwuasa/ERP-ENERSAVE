@@ -1,4 +1,4 @@
-import { corsHeaders } from '../_shared/cors.ts'
+import { corsHeaders, handleOptions } from '../_shared/cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from '../_shared/at-webhook-auth.ts'
 import {
   AT_PAGE_SIZE,

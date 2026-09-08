@@ -1,4 +1,4 @@
-import { corsHeaders } from './cors.ts'
+import { corsHeaders, handleOptions } from './cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from './at-webhook-auth.ts'
 import { asUuid, exploreAtList, fetchFromAt } from './at-api.ts'
 import type { AtSyncContext } from './at-webhook-entity.ts'
@@ -53,9 +53,8 @@ export function serveAtSyncFunction(options: {
   extraExplore?: () => Promise<Record<string, unknown>>
 }) {
   Deno.serve(async (request) => {
-    if (request.method === 'OPTIONS') {
-      return new Response('ok', { headers: corsHeaders })
-    }
+    const preflight = handleOptions(request)
+    if (preflight) return preflight
 
     if (!['GET', 'POST'].includes(request.method)) {
       return respondWithJson({ error: 'Method not allowed' }, 405)

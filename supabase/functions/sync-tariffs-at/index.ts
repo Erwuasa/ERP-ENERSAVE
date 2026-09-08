@@ -1,4 +1,4 @@
-import { corsHeaders } from '../_shared/cors.ts'
+import { corsHeaders, handleOptions } from '../_shared/cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from '../_shared/at-webhook-auth.ts'
 import { exploreTariffs, parseTariffFetchOptions, runTariffSync } from '../_shared/sync-tariffs.ts'
 
@@ -14,9 +14,8 @@ function respondWithJson(body: unknown, status = 200) {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  const preflight = handleOptions(request)
+  if (preflight) return preflight
 
   if (!['GET', 'POST'].includes(request.method)) {
     return respondWithJson({ error: 'Method not allowed' }, 405)

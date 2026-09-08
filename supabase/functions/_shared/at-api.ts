@@ -273,8 +273,9 @@ export async function fetchAtChildList(path: string): Promise<JsonRecord[]> {
     return []
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('AT Enterprise 404')) return []
-    throw error
+    if (/AT Enterprise (401|403|404|422|500|502|503)/.test(message)) return []
+    console.warn('[at-api] child list failed', path, message)
+    return []
   }
 }
 
