@@ -202,7 +202,7 @@ export function useErpUsuarios({
       return;
     }
 
-    toast.success(`Invitación enviada a ${email}.`);
+    toast.success(`Acceso enviado a ${email} con contraseña temporal.`);
   };
 
   async function handleSaveUserRoleToSupabase(
@@ -340,7 +340,7 @@ export function useErpUsuarios({
       return;
     }
 
-    toast.success(`Invitación reenviada a ${email}`);
+    toast.success(`Acceso reenviado a ${email} con nueva contraseña temporal.`);
   }
 
   async function handleResetUserMfa(userId: string) {

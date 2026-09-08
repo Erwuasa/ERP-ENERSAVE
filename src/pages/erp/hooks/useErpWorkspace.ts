@@ -10,6 +10,7 @@ import type { Contract } from '@/types/contract';
 import { buildProspectoImportSources } from '@/lib/ventas/prospecto-import-sources';
 import type { IncidenciaTicket } from '@/lib/incidencias';
 import type { DashboardNavigateTarget } from '@/components/dashboard/SuperadminDashboard';
+import { resolveDashboardNavigation } from '@/lib/dashboard-navigation';
 import { useErpVentasBridge } from './workspace/useErpVentasBridge';
 import { useErpLiquidacionesDemo } from './workspace/useErpLiquidacionesDemo';
 import { useIncidenciasContext } from '@/pages/erp/incidencias/IncidenciasProvider';
@@ -45,7 +46,10 @@ export function useErpWorkspace() {
   } = useWorkspaceNavigation(activeRole);
 
   const ventasBridge = useErpVentasBridge({ navigateToTab });
-  const liquidaciones = useErpLiquidacionesDemo(currentMenuTab);
+  const {
+    setLiquidacionesSearchQuery,
+    ...liquidaciones
+  } = useErpLiquidacionesDemo(currentMenuTab);
   const comparador = useErpComparador({
     activeUser,
     activeModule,
@@ -154,36 +158,31 @@ export function useErpWorkspace() {
   }
 
   function handleDashboardNavigate(target: DashboardNavigateTarget) {
-    switch (target) {
-      case 'liquidaciones':
-        if (activeRole === 'tramitacion') {
-          navigateToTab('erp', 'Liquidaciones externas');
-        } else {
-          navigateToTab('erp', 'Liquidaciones internas');
-        }
-        break;
-      case 'contratos_activos':
-        setContractsListFilter('activado');
-        navigateToTab('erp', 'Contratos');
-        break;
-      case 'contratos_nuevos':
-      case 'bajas':
-      case 'contratos':
-        setContractsListFilter('all');
-        navigateToTab('erp', 'Contratos');
-        break;
-      case 'incidencias':
-        navigateToTab('erp', 'Incidencias');
-        break;
-      case 'comparativas':
-        navigateToTab('erp', 'Comparador');
-        break;
-      case 'comerciales':
-        navigateToTab('erp', 'Usuarios');
-        break;
-      default:
-        break;
+    const canViewTarifaRecommendations =
+      activeRole === 'comercial' ||
+      activeRole === 'jefe_comercial' ||
+      (activeRole === 'superadmin' && superadminViewMode === 'comercial');
+
+    const action = resolveDashboardNavigation(target, {
+      activeRole,
+      superadminViewMode,
+      canViewTarifaRecommendations,
+    });
+
+    if (action.kind === 'noop') return;
+
+    if (action.kind === 'renovacion_proxima') {
+      navigateToRenovacionProxima();
+      return;
     }
+
+    if (action.clearHighlight) setHighlightContractId(null);
+    if (action.clearContractsSearch) setContractsSearchQuery('');
+    if (action.clearLiquidacionesSearch) setLiquidacionesSearchQuery('');
+    if (action.contractsListFilter) setContractsListFilter(action.contractsListFilter);
+
+    navigateToTab('erp', action.tab);
+    if (action.toastMessage) toast.info(action.toastMessage);
   }
 
   function navigateToContratoFromFicha(contratoEquipoId: string) {
@@ -243,6 +242,7 @@ export function useErpWorkspace() {
     switchAppModule,
     ...ventasBridge,
     ...liquidaciones,
+    setLiquidacionesSearchQuery,
     cashflowScenario,
     setCashflowScenario,
     clientesSearchQuery,

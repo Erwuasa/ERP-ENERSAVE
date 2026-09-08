@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { Navigate } from "react-router-dom"
-import { AlertCircle, ChevronRight, Eye, EyeOff, Lock, User, Zap } from "lucide-react"
-import { EnersaveLogo } from "@/components/common/EnersaveLogo"
+import { AlertCircle, ChevronRight, Eye, EyeOff, Lock, User } from "lucide-react"
+import { EnersaveMarkLogin } from "@/components/common/EnersaveMarkLogin"
 import { MfaLoginPanel } from "@/components/auth/MfaLoginPanel"
+import { ChangePasswordPanel } from "@/components/auth/ChangePasswordPanel"
 import { getDefaultAppPath } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
-import { DEV_SANDBOX_SUPERADMIN_EMAIL } from "@/lib/dev-sandbox-login"
 import { normalizeTotpCode } from "@/lib/supabase/auth-mfa"
+import { staffLoginNeedsOnboardingHint } from "@/lib/supabase/staff-login-hint"
 
 export function LoginPage() {
   const {
@@ -19,32 +20,36 @@ export function LoginPage() {
     setLoginPassword,
     loginLoading,
     loginError,
+    passwordChangePending,
     mfaPending,
     triggerLogin,
+    submitPasswordChange,
     submitMfa,
-    chooseMfaMethod,
-    resendEmailOtp,
-    backToMfaChoose,
-    cancelMfa,
-    devSandboxQuickLogin,
-    isDevSandboxQuickLoginEnabled,
+    cancelLoginFlow,
   } = useAuth()
   const [mfaCode, setMfaCode] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const devAutoLoginAttempted = useRef(false)
+  const [showFirstAccessHint, setShowFirstAccessHint] = useState(false)
 
   useEffect(() => {
-    if (!isDevSandboxQuickLoginEnabled) return
-    if (isBootstrapping || isLoggedIn || mfaPending || devAutoLoginAttempted.current) return
-    devAutoLoginAttempted.current = true
-    void devSandboxQuickLogin()
-  }, [
-    isDevSandboxQuickLoginEnabled,
-    isBootstrapping,
-    isLoggedIn,
-    mfaPending,
-    devSandboxQuickLogin,
-  ])
+    const email = loginEmail.trim().toLowerCase()
+    if (!email.includes("@")) {
+      setShowFirstAccessHint(false)
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void staffLoginNeedsOnboardingHint(email).then((needsHint) => {
+        if (!cancelled) setShowFirstAccessHint(needsHint)
+      })
+    }, 400)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [loginEmail])
 
   if (isBootstrapping) {
     return (
@@ -59,27 +64,27 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-brand-bg relative overflow-hidden transition-colors duration-300 font-sans">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-brand-bg relative overflow-hidden transition-colors duration-300 font-sans">
       <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-blue-500/5 dark:bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-amber-500/5 dark:bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative w-full max-w-md bg-brand-panel border border-slate-200 dark:border-white/5 rounded-3xl p-8 sm:p-10 shadow-xl dark:shadow-none space-y-8 z-10">
-        <div className="text-center space-y-4">
-          <EnersaveLogo className="h-20 w-20 mx-auto" />
-          <div className="space-y-1">
-            <h1 className="text-2xl font-black tracking-tight text-brand-text font-display">
-              ERP ENERSAVE
-            </h1>
-            <p className="text-xs text-brand-subtext font-medium uppercase font-sans tracking-widest">
-              PLATFORM CORE
-            </p>
-          </div>
-        </div>
+        <EnersaveMarkLogin className="mx-auto" />
 
-        {mfaPending ? (
+        {passwordChangePending ? (
+          <ChangePasswordPanel
+            onSubmit={(newPassword, confirmPassword) => {
+              void submitPasswordChange(newPassword, confirmPassword)
+            }}
+            onCancel={() => {
+              void cancelLoginFlow()
+            }}
+            loading={loginLoading}
+            error={loginError}
+          />
+        ) : mfaPending ? (
           <MfaLoginPanel
             kind={mfaPending.kind}
-            email={mfaPending.email}
             qrCode={mfaPending.kind === "enroll" ? mfaPending.qrCode : undefined}
             secret={mfaPending.kind === "enroll" ? mfaPending.secret : undefined}
             code={mfaCode}
@@ -87,67 +92,13 @@ export function LoginPage() {
             onSubmit={() => {
               void submitMfa(mfaCode)
             }}
-            onChooseTotp={() => {
-              setMfaCode("")
-              void chooseMfaMethod("totp")
-            }}
-            onChooseEmail={() => {
-              setMfaCode("")
-              void chooseMfaMethod("email")
-            }}
-            onResendEmail={() => {
-              void resendEmailOtp()
-            }}
-            onBackToChoose={() => {
-              setMfaCode("")
-              void backToMfaChoose()
-            }}
             onCancel={() => {
               setMfaCode("")
-              void cancelMfa()
+              void cancelLoginFlow()
             }}
             loading={loginLoading}
             error={loginError}
           />
-        ) : isDevSandboxQuickLoginEnabled ? (
-          <div className="space-y-5">
-            {loginError ? (
-              <div className="p-3.5 rounded-xl bg-rose-500/5 dark:bg-rose-500/10 border border-rose-500/20 flex items-start space-x-2.5">
-                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-rose-700 dark:text-rose-300 leading-normal font-medium">
-                  {loginError}
-                </p>
-              </div>
-            ) : null}
-
-            <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 px-4 py-5 space-y-4">
-              <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300">
-                <Zap className="w-4 h-4 shrink-0" />
-                <p className="text-xs font-bold uppercase tracking-wider">Sandbox dev</p>
-              </div>
-              <p className="text-sm text-brand-text leading-relaxed">
-                Entrada automática como superadmin sin contraseña ni OTP.
-              </p>
-              <p className="text-[11px] font-mono text-brand-subtext break-all">
-                {DEV_SANDBOX_SUPERADMIN_EMAIL}
-              </p>
-              <button
-                type="button"
-                disabled={loginLoading}
-                onClick={() => void devSandboxQuickLogin()}
-                className="relative w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-70 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-none focus:outline-none transition-all flex items-center justify-center space-x-2 border border-blue-500 group cursor-pointer"
-              >
-                {loginLoading ? (
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span className="text-sm">Entrar al ERP</span>
-                    <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
         ) : (
           <>
             {loginError && (
@@ -215,16 +166,22 @@ export function LoginPage() {
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <>
-                    <span className="text-sm">Entrar al ERP</span>
+                    <span className="text-sm">Continuar</span>
                     <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
                   </>
                 )}
               </button>
             </form>
 
-            <p className="text-center text-xs text-brand-subtext">
-              El acceso es por invitación de EnerSave.
-            </p>
+            {showFirstAccessHint ? (
+              <p className="text-center text-xs text-brand-subtext">
+                Usa la contraseña temporal del correo en tu primer acceso.
+              </p>
+            ) : (
+              <p className="text-center text-xs text-brand-subtext">
+                El acceso es por invitación de EnerSave.
+              </p>
+            )}
           </>
         )}
       </div>

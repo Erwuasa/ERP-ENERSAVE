@@ -14,6 +14,7 @@ import {
   matchesContractEstadoUiFilter,
   type ContractEstadoUiFilter,
 } from "@/lib/contract-estado-kpis"
+import { matchesContractListFilter } from "@/lib/contract-list-filters"
 import {
   extractContractDataFromDocument,
   type ContractOcrResult,
@@ -297,6 +298,12 @@ export function useContratosPanel({
     }
     if (contractsListFilter === "nuevos_sin_revisar") {
       return isContractPendingTramitacionReview(c, reviewedContractIds ?? new Set())
+    }
+    if (
+      (contractsListFilter === "creados_este_mes" || contractsListFilter === "bajas_este_mes") &&
+      !matchesContractListFilter(c, contractsListFilter)
+    ) {
+      return false
     }
     if (
       isContractEstadoKpiFilter(contractsListFilter) &&

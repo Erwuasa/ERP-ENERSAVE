@@ -5,9 +5,11 @@ import { ComercialRenovacionesCard } from '@/components/ComercialRenovacionesCar
 import { ComercialContratosEstadoKpis } from '@/components/ComercialContratosEstadoKpis';
 import { ProximosEventosWidget } from '@/components/calendario/ProximosEventosWidget';
 import { isContractActivado, getContractEstadoBadgeClass } from '@/lib/contract-estado';
+import { isRenovacionProxima } from '@/lib/contract-renewal';
 import { isIncidenciaAbierta } from '@/lib/incidencias';
 import { useErpWorkspaceContext } from '@/pages/erp/providers/ErpWorkspaceProvider';
 import { useStaffFeeds } from '@/pages/erp/providers/staff-feeds-context';
+import { useMemo } from 'react';
 
 export function DashboardPage() {
   const ws = useErpWorkspaceContext();
@@ -18,6 +20,11 @@ export function DashboardPage() {
     handleDashboardNavigate, setLiquidacionesSearchQuery, navigateToTab, formatCurrency
   } = ws;
   const { calendarioEventos } = useStaffFeeds();
+
+  const renovacionesProximas = useMemo(
+    () => contracts.filter((contract) => isRenovacionProxima(contract)).length,
+    [contracts]
+  );
 
   return (
                       <div className="space-y-8">
@@ -46,6 +53,7 @@ export function DashboardPage() {
                               id: c.id,
                               date: c.date,
                             }))}
+                            renovacionesProximas={renovacionesProximas}
                             onNavigate={handleDashboardNavigate}
                           />
                         )}

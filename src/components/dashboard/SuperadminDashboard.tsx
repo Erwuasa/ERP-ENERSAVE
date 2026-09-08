@@ -139,6 +139,7 @@ export function SuperadminDashboard({
           compact
           label={isOrgLiquidaciones ? "Liquidaciones este mes" : "Mis liquidaciones"}
           displayValue={formatCurrency(liquidacionesMesEuros)}
+          hint="Ver →"
           icon={WalletCards}
           iconClass="text-emerald-600/70 dark:text-emerald-400/80"
           valueClass="text-emerald-700 dark:text-emerald-400"
@@ -149,6 +150,7 @@ export function SuperadminDashboard({
           compact
           label="Contratos activos"
           displayValue={activos.toLocaleString("es-ES")}
+          hint="Ver →"
           icon={FileText}
           iconClass="text-blue-600/70 dark:text-blue-400/80"
           valueClass="text-blue-700 dark:text-blue-400"

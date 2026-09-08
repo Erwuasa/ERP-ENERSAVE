@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react"
 import { useNavigate } from "react-router-dom"
+import { updateStaffPassword, userMustChangePassword } from "@/lib/auth-password-change"
 import {
   AUTH_USER_STORAGE_KEY,
   clearSupabaseSession,
@@ -18,18 +19,10 @@ import {
   syncSupabaseSession,
 } from "@/lib/supabase/auth-session"
 import {
-  getDevSandboxLoginCredentials,
-  isDevSandboxQuickLoginEnabled,
-  resolveDevSandboxPassword,
-  shouldSkipDevSandboxMfa,
-} from "@/lib/dev-sandbox-login"
-import {
   cancelTotpEnrollment,
   inspectStaffMfa,
   normalizeTotpCode,
-  sendStaffEmailOtp,
   startTotpEnrollment,
-  verifyStaffEmailOtp,
   verifyTotpCode,
 } from "@/lib/supabase/auth-mfa"
 import { resolveWorkspaceAfterAuth } from "@/lib/supabase/user-profiles"
@@ -40,17 +33,13 @@ import { EMPTY_PROFILE, isStaffRole, type Profile } from "@/types/profile"
 
 type MfaWorkspace = {
   email: string
-  hasTotp: boolean
-  totpFactorId?: string
   profile: Profile
   directory: Profile[]
 }
 
 export type MfaPendingState =
-  | ({ kind: "choose" } & MfaWorkspace)
   | ({ kind: "challenge"; factorId: string } & MfaWorkspace)
   | ({ kind: "enroll"; factorId: string; qrCode: string; secret: string } & MfaWorkspace)
-  | ({ kind: "email" } & MfaWorkspace)
 
 interface AuthContextValue {
   isLoggedIn: boolean
@@ -66,17 +55,14 @@ interface AuthContextValue {
   setLoginPassword: Dispatch<SetStateAction<string>>
   loginLoading: boolean
   loginError: string | null
+  passwordChangePending: MfaWorkspace | null
   mfaPending: MfaPendingState | null
   triggerLogin: (e: FormEvent) => Promise<void>
+  submitPasswordChange: (newPassword: string, confirmPassword: string) => Promise<void>
   submitMfa: (code: string) => Promise<void>
-  chooseMfaMethod: (method: "totp" | "email") => Promise<void>
-  resendEmailOtp: () => Promise<void>
-  backToMfaChoose: () => Promise<void>
-  cancelMfa: () => Promise<void>
+  cancelLoginFlow: () => Promise<void>
   logout: () => Promise<void>
   applyLoginProfile: (profile: Profile) => void
-  devSandboxQuickLogin: () => Promise<void>
-  isDevSandboxQuickLoginEnabled: boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -108,7 +94,7 @@ async function assertActiveStaffAccount(
   return { ok: true }
 }
 
-async function gateStaffWorkspace(
+async function buildTotpPendingState(
   email: string,
   profile: Profile,
   directory: Profile[]
@@ -116,26 +102,34 @@ async function gateStaffWorkspace(
   | { ok: true; pending: MfaPendingState | null }
   | { ok: false; message: string }
 > {
-  if (shouldSkipDevSandboxMfa(email)) {
-    return { ok: true, pending: null }
-  }
-
   const inspected = await inspectStaffMfa()
   if (inspected.ok === false) return inspected
   if (inspected.data.step === "none") return { ok: true, pending: null }
 
-  const hasTotp = inspected.data.step === "challenge"
-  const totpFactorId =
-    inspected.data.step === "challenge" ? inspected.data.factorId : undefined
+  const workspace: MfaWorkspace = { email, profile, directory }
+
+  if (inspected.data.step === "challenge") {
+    return {
+      ok: true,
+      pending: {
+        kind: "challenge",
+        factorId: inspected.data.factorId,
+        ...workspace,
+      },
+    }
+  }
+
+  const enrolled = await startTotpEnrollment()
+  if (enrolled.ok === false) return enrolled
+
   return {
     ok: true,
     pending: {
-      kind: "choose",
-      email,
-      hasTotp,
-      totpFactorId,
-      profile,
-      directory,
+      kind: "enroll",
+      factorId: enrolled.data.factorId,
+      qrCode: enrolled.data.qrCode,
+      secret: enrolled.data.secret,
+      ...workspace,
     },
   }
 }
@@ -150,6 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loginPassword, setLoginPassword] = useState("")
   const [loginLoading, setLoginLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [passwordChangePending, setPasswordChangePending] = useState<MfaWorkspace | null>(null)
   const [mfaPending, setMfaPending] = useState<MfaPendingState | null>(null)
 
   const activeUser = useMemo(
@@ -175,10 +170,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     persistLoggedInProfile(profile.id)
   }, [])
 
+  const proceedAfterAuthenticated = useCallback(
+    async (searchEmail: string, workspace: { profile: Profile; directory: Profile[] }) => {
+      if (await userMustChangePassword()) {
+        setPasswordChangePending({
+          email: searchEmail,
+          profile: workspace.profile,
+          directory: workspace.directory,
+        })
+        setLoginPassword("")
+        setLoginLoading(false)
+        return
+      }
+
+      const totp = await buildTotpPendingState(
+        searchEmail,
+        workspace.profile,
+        workspace.directory
+      )
+      if (totp.ok === false) {
+        await clearSupabaseSession()
+        setLoginLoading(false)
+        setLoginError(totp.message)
+        return
+      }
+      if (totp.pending) {
+        setMfaPending(totp.pending)
+        setLoginPassword("")
+        setLoginLoading(false)
+        return
+      }
+
+      applyLoginProfile(workspace.profile, workspace.directory)
+      setLoginPassword("")
+      setLoginLoading(false)
+    },
+    [applyLoginProfile]
+  )
+
   const completeStaffLogin = useCallback(
     async (searchEmail: string, password: string) => {
       setLoginLoading(true)
       setLoginError(null)
+      setPasswordChangePending(null)
+      setMfaPending(null)
 
       if (!isSupabaseConfigured()) {
         setLoginLoading(false)
@@ -209,60 +244,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      const gated = await gateStaffWorkspace(
-        searchEmail,
-        workspace.data.profile,
-        workspace.data.directory
-      )
-      if (gated.ok === false) {
-        await clearSupabaseSession()
-        setLoginLoading(false)
-        setLoginError(gated.message)
-        return
-      }
-      if (gated.pending) {
-        setMfaPending(gated.pending)
-        setLoginPassword("")
-        setLoginLoading(false)
-        return
-      }
-
-      applyLoginProfile(workspace.data.profile, workspace.data.directory)
-      setLoginPassword("")
-      setLoginLoading(false)
+      await proceedAfterAuthenticated(searchEmail, workspace.data)
     },
-    [applyLoginProfile]
+    [proceedAfterAuthenticated]
   )
-
-  const devSandboxQuickLogin = useCallback(async () => {
-    if (!isDevSandboxQuickLoginEnabled()) return
-    const { email, password } = getDevSandboxLoginCredentials()
-    setLoginEmail(email)
-    await completeStaffLogin(email, password)
-  }, [completeStaffLogin])
 
   const triggerLogin = useCallback(
     async (e: FormEvent) => {
       e.preventDefault()
       const searchEmail = loginEmail.toLowerCase().trim()
-      await completeStaffLogin(
-        searchEmail,
-        resolveDevSandboxPassword(searchEmail, loginPassword)
-      )
+      await completeStaffLogin(searchEmail, loginPassword)
     },
     [loginEmail, loginPassword, completeStaffLogin]
   )
 
-  const submitMfa = useCallback(
-    async (code: string) => {
-      if (!mfaPending || mfaPending.kind === "choose") return
+  const submitPasswordChange = useCallback(
+    async (newPassword: string, confirmPassword: string) => {
+      if (!passwordChangePending) return
       setLoginLoading(true)
       setLoginError(null)
 
-      const verified =
-        mfaPending.kind === "email"
-          ? await verifyStaffEmailOtp(mfaPending.email, code)
-          : await verifyTotpCode(mfaPending.factorId, normalizeTotpCode(code))
+      const updated = await updateStaffPassword(newPassword, confirmPassword)
+      if (updated.ok === false) {
+        setLoginLoading(false)
+        setLoginError(updated.message)
+        return
+      }
+
+      const pending = passwordChangePending
+      setPasswordChangePending(null)
+      await proceedAfterAuthenticated(pending.email, {
+        profile: pending.profile,
+        directory: pending.directory,
+      })
+    },
+    [passwordChangePending, proceedAfterAuthenticated]
+  )
+
+  const submitMfa = useCallback(
+    async (code: string) => {
+      if (!mfaPending) return
+      setLoginLoading(true)
+      setLoginError(null)
+
+      const verified = await verifyTotpCode(mfaPending.factorId, normalizeTotpCode(code))
       if (verified.ok === false) {
         setLoginLoading(false)
         setLoginError(verified.message)
@@ -277,96 +302,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [mfaPending, applyLoginProfile]
   )
 
-  const chooseMfaMethod = useCallback(
-    async (method: "totp" | "email") => {
-      if (!mfaPending) return
-      setLoginLoading(true)
-      setLoginError(null)
-
-      const workspace: MfaWorkspace = {
-        email: mfaPending.email,
-        hasTotp: mfaPending.hasTotp,
-        totpFactorId: mfaPending.totpFactorId,
-        profile: mfaPending.profile,
-        directory: mfaPending.directory,
-      }
-
-      if (method === "email") {
-        if (mfaPending.kind === "enroll") {
-          await cancelTotpEnrollment(mfaPending.factorId)
-        }
-        const sent = await sendStaffEmailOtp(workspace.email)
-        if (sent.ok === false) {
-          setLoginLoading(false)
-          setLoginError(sent.message)
-          return
-        }
-        setMfaPending({ kind: "email", ...workspace })
-        setLoginLoading(false)
-        return
-      }
-
-      if (workspace.hasTotp && workspace.totpFactorId) {
-        setMfaPending({
-          kind: "challenge",
-          factorId: workspace.totpFactorId,
-          ...workspace,
-        })
-        setLoginLoading(false)
-        return
-      }
-
-      const enrolled = await startTotpEnrollment()
-      if (enrolled.ok === false) {
-        setLoginLoading(false)
-        setLoginError(enrolled.message)
-        return
-      }
-      setMfaPending({
-        kind: "enroll",
-        factorId: enrolled.data.factorId,
-        qrCode: enrolled.data.qrCode,
-        secret: enrolled.data.secret,
-        ...workspace,
-      })
-      setLoginLoading(false)
-    },
-    [mfaPending]
-  )
-
-  const resendEmailOtp = useCallback(async () => {
-    if (!mfaPending || mfaPending.kind !== "email") return
-    setLoginLoading(true)
-    setLoginError(null)
-    const sent = await sendStaffEmailOtp(mfaPending.email)
-    setLoginLoading(false)
-    if (sent.ok === false) {
-      setLoginError(sent.message)
-      return
-    }
-  }, [mfaPending])
-
-  const backToMfaChoose = useCallback(async () => {
-    if (!mfaPending || mfaPending.kind === "choose") return
-    if (mfaPending.kind === "enroll") {
-      await cancelTotpEnrollment(mfaPending.factorId)
-    }
-    setLoginError(null)
-    setMfaPending({
-      kind: "choose",
-      email: mfaPending.email,
-      hasTotp: mfaPending.hasTotp,
-      totpFactorId: mfaPending.totpFactorId,
-      profile: mfaPending.profile,
-      directory: mfaPending.directory,
-    })
-  }, [mfaPending])
-
-  const cancelMfa = useCallback(async () => {
+  const cancelLoginFlow = useCallback(async () => {
     if (mfaPending?.kind === "enroll") {
       await cancelTotpEnrollment(mfaPending.factorId)
     }
     await clearSupabaseSession()
+    setPasswordChangePending(null)
     setMfaPending(null)
     setLoginError(null)
     setLoginPassword("")
@@ -377,6 +318,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await clearSupabaseSession()
     clearPersistedProfile()
     setIsLoggedIn(false)
+    setPasswordChangePending(null)
     setMfaPending(null)
     setProfiles([])
     setActiveUserId("")
@@ -404,23 +346,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsBootstrapping(false)
             return
           }
-          const gated = await gateStaffWorkspace(
+
+          if (await userMustChangePassword()) {
+            setPasswordChangePending({
+              email: status.email,
+              profile: workspace.data.profile,
+              directory: workspace.data.directory,
+            })
+            setIsBootstrapping(false)
+            return
+          }
+
+          const totp = await buildTotpPendingState(
             status.email,
             workspace.data.profile,
             workspace.data.directory
           )
           if (cancelled) return
-          if (gated.ok === false) {
+          if (totp.ok === false) {
             await clearSupabaseSession()
-            setLoginError(gated.message)
+            setLoginError(totp.message)
             setIsBootstrapping(false)
             return
           }
-          if (gated.pending) {
-            setMfaPending(gated.pending)
+          if (totp.pending) {
+            setMfaPending(totp.pending)
             setIsBootstrapping(false)
             return
           }
+
           restoreFromProfile(workspace.data.profile, workspace.data.directory)
           setIsBootstrapping(false)
           return
@@ -452,6 +406,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.session) return
         clearPersistedProfile()
         setIsLoggedIn(false)
+        setPasswordChangePending(null)
         setMfaPending(null)
         setProfiles([])
         setActiveUserId("")
@@ -476,17 +431,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoginPassword,
       loginLoading,
       loginError,
+      passwordChangePending,
       mfaPending,
       triggerLogin,
+      submitPasswordChange,
       submitMfa,
-      chooseMfaMethod,
-      resendEmailOtp,
-      backToMfaChoose,
-      cancelMfa,
+      cancelLoginFlow,
       logout,
       applyLoginProfile,
-      devSandboxQuickLogin,
-      isDevSandboxQuickLoginEnabled: isDevSandboxQuickLoginEnabled(),
     }),
     [
       isLoggedIn,
@@ -498,16 +450,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginPassword,
       loginLoading,
       loginError,
+      passwordChangePending,
       mfaPending,
       triggerLogin,
+      submitPasswordChange,
       submitMfa,
-      chooseMfaMethod,
-      resendEmailOtp,
-      backToMfaChoose,
-      cancelMfa,
+      cancelLoginFlow,
       logout,
       applyLoginProfile,
-      devSandboxQuickLogin,
     ]
   )
 

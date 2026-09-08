@@ -8,7 +8,7 @@ export interface SendStaffInvitationInput {
   email: string
   fullName: string
   role: string
-  registerUrl?: string
+  loginUrl?: string
 }
 
 function envUrl() {
@@ -19,11 +19,11 @@ function envAnonKey() {
   return String(import.meta.env.SUPABASE_ANON_KEY ?? "")
 }
 
-function defaultRegisterUrl(): string {
+function defaultLoginUrl(): string {
   if (typeof window !== "undefined" && window.location?.origin) {
-    return `${window.location.origin}/register`
+    return `${window.location.origin}/login`
   }
-  return "/register"
+  return "/login"
 }
 
 export async function sendStaffInvitationEmail(
@@ -51,7 +51,7 @@ export async function sendStaffInvitationEmail(
       email: input.email.trim().toLowerCase(),
       fullName: input.fullName.trim(),
       role: input.role,
-      registerUrl: input.registerUrl ?? defaultRegisterUrl(),
+      loginUrl: input.loginUrl ?? defaultLoginUrl(),
     }),
   })
 

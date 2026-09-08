@@ -16,6 +16,8 @@ export type ContractsListFilter =
   | "con_recomendacion"
   | "borrador"
   | "nuevos_sin_revisar"
+  | "creados_este_mes"
+  | "bajas_este_mes"
   | ContractEstadoKpiFilter
 
 export interface ContractEstadoKpiMeta {
@@ -74,6 +76,8 @@ export function matchesContractEstadoKpiFilter(
     filter === "con_recomendacion" ||
     filter === "borrador" ||
     filter === "nuevos_sin_revisar" ||
+    filter === "creados_este_mes" ||
+    filter === "bajas_este_mes" ||
     !CONTRACT_ESTADO_KPI_FILTERS.includes(filter as ContractEstadoKpiFilter)
   ) {
     return true
@@ -118,6 +122,8 @@ export function contractsListFilterLabel(filter: ContractsListFilter): string {
   if (filter === "con_recomendacion") return " · con recomendación"
   if (filter === "borrador") return " · borrador"
   if (filter === "nuevos_sin_revisar") return " · nuevos sin revisar"
+  if (filter === "creados_este_mes") return " · creados este mes"
+  if (filter === "bajas_este_mes") return " · bajas este mes"
   const meta = CONTRACT_ESTADO_KPI_META.find((m) => m.id === filter)
   return meta ? ` · ${meta.label.toLowerCase()}` : ""
 }

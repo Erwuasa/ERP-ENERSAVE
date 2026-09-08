@@ -10,7 +10,7 @@ export interface TotpEnrollment {
   secret: string
 }
 
-const TOTP_ISSUER = "ERP ENERSAVE"
+const TOTP_ISSUER = "ENERSAVE ERP"
 
 export function staffMfaStep(
   currentLevel: string | null | undefined,

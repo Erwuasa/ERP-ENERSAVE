@@ -421,9 +421,13 @@ export function ContratosPanelTable({
             ? "No hay contratos con renovación próxima."
             : contractsListFilter === "con_recomendacion"
               ? "No hay contratos con recomendación tarifaria."
-              : isContractEstadoKpiFilter(contractsListFilter)
-                ? `No hay contratos en estado «${contractsListFilterLabel(contractsListFilter).replace(/^ · /, "")}».`
-                : "No hay contratos que coincidan con la búsqueda."}
+              : contractsListFilter === "creados_este_mes"
+                ? "No hay contratos creados este mes."
+                : contractsListFilter === "bajas_este_mes"
+                  ? "No hay bajas registradas este mes."
+                  : isContractEstadoKpiFilter(contractsListFilter)
+                    ? `No hay contratos en estado «${contractsListFilterLabel(contractsListFilter).replace(/^ · /, "")}».`
+                    : "No hay contratos que coincidan con la búsqueda."}
         </p>
       )}
     </div>
