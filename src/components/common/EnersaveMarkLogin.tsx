@@ -1,13 +1,17 @@
 import { EnersaveMonogram } from "./EnersaveMonogram"
 
-/** Logo de login: monograma E+S sin fondo y texto de marca. */
+const ENERSAVE_BLUE = "#1E4785"
+const ENERSAVE_GREEN = "#3FB950"
+
+/** Logo de login: monograma E+S y wordmark ERP ENERSAVE. */
 export function EnersaveMarkLogin({ className = "" }: { className?: string }) {
   return (
     <div className={`flex flex-col items-center text-center ${className}`}>
-      <EnersaveMonogram className="h-[72px] w-[72px] sm:h-20 sm:w-20" />
-      <span className="mt-3 text-xl sm:text-2xl font-black tracking-tight text-brand-text font-display">
-        ERP ENERSAVE
-      </span>
+      <EnersaveMonogram className="h-24 w-auto sm:h-28" />
+      <p className="mt-3 text-xl sm:text-2xl font-black tracking-tight font-display leading-none">
+        <span style={{ color: ENERSAVE_BLUE }}>ERP ENER</span>
+        <span style={{ color: ENERSAVE_GREEN }}>SAVE</span>
+      </p>
     </div>
   )
 }
