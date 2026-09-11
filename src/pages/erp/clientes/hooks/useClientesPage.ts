@@ -17,7 +17,7 @@ export function useClientesPage({
   onNavigateToContratosActivos,
 }: UseClientesPageOptions) {
   const { profiles, activeUserId, activeUser } = useAuth()
-  const { clients, setClients, contracts } = useErpData()
+  const { clients, setClients, addOptimisticClient, contracts, erpDataLoading } = useErpData()
 
   const activeRole = activeUser.role as MisClientesPanelProps["activeRole"]
 
@@ -25,6 +25,8 @@ export function useClientesPage({
     panelProps: {
       clients,
       setClients,
+      addOptimisticClient,
+      erpDataLoading,
       contracts,
       activeUserId,
       activeUserName: activeUser.fullName,

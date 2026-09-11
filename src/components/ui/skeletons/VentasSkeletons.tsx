@@ -308,6 +308,26 @@ export function IncidenciasKanbanSkeleton() {
   )
 }
 
+export function ClientesTableSkeleton({ rows = 4 }: { rows?: number }) {
+  return (
+    <div className="px-4 py-3 space-y-3" aria-busy="true" aria-label="Cargando clientes">
+      <div className="flex gap-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+        <Skeleton className="h-3 w-24" rounded="sm" />
+        <Skeleton className="h-3 w-16 hidden sm:block" rounded="sm" />
+        <Skeleton className="h-3 w-14 ml-auto" rounded="sm" />
+      </div>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 py-1.5">
+          <Skeleton className="h-3.5 w-32" rounded="sm" />
+          <Skeleton className="h-3 w-20 hidden sm:block" rounded="sm" />
+          <Skeleton className="h-3 w-16 hidden md:block" rounded="sm" />
+          <Skeleton className="h-5 w-14 ml-auto" rounded="full" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function ContratosTableSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="px-4 py-3 space-y-3" aria-busy="true">

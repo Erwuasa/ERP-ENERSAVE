@@ -12,9 +12,12 @@ import {
 import { ENERSAVE_ACTION, clientTypeBadgeClass } from "@/lib/enersave-ui-theme"
 import { ClientesSortableHeader } from "@/pages/erp/clientes/components/ClientesSortableHeader"
 import { CLIENTES_TD, CLIENTES_TH } from "@/pages/erp/clientes/components/clientes-panel-utils"
+import { ClientesTableSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
 
 type Props = {
   clients: Client[]
+  /** True while the initial clients fetch is in flight and there's nothing to show yet. */
+  loading?: boolean
   contracts: Contract[]
   sortField: ClienteSortField
   sortDirection: SortDirection
@@ -25,6 +28,7 @@ type Props = {
 
 export function ClientesPanelTable({
   clients,
+  loading = false,
   contracts,
   sortField,
   sortDirection,
@@ -32,6 +36,10 @@ export function ClientesPanelTable({
   onOpenFolder,
   onOpenContracts,
 }: Props) {
+  if (loading && clients.length === 0) {
+    return <ClientesTableSkeleton />
+  }
+
   return (
     <div className="h-full min-h-0 overflow-auto overscroll-contain rounded-2xl border border-brand-border bg-brand-panel shadow-sm">
       <table className="w-full min-w-[920px] table-fixed text-left border-collapse text-xs">

@@ -26,6 +26,10 @@ import {
   applyContractOptimisticAction,
   type ContractOptimisticAction,
 } from "@/lib/erp/contract-optimistic-actions"
+import {
+  applyClientOptimisticAction,
+  type ClientOptimisticAction,
+} from "@/lib/clients-optimistic-actions"
 
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { ClawbackPendingContract } from "@/lib/erp/contract-clawback"
@@ -147,8 +151,12 @@ interface ErpDataContextValue {
   setContracts: Dispatch<SetStateAction<Contract[]>>
   /** Show a pending change immediately; auto-reverts if the surrounding transition ends without a matching `setContracts` call. */
   addOptimisticContract: (action: ContractOptimisticAction) => void
+  /** Optimistic-derived: reflects pending local edits before the server confirms them. */
   clients: Client[]
+  /** Raw setter — writes the authoritative state `clients` is derived from. */
   setClients: Dispatch<SetStateAction<Client[]>>
+  /** Show a pending change immediately; auto-reverts if the surrounding transition ends without a matching `setClients` call. */
+  addOptimisticClient: (action: ClientOptimisticAction) => void
   settlements: Settlement[]
   setSettlements: Dispatch<SetStateAction<Settlement[]>>
   contractsSearchQuery: string
@@ -185,6 +193,10 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
   const [optimisticContracts, addOptimisticContract] = useOptimistic(
     contracts,
     applyContractOptimisticAction
+  )
+  const [optimisticClients, addOptimisticClient] = useOptimistic(
+    clients,
+    applyClientOptimisticAction
   )
 
   useEffect(() => {
@@ -304,8 +316,9 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       contracts: optimisticContracts,
       setContracts,
       addOptimisticContract,
-      clients,
+      clients: optimisticClients,
       setClients,
+      addOptimisticClient,
       settlements,
       setSettlements,
       contractsSearchQuery,
@@ -323,7 +336,8 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
     [
       optimisticContracts,
       addOptimisticContract,
-      clients,
+      optimisticClients,
+      addOptimisticClient,
       settlements,
       contractsSearchQuery,
       contractsListFilter,

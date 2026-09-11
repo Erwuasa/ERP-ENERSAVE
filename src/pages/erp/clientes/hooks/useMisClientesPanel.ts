@@ -1,8 +1,19 @@
-import { useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react"
+import {
+  startTransition,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
 import { toast } from "sonner"
 import type { Client, ClienteArchivo } from "@/types/client"
 import type { Contract } from "@/types/contract"
 import { getContractsForClient } from "@/lib/clients"
+import type { ClientOptimisticAction } from "@/lib/clients-optimistic-actions"
+import { updateCliente } from "@/lib/supabase/clientes"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   applyClientesPanelFilters,
   countClientesByAceptacion,
@@ -27,6 +38,7 @@ import {
 type Options = {
   clients: Client[]
   setClients: Dispatch<SetStateAction<Client[]>>
+  addOptimisticClient: (action: ClientOptimisticAction) => void
   contracts: Contract[]
   activeUserId: string
   activeUserName: string
@@ -38,6 +50,7 @@ type Options = {
 export function useMisClientesPanel({
   clients,
   setClients,
+  addOptimisticClient,
   contracts,
   activeUserId,
   activeUserName,
@@ -147,21 +160,55 @@ export function useMisClientesPanel({
       })
     }
 
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === folderClientId ? { ...c, archivos: [...newArchivos, ...c.archivos] } : c
-      )
-    )
-    toast.success(`${newArchivos.length} archivo(s) añadido(s)`)
+    const client = clients.find((c) => c.id === folderClientId)
+    if (!client) return
+    const nextArchivos = [...newArchivos, ...client.archivos]
+
+    startTransition(async () => {
+      addOptimisticClient({ type: "patch", id: folderClientId, changes: { archivos: nextArchivos } })
+
+      if (!isSupabaseConfigured()) {
+        setClients((prev) =>
+          prev.map((c) => (c.id === folderClientId ? { ...c, archivos: nextArchivos } : c))
+        )
+        toast.success(`${newArchivos.length} archivo(s) añadido(s)`)
+        return
+      }
+
+      const result = await updateCliente(folderClientId, { archivos: nextArchivos })
+      if (!result.ok) {
+        toast.error(`No se pudo guardar el archivo: ${result.message}`)
+        return
+      }
+      setClients((prev) => prev.map((c) => (c.id === folderClientId ? result.data : c)))
+      toast.success(`${newArchivos.length} archivo(s) añadido(s)`)
+    })
   }
 
   function removeArchivo(clientId: string, archivoId: string) {
-    setClients((prev) =>
-      prev.map((c) =>
-        c.id === clientId ? { ...c, archivos: c.archivos.filter((a) => a.id !== archivoId) } : c
-      )
-    )
-    toast.info("Archivo eliminado de la carpeta del cliente")
+    const client = clients.find((c) => c.id === clientId)
+    if (!client) return
+    const nextArchivos = client.archivos.filter((a) => a.id !== archivoId)
+
+    startTransition(async () => {
+      addOptimisticClient({ type: "patch", id: clientId, changes: { archivos: nextArchivos } })
+
+      if (!isSupabaseConfigured()) {
+        setClients((prev) =>
+          prev.map((c) => (c.id === clientId ? { ...c, archivos: nextArchivos } : c))
+        )
+        toast.info("Archivo eliminado de la carpeta del cliente")
+        return
+      }
+
+      const result = await updateCliente(clientId, { archivos: nextArchivos })
+      if (!result.ok) {
+        toast.error(`No se pudo eliminar el archivo: ${result.message}`)
+        return
+      }
+      setClients((prev) => prev.map((c) => (c.id === clientId ? result.data : c)))
+      toast.info("Archivo eliminado de la carpeta del cliente")
+    })
   }
 
   function exportCsv() {

@@ -8,10 +8,14 @@ import { ClientesPanelTable } from "@/pages/erp/clientes/components/ClientesPane
 import { ClientesFolderModal } from "@/pages/erp/clientes/components/ClientesFolderModal"
 import { ClientesContractsModal } from "@/pages/erp/clientes/components/ClientesContractsModal"
 import type { ClientesProfileOption } from "@/pages/erp/clientes/components/clientes-panel-utils"
+import type { ClientOptimisticAction } from "@/lib/clients-optimistic-actions"
 
 export interface MisClientesPanelProps {
   clients: Client[]
   setClients: Dispatch<SetStateAction<Client[]>>
+  addOptimisticClient: (action: ClientOptimisticAction) => void
+  /** True while the initial clients fetch is in flight and there's nothing to show yet. */
+  erpDataLoading?: boolean
   contracts: Contract[]
   activeUserId: string
   activeUserName: string
@@ -24,7 +28,13 @@ export interface MisClientesPanelProps {
 }
 
 export function MisClientesPanel(props: MisClientesPanelProps) {
-  const { clientesSearchQuery, setClientesSearchQuery, onNavigateToContract, onNavigateToContratosActivos } = props
+  const {
+    clientesSearchQuery,
+    setClientesSearchQuery,
+    onNavigateToContract,
+    onNavigateToContratosActivos,
+    erpDataLoading = false,
+  } = props
   const vm = useMisClientesPanel(props)
 
   return (
@@ -56,6 +66,7 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
       <div className="min-h-0 flex-1 flex flex-col gap-1.5">
       <ClientesPanelTable
         clients={vm.sorted}
+        loading={erpDataLoading}
         contracts={vm.contracts}
         sortField={vm.sortField}
         sortDirection={vm.sortDirection}
