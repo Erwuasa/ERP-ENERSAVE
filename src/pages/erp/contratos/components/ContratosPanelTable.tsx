@@ -25,6 +25,7 @@ import {
   normalizeContractEstado,
 } from "@/lib/contract-estado"
 import type { useEditableCell } from "@/hooks/use-editable-cell"
+import { ContratosTableSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
 import { canUserDeleteContract } from "@/lib/contract-deletion"
 import { ContractQuickActionButton } from "@/components/contratos/ContractQuickActionButton"
 import { TarifaRecommendationPopover } from "@/components/TarifaRecommendationPopover"
@@ -63,6 +64,8 @@ type Props = {
   onDismissRecommendation?: (contractId: string) => void
   onDismissRenewalAlert?: (contractId: string) => void
   onOpenDetalle?: (contract: Contract) => void
+  /** True while the initial contracts fetch is in flight and there's nothing to show yet. */
+  loading?: boolean
 }
 
 function ContractSupplyTypeIcon({ tipo }: { tipo: Contract["tipo"] }) {
@@ -106,6 +109,7 @@ export function ContratosPanelTable({
   onDismissRecommendation,
   onDismissRenewalAlert,
   onOpenDetalle,
+  loading = false,
 }: Props) {
   const [openRecId, setOpenRecId] = useState<string | null>(null)
   const [openRenewalId, setOpenRenewalId] = useState<string | null>(null)
@@ -117,6 +121,10 @@ export function ContratosPanelTable({
     const target = event.target as HTMLElement
     if (target.closest("button, input, a, select, [data-no-row-open]")) return
     onOpenDetalle(contract)
+  }
+
+  if (loading && rows.length === 0) {
+    return <ContratosTableSkeleton rows={6} />
   }
 
   return (

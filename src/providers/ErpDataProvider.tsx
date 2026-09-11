@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useOptimistic,
   useState,
   type Dispatch,
   type ReactNode,
@@ -21,6 +22,10 @@ import { isSupabaseConfigured } from "@/lib/supabase/client"
 import { subscribeSettlementsChanges } from "@/lib/settlements-realtime"
 import type { SupabaseFailure, SupabaseResult } from "@/lib/supabase/result"
 import { toast } from "sonner"
+import {
+  applyContractOptimisticAction,
+  type ContractOptimisticAction,
+} from "@/lib/erp/contract-optimistic-actions"
 
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { ClawbackPendingContract } from "@/lib/erp/contract-clawback"
@@ -136,8 +141,12 @@ const INITIAL_SETTLEMENTS: Settlement[] = [
 ]
 
 interface ErpDataContextValue {
+  /** Optimistic-derived: reflects pending local edits before the server confirms them. */
   contracts: Contract[]
+  /** Raw setter — writes the authoritative state `contracts` is derived from. */
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  /** Show a pending change immediately; auto-reverts if the surrounding transition ends without a matching `setContracts` call. */
+  addOptimisticContract: (action: ContractOptimisticAction) => void
   clients: Client[]
   setClients: Dispatch<SetStateAction<Client[]>>
   settlements: Settlement[]
@@ -152,6 +161,8 @@ interface ErpDataContextValue {
   setHighlightContractId: Dispatch<SetStateAction<string | null>>
   pendingContracts: ClawbackPendingContract[]
   setPendingContracts: Dispatch<SetStateAction<ClawbackPendingContract[]>>
+  /** True while the initial contracts/clients/settlements fetch is in flight. */
+  erpDataLoading: boolean
 }
 
 const ErpDataContext = createContext<ErpDataContextValue | null>(null)
@@ -169,6 +180,11 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
   )
   const [pendingContracts, setPendingContracts] = useState<ClawbackPendingContract[]>(
     INITIAL_PENDING_CONTRACTS
+  )
+  const [erpDataLoading, setErpDataLoading] = useState(() => isSupabaseConfigured())
+  const [optimisticContracts, addOptimisticContract] = useOptimistic(
+    contracts,
+    applyContractOptimisticAction
   )
 
   useEffect(() => {
@@ -252,6 +268,7 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
         )
       }
       if (errors.length > 0) toast.warning(`No se pudieron cargar algunos datos. ${errors.join(" · ")}`)
+      if (!cancelled) setErpDataLoading(false)
     })()
 
     return () => {
@@ -284,8 +301,9 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(
     () => ({
-      contracts,
+      contracts: optimisticContracts,
       setContracts,
+      addOptimisticContract,
       clients,
       setClients,
       settlements,
@@ -300,9 +318,11 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       setHighlightContractId,
       pendingContracts,
       setPendingContracts,
+      erpDataLoading,
     }),
     [
-      contracts,
+      optimisticContracts,
+      addOptimisticContract,
       clients,
       settlements,
       contractsSearchQuery,
@@ -310,6 +330,7 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       contractsUserFilterId,
       highlightContractId,
       pendingContracts,
+      erpDataLoading,
     ]
   )
 

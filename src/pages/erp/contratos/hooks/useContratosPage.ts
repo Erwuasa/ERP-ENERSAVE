@@ -26,6 +26,7 @@ export function useContratosPage({
   const {
     contracts,
     setContracts,
+    addOptimisticContract,
     contractsSearchQuery,
     setContractsSearchQuery,
     contractsListFilter,
@@ -33,6 +34,7 @@ export function useContratosPage({
     contractsUserFilterId,
     setContractsUserFilterId,
     highlightContractId,
+    erpDataLoading,
   } = useErpData()
 
   const {
@@ -137,10 +139,12 @@ export function useContratosPage({
       activeUserName: activeUser.fullName,
       canEditContractEstado,
       visibleContracts,
+      erpDataLoading,
       showUserFilter: showContractsUserFilter,
       userFilterId: contractsUserFilterId,
       onUserFilterChange: setContractsUserFilterId,
       setContracts,
+      addOptimisticContract,
       contractsSearchQuery,
       setContractsSearchQuery,
       contractsListFilter: contractsListFilter as ContractsListFilter,

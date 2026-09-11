@@ -13,6 +13,7 @@ import { PANEL_TOOLBAR } from "@/lib/enersave-ui-theme"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
+import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
 
 export interface ContratosPanelProps {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
@@ -20,7 +21,10 @@ export interface ContratosPanelProps {
   activeUserName: string
   canEditContractEstado: boolean
   visibleContracts: Contract[]
+  /** True while the initial contracts fetch is in flight and there's nothing to show yet. */
+  erpDataLoading?: boolean
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
   contractsListFilter: ContractsListFilter
@@ -62,7 +66,9 @@ export function ContratosPanel({
   activeUserName,
   canEditContractEstado,
   visibleContracts,
+  erpDataLoading = false,
   setContracts,
+  addOptimisticContract,
   contractsSearchQuery,
   setContractsSearchQuery,
   contractsListFilter,
@@ -98,6 +104,7 @@ export function ContratosPanel({
     canEditContractEstado,
     visibleContracts,
     setContracts,
+    addOptimisticContract,
     contractsSearchQuery,
     contractsListFilter,
     newContractForm,
@@ -150,6 +157,7 @@ export function ContratosPanel({
             activeUserId={activeUserId}
             rows={vm.visibleRows}
             filtered={vm.filtered}
+            loading={erpDataLoading}
             contractsListFilter={contractsListFilter}
             highlightContractId={highlightContractId}
             rowRefs={vm.rowRefs}

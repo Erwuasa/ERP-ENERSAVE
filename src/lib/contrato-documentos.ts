@@ -50,6 +50,8 @@ export interface ContratoDocumentoRecord {
   storagePath?: string
   mimeType?: string
   dataUrl?: string
+  /** Optimistic upload state — set while a placeholder waits on the server round trip. */
+  status?: "uploading" | "error"
 }
 
 export const DEFAULT_DOCUMENTOS_OBLIGATORIOS: ContratoDocumentoTipoId[] = [

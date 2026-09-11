@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from "react"
+import { startTransition, useCallback, useState, type FormEvent } from "react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
@@ -24,6 +24,7 @@ import { listRetrocomisionSchedules } from "@/lib/supabase/retrocomision-schedul
 import { activateContractWithSettlement } from "@/lib/erp/activate-contract-with-settlement"
 import { normalizeContractEstado } from "@/lib/contract-estado"
 import { createContractFromForm } from "@/lib/erp/create-contract-from-form"
+import { buildOptimisticContractFromForm } from "@/lib/erp/build-optimistic-contract"
 import {
   buildOcrFormPatch,
   buildResetNewContractForm,
@@ -43,6 +44,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   const {
     contracts,
     setContracts,
+    addOptimisticContract,
     clients,
     setClients,
     settlements,
@@ -189,60 +191,73 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   }, [resetNewContractForm])
 
   const handleCreateContract = useCallback(
-    async (
+    (
       e: FormEvent,
       onSuccess?: () => void,
       createOptions?: { incomplete?: boolean; prospectoId?: string }
     ) => {
       e.preventDefault()
-      setIsCreatingContract(true)
 
-      try {
-        const result = await createContractFromForm({
-          form: newContractForm,
-          contracts,
-          clients,
-          settlements,
-          profiles,
-          activeUserId,
-          activeUserName: activeUser.fullName,
-          activeRole,
-          options: createOptions,
-        })
+      const optimisticContract = buildOptimisticContractFromForm(newContractForm, {
+        activeUserId,
+        activeUserName: activeUser.fullName,
+        incomplete: createOptions?.incomplete,
+      })
 
-        if (result.ok === false) {
-          toast.error(result.message)
-          return
-        }
+      // The insert shows up immediately via addOptimisticContract; if this
+      // transition ends without a matching setContracts call, React reverts
+      // it on its own — no manual rollback needed.
+      startTransition(async () => {
+        setIsCreatingContract(true)
+        addOptimisticContract({ type: "insert", contract: optimisticContract })
 
-        setClients(result.clients)
-        setContracts(result.contracts)
-        if (result.settlement) {
-          setSettlements((prev) => [result.settlement!, ...prev])
-        }
+        try {
+          const result = await createContractFromForm({
+            form: newContractForm,
+            contracts,
+            clients,
+            settlements,
+            profiles,
+            activeUserId,
+            activeUserName: activeUser.fullName,
+            activeRole,
+            options: createOptions,
+          })
 
-        for (const warning of result.warnings) {
-          if (warning.includes("Supabase pendiente") || warning.includes("Borrador")) {
-            toast.message(warning)
-          } else {
-            toast.warning(warning)
+          if (result.ok === false) {
+            toast.error(result.message)
+            return
           }
+
+          setClients(result.clients)
+          setContracts(result.contracts)
+          if (result.settlement) {
+            setSettlements((prev) => [result.settlement!, ...prev])
+          }
+
+          for (const warning of result.warnings) {
+            if (warning.includes("Supabase pendiente") || warning.includes("Borrador")) {
+              toast.message(warning)
+            } else {
+              toast.warning(warning)
+            }
+          }
+
+          resetNewContractForm()
+          onSuccess?.()
+
+          toast.success(
+            result.isIncomplete
+              ? "Contrato guardado como pendiente de información."
+              : `¡Contrato registrado! Liquidación de ${formatCurrency(result.externalMargin)} para ${result.sellerName}.`
+          )
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Error al guardar el contrato"
+          toast.error(msg)
+        } finally {
+          setIsCreatingContract(false)
         }
-
-        resetNewContractForm()
-        onSuccess?.()
-
-        toast.success(
-          result.isIncomplete
-            ? "Contrato guardado como pendiente de información."
-            : `¡Contrato registrado! Liquidación de ${formatCurrency(result.externalMargin)} para ${result.sellerName}.`
-        )
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Error al guardar el contrato"
-        toast.error(msg)
-      } finally {
-        setIsCreatingContract(false)
-      }
+      })
     },
     [
       newContractForm,
@@ -253,6 +268,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       activeUserId,
       activeUser.fullName,
       activeRole,
+      addOptimisticContract,
       setClients,
       setContracts,
       setSettlements,
@@ -446,7 +462,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   )
 
   const handleDeleteContract = useCallback(
-    async (contractId: string) => {
+    (contractId: string) => {
       const contract = contracts.find((item) => item.id === contractId)
       if (!contract) {
         toast.error("Contrato no encontrado.")
@@ -464,28 +480,43 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         return
       }
 
-      const supabaseResult = await deleteTeamContract(contractId)
-      if (supabaseResult.ok === false) {
-        if (supabaseResult.reason === "rls_denied") {
-          toast.error(
-            "No tienes permiso para eliminar este contrato o ya no está en borrador."
-          )
-          return
-        }
-        if (supabaseResult.reason !== "not_configured") {
-          toast.warning(`Eliminado en la app. Supabase: ${supabaseResult.message}`)
-        }
-      }
-
-      setContracts((prev) => prev.filter((item) => item.id !== contractId))
+      const relatedSettlements = settlements.filter((item) => item.contractId === contractId)
       setSettlements((prev) => prev.filter((item) => item.contractId !== contractId))
-      toast.success("Contrato eliminado.")
+
+      startTransition(async () => {
+        // Optimistic removal — the permission/deletability checks above are
+        // synchronous and already gate this, so a user without rights never
+        // sees the row disappear even for a moment. If this transition ends
+        // without a matching setContracts call, React reverts it on its own.
+        addOptimisticContract({ type: "remove", id: contractId })
+
+        const supabaseResult = await deleteTeamContract(contractId)
+        if (supabaseResult.ok === false) {
+          if (supabaseResult.reason === "rls_denied") {
+            setSettlements((prev) => [...relatedSettlements, ...prev])
+            toast.error(
+              "No tienes permiso para eliminar este contrato o ya no está en borrador."
+            )
+            return
+          }
+          if (supabaseResult.reason !== "not_configured") {
+            toast.warning(`Eliminado en la app. Supabase: ${supabaseResult.message}`)
+          }
+        }
+
+        // Make the removal permanent in real state — non-rls failures are
+        // still treated as an accepted local deletion, same as before.
+        setContracts((prev) => prev.filter((item) => item.id !== contractId))
+        toast.success("Contrato eliminado.")
+      })
     },
     [
       contracts,
+      settlements,
       activeRole,
       activeUserId,
       newContractForm,
+      addOptimisticContract,
       setContracts,
       setSettlements,
     ]

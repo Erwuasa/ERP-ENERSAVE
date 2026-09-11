@@ -7,6 +7,7 @@ import { ContratoDocumentosUploadedList } from "@/components/contratos/ContratoD
 import { ContratoDetalleSection } from "@/components/contratos/contrato-detalle-ui"
 import {
   CONTRATO_DOCUMENTO_TIPOS,
+  formatDocumentoSize,
   groupDocumentosByTipo,
   type ContratoDocumentoRecord,
   type ContratoDocumentoTipoId,
@@ -63,9 +64,14 @@ export function ContratoDetalleTabDocumentos({
 }: ContratoDetalleTabDocumentosProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [uploadingTipo, setUploadingTipo] = useState<ContratoDocumentoTipoId | null>(null)
+  const [pendingUploads, setPendingUploads] = useState<ContratoDocumentoRecord[]>([])
 
   const documentos = useMemo(() => normalizeContractDocumentos(contract), [contract])
   const documentosPorTipo = useMemo(() => groupDocumentosByTipo(documentos), [documentos])
+  const displayDocumentos = useMemo(
+    () => [...pendingUploads, ...documentos],
+    [pendingUploads, documentos]
+  )
 
   const handleUpload = useCallback(
     async (tipoId: ContratoDocumentoTipoId, files: File[]) => {
@@ -76,6 +82,21 @@ export function ContratoDetalleTabDocumentos({
 
       try {
         for (const file of files) {
+          // Show the file immediately as "uploading" instead of waiting for
+          // the storage upload + contract update round trip to finish.
+          const placeholderId = `optimistic-doc-${crypto.randomUUID()}`
+          setPendingUploads((prev) => [
+            ...prev,
+            {
+              id: placeholderId,
+              name: file.name,
+              size: formatDocumentoSize(file.size),
+              tipo: tipoId,
+              uploadedAt: new Date().toISOString(),
+              status: "uploading",
+            },
+          ])
+
           const result = await uploadContratoDocumento({
             contract: latestContract,
             tipoId,
@@ -83,6 +104,8 @@ export function ContratoDetalleTabDocumentos({
             autorId: activeUserId,
             autorNombre: activeUserName,
           })
+
+          setPendingUploads((prev) => prev.filter((doc) => doc.id !== placeholderId))
 
           if (result.ok === false) {
             toast.error(result.message ?? "No se pudo subir el documento.")
@@ -207,7 +230,7 @@ export function ContratoDetalleTabDocumentos({
 
       <ContratoDetalleSection title="Archivos subidos">
         <ContratoDocumentosUploadedList
-          documentos={documentos}
+          documentos={displayDocumentos}
           downloadingId={downloadingId}
           onDownload={handleDownload}
         />

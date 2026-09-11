@@ -1,4 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react"
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
 import { toast } from "sonner"
 import type { Contract } from "@/types/contract"
 import { exportContractsToExcel } from "@/lib/contracts-excel-export"
@@ -41,11 +50,13 @@ import { isSupabaseConfigured } from "@/lib/supabase/client"
 import { updateTeamContract } from "@/lib/supabase/contracts"
 import { useContractActionsContext } from "@/providers/ContractActionsProvider"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
+import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
 
 type Options = {
   canEditContractEstado: boolean
   visibleContracts: Contract[]
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   contractsListFilter: ContractsListFilter
   newContractForm: NewContractFormState
@@ -64,6 +75,7 @@ export function useContratosPanel({
   canEditContractEstado,
   visibleContracts,
   setContracts,
+  addOptimisticContract,
   contractsSearchQuery,
   contractsListFilter,
   newContractForm,
@@ -102,36 +114,21 @@ export function useContratosPanel({
 
   const updateContract = (id: string, field: keyof Contract & string, value: unknown) => {
     if (field === "estado" && !canEditEstado) return
-    setContracts((prev) =>
-      prev.map((item) =>
-        item.id !== id
-          ? item
-          : {
-              ...item,
-              [field]: value,
-              ...(field === "estado" ? { updatedAt: new Date().toISOString() } : {}),
-            }
-      )
-    )
-    if (field !== "estado") {
-      void persistContractField(id, field, value)
-    }
-  }
+    // addOptimisticContract shows the edit immediately; if this transition ends
+    // without a matching setContracts call below, React reverts it on its own.
+    startTransition(async () => {
+      addOptimisticContract({ type: "patch", id, changes: { [field]: value } })
 
-  async function persistContractField(
-    id: string,
-    field: keyof Contract & string,
-    value: unknown
-  ) {
-    if (!isSupabaseConfigured()) return
-    const result = await updateTeamContract(id, { [field]: value } as Partial<Contract>)
-    if (result.ok === false) {
-      if (result.message !== "No hay cambios que persistir.") {
-        toast.error(result.message)
+      if (!isSupabaseConfigured()) return
+      const result = await updateTeamContract(id, { [field]: value } as Partial<Contract>)
+      if (result.ok === false) {
+        if (result.message !== "No hay cambios que persistir.") {
+          toast.error(result.message)
+        }
+        return
       }
-      return
-    }
-    setContracts((prev) => prev.map((item) => (item.id === id ? result.data : item)))
+      setContracts((prev) => prev.map((item) => (item.id === id ? result.data : item)))
+    })
   }
 
   async function persistEstadoChange(contract: Contract, nextEstado: ContractEstado) {
@@ -150,30 +147,36 @@ export function useContratosPanel({
       return
     }
 
-    updateContract(contract.id, "estado", nextEstado)
     setEditingEstadoId(null)
 
-    if (!isSupabaseConfigured() || !activeUserId) return
+    startTransition(async () => {
+      addOptimisticContract({
+        type: "patch",
+        id: contract.id,
+        changes: { estado: nextEstado, updatedAt: new Date().toISOString() },
+      })
 
-    const result = await updateTeamContract(
-      contract.id,
-      { estado: nextEstado },
-      {
-        audit: {
-          autorId: activeUserId,
-          autorNombre: activeUserName || "Usuario",
-          estadoAnterior: previousEstado,
-        },
+      if (!isSupabaseConfigured() || !activeUserId) return
+
+      const result = await updateTeamContract(
+        contract.id,
+        { estado: nextEstado },
+        {
+          audit: {
+            autorId: activeUserId,
+            autorNombre: activeUserName || "Usuario",
+            estadoAnterior: previousEstado,
+          },
+        }
+      )
+
+      if (result.ok === false) {
+        toast.error(result.message)
+        return
       }
-    )
 
-    if (result.ok === false) {
-      updateContract(contract.id, "estado", previousEstado)
-      toast.error(result.message)
-      return
-    }
-
-    setContracts((prev) => prev.map((item) => (item.id === contract.id ? result.data : item)))
+      setContracts((prev) => prev.map((item) => (item.id === contract.id ? result.data : item)))
+    })
   }
 
   const { renderEditableCell } = useEditableCell<Contract>(updateContract)

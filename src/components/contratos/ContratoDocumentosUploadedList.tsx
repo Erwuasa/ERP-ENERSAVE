@@ -66,21 +66,28 @@ export function ContratoDocumentosUploadedList({
                 {getDocumentoTipoLabel(doc.tipo)} · {fecha} · {doc.size}
               </p>
             </div>
-            <button
-              type="button"
-              disabled={downloadingId === doc.id}
-              onClick={() => onDownload(doc)}
-              className="shrink-0 px-3 py-1.5 rounded-lg border border-brand-border text-[11px] font-bold text-brand-text hover:border-cyan-500/40 hover:bg-cyan-500/5 disabled:opacity-50 cursor-pointer"
-            >
-              {downloadingId === doc.id ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  Descargando
-                </span>
-              ) : (
-                "Descargar"
-              )}
-            </button>
+            {doc.status === "uploading" ? (
+              <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/5 text-[11px] font-bold text-cyan-700 dark:text-cyan-300">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Subiendo…
+              </span>
+            ) : (
+              <button
+                type="button"
+                disabled={downloadingId === doc.id}
+                onClick={() => onDownload(doc)}
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-brand-border text-[11px] font-bold text-brand-text hover:border-cyan-500/40 hover:bg-cyan-500/5 disabled:opacity-50 cursor-pointer"
+              >
+                {downloadingId === doc.id ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Descargando
+                  </span>
+                ) : (
+                  "Descargar"
+                )}
+              </button>
+            )}
           </li>
         )
       })}
