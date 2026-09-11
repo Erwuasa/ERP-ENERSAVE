@@ -14,6 +14,8 @@ export interface FtpNode {
   createdBy?: string | null
   createdAt: string
   updatedAt: string
+  /** Optimistic upload state — set while a placeholder waits on the server round trip. */
+  status?: "uploading" | "error"
 }
 
 export interface FtpBreadcrumbItem {

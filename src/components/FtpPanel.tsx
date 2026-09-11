@@ -18,6 +18,7 @@ import {
 import { FTP_ROOT_LABEL } from "../data/ftp-seed-catalog"
 import { useFtpExplorer } from "../hooks/useFtpExplorer"
 import { isAtFtpNode } from "../lib/ftp-sources"
+import { FtpExplorerSkeleton } from "./ui/skeletons/FtpSkeletons"
 import type { FtpNode } from "../types/ftp"
 
 interface FtpPanelProps {
@@ -113,36 +114,41 @@ function FtpFileCard({
 }) {
   const Icon = fileIcon(node.mimeType)
   const fromAt = isAtFtpNode(node)
+  const uploading = node.status === "uploading"
   return (
     <div className="group bg-brand-panel border border-brand-border rounded-xl p-4 flex items-center gap-3 shadow-sm hover:border-cyan-500/35 transition-colors min-h-[88px]">
       <Icon className="h-9 w-9 text-cyan-600 shrink-0" aria-hidden />
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold text-brand-text truncate">{node.name}</p>
         <p className="text-[10px] font-mono text-brand-subtext mt-0.5">
-          {formatFileSize(node.sizeBytes)}
+          {uploading ? "Subiendo…" : formatFileSize(node.sizeBytes)}
           {fromAt ? " · AT" : ""}
         </p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          type="button"
-          onClick={onDownload}
-          className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-cyan-600 hover:border-cyan-500/30 cursor-pointer"
-          aria-label={`Descargar ${node.name}`}
-        >
-          <Download className="h-3.5 w-3.5" />
-        </button>
-        {canEdit && !fromAt && (
+      {uploading ? (
+        <Loader2 className="h-4 w-4 text-cyan-600 animate-spin shrink-0" aria-hidden />
+      ) : (
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
-            onClick={onDelete}
-            className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-rose-600 hover:border-rose-500/30 cursor-pointer"
-            aria-label={`Eliminar ${node.name}`}
+            onClick={onDownload}
+            className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-cyan-600 hover:border-cyan-500/30 cursor-pointer"
+            aria-label={`Descargar ${node.name}`}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Download className="h-3.5 w-3.5" />
           </button>
-        )}
-      </div>
+          {canEdit && !fromAt && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-rose-600 hover:border-rose-500/30 cursor-pointer"
+              aria-label={`Eliminar ${node.name}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -153,12 +159,11 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
   const [newFolderName, setNewFolderName] = useState("")
   const ftp = useFtpExplorer(activeUserId, canEdit)
 
-  async function handleCreateFolder() {
-    const created = await ftp.handleCreateFolder(newFolderName)
-    if (created) {
+  function handleCreateFolder() {
+    ftp.handleCreateFolder(newFolderName, () => {
       setNewFolderName("")
       setShowNewFolder(false)
-    }
+    })
   }
 
   return (
@@ -281,14 +286,14 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
               placeholder="Nombre de la nueva carpeta"
               className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-brand-panel text-sm text-brand-text"
               onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreateFolder()
+                if (e.key === "Enter") handleCreateFolder()
               }}
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 disabled={ftp.busy}
-                onClick={() => void handleCreateFolder()}
+                onClick={handleCreateFolder}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
               >
                 Crear
@@ -309,10 +314,7 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
 
         <div className="p-4 sm:p-5 space-y-6 min-h-[320px]">
           {ftp.loading ? (
-            <div className="flex items-center justify-center gap-2 py-20 text-brand-subtext">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-xs font-mono">Cargando FTP…</span>
-            </div>
+            <FtpExplorerSkeleton />
           ) : (
             <>
               {ftp.folders.length > 0 && (

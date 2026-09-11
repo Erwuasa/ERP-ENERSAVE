@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { startTransition, useCallback, useEffect, useMemo, useOptimistic, useState } from "react"
 import { toast } from "sonner"
 import { downloadAtFtpFile, listAtFtpFolder, triggerBlobDownload } from "../lib/supabase/at-ftp"
 import {
@@ -11,9 +11,14 @@ import {
 } from "../lib/ftp-sources"
 import {
   buildFtpBreadcrumb,
+  collectFtpDescendantIds,
   countFtpFolderContents,
   getFtpChildren,
 } from "../lib/ftp-tree"
+import {
+  applyFtpOptimisticAction,
+  type FtpOptimisticAction,
+} from "../lib/ftp-optimistic-actions"
 import {
   createFtpFolder,
   deleteFtpNode,
@@ -25,6 +30,10 @@ import type { FtpNode } from "../types/ftp"
 
 export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   const [localNodes, setLocalNodes] = useState<FtpNode[]>([])
+  const [optimisticNodes, addOptimisticFtpNode] = useOptimistic(
+    localNodes,
+    applyFtpOptimisticAction
+  )
   const [atChildren, setAtChildren] = useState<FtpNode[]>([])
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
@@ -65,12 +74,12 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     let base: FtpNode[]
     if (currentFolderId === null) base = virtualFtpRoots()
     else if (isAtFtpId(currentFolderId)) base = atChildren
-    else base = getFtpChildren(localNodes, currentFolderId)
+    else base = getFtpChildren(optimisticNodes, currentFolderId)
 
     const q = search.trim().toLowerCase()
     if (!q) return base
     return base.filter((n) => n.name.toLowerCase().includes(q))
-  }, [atChildren, currentFolderId, localNodes, search])
+  }, [atChildren, currentFolderId, optimisticNodes, search])
 
   const folders = useMemo(
     () => children.filter((n) => n.nodeType === "folder"),
@@ -82,8 +91,8 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   )
 
   const breadcrumbs = useMemo(
-    () => buildFtpBreadcrumb(localNodes, currentFolderId),
-    [currentFolderId, localNodes]
+    () => buildFtpBreadcrumb(optimisticNodes, currentFolderId),
+    [currentFolderId, optimisticNodes]
   )
 
   const canMutateHere = canEdit && canMutateFtpLocation(currentFolderId)
@@ -99,56 +108,108 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     }
   }
 
-  async function handleCreateFolder(name: string) {
+  function handleCreateFolder(name: string, onSuccess?: () => void) {
     const trimmed = name.trim()
     if (!trimmed) {
       toast.error("Indica un nombre para la carpeta.")
-      return false
+      return
     }
     if (!canMutateHere || !currentFolderId) {
       toast.error("Crea carpetas dentro del FTP EnerSave, no en el archivo AT.")
-      return false
+      return
     }
-    setBusy(true)
-    const result = await createFtpFolder({
+
+    const now = new Date().toISOString()
+    const optimisticFolder: FtpNode = {
+      id: `optimistic-ftp-${crypto.randomUUID()}`,
       parentId: currentFolderId,
       name: trimmed,
+      nodeType: "folder",
+      source: "enersave",
       createdBy: activeUserId,
-    })
-    setBusy(false)
-    if (!result.ok) {
-      toast.error(result.message)
-      return false
+      createdAt: now,
+      updatedAt: now,
     }
-    toast.success("Carpeta creada.")
-    await loadLocalNodes()
-    return true
+
+    startTransition(async () => {
+      setBusy(true)
+      addOptimisticFtpNode({ type: "insert", node: optimisticFolder })
+
+      const result = await createFtpFolder({
+        parentId: currentFolderId,
+        name: trimmed,
+        createdBy: activeUserId,
+      })
+
+      setBusy(false)
+      if (!result.ok) {
+        toast.error(result.message)
+        return
+      }
+      setLocalNodes((prev) => [...prev, result.data])
+      toast.success("Carpeta creada.")
+      onSuccess?.()
+    })
   }
 
-  async function handleUploadFiles(fileList: FileList | null) {
+  function handleUploadFiles(fileList: FileList | null) {
     if (!fileList?.length || !canMutateHere || !currentFolderId) {
       toast.error("Entra en una carpeta del FTP EnerSave para subir archivos.")
       return
     }
-    setBusy(true)
-    let uploaded = 0
-    for (const file of Array.from(fileList)) {
-      const result = await uploadFtpFile({
-        parentId: currentFolderId,
-        file,
+
+    const parentId = currentFolderId
+    const now = new Date().toISOString()
+    const uploads = Array.from(fileList).map((file) => ({
+      file,
+      placeholder: {
+        id: `optimistic-ftp-${crypto.randomUUID()}`,
+        parentId,
+        name: file.name,
+        nodeType: "file" as const,
+        source: "enersave" as const,
+        mimeType: file.type || null,
+        sizeBytes: file.size,
+        status: "uploading" as const,
         createdBy: activeUserId,
-      })
-      if (result.ok) uploaded += 1
-      else toast.error(result.message)
-    }
-    setBusy(false)
-    if (uploaded > 0) {
-      toast.success(`${uploaded} archivo${uploaded !== 1 ? "s" : ""} subido${uploaded !== 1 ? "s" : ""}.`)
-      await loadLocalNodes()
-    }
+        createdAt: now,
+        updatedAt: now,
+      } satisfies FtpNode,
+    }))
+
+    startTransition(async () => {
+      setBusy(true)
+      // All files show up as "uploading" placeholders immediately, then each
+      // resolves independently instead of the whole batch waiting on the
+      // slowest upload.
+      for (const { placeholder } of uploads) {
+        addOptimisticFtpNode({ type: "insert", node: placeholder })
+      }
+
+      const results = await Promise.all(
+        uploads.map(async ({ file, placeholder }) => {
+          const result = await uploadFtpFile({ parentId, file, createdBy: activeUserId })
+          addOptimisticFtpNode({ type: "remove", ids: [placeholder.id] })
+          if (!result.ok) {
+            toast.error(result.message)
+            return false
+          }
+          setLocalNodes((prev) => [...prev, result.data])
+          return true
+        })
+      )
+
+      setBusy(false)
+      const uploaded = results.filter(Boolean).length
+      if (uploaded > 0) {
+        toast.success(
+          `${uploaded} archivo${uploaded !== 1 ? "s" : ""} subido${uploaded !== 1 ? "s" : ""}.`
+        )
+      }
+    })
   }
 
-  async function handleDelete(node: FtpNode) {
+  function handleDelete(node: FtpNode) {
     if (node.source === "at" || node.id === FTP_AT_ROOT_ID || node.id === FTP_LOCAL_ROOT_ID) {
       toast.error("El archivo AT es de solo lectura.")
       return
@@ -157,16 +218,27 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     if (!confirm(`¿Eliminar ${label} «${node.name}»? Esta acción afectará a todos los usuarios.`)) {
       return
     }
-    setBusy(true)
-    const result = await deleteFtpNode(node, localNodes)
-    setBusy(false)
-    if (!result.ok) {
-      toast.error(result.message)
-      return
-    }
-    toast.success(`${label.charAt(0).toUpperCase()}${label.slice(1)} eliminada.`)
-    if (node.id === currentFolderId) setCurrentFolderId(node.parentId ?? FTP_LOCAL_ROOT_ID)
-    await loadLocalNodes()
+
+    // Snapshot before the optimistic removal — a folder delete cascades to
+    // every descendant, so this can be more than one id.
+    const idsToRemove = Array.from(collectFtpDescendantIds(localNodes, node.id))
+
+    startTransition(async () => {
+      setBusy(true)
+      addOptimisticFtpNode({ type: "remove", ids: idsToRemove })
+
+      const result = await deleteFtpNode(node, localNodes)
+
+      setBusy(false)
+      if (!result.ok) {
+        toast.error(result.message)
+        return
+      }
+      toast.success(`${label.charAt(0).toUpperCase()}${label.slice(1)} eliminada.`)
+      if (node.id === currentFolderId) setCurrentFolderId(node.parentId ?? FTP_LOCAL_ROOT_ID)
+      const removedIds = new Set(idsToRemove)
+      setLocalNodes((prev) => prev.filter((n) => !removedIds.has(n.id)))
+    })
   }
 
   async function handleDownload(node: FtpNode) {
@@ -202,3 +274,5 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     handleDownload,
   }
 }
+
+export type { FtpOptimisticAction }
