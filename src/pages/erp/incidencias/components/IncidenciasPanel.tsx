@@ -20,6 +20,8 @@ const ASIGNACION_TABS: { id: IncidenciaAsignacionTab; label: string }[] = [
 
 export interface IncidenciasPanelProps {
   incidencias: IncidenciaTicket[]
+  /** True while the initial incidencias fetch is in flight and there's nothing to show yet. */
+  loading?: boolean
   activeUserId: string
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
   teamMemberIds: string[]
@@ -33,6 +35,7 @@ export interface IncidenciasPanelProps {
 
 export function IncidenciasPanel({
   incidencias,
+  loading = false,
   activeUserId,
   activeRole,
   teamMemberIds,
@@ -106,6 +109,7 @@ export function IncidenciasPanel({
 
         <IncidenciasKanban
           incidencias={vm.filteredIncidencias}
+          loading={loading}
           showComercialName={showComercialName}
           canEdit={canEdit}
           canDrag={canDrag}

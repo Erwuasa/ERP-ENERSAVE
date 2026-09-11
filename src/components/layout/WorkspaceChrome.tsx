@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
+import { startTransition, useCallback, useEffect, useState } from "react"
+import { toast } from "sonner"
 import { AppUpdateBanner } from "@/components/AppUpdateBanner"
 import { AvisosModal } from "@/components/AvisosModal"
 import { RuntimeIntegrityBlockModal } from "@/components/RuntimeIntegrityBlockModal"
@@ -19,7 +20,7 @@ import { useStaffFeeds } from "@/pages/erp/providers/staff-feeds-context"
 
 export function WorkspaceChrome() {
   const { activeUser, activeUserId, isLoggedIn } = useAuth()
-  const { incidencias, setIncidencias } = useIncidenciasContext()
+  const { incidencias, setIncidencias, addOptimisticIncidencia } = useIncidenciasContext()
   const { unviewedAvisos, markAvisosVistos } = useStaffFeeds()
   const { remoteVersion, dismiss } = useAppVersionCheck()
   const [avisosModalOpen, setAvisosModalOpen] = useState(false)
@@ -50,8 +51,17 @@ export function WorkspaceChrome() {
         findings,
         existingIncidencias: incidencias,
       })
-      setIncidencias((prev) => [ticket, ...prev])
-      void createIncidencia(ticket)
+
+      startTransition(async () => {
+        addOptimisticIncidencia({ type: "insert", ticket })
+        const result = await createIncidencia(ticket)
+        if (!result.ok) {
+          // Don't leave a phantom security ticket that was never persisted.
+          toast.error(`No se pudo registrar la incidencia de seguridad: ${result.message}`)
+          return
+        }
+        setIncidencias((prev) => [result.data, ...prev])
+      })
     },
     [
       activeUser.fullName,
@@ -60,6 +70,7 @@ export function WorkspaceChrome() {
       activeUserId,
       incidencias,
       reportedFingerprint,
+      addOptimisticIncidencia,
       setIncidencias,
     ]
   )

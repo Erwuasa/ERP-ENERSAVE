@@ -274,6 +274,40 @@ export function ReportingTableSkeleton({ rows = 4 }: { rows?: number }) {
   )
 }
 
+export function IncidenciasKanbanSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3"
+      aria-busy="true"
+      aria-label="Cargando incidencias"
+    >
+      {Array.from({ length: 5 }).map((_, col) => (
+        <div
+          key={col}
+          className="rounded-xl border border-brand-border/60 min-h-[280px] flex flex-col bg-brand-panel/30"
+        >
+          <div className="px-3 py-2.5 border-b border-brand-border/40 flex items-center justify-between">
+            <Skeleton className="h-3 w-20" rounded="sm" />
+            <Skeleton className="h-3 w-5" rounded="sm" />
+          </div>
+          <div className="p-2 space-y-2 flex-1">
+            {Array.from({ length: col % 2 === 0 ? 2 : 1 }).map((_, card) => (
+              <div
+                key={card}
+                className="rounded-lg border border-brand-border/50 bg-brand-panel/60 p-3 space-y-2"
+              >
+                <Skeleton className="h-3.5 w-4/5" rounded="sm" />
+                <Skeleton className="h-2.5 w-2/3" rounded="sm" />
+                <Skeleton className="h-4 w-14" rounded="full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function ContratosTableSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="px-4 py-3 space-y-3" aria-busy="true">

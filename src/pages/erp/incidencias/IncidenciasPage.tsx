@@ -15,6 +15,7 @@ export function IncidenciasPage({ teamMemberIds }: Props) {
   return (
     <IncidenciasPanel
       incidencias={inc.roleFilteredIncidencias}
+      loading={inc.incidenciasLoading}
       activeUserId={activeUserId}
       activeRole={activeRole}
       teamMemberIds={teamMemberIds}

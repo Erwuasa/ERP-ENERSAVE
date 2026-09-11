@@ -3,11 +3,14 @@ import type { IncidenciaEstado, IncidenciaTicket } from "@/lib/incidencias"
 import { IncidenciaEditModal } from "@/pages/erp/incidencias/components/IncidenciaEditModal"
 import { IncidenciaKanbanCard } from "@/pages/erp/incidencias/components/IncidenciaKanbanCard"
 import { KANBAN_COLUMNS } from "@/pages/erp/incidencias/lib/incidencias-kanban-config"
+import { IncidenciasKanbanSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
 
 export type { IncidenciaEstado, IncidenciaTicket, IncidenciaTipo } from "@/pages/erp/incidencias/lib/incidencias-kanban-config"
 
 export interface IncidenciasKanbanProps {
   incidencias: IncidenciaTicket[]
+  /** True while the initial incidencias fetch is in flight and there's nothing to show yet. */
+  loading?: boolean
   showComercialName: boolean
   canEdit: boolean
   canDrag: boolean
@@ -17,6 +20,7 @@ export interface IncidenciasKanbanProps {
 
 export function IncidenciasKanban({
   incidencias,
+  loading = false,
   showComercialName,
   canEdit,
   canDrag,
@@ -26,6 +30,10 @@ export function IncidenciasKanban({
   const [editingIncidencia, setEditingIncidencia] = useState<IncidenciaTicket | null>(null)
   const [draggedId, setDraggedId] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<IncidenciaEstado | null>(null)
+
+  if (loading && incidencias.length === 0) {
+    return <IncidenciasKanbanSkeleton />
+  }
 
   function openEdit(inc: IncidenciaTicket) {
     if (!canEdit) return
