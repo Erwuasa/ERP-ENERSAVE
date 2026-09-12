@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
+import { canManageTariffSettings } from "@/lib/marco-retributivo-permissions"
 import { mergeProviderCounts } from "@/lib/erp/compania-logos"
 import { tariffRowToProducto, type ProductoPeajeFilter, type ProductoSuministroTab, type ProductoTarifa, type ProductoTipoClienteFilter, type ProductoWebVisibilityFilter } from "@/lib/productos-catalog"
 import {
@@ -13,11 +14,12 @@ import {
 
 type Options = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+  superadminViewMode?: "tramitacion" | "comercial"
 }
 
 const SEARCH_DEBOUNCE_MS = 350
 
-export function useProductosPanel({ activeRole }: Options) {
+export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export function useProductosPanel({ activeRole }: Options) {
   const [modalProduct, setModalProduct] = useState<ProductoTarifa | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const canEditWeb = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canManageTariffs = canManageTariffSettings(activeRole, { superadminViewMode })
   const canEditCalendario = activeRole === "superadmin"
   const providerFilterRef = useRef<Record<string, string>>({})
 
@@ -107,13 +109,34 @@ export function useProductosPanel({ activeRole }: Options) {
     tariffId: string,
     patch: TariffWebSettingsPatch
   ): Promise<boolean> {
-    if (!canEditWeb) return false
+    if (!canManageTariffs) return false
+
+    const previousRows = tariffRows
+    setTariffRows((prev) => {
+      const next = prev.map((row) =>
+        row.id === tariffId
+          ? {
+              ...row,
+              web_visible: patch.web_visible ?? row.web_visible,
+              web_alias:
+                patch.web_alias !== undefined ? patch.web_alias : row.web_alias,
+              erp_active: patch.erp_active ?? row.erp_active,
+            }
+          : row
+      )
+      setProducts(next.map(tariffRowToProducto))
+      return next
+    })
 
     setSaving(true)
+    closeModal()
+
     const result = await updateTariffWebSettings(tariffId, patch)
     setSaving(false)
 
     if (result.ok === false) {
+      setTariffRows(previousRows)
+      setProducts(previousRows.map(tariffRowToProducto))
       toast.error(result.message)
       return false
     }
@@ -125,6 +148,7 @@ export function useProductosPanel({ activeRole }: Options) {
               ...row,
               web_visible: result.data.web_visible,
               web_alias: result.data.web_alias,
+              erp_active: result.data.erp_active,
             }
           : row
       )
@@ -132,9 +156,12 @@ export function useProductosPanel({ activeRole }: Options) {
       return next
     })
 
-    toast.success(patch.web_visible ? "Tarifa publicada en web." : "Tarifa oculta en web.")
-    closeModal()
-    void fetchPage(0, false)
+    const messages: string[] = []
+    if (result.data.erp_active) messages.push("activa en comparador ERP")
+    else messages.push("desactivada en comparador ERP")
+    if (result.data.web_visible) messages.push("visible en web")
+    else messages.push("oculta en web")
+    toast.success(`Tarifa ${messages.join(" · ")}.`)
     return true
   }
 
@@ -209,7 +236,7 @@ export function useProductosPanel({ activeRole }: Options) {
     modalOpen,
     modalProduct,
     saving,
-    canEditWeb,
+    canManageTariffs,
     canEditCalendario,
     companias,
     countsByCompania,

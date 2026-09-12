@@ -77,6 +77,9 @@ export function useMarcoRetributivoEditModal({
     setSaving(true)
     const payload: MarcoEntryInput = {
       ...form,
+      comision_tipo: "fija",
+      comision_unidad: "eur_cups",
+      vigencia_meses: form.segmento === "pyme" ? 12 : form.vigencia_meses,
       condicion_1: form.condicion_1?.trim() || null,
       condicion_2: form.condicion_2?.trim() || null,
       condiciones:

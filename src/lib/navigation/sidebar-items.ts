@@ -80,7 +80,7 @@ export function getVisibleSidebarItems({
     activeRole === "jefe_comercial" ||
     activeRole === "comercial" ||
     activeRole === "tramitacion" ||
-    (activeRole === "superadmin" && superadminViewMode === "comercial")
+    activeRole === "superadmin"
 
   const canViewConsolidatedLiquidaciones =
     activeRole === "tramitacion" ||
@@ -127,6 +127,7 @@ export function getVisibleSidebarItems({
         "Contratos",
         "Mis Clientes",
         "Tarifas",
+        "Marco Retributivo",
         "Incidencias",
         "Calendario",
         "Base de Datos",

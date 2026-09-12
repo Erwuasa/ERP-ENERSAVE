@@ -1,12 +1,14 @@
 import type { ContractOcrResult } from "./contract-ocr"
 import type { CompProposalFilterId } from "./comparador-proposal-filters"
+import { normalizeComparadorAccessTariff } from "./comparador-access-tariff"
+import type { ComparadorAccessTariff } from "./erp/comparador-rates"
 
 export interface ComparadorOcrApplyTarget {
   setCompCups: (value: string) => void
   setCompTipo: (value: "luz" | "gas") => void
   setCompCompaniaActual: (value: string) => void
   setCompTarifaActual: (value: string) => void
-  setCompAccessTariff: (value: "2.0TD" | "3.0TD" | "6.0TD") => void
+  setCompAccessTariff: (value: ComparadorAccessTariff) => void
   setCompPotencias: (value: {
     p1: number
     p2: number
@@ -29,7 +31,7 @@ export interface ComparadorOcrApplyTarget {
 
 function distributeConsumoAnual(
   totalKwh: number,
-  accessTariff: "2.0TD" | "3.0TD" | "6.0TD"
+  accessTariff: ComparadorAccessTariff
 ): ComparadorOcrApplyTarget["setCompConsumos"] extends (v: infer V) => void ? V : never {
   if (accessTariff === "2.0TD") {
     return {
@@ -51,7 +53,7 @@ export function applyComparadorOcrResult(
   target: ComparadorOcrApplyTarget
 ): number {
   let applied = 0
-  let accessTariff: "2.0TD" | "3.0TD" | "6.0TD" = "2.0TD"
+  let accessTariff: ComparadorAccessTariff = "2.0TD"
 
   if (ocr.cups) {
     target.setCompCups(ocr.cups)
@@ -74,17 +76,10 @@ export function applyComparadorOcrResult(
   }
 
   const text = `${ocr.rawTextPreview ?? ""} ${ocr.tarifa ?? ""}`.toUpperCase()
-  if (text.includes("6.0TD")) {
-    accessTariff = "6.0TD"
-    target.setCompAccessTariff("6.0TD")
-    applied++
-  } else if (text.includes("3.0TD")) {
-    accessTariff = "3.0TD"
-    target.setCompAccessTariff("3.0TD")
-    applied++
-  } else if (text.includes("2.0TD")) {
-    accessTariff = "2.0TD"
-    target.setCompAccessTariff("2.0TD")
+  const detectedAccessTariff = normalizeComparadorAccessTariff(text)
+  if (text.includes("2.0TD") || text.includes("3.0TD") || text.includes("6.")) {
+    accessTariff = detectedAccessTariff
+    target.setCompAccessTariff(detectedAccessTariff)
     applied++
   }
 

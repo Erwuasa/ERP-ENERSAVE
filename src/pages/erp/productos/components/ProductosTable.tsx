@@ -1,4 +1,5 @@
-import { Flame, Globe, GlobeLock, Plus, Settings2, Zap } from "lucide-react"
+import type { MouseEvent } from "react"
+import { Flame, Plus, Zap } from "lucide-react"
 import { supplyBadgeClass } from "@/lib/enersave-ui-theme"
 import {
   formatPrecioEnergia,
@@ -9,9 +10,9 @@ import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
 
 type Props = {
   products: ProductoTarifa[]
-  canEditWeb: boolean
+  canManageTariffs: boolean
   onCreateContract: (product: ProductoTarifa) => void
-  onEditWeb: (product: ProductoTarifa) => void
+  onOpenTariff: (product: ProductoTarifa) => void
 }
 
 function firstEnergyPrice(product: ProductoTarifa): string {
@@ -47,10 +48,21 @@ function SupplyTypeBadge({ product }: { product: ProductoTarifa }) {
   )
 }
 
-export function ProductosTable({ products, canEditWeb, onCreateContract, onEditWeb }: Props) {
+function stopRowClick(event: MouseEvent) {
+  event.stopPropagation()
+}
+
+export function ProductosTable({
+  products,
+  canManageTariffs,
+  onCreateContract,
+  onOpenTariff,
+}: Props) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-brand-border">
-      <table className="w-full min-w-[860px] text-left text-xs">
+    <div className="overflow-x-auto scrollbar-overlay rounded-2xl border border-brand-border">
+      <table
+        className={`w-full text-left text-xs ${canManageTariffs ? "min-w-[920px]" : "min-w-[720px]"}`}
+      >
         <thead>
           <tr className="bg-slate-100 dark:bg-brand-surface/80 border-b border-brand-border">
             <th
@@ -65,16 +77,23 @@ export function ProductosTable({ products, canEditWeb, onCreateContract, onEditW
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
               Cliente
             </th>
-            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
-              Web
-            </th>
+            {canManageTariffs ? (
+              <>
+                <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                  ERP
+                </th>
+                <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+                  Web
+                </th>
+              </>
+            ) : null}
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
               Energía
             </th>
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
               Potencia
             </th>
-            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right w-[128px]">
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right w-[100px]">
               Acciones
             </th>
           </tr>
@@ -86,7 +105,13 @@ export function ProductosTable({ products, canEditWeb, onCreateContract, onEditW
             return (
               <tr
                 key={product.id}
-                className="bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/50 transition-colors"
+                onClick={canManageTariffs ? () => onOpenTariff(product) : undefined}
+                className={`bg-white dark:bg-[#0f172a] transition-colors ${
+                  canManageTariffs
+                    ? "hover:bg-slate-50 dark:hover:bg-brand-elevated/50 cursor-pointer"
+                    : ""
+                }`}
+                title={canManageTariffs ? "Configurar tarifa" : undefined}
               >
                 <td colSpan={2} className="px-3 py-2 align-top">
                   <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 items-start">
@@ -119,39 +144,41 @@ export function ProductosTable({ products, canEditWeb, onCreateContract, onEditW
                     {product.tipoClienteLabel}
                   </span>
                 </td>
-                <td className="px-3 py-2.5 align-top">
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border ${
-                      product.webVisible
-                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/25"
-                        : "bg-slate-500/10 text-brand-subtext border-brand-border"
-                    }`}
-                  >
-                    {product.webVisible ? (
-                      <Globe className="h-2.5 w-2.5" aria-hidden />
-                    ) : (
-                      <GlobeLock className="h-2.5 w-2.5" aria-hidden />
-                    )}
-                    {product.webVisible ? "Web" : "Oculta"}
-                  </span>
-                </td>
+                {canManageTariffs ? (
+                  <>
+                    <td className="px-3 py-2.5 align-top">
+                      <span
+                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border ${
+                          product.erpActive
+                            ? "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/25"
+                            : "bg-slate-500/10 text-brand-subtext border-brand-border"
+                        }`}
+                      >
+                        <Zap className="h-2.5 w-2.5" aria-hidden />
+                        {product.erpActive ? "ERP" : "Off"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      <span
+                        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border ${
+                          product.webVisible
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/25"
+                            : "bg-slate-500/10 text-brand-subtext border-brand-border"
+                        }`}
+                      >
+                        {product.webVisible ? "Web" : "Oculta"}
+                      </span>
+                    </td>
+                  </>
+                ) : null}
                 <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
                   {firstEnergyPrice(product)}
                 </td>
                 <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
                   {firstPowerPrice(product)}
                 </td>
-                <td className="px-3 py-2.5 align-top">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onEditWeb(product)}
-                      className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-emerald-600 hover:border-emerald-500/40 cursor-pointer"
-                      title={canEditWeb ? "Configurar publicación web" : "Ver publicación web"}
-                      aria-label="Configurar publicación web"
-                    >
-                      <Settings2 className="h-3.5 w-3.5" />
-                    </button>
+                <td className="px-3 py-2.5 align-top" onClick={stopRowClick}>
+                  <div className="flex items-center justify-end">
                     <button
                       type="button"
                       onClick={() => onCreateContract(product)}

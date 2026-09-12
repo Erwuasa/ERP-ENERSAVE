@@ -1,4 +1,11 @@
-export type ComparadorAccessTariff = "2.0TD" | "3.0TD" | "6.0TD"
+export type ComparadorAccessTariff =
+  | "2.0TD"
+  | "3.0TD"
+  | "6.0TD"
+  | "6.1TD"
+  | "6.2TD"
+  | "6.3TD"
+  | "6.4TD"
 
 export interface ComparadorPeriodValues {
   p1: number

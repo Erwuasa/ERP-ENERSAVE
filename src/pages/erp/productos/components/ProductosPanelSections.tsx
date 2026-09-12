@@ -23,9 +23,9 @@ type Props = {
   totalFiltered: number
   hasMore: boolean
   onLoadMore: () => void
-  canEditWeb: boolean
+  canManageTariffs: boolean
   onCreateContract: (product: ProductoTarifa) => void
-  onEditWeb: (product: ProductoTarifa) => void
+  onOpenTariff: (product: ProductoTarifa) => void
 }
 
 const SUMINISTRO_TABS = [
@@ -173,9 +173,9 @@ export function ProductosList({
   totalFiltered,
   hasMore,
   onLoadMore,
-  canEditWeb,
+  canManageTariffs,
   onCreateContract,
-  onEditWeb,
+  onOpenTariff,
 }: Pick<
   Props,
   | "search"
@@ -187,9 +187,9 @@ export function ProductosList({
   | "totalFiltered"
   | "hasMore"
   | "onLoadMore"
-  | "canEditWeb"
+  | "canManageTariffs"
   | "onCreateContract"
-  | "onEditWeb"
+  | "onOpenTariff"
 >) {
   return (
     <div className="xl:flex-1 min-w-0 xl:min-h-0 flex flex-col gap-3">
@@ -250,8 +250,8 @@ export function ProductosList({
               <ProductosTable
                 products={filtered}
                 onCreateContract={onCreateContract}
-                canEditWeb={canEditWeb}
-                onEditWeb={onEditWeb}
+                canManageTariffs={canManageTariffs}
+                onOpenTariff={onOpenTariff}
               />
             </div>
             {hasMore && (

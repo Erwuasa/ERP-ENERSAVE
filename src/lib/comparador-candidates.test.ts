@@ -47,6 +47,33 @@ describe("buildComparadorCandidates", () => {
     expect(buildComparadorCandidates({ accessTariff: "2.0TD", tipo: "luz" })).toEqual([])
   })
 
+  it("supports 6.1TD without throwing and uses six-period rates", () => {
+    const sixPeriodRows = [
+      catalogEntryToRow({
+        id: "six-td",
+        compania: "Iberdrola",
+        tarifa: "Alta tensión 6.1",
+        tipo: "luz",
+        peaje: "6.0TD / 6.1TD",
+        condiciones: "",
+        comisionTipo: "fija",
+        comisionBase: 50,
+        comisionUnidad: "eur_cups",
+        vigenciaMeses: 0,
+      }),
+    ]
+
+    const candidates = buildComparadorCandidates({
+      accessTariff: "6.1TD",
+      tipo: "luz",
+      marcoRows: sixPeriodRows,
+    })
+
+    expect(candidates).toHaveLength(1)
+    expect(candidates[0]?.potRates).toHaveLength(6)
+    expect(candidates[0]?.conRates).toHaveLength(6)
+  })
+
   it("filters by fijo/indexado and sin SVA using marco metadata", () => {
     const candidates = buildComparadorCandidates({
       accessTariff: "2.0TD",

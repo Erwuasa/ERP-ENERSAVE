@@ -35,6 +35,7 @@ export interface ProductoTarifa {
   catalogName: string
   displayName: string
   webVisible: boolean
+  erpActive: boolean
   webAlias: string | null
   tipo: "luz" | "gas"
   peaje: string
@@ -211,6 +212,7 @@ export function tariffRowToProducto(row: TariffCatalogRow): ProductoTarifa {
     catalogName,
     displayName,
     webVisible: row.web_visible === true,
+    erpActive: row.erp_active === true,
     webAlias: row.web_alias,
     tipo,
     peaje: row.access_tariff,
@@ -231,6 +233,7 @@ export function marcoRowToProducto(row: MarcoRetributivoRow): ProductoTarifa {
     catalogName: row.tarifa,
     displayName: row.tarifa,
     webVisible: false,
+    erpActive: false,
     webAlias: null,
     tipo: row.tipo,
     peaje: row.peaje,

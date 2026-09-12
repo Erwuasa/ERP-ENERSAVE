@@ -204,7 +204,7 @@ export function useErpWorkspace() {
     activeRole === 'jefe_comercial' ||
     activeRole === 'comercial' ||
     activeRole === 'tramitacion' ||
-    (activeRole === 'superadmin' && superadminViewMode === 'comercial');
+    activeRole === 'superadmin';
 
   const canViewConsolidatedLiquidaciones =
     activeRole === 'tramitacion' ||

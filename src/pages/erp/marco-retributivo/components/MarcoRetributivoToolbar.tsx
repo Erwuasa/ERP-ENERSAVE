@@ -5,6 +5,8 @@ type Props = {
   canEdit: boolean
   tipoFilter: "luz" | "gas" | "todos"
   setTipoFilter: (tipo: "luz" | "gas" | "todos") => void
+  segmentoFilter: "todos" | "residencial" | "pyme"
+  setSegmentoFilter: (segmento: "todos" | "residencial" | "pyme") => void
   onCreate: () => void
   companiaFilter: string
   setCompaniaFilter: (value: string) => void
@@ -20,6 +22,8 @@ export function MarcoRetributivoToolbar({
   canEdit,
   tipoFilter,
   setTipoFilter,
+  segmentoFilter,
+  setSegmentoFilter,
   onCreate,
   companiaFilter,
   setCompaniaFilter,
@@ -75,6 +79,32 @@ export function MarcoRetributivoToolbar({
               }`}
             >
               {tipo === "todos" ? "Todos" : tipo}
+            </button>
+          ))}
+          <span className="hidden sm:inline w-px h-5 bg-brand-border mx-0.5" aria-hidden />
+          <span className="text-[9px] font-mono uppercase text-slate-500">Segmento</span>
+          {(
+            [
+              { id: "todos", label: "Todos" },
+              { id: "residencial", label: "Residencial" },
+              { id: "pyme", label: "PYME" },
+            ] as const
+          ).map((segmento) => (
+            <button
+              key={segmento.id}
+              type="button"
+              onClick={() => setSegmentoFilter(segmento.id)}
+              className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
+                segmentoFilter === segmento.id
+                  ? segmento.id === "residencial"
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : segmento.id === "pyme"
+                      ? "bg-amber-600 text-white border-amber-600"
+                      : "bg-blue-600 text-white border-blue-600"
+                  : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
+              }`}
+            >
+              {segmento.label}
             </button>
           ))}
         </div>

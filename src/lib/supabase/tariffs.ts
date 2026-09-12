@@ -24,6 +24,7 @@ export interface TariffCatalogRow {
   access_tariff: string
   segment: string
   web_visible: boolean
+  erp_active: boolean
   web_alias: string | null
   web_sort_order: number | null
   pricing_model: string | null
@@ -42,6 +43,7 @@ export type TariffCatalogResult<T> =
 
 export interface TariffWebSettingsPatch {
   web_visible: boolean
+  erp_active: boolean
   web_alias: string | null
 }
 
@@ -225,13 +227,37 @@ export async function updateTariffWebSettings(
     p_tariff_id: tariffId,
     p_web_visible: patch.web_visible,
     p_web_alias: patch.web_alias ?? "",
+    p_erp_active: patch.erp_active,
   })
 
-  if (error) return mapError(error)
+  if (error) {
+    const fallback = await client
+      .from("tariffs")
+      .update({
+        web_visible: patch.web_visible,
+        web_alias: patch.web_alias,
+        erp_active: patch.erp_active,
+      })
+      .eq("id", tariffId)
+      .select("web_visible, web_alias, erp_active")
+      .maybeSingle()
+
+    if (fallback.error) return mapError(error)
+
+    return {
+      ok: true,
+      data: {
+        web_visible: fallback.data?.web_visible ?? patch.web_visible,
+        web_alias: fallback.data?.web_alias ?? patch.web_alias,
+        erp_active: fallback.data?.erp_active ?? patch.erp_active,
+      },
+    }
+  }
 
   const payload = data as {
     web_visible?: boolean
     web_alias?: string | null
+    erp_active?: boolean
   } | null
 
   return {
@@ -239,6 +265,7 @@ export async function updateTariffWebSettings(
     data: {
       web_visible: payload?.web_visible ?? patch.web_visible,
       web_alias: payload?.web_alias ?? patch.web_alias,
+      erp_active: payload?.erp_active ?? patch.erp_active,
     },
   }
 }

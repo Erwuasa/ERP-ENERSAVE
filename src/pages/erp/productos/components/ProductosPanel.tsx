@@ -13,6 +13,7 @@ import type { ProductoTarifa } from "@/lib/productos-catalog"
 export interface ProductosPanelProps {
   title?: string
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+  superadminViewMode?: "tramitacion" | "comercial"
   onCreateContract: (product: ProductoTarifa) => void
   renderCompaniaLogo?: (brandName: string) => ReactNode
 }
@@ -20,10 +21,11 @@ export interface ProductosPanelProps {
 export function ProductosPanel({
   title = "Tarifas",
   activeRole,
+  superadminViewMode,
   onCreateContract,
 }: ProductosPanelProps) {
   const [view, setView] = useState<"catalog" | "calendario">("catalog")
-  const vm = useProductosPanel({ activeRole })
+  const vm = useProductosPanel({ activeRole, superadminViewMode })
 
   if (view === "calendario") {
     return (
@@ -75,16 +77,16 @@ export function ProductosPanel({
           totalFiltered={vm.totalFiltered}
           hasMore={vm.hasMore}
           onLoadMore={vm.loadMore}
-          canEditWeb={vm.canEditWeb}
+          canManageTariffs={vm.canManageTariffs}
           onCreateContract={onCreateContract}
-          onEditWeb={vm.openEditModal}
+          onOpenTariff={vm.openEditModal}
         />
       </div>
 
       <TariffWebSettingsModal
         open={vm.modalOpen}
         product={vm.modalProduct}
-        canEdit={vm.canEditWeb}
+        canEdit={vm.canManageTariffs}
         saving={vm.saving}
         onClose={vm.closeModal}
         onSave={vm.handleSaveWebSettings}

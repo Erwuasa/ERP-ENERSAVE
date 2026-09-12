@@ -16,6 +16,7 @@ import {
   type ComparadorRateOption,
   type ComparadorRateSummary,
 } from '@/lib/erp/comparador-rates';
+import { normalizeComparadorAccessTariff, resolveComparadorCatalogPeajeKey } from '@/lib/comparador-access-tariff';
 import { computeComparadorOffers } from '@/lib/erp/comparador-offers';
 import { formatCurrency } from '@/lib/erp/format-currency';
 import type { CompProposalFilterId } from '@/lib/comparador-proposal-filters';
@@ -104,7 +105,29 @@ export function useErpComparador({
     p5: 0,
     p6: 0,
   });
+  const [compPreciosPotenciaActual, setCompPreciosPotenciaActual] =
+    useState<ComparadorPeriodValues>({
+      p1: 0,
+      p2: 0,
+      p3: 0,
+      p4: 0,
+      p5: 0,
+      p6: 0,
+    });
+  const [compPreciosEnergiaActual, setCompPreciosEnergiaActual] =
+    useState<ComparadorPeriodValues>({
+      p1: 0,
+      p2: 0,
+      p3: 0,
+      p4: 0,
+      p5: 0,
+      p6: 0,
+    });
+  const [compDiasFacturados, setCompDiasFacturados] = useState<number>(30);
   const [compRentMeter, setCompRentMeter] = useState<number>(1.84);
+  const [compBonoSocial, setCompBonoSocial] = useState<number>(0);
+  const [compEnergiaReactiva, setCompEnergiaReactiva] = useState<number>(0);
+  const [compOtrosCostesSva, setCompOtrosCostesSva] = useState<number>(0);
   const [compCurrentBill, setCompCurrentBill] = useState<number>(85);
   const [compResults, setCompResults] = useState<ComparadorRateOption[] | null>(null);
   const [compSummary, setCompSummary] = useState<ComparadorRateSummary | null>(null);
@@ -160,9 +183,7 @@ export function useErpComparador({
         id: row.id,
         clientName: row.clientName || row.name,
         cups: row.cups,
-        accessTariff: (row.accessTariff === '3.0TD' || row.accessTariff === '6.0TD'
-          ? row.accessTariff
-          : '2.0TD') as ComparadorAccessTariff,
+        accessTariff: normalizeComparadorAccessTariff(row.accessTariff),
         currentAnnualExpense: row.currentAnnualExpense,
         maxAnnualSavings: row.maxAnnualSavings,
         bestTariffName: row.bestTariffName || row.name,
@@ -269,11 +290,20 @@ export function useErpComparador({
   }
 
   async function handleDownloadComparadorPdf(option?: ComparadorRateOption) {
-    if (!compResults || !compSummary) {
+    const best = option ?? compResults?.find((o) => o.isBestOption) ?? compResults?.[0];
+    if (!best) {
       toast.error('Ejecuta la comparativa antes de descargar el PDF.');
       return;
     }
-    const best = option ?? compResults.find((o) => o.isBestOption) ?? compResults[0];
+    const summary =
+      compSummary ??
+      ({
+        bestTariffName: best.tariffName,
+        bestTariffCompany: best.companyName,
+        maxAnnualSavings: best.savingsAnnual,
+        maxSavingsPercentage: best.savingsPercentage ?? 0,
+        currentAnnualExpense: Math.round(Number(compCurrentBill || 0) * 12),
+      } satisfies ComparadorRateSummary);
     try {
       const input = mapComparadorToEstudioAhorro({
         clienteNombre: compClient || 'Cliente',
@@ -286,7 +316,7 @@ export function useErpComparador({
         rentMeterMonthly: compRentMeter,
         currentBillMonthly: compCurrentBill,
         bestOption: best,
-        summary: compSummary,
+        summary,
       });
       const blob = await generateEstudioAhorroPdf(input);
       downloadEstudioAhorroPdf(blob, compClient || 'cliente');
@@ -417,7 +447,9 @@ export function useErpComparador({
 
   useEffect(() => {
     if (isContractModalOpen) {
-      const companiesForTariff = Object.keys(companiesTariffsCatalog[modalAccessTariff] || {});
+      const companiesForTariff = Object.keys(
+        companiesTariffsCatalog[resolveComparadorCatalogPeajeKey(modalAccessTariff)] || {}
+      );
       if (companiesForTariff.length > 0) {
         if (!companiesForTariff.includes(modalCompany)) {
           setModalCompany(companiesForTariff[0]);
@@ -429,7 +461,9 @@ export function useErpComparador({
   useEffect(() => {
     if (isContractModalOpen && modalCompany) {
       const tariffsForCompany =
-        (companiesTariffsCatalog[modalAccessTariff] || {})[modalCompany] || [];
+        (companiesTariffsCatalog[resolveComparadorCatalogPeajeKey(modalAccessTariff)] || {})[
+          modalCompany
+        ] || [];
       if (tariffsForCompany.length > 0) {
         if (!tariffsForCompany.includes(modalTariff)) {
           setModalTariff(tariffsForCompany[0]);
@@ -583,6 +617,8 @@ export function useErpComparador({
     setCompCups,
     compTipo,
     setCompTipo,
+    compCompaniaActual,
+    setCompCompaniaActual,
     compSegment,
     setCompSegment,
     compAccessTariff,
@@ -591,8 +627,20 @@ export function useErpComparador({
     setCompPotencias,
     compConsumos,
     setCompConsumos,
+    compPreciosPotenciaActual,
+    setCompPreciosPotenciaActual,
+    compPreciosEnergiaActual,
+    setCompPreciosEnergiaActual,
+    compDiasFacturados,
+    setCompDiasFacturados,
     compRentMeter,
     setCompRentMeter,
+    compBonoSocial,
+    setCompBonoSocial,
+    compEnergiaReactiva,
+    setCompEnergiaReactiva,
+    compOtrosCostesSva,
+    setCompOtrosCostesSva,
     compCurrentBill,
     setCompCurrentBill,
     compResults,

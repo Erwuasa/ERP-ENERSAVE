@@ -48,10 +48,22 @@ export function matchesCompProposalFilters(
   return true
 }
 
+const PRICING_FILTERS: CompProposalFilterId[] = ["fijo", "indexado"]
+
 export function toggleCompProposalFilter(
   active: CompProposalFilterId[],
   filterId: CompProposalFilterId
 ): CompProposalFilterId[] {
+  if (PRICING_FILTERS.includes(filterId)) {
+    if (active.includes(filterId)) {
+      return active.filter((id) => id !== filterId)
+    }
+    return [
+      ...active.filter((id) => !PRICING_FILTERS.includes(id)),
+      filterId,
+    ]
+  }
+
   return active.includes(filterId)
     ? active.filter((id) => id !== filterId)
     : [...active, filterId]

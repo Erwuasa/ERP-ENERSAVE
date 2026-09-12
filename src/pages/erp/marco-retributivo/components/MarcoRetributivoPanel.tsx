@@ -10,21 +10,21 @@ type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
 export interface MarcoRetributivoPanelProps {
   activeRole: MarcoRole
   activeUserId: string
+  superadminViewMode?: "tramitacion" | "comercial"
   commissionPercentage: number
   formatCurrency: (val: number) => string
   renderCompaniaLogo: (brandName: string) => ReactNode
-  /** Solo superadmin puede crear/editar entradas del marco */
-  canEditMarco?: boolean
 }
 
 export function MarcoRetributivoPanel({
   activeRole,
   activeUserId,
+  superadminViewMode,
   commissionPercentage,
   formatCurrency,
   renderCompaniaLogo,
 }: MarcoRetributivoPanelProps) {
-  const vm = useMarcoRetributivoPanel({ activeRole, activeUserId })
+  const vm = useMarcoRetributivoPanel({ activeRole, activeUserId, superadminViewMode })
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
@@ -35,6 +35,8 @@ export function MarcoRetributivoPanel({
             canEdit={vm.canEdit}
             tipoFilter={vm.tipoFilter}
             setTipoFilter={vm.setTipoFilter}
+            segmentoFilter={vm.segmentoFilter}
+            setSegmentoFilter={vm.setSegmentoFilter}
             onCreate={vm.openCreateModal}
             companiaFilter={vm.companiaFilter}
             setCompaniaFilter={vm.setCompaniaFilter}
@@ -50,7 +52,6 @@ export function MarcoRetributivoPanel({
           <MarcoRetributivoTable
             loading={vm.loading}
             filteredRows={vm.filteredRows}
-            showComisionEnersave={vm.showComisionEnersave}
             canEdit={vm.canEdit}
             commissionPercentage={commissionPercentage}
             formatCurrency={formatCurrency}
@@ -93,8 +94,11 @@ export function MarcoRetributivoPanel({
         open={vm.modalOpen}
         entry={vm.modalEntry}
         canEdit={vm.canEdit}
+        canEditComision={vm.canEditComision}
         isCreateMode={vm.isCreateMode}
         allEntries={vm.rows}
+        commissionPercentage={commissionPercentage}
+        formatCurrency={formatCurrency}
         onClose={vm.closeModal}
         onSave={vm.handleSave}
         onCreate={vm.handleCreate}

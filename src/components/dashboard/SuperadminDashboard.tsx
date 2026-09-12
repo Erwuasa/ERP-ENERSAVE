@@ -5,7 +5,6 @@ import {
   Clock,
   FileText,
   Lightbulb,
-  ScanSearch,
   TrendingDown,
   WalletCards,
 } from "lucide-react"
@@ -27,7 +26,6 @@ import { KpiMetricCard } from "../ui/KpiMetricCard"
 import {
   activacionesMensuales12Meses,
   bajasEsteMes,
-  comparativasSemana,
   contratosActivos,
   contratosNuevosEsteMes,
   incidenciasAbiertas,
@@ -110,10 +108,6 @@ export function SuperadminDashboard({
     () => incidenciasAbiertas(incidencias, NO_FILTERS),
     [incidencias]
   )
-  const comparativasCount = useMemo(
-    () => comparativasSemana(comparativas, NO_FILTERS),
-    [comparativas]
-  )
   const pipeline = useMemo(
     () => pipelinePorEstado(contracts, NO_FILTERS),
     [contracts]
@@ -127,95 +121,107 @@ export function SuperadminDashboard({
     [contracts]
   )
 
+  const kpiCards = [
+    {
+      key: "liquidaciones",
+      label: isOrgLiquidaciones ? "Liquidaciones este mes" : "Mis liquidaciones",
+      displayValue: formatCurrency(liquidacionesMesEuros),
+      hint: "Ver →",
+      icon: WalletCards,
+      iconClass: "text-emerald-600/70 dark:text-emerald-400/80",
+      valueClass: "text-emerald-700 dark:text-emerald-400",
+      accentClass: "bg-emerald-500",
+      onClick: () => onNavigate?.("liquidaciones"),
+    },
+    {
+      key: "activos",
+      label: "Contratos activos",
+      displayValue: activos.toLocaleString("es-ES"),
+      hint: "Ver →",
+      icon: FileText,
+      iconClass: "text-blue-600/70 dark:text-blue-400/80",
+      valueClass: "text-blue-700 dark:text-blue-400",
+      accentClass: "bg-blue-500",
+      onClick: () => onNavigate?.("contratos_activos"),
+    },
+    {
+      key: "nuevos",
+      label: "Contratos nuevos este mes",
+      displayValue: nuevosMes.value.toLocaleString("es-ES"),
+      icon: FileText,
+      iconClass: "text-cyan-600/70 dark:text-cyan-400/80",
+      valueClass: "text-cyan-700 dark:text-cyan-400",
+      accentClass: "bg-cyan-500",
+      onClick: () => onNavigate?.("contratos_nuevos"),
+    },
+    {
+      key: "bajas",
+      label: "Bajas este mes",
+      displayValue: bajasMes.value.toLocaleString("es-ES"),
+      icon: TrendingDown,
+      iconClass: "text-orange-600/70 dark:text-orange-500/80",
+      valueClass: "text-orange-700 dark:text-orange-400",
+      accentClass: "bg-orange-500",
+      onClick: () => onNavigate?.("bajas"),
+    },
+    {
+      key: "incidencias",
+      label: "Incidencias abiertas",
+      displayValue: incidenciasCount.toLocaleString("es-ES"),
+      icon: AlertTriangle,
+      iconClass: "text-amber-600/70 dark:text-amber-400/80",
+      valueClass: "text-amber-700 dark:text-amber-400",
+      accentClass: "bg-amber-500",
+      onClick: () => onNavigate?.("incidencias"),
+    },
+    ...(oportunidadesMejora != null
+      ? [
+          {
+            key: "oportunidades",
+            label: "Oportunidades de mejora",
+            displayValue: oportunidadesMejora.toLocaleString("es-ES"),
+            icon: Lightbulb,
+            iconClass: "text-amber-600/70 dark:text-amber-400/80",
+            valueClass: "text-amber-700 dark:text-amber-400",
+            accentClass: "bg-amber-500",
+            onClick: () => onNavigate?.("oportunidades_mejora"),
+          },
+        ]
+      : []),
+    ...(renovacionesProximas != null
+      ? [
+          {
+            key: "renovaciones",
+            label: "Renovaciones próximas",
+            displayValue: renovacionesProximas.toLocaleString("es-ES"),
+            icon: Clock,
+            iconClass: "text-orange-600/70 dark:text-orange-500/80",
+            valueClass: "text-orange-700 dark:text-orange-400",
+            accentClass: "bg-orange-500",
+            onClick: () => onNavigate?.("renovaciones_proximas"),
+          },
+        ]
+      : []),
+  ] as const
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1.5">
-        <KpiMetricCard
-          compact
-          label={isOrgLiquidaciones ? "Liquidaciones este mes" : "Mis liquidaciones"}
-          displayValue={formatCurrency(liquidacionesMesEuros)}
-          hint="Ver →"
-          icon={WalletCards}
-          iconClass="text-emerald-600/70 dark:text-emerald-400/80"
-          valueClass="text-emerald-700 dark:text-emerald-400"
-          accentClass="bg-emerald-500"
-          onClick={() => onNavigate?.("liquidaciones")}
-        />
-        <KpiMetricCard
-          compact
-          label="Contratos activos"
-          displayValue={activos.toLocaleString("es-ES")}
-          hint="Ver →"
-          icon={FileText}
-          iconClass="text-blue-600/70 dark:text-blue-400/80"
-          valueClass="text-blue-700 dark:text-blue-400"
-          accentClass="bg-blue-500"
-          onClick={() => onNavigate?.("contratos_activos")}
-        />
-        <KpiMetricCard
-          compact
-          label="Contratos nuevos este mes"
-          displayValue={nuevosMes.value.toLocaleString("es-ES")}
-          icon={FileText}
-          iconClass="text-cyan-600/70 dark:text-cyan-400/80"
-          valueClass="text-cyan-700 dark:text-cyan-400"
-          accentClass="bg-cyan-500"
-          onClick={() => onNavigate?.("contratos_nuevos")}
-        />
-        <KpiMetricCard
-          compact
-          label="Bajas este mes"
-          displayValue={bajasMes.value.toLocaleString("es-ES")}
-          icon={TrendingDown}
-          iconClass="text-orange-600/70 dark:text-orange-500/80"
-          valueClass="text-orange-700 dark:text-orange-400"
-          accentClass="bg-orange-500"
-          onClick={() => onNavigate?.("bajas")}
-        />
-        <KpiMetricCard
-          compact
-          label="Incidencias abiertas"
-          displayValue={incidenciasCount.toLocaleString("es-ES")}
-          icon={AlertTriangle}
-          iconClass="text-amber-600/70 dark:text-amber-400/80"
-          valueClass="text-amber-700 dark:text-amber-400"
-          accentClass="bg-amber-500"
-          onClick={() => onNavigate?.("incidencias")}
-        />
-        <KpiMetricCard
-          compact
-          label="Comparativas (semana)"
-          displayValue={comparativasCount.value.toLocaleString("es-ES")}
-          icon={ScanSearch}
-          iconClass="text-violet-600/70 dark:text-violet-400/80"
-          valueClass="text-violet-700 dark:text-violet-400"
-          accentClass="bg-violet-500"
-          onClick={() => onNavigate?.("comparativas")}
-        />
-        {oportunidadesMejora != null && (
-          <KpiMetricCard
-            compact
-            label="Oportunidades de mejora"
-            displayValue={oportunidadesMejora.toLocaleString("es-ES")}
-            icon={Lightbulb}
-            iconClass="text-amber-600/70 dark:text-amber-400/80"
-            valueClass="text-amber-700 dark:text-amber-400"
-            accentClass="bg-amber-500"
-            onClick={() => onNavigate?.("oportunidades_mejora")}
-          />
-        )}
-        {renovacionesProximas != null && (
-          <KpiMetricCard
-            compact
-            label="Renovaciones próximas"
-            displayValue={renovacionesProximas.toLocaleString("es-ES")}
-            icon={Clock}
-            iconClass="text-orange-600/70 dark:text-orange-500/80"
-            valueClass="text-orange-700 dark:text-orange-400"
-            accentClass="bg-orange-500"
-            onClick={() => onNavigate?.("renovaciones_proximas")}
-          />
-        )}
+      <div className="flex flex-wrap xl:flex-nowrap gap-1.5">
+        {kpiCards.map((kpi) => (
+          <div key={kpi.key} className="min-w-[9.5rem] flex-1 basis-[calc(50%-0.375rem)] sm:basis-[calc(33.333%-0.5rem)] lg:basis-0">
+            <KpiMetricCard
+              compact
+              label={kpi.label}
+              displayValue={kpi.displayValue}
+              hint={"hint" in kpi ? kpi.hint : undefined}
+              icon={kpi.icon}
+              iconClass={kpi.iconClass}
+              valueClass={kpi.valueClass}
+              accentClass={kpi.accentClass}
+              onClick={kpi.onClick}
+            />
+          </div>
+        ))}
       </div>
 
       <section className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm space-y-4">

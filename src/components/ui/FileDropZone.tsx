@@ -10,6 +10,7 @@ export interface FileDropZoneProps {
   minimal?: boolean
   minimalWide?: boolean
   comparadorLayout?: boolean
+  comparadorCompactLayout?: boolean
   label?: string
   hint?: string
   className?: string
@@ -42,6 +43,7 @@ export function FileDropZone({
   minimal = false,
   minimalWide = false,
   comparadorLayout = false,
+  comparadorCompactLayout = false,
   label,
   hint,
   className = "",
@@ -136,20 +138,24 @@ export function FileDropZone({
     ? "Clic · Ctrl+V · Shift+V"
     : "Clic para buscar · Ctrl+V o Shift+V para pegar desde portapapeles"
 
-  const showText = !minimal && !minimalWide && !comparadorLayout
+  const showText = !minimal && !minimalWide && !comparadorLayout && !comparadorCompactLayout
   const isMinimalStyle = minimal || minimalWide
 
   const comparadorTitle = label ?? (disabled ? "Procesando factura…" : "Suelta la factura aquí")
   const comparadorHint =
     hint ??
-    "Un PDF o hasta 3 fotos de la misma factura. La IA rellena el suministro mientras lees lo que extrae."
+    (comparadorCompactLayout
+      ? "PDF o imagen · la IA rellena el suministro"
+      : "Un PDF o hasta 3 fotos de la misma factura. La IA rellena el suministro mientras lees lo que extrae.")
 
   return (
     <div
       role="button"
       tabIndex={disabled ? -1 : 0}
       aria-disabled={disabled}
-      aria-label={comparadorLayout ? comparadorTitle : label ?? defaultLabel}
+      aria-label={
+        comparadorLayout || comparadorCompactLayout ? comparadorTitle : label ?? defaultLabel
+      }
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -164,7 +170,7 @@ export function FileDropZone({
       className={`
         relative border-2 border-dashed text-center cursor-pointer
         transition-all duration-200 outline-none w-full
-        ${comparadorLayout ? "rounded-2xl p-8 min-h-[148px]" : minimalWide ? "rounded-lg border p-1.5" : minimal ? "inline-flex p-1 rounded-lg border w-9" : compact ? "p-2.5 rounded-xl" : "p-5 rounded-xl"}
+        ${comparadorCompactLayout ? "rounded-xl p-3 min-h-[56px] text-left" : comparadorLayout ? "rounded-2xl p-8 min-h-[148px]" : minimalWide ? "rounded-lg border p-1.5" : minimal ? "inline-flex p-1 rounded-lg border w-9" : compact ? "p-2.5 rounded-xl" : "p-5 rounded-xl"}
         ${disabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}
         ${glow}
         ${className}
@@ -185,19 +191,41 @@ export function FileDropZone({
       />
 
       <div
-        className={`flex flex-col items-center justify-center pointer-events-none w-full ${
-          comparadorLayout
-            ? "gap-3 min-h-[100px]"
-            : minimalWide
-              ? "min-h-[32px] gap-0 w-full"
-              : minimal
-                ? "min-h-[28px] gap-0"
-                : compact
-                  ? "gap-1.5 min-h-[52px]"
-                  : "gap-1.5 min-h-[100px]"
+        className={`pointer-events-none w-full ${
+          comparadorCompactLayout
+            ? "flex flex-row items-center gap-3 min-h-[32px]"
+            : comparadorLayout
+              ? "flex flex-col items-center justify-center gap-3 min-h-[100px]"
+              : minimalWide
+                ? "flex flex-col items-center justify-center min-h-[32px] gap-0 w-full"
+                : minimal
+                  ? "flex flex-col items-center justify-center min-h-[28px] gap-0"
+                  : compact
+                    ? "flex flex-col items-center justify-center gap-1.5 min-h-[52px]"
+                    : "flex flex-col items-center justify-center gap-1.5 min-h-[100px]"
         }`}
       >
-        {comparadorLayout ? (
+        {comparadorCompactLayout ? (
+          <>
+            {icon ?? (
+              <Upload className="h-4 w-4 shrink-0 text-cyan-500 dark:text-cyan-400" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-brand-text truncate">{comparadorTitle}</p>
+              <p className="text-[10px] text-brand-subtext truncate">{comparadorHint}</p>
+            </div>
+            <div className="hidden sm:flex shrink-0 items-center gap-3 text-[10px] font-mono text-brand-subtext">
+              <span className="inline-flex items-center gap-1">
+                <FileText className="h-3 w-3" />
+                PDF
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <ImageIcon className="h-3 w-3" />
+                IMG
+              </span>
+            </div>
+          </>
+        ) : comparadorLayout ? (
           <>
             <p className="text-sm font-semibold text-brand-text">{comparadorTitle}</p>
             <p className="text-xs text-brand-subtext max-w-md leading-relaxed">{comparadorHint}</p>

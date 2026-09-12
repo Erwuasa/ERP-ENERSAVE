@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
 import { toast } from "sonner"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
+import { canEditMarcoRetributivo } from "@/lib/marco-retributivo-permissions"
 import {
   createMarcoEntry,
   deleteMarcoEntry,
   listMarcoRetributivo,
+  normalizeSegmento,
   updateMarcoEntry,
   type MarcoEntryInput,
   type MarcoRetributivoRow,
@@ -12,17 +14,24 @@ import {
 } from "@/lib/supabase/marco-retributivo"
 
 type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
+type MarcoSegmentoFilter = "todos" | "residencial" | "pyme"
 
 type Options = {
   activeRole: MarcoRole
   activeUserId: string
+  superadminViewMode?: "tramitacion" | "comercial"
 }
 
-export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) {
+export function useMarcoRetributivoPanel({
+  activeRole,
+  activeUserId,
+  superadminViewMode,
+}: Options) {
   const [rows, setRows] = useState<MarcoRetributivoRow[]>([])
   const [loading, setLoading] = useState(true)
   const [companiaFilter, setCompaniaFilter] = useState<string>("Todos")
   const [tipoFilter, setTipoFilter] = useState<"luz" | "gas" | "todos">("luz")
+  const [segmentoFilter, setSegmentoFilter] = useState<MarcoSegmentoFilter>("todos")
   const [peajeFilter, setPeajeFilter] = useState<string>("todos")
   const [modalOpen, setModalOpen] = useState(false)
   const [modalEntry, setModalEntry] = useState<MarcoRetributivoRow | null>(null)
@@ -30,8 +39,8 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
   const [pendingDeactivate, setPendingDeactivate] = useState<MarcoRetributivoRow | null>(null)
   const [deactivating, setDeactivating] = useState(false)
 
-  const canEdit = activeRole === "superadmin" || activeRole === "tramitacion"
-  const showComisionEnersave = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canEdit = canEditMarcoRetributivo(activeRole, { superadminViewMode })
+  const canEditComision = canEdit && activeRole === "superadmin"
   const supabaseConfigured = isSupabaseConfigured()
 
   const loadRows = useCallback(async () => {
@@ -53,28 +62,48 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
     const set = new Set(
       rows
         .filter((e) => tipoFilter === "todos" || e.tipo === tipoFilter)
+        .filter(
+          (e) =>
+            segmentoFilter === "todos" ||
+            normalizeSegmento(e.segmento) === segmentoFilter
+        )
         .map((e) => e.peaje)
     )
     return ["todos", ...Array.from(set).sort()]
-  }, [rows, tipoFilter])
+  }, [rows, tipoFilter, segmentoFilter])
 
   const filteredRows = useMemo(() => {
     return rows.filter((entry) => {
       if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
+      if (
+        segmentoFilter !== "todos" &&
+        normalizeSegmento(entry.segmento) !== segmentoFilter
+      ) {
+        return false
+      }
       if (companiaFilter !== "Todos" && entry.compania !== companiaFilter) return false
       if (peajeFilter !== "todos" && !entry.peaje.includes(peajeFilter)) return false
       return true
     })
-  }, [rows, companiaFilter, tipoFilter, peajeFilter])
+  }, [rows, companiaFilter, tipoFilter, segmentoFilter, peajeFilter])
 
   const countsByCompania = useMemo(() => {
-    const scoped = rows.filter((e) => tipoFilter === "todos" || e.tipo === tipoFilter)
+    const scoped = rows.filter((e) => {
+      if (tipoFilter !== "todos" && e.tipo !== tipoFilter) return false
+      if (
+        segmentoFilter !== "todos" &&
+        normalizeSegmento(e.segmento) !== segmentoFilter
+      ) {
+        return false
+      }
+      return true
+    })
     const counts: Record<string, number> = { Todos: scoped.length }
     for (const row of scoped) {
       counts[row.compania] = (counts[row.compania] ?? 0) + 1
     }
     return counts
-  }, [rows, tipoFilter])
+  }, [rows, tipoFilter, segmentoFilter])
 
   const companyTabs = useMemo(() => {
     return Object.keys(countsByCompania).sort((a, b) => {
@@ -213,6 +242,11 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
     setPeajeFilter("todos")
   }
 
+  function setSegmentoFilterWithReset(segmento: MarcoSegmentoFilter) {
+    setSegmentoFilter(segmento)
+    setPeajeFilter("todos")
+  }
+
   return {
     rows,
     loading,
@@ -220,13 +254,15 @@ export function useMarcoRetributivoPanel({ activeRole, activeUserId }: Options) 
     setCompaniaFilter,
     tipoFilter,
     setTipoFilter: setTipoFilterWithReset,
+    segmentoFilter,
+    setSegmentoFilter: setSegmentoFilterWithReset,
     peajeFilter,
     setPeajeFilter,
     modalOpen,
     modalEntry,
     isCreateMode,
     canEdit,
-    showComisionEnersave,
+    canEditComision,
     supabaseConfigured,
     peajeOptions,
     filteredRows,

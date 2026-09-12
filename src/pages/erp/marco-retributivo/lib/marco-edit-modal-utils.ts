@@ -31,7 +31,7 @@ export function emptyMarcoForm(): MarcoEntryInput {
     comision_tipo: "fija",
     comision_base: 0,
     comision_unidad: "eur_cups",
-    vigencia_meses: 0,
+    vigencia_meses: 12,
     fecha_inicio: new Date().toISOString().slice(0, 10),
     activo: true,
   }
@@ -50,7 +50,12 @@ export function marcoRowToForm(row: MarcoRetributivoRow): MarcoEntryInput {
     comision_tipo: row.comision_tipo,
     comision_base: row.comision_base,
     comision_unidad: row.comision_unidad,
-    vigencia_meses: row.vigencia_meses,
+    vigencia_meses:
+      row.vigencia_meses > 0
+        ? row.vigencia_meses
+        : normalizeSegmento(row.segmento) === "pyme"
+          ? 12
+          : row.vigencia_meses,
     fecha_inicio: row.fecha_inicio,
     activo: row.activo,
   }

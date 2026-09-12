@@ -1,4 +1,6 @@
+import { tariffMatchesComparadorAccessTariff } from "./comparador-access-tariff"
 import type { CompProposalProfileTags } from "./comparador-proposal-filters"
+import type { ComparadorAccessTariff } from "./erp/comparador-rates"
 import {
   inferIncluyeSvaFromMarcoText,
   inferPotenciaBoeFromMarcoText,
@@ -15,16 +17,15 @@ export interface ComparadorTariffProfile extends CompProposalProfileTags {
 }
 
 export interface ComparadorCandidateInput {
-  accessTariff: "2.0TD" | "3.0TD" | "6.0TD"
+  accessTariff: ComparadorAccessTariff
   segment?: "residencial" | "pyme"
   tipo?: "luz" | "gas"
   marcoRows?: MarcoRetributivoRow[]
 }
 
-const DEFAULT_RATES: Record<
-  "2.0TD" | "3.0TD" | "6.0TD",
-  { potRates: number[]; conRates: number[] }
-> = {
+type FallbackRatesKey = "2.0TD" | "3.0TD" | "6.0TD"
+
+const DEFAULT_RATES: Record<FallbackRatesKey, { potRates: number[]; conRates: number[] }> = {
   "2.0TD": {
     potRates: [0.071, 0.022],
     conRates: [0.145, 0.125, 0.101],
@@ -39,23 +40,21 @@ const DEFAULT_RATES: Record<
   },
 }
 
-function normalizePeaje(peaje: string): string {
-  if (peaje.includes("6.0")) return "6.0TD"
-  if (peaje.includes("3.0")) return "3.0TD"
-  if (peaje.includes("2.0")) return "2.0TD"
-  return peaje
+function resolveFallbackRatesKey(accessTariff: ComparadorAccessTariff): FallbackRatesKey {
+  if (accessTariff === "2.0TD") return "2.0TD"
+  if (accessTariff === "3.0TD") return "3.0TD"
+  return "6.0TD"
 }
 
-function peajeMatchesEntry(entryPeaje: string, accessTariff: string): boolean {
-  const normalized = normalizePeaje(entryPeaje)
-  return normalized === accessTariff || entryPeaje.includes(accessTariff)
+function isTwoPeriodTariff(accessTariff: ComparadorAccessTariff): boolean {
+  return accessTariff === "2.0TD"
 }
 
 function buildRatesFromMarcoRow(
   row: MarcoRetributivoRow,
-  accessTariff: "2.0TD" | "3.0TD" | "6.0TD"
+  accessTariff: ComparadorAccessTariff
 ): { potRates: number[]; conRates: number[] } {
-  const fallback = DEFAULT_RATES[accessTariff]
+  const fallback = DEFAULT_RATES[resolveFallbackRatesKey(accessTariff)]
   const potRates = [
     row.potencia_p1,
     row.potencia_p2,
@@ -75,14 +74,14 @@ function buildRatesFromMarcoRow(
   ].map((value, index) => value ?? fallback.conRates[index] ?? 0)
 
   return {
-    potRates: accessTariff === "2.0TD" ? potRates.slice(0, 2) : potRates,
-    conRates: accessTariff === "2.0TD" ? conRates.slice(0, 3) : conRates,
+    potRates: isTwoPeriodTariff(accessTariff) ? potRates.slice(0, 2) : potRates,
+    conRates: isTwoPeriodTariff(accessTariff) ? conRates.slice(0, 3) : conRates,
   }
 }
 
 function profileFromMarcoRow(
   row: MarcoRetributivoRow,
-  accessTariff: "2.0TD" | "3.0TD" | "6.0TD"
+  accessTariff: ComparadorAccessTariff
 ): ComparadorTariffProfile {
   const { potRates, conRates } = buildRatesFromMarcoRow(row, accessTariff)
   const tipoPrecio: "fijo" | "indexado" =
@@ -113,7 +112,7 @@ export function buildComparadorCandidates(input: ComparadorCandidateInput): Comp
         (row) =>
           row.activo &&
           row.tipo === tipo &&
-          peajeMatchesEntry(row.peaje, accessTariff)
+          tariffMatchesComparadorAccessTariff(row.peaje, accessTariff)
       )
       .map((row) => profileFromMarcoRow(row, accessTariff))
   }

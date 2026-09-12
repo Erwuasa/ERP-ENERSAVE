@@ -6,14 +6,18 @@ import type {
 } from "@/lib/supabase/marco-retributivo"
 import { MarcoEditModalComisionesSection } from "@/pages/erp/marco-retributivo/components/MarcoEditModalComisionesSection"
 import { MarcoEditModalDatosSection } from "@/pages/erp/marco-retributivo/components/MarcoEditModalDatosSection"
+import { MarcoEditModalReadOnlyView } from "@/pages/erp/marco-retributivo/components/MarcoEditModalReadOnlyView"
 import { useMarcoRetributivoEditModal } from "@/pages/erp/marco-retributivo/hooks/useMarcoRetributivoEditModal"
 
 export interface MarcoRetributivoEditModalProps {
   open: boolean
   entry: MarcoRetributivoRow | null
   canEdit: boolean
+  canEditComision: boolean
   isCreateMode: boolean
   allEntries: MarcoRetributivoRow[]
+  commissionPercentage: number
+  formatCurrency: (val: number) => string
   onClose: () => void
   onSave: (id: string, patch: Partial<MarcoEntryInput>) => Promise<boolean>
   onCreate: (input: NewMarcoEntryInput) => Promise<boolean>
@@ -23,7 +27,10 @@ export function MarcoRetributivoEditModal({
   open,
   entry,
   canEdit,
+  canEditComision,
   isCreateMode,
+  commissionPercentage,
+  formatCurrency,
   onClose,
   onSave,
   onCreate,
@@ -82,13 +89,28 @@ export function MarcoRetributivoEditModal({
         </div>
 
         <div className="px-5 py-4 overflow-y-auto space-y-5 flex-1">
-          <MarcoEditModalDatosSection form={vm.form} disabled={disabled} patchForm={vm.patchForm} />
-          <MarcoEditModalComisionesSection
-            form={vm.form}
-            canEdit={canEdit}
-            comisionPreview={vm.comisionPreview}
-            patchForm={vm.patchForm}
-          />
+          {canEdit ? (
+            <>
+              <MarcoEditModalDatosSection
+                form={vm.form}
+                disabled={disabled}
+                patchForm={vm.patchForm}
+              />
+              <MarcoEditModalComisionesSection
+                form={vm.form}
+                canEdit={canEdit}
+                canEditComision={canEditComision}
+                comisionPreview={vm.comisionPreview}
+                patchForm={vm.patchForm}
+              />
+            </>
+          ) : (
+            <MarcoEditModalReadOnlyView
+              form={vm.form}
+              commissionPercentage={commissionPercentage}
+              formatCurrency={formatCurrency}
+            />
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-brand-border bg-brand-surface/30">

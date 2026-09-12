@@ -1,9 +1,6 @@
 import type { MouseEvent, ReactNode } from "react"
 import { Loader2, Pencil, Trash2 } from "lucide-react"
-import {
-  formatMarcoComisionBase,
-  formatMarcoComisionUsuario,
-} from "@/data/marco-retributivo-catalog"
+import { formatMarcoComisionUsuario } from "@/data/marco-retributivo-catalog"
 import { marcoRowToCatalogEntry, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 
 const MARCO_TH =
@@ -14,7 +11,6 @@ const MARCO_TD = "px-2.5 py-2.5 align-top border-b border-brand-border/70"
 type Props = {
   loading: boolean
   filteredRows: MarcoRetributivoRow[]
-  showComisionEnersave: boolean
   canEdit: boolean
   commissionPercentage: number
   formatCurrency: (val: number) => string
@@ -26,7 +22,6 @@ type Props = {
 export function MarcoRetributivoTable({
   loading,
   filteredRows,
-  showComisionEnersave,
   canEdit,
   commissionPercentage,
   formatCurrency,
@@ -44,17 +39,15 @@ export function MarcoRetributivoTable({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-auto overscroll-contain rounded-xl border border-brand-border/60 bg-brand-surface/30">
-      <table className="w-full min-w-[960px] table-fixed text-left text-xs">
+    <div className="h-full min-h-0 overflow-auto overscroll-contain scrollbar-overlay rounded-xl border border-brand-border/60 bg-brand-surface/30">
+      <table className="w-full min-w-[880px] table-fixed text-left text-xs">
         <colgroup>
-          <col className="w-[16%]" />
-          <col className="w-[16%]" />
+          <col className="w-[18%]" />
+          <col className="w-[18%]" />
           <col className="w-[88px]" />
-          <col className="w-[22%]" />
+          <col className="w-[24%]" />
           <col className="w-[110px]" />
-          <col className="w-[12%]" />
-          {showComisionEnersave && <col className="w-[12%]" />}
-          <col className="w-[12%]" />
+          <col className="w-[14%]" />
           <col className="w-[88px]" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-brand-panel">
@@ -64,11 +57,7 @@ export function MarcoRetributivoTable({
             <th className={MARCO_TH}>Peaje</th>
             <th className={MARCO_TH}>Condiciones</th>
             <th className={MARCO_TH}>Permanencia</th>
-            <th className={`${MARCO_TH} text-right`}>Comisión base</th>
-            {showComisionEnersave && (
-              <th className={`${MARCO_TH} text-right text-emerald-600`}>Comisión ENerSave</th>
-            )}
-            <th className={`${MARCO_TH} text-right text-amber-600`}>Tu comisión</th>
+            <th className={`${MARCO_TH} text-right text-emerald-600`}>Comisión</th>
             <th className={`${MARCO_TH} text-right`}>Acciones</th>
           </tr>
         </thead>
@@ -76,7 +65,7 @@ export function MarcoRetributivoTable({
           {filteredRows.length === 0 ? (
             <tr>
               <td
-                colSpan={showComisionEnersave ? 9 : 8}
+                colSpan={7}
                 className="px-2.5 py-10 text-center text-brand-subtext font-mono text-[11px]"
               >
                 No hay tarifas para los filtros seleccionados.
@@ -125,15 +114,7 @@ export function MarcoRetributivoTable({
                       ? "Sin permanencia"
                       : `${row.vigencia_meses} meses`}
                   </td>
-                  <td className={`${MARCO_TD} text-right font-mono text-[11px] text-brand-text`}>
-                    {formatMarcoComisionBase(entry)}
-                  </td>
-                  {showComisionEnersave && (
-                    <td className={`${MARCO_TD} text-right font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-500`}>
-                      {formatMarcoComisionUsuario(entry, 100, formatCurrency)}
-                    </td>
-                  )}
-                  <td className={`${MARCO_TD} text-right font-mono text-[11px] font-bold text-amber-600 dark:text-amber-500`}>
+                  <td className={`${MARCO_TD} text-right font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-500`}>
                     {formatMarcoComisionUsuario(entry, commissionPercentage, formatCurrency)}
                   </td>
                   <td className={`${MARCO_TD} text-right`}>

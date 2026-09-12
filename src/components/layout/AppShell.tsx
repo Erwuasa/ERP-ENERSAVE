@@ -150,6 +150,7 @@ export function AppShell({
   )
 
   const isFullBleedWorkspacePage = /^\/erp\/contratos(\/|$)/.test(location.pathname)
+  const isComparadorPage = /^\/erp\/comparador(\/|$)/.test(location.pathname)
 
   const initials = activeUser.fullName
     .split(" ")
@@ -205,7 +206,7 @@ export function AppShell({
             x: isMobile && !mobileOpen ? -sidebar.widthExpanded : 0,
           }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className={`bg-brand-panel border-r border-brand-border backdrop-blur-xl h-full min-h-0 flex flex-col justify-between overflow-y-auto transition-colors duration-300 ${
+          className={`bg-brand-panel border-r border-brand-border backdrop-blur-xl h-full min-h-0 flex flex-col justify-between overflow-y-auto scrollbar-overlay transition-colors duration-300 ${
             isMobile
               ? `${sidebar.mobileOverlay} ${mobileOpen ? "pointer-events-auto" : "pointer-events-none"}`
               : "shrink-0 relative z-20"
@@ -491,7 +492,11 @@ export function AppShell({
 
         <div
           className={`relative flex flex-1 min-h-0 min-w-0 h-full flex-col bg-brand-bg font-sans text-brand-text ${
-            isFullBleedWorkspacePage ? "overflow-hidden p-0" : "overflow-hidden p-4 sm:p-6 md:p-10"
+            isFullBleedWorkspacePage
+              ? "overflow-hidden p-0"
+              : isComparadorPage
+                ? "overflow-hidden p-3 sm:p-4 md:p-5"
+                : "overflow-hidden p-4 sm:p-6 md:p-10"
           }`}
         >
           {!isFullBleedWorkspacePage ? (
@@ -504,7 +509,9 @@ export function AppShell({
             className={`relative z-[1] flex min-h-0 flex-1 flex-col ${
               isFullBleedWorkspacePage
                 ? "overflow-hidden"
-                : "space-y-8 overflow-x-hidden overflow-y-auto"
+                : isComparadorPage
+                  ? "overflow-x-hidden overflow-y-auto lg:overflow-hidden scrollbar-overlay min-h-0"
+                  : "space-y-8 overflow-x-hidden overflow-y-auto scrollbar-overlay"
             }`}
           >
             {children}
