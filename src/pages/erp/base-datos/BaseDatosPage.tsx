@@ -1,33 +1,29 @@
-import { useMemo } from "react"
+import { useEffect, useState } from "react"
 import { GeneralDatabasePage as GeneralDatabasePanel } from "@/components/GeneralDatabasePage"
 import { useAuth } from "@/hooks/useAuth"
 import {
   extractGeneralDatabaseLeadId,
   generalDatabaseLeadToProspectoInput,
 } from "@/lib/general-database-prospecto"
-import { useProspectos } from "@/lib/ventas/hooks/useProspectos"
+import { listImportedGeneralDatabaseLeadIds } from "@/lib/supabase/general-database-leads"
+import { createProspecto, getProspecto } from "@/lib/supabase/ventas"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
-import { mapVentasRole } from "@/types/profile"
 import type { GeneralDatabaseLead } from "@/types/general-database"
 
 export function BaseDatosPage() {
   const { activeUser } = useAuth()
   const { openVentasFicha } = useErpWorkspaceContext()
-  const actor = {
-    comercialId: activeUser.id,
-    comercialName: activeUser.fullName,
-    role: mapVentasRole(activeUser.role),
-  }
-  const { prospectos, createProspecto } = useProspectos(actor)
+  const [importedLeadIds, setImportedLeadIds] = useState<Set<string>>(new Set())
 
-  const importedLeadIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const prospecto of prospectos) {
-      const leadId = extractGeneralDatabaseLeadId(prospecto.metadata)
-      if (leadId) ids.add(leadId)
+  useEffect(() => {
+    let cancelled = false
+    void listImportedGeneralDatabaseLeadIds().then((result) => {
+      if (!cancelled && result.ok) setImportedLeadIds(new Set(result.data))
+    })
+    return () => {
+      cancelled = true
     }
-    return ids
-  }, [prospectos])
+  }, [])
 
   async function onConvertToProspecto(lead: GeneralDatabaseLead): Promise<string | null> {
     const input = generalDatabaseLeadToProspectoInput(lead, activeUser.id, activeUser.fullName)
@@ -41,8 +37,12 @@ export function BaseDatosPage() {
       subtipoProspecto: input.subtipoProspecto,
       fase: input.fase,
       metadata: input.metadata,
+      comercialId: activeUser.id,
+      comercialName: activeUser.fullName,
     })
     if (!result || result.ok !== true || !("data" in result)) return null
+    const leadId = extractGeneralDatabaseLeadId(result.data.metadata) ?? lead.id
+    setImportedLeadIds((prev) => new Set(prev).add(leadId))
     return result.data.id
   }
 
@@ -51,8 +51,9 @@ export function BaseDatosPage() {
       importedLeadIds={importedLeadIds}
       onConvertToProspecto={onConvertToProspecto}
       onOpenProspecto={(prospectoId) => {
-        const prospecto = prospectos.find((item) => item.id === prospectoId)
-        if (prospecto) openVentasFicha(prospecto)
+        void getProspecto(prospectoId).then((result) => {
+          if (result.ok) openVentasFicha(result.data)
+        })
       }}
     />
   )

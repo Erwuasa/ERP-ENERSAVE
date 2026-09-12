@@ -62,7 +62,8 @@ export function useGeneralDatabaseLeads(filters: GeneralDatabaseFilters) {
     setError(null)
     const result = await listGeneralDatabaseLeads(filtersRef.current)
     if (result.ok) {
-      setLeads(result.data.length > 0 ? result.data : DEMO_GENERAL_DATABASE_LEADS)
+      setLeads(result.data.leads.length > 0 ? result.data.leads : DEMO_GENERAL_DATABASE_LEADS)
+      setFilterOptions(result.data.filterOptions)
     } else {
       setError(result.message)
       setLeads(DEMO_GENERAL_DATABASE_LEADS)

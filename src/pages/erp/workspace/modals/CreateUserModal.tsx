@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react"
 import { UserPlus, X } from "lucide-react"
-import type { UserRole } from "@/types/profile"
+import type { StaffRole } from "@/types/profile"
 import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 
 type Props = Pick<
@@ -102,7 +102,7 @@ export function CreateUserModal({
                 </label>
                 <select
                   value={newUserRole}
-                  onChange={(e) => setNewUserRole(e.target.value as UserRole)}
+                  onChange={(e) => setNewUserRole(e.target.value as StaffRole)}
                   className="w-full px-3 py-2 bg-brand-bg border border-brand-border rounded-lg focus:outline-none text-brand-text font-mono font-semibold"
                 >
                   <option value="comercial">comercial</option>

@@ -147,6 +147,13 @@ export function useErpComparador({
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
+    if (
+      currentMenuTab !== 'Comparador' &&
+      currentMenuTab !== 'Comparador de Facturas' &&
+      currentMenuTab !== 'Historial de Comparativas'
+    ) {
+      return;
+    }
     void listAtComparisons().then((result) => {
       if (!result.ok) return;
       const fromAt: ComparisonHistoryEntry[] = result.data.map((row) => ({
@@ -167,7 +174,7 @@ export function useErpComparador({
         return [...fromAt, ...local];
       });
     });
-  }, []);
+  }, [currentMenuTab]);
 
   const handleCompareRates = useCallback(() => {
     const { results, summary } = computeComparadorOffers({
@@ -201,10 +208,17 @@ export function useErpComparador({
   ]);
 
   useEffect(() => {
+    if (
+      currentMenuTab !== 'Comparador' &&
+      currentMenuTab !== 'Comparador de Facturas' &&
+      currentMenuTab !== 'Historial de Comparativas'
+    ) {
+      return;
+    }
     void listMarcoRetributivo().then((result) => {
       if (result.ok) setMarcoRowsForComparador(result.data);
     });
-  }, []);
+  }, [currentMenuTab]);
 
   useEffect(() => {
     handleCompareRates();

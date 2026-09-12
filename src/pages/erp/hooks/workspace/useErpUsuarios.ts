@@ -5,6 +5,7 @@ import {
   defaultCommissionForRole,
   profileFromDirectoryRow,
   type Profile,
+  type StaffRole,
   type UserRole,
 } from '@/types/profile';
 import { listErpComerciales, updateErpComercial, deleteStaffUser, inviteStaffUser, cancelStaffInvitation } from '@/lib/supabase/erp-comerciales';
@@ -30,7 +31,7 @@ export function useErpUsuarios({
 }: UseErpUsuariosParams) {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState<UserRole>('comercial');
+  const [newUserRole, setNewUserRole] = useState<StaffRole>('comercial');
   const [newUserManager, setNewUserManager] = useState<string>('');
   const [activeUserForSheet, setActiveUserForSheet] = useState<Profile | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
@@ -55,12 +56,24 @@ export function useErpUsuarios({
     let cancelled = false;
     async function loadErpUsers() {
       setIsSyncingErpUsers(true);
-      const [comerciales, accounts, mfaSummary] = await Promise.all([
-        listErpComerciales(),
-        listAppUsers(),
-        fetchAdminMfaSummary(),
-      ]);
-      if (!cancelled && comerciales.ok) {
+
+      const accounts = await listAppUsers();
+      if (cancelled) return;
+      if (accounts.ok === false) {
+        setAppUsers([]);
+        setAppUsersError(accounts.message);
+      } else {
+        setAppUsers(accounts.data);
+        setAppUsersError(null);
+      }
+      setIsSyncingErpUsers(false);
+
+      void listErpComerciales().then((comerciales) => {
+        if (cancelled) return;
+        if (comerciales.ok === false) {
+          console.warn('[Usuarios] Supabase sync:', comerciales.message);
+          return;
+        }
         setProfiles(
           comerciales.data.map((row) =>
             profileFromDirectoryRow({
@@ -73,24 +86,13 @@ export function useErpUsuarios({
             })
           )
         );
-      } else if (!cancelled && comerciales.ok === false) {
-        console.warn('[Usuarios] Supabase sync:', comerciales.message);
-      }
-      if (!cancelled) {
-        if (accounts.ok === false) {
-          setAppUsers([]);
-          setAppUsersError(accounts.message);
-        } else {
-          setAppUsers(accounts.data);
-          setAppUsersError(null);
+      });
+
+      void fetchAdminMfaSummary().then((mfaSummary) => {
+        if (!cancelled) {
+          setMfaEnrolledIds(mfaSummary.ok ? mfaSummary.data : []);
         }
-        if (mfaSummary.ok) {
-          setMfaEnrolledIds(mfaSummary.data);
-        } else {
-          setMfaEnrolledIds([]);
-        }
-        setIsSyncingErpUsers(false);
-      }
+      });
     }
 
     void loadErpUsers();
