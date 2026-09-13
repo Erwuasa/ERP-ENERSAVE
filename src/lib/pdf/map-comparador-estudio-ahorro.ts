@@ -1,3 +1,5 @@
+import type { ComparadorAccessTariff } from "@/lib/erp/comparador-rates"
+import { normalizeComparadorAccessTariff } from "@/lib/comparador-access-tariff"
 import type {
   EstudioAhorroConjuntoInput,
   EstudioAhorroInput,
@@ -54,7 +56,7 @@ export interface MapComparadorEstudioAhorroParams {
   clienteNombre: string
   cups: string
   direccion?: string
-  accessTariff: "2.0TD" | "3.0TD" | "6.0TD"
+  accessTariff: ComparadorAccessTariff
   tarifaActualNombre?: string
   comercializadoraActual?: string
   potencias: PotenciasMap
@@ -318,7 +320,7 @@ export function mapComparadorHistoryListToEstudioAhorroConjunto(
 export function mapComparadorHistoryToEstudioAhorro(
   params: ComparadorHistoryPdfParams
 ): EstudioAhorroInput {
-  const accessTariff = params.accessTariff as "2.0TD" | "3.0TD" | "6.0TD"
+  const accessTariff = normalizeComparadorAccessTariff(params.accessTariff)
   const defaults = getDefaultRates(accessTariff)
   const potencias =
     accessTariff === "2.0TD"
