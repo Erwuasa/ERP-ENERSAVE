@@ -1,15 +1,8 @@
 import { StyleSheet } from "@react-pdf/renderer"
+import { BRAND } from "./brand-colors"
 import { PDF_FONT_DISPLAY, PDF_FONT_TEXT } from "./register-sf-pro-pdf-fonts"
 
-export const BRAND = {
-  azul: "#1B4A77",
-  verde: "#40A74D",
-  gris: "#6B7280",
-  grisClaro: "#F3F4F6",
-  borde: "#E5E7EB",
-  texto: "#111827",
-  blanco: "#FFFFFF",
-}
+export { BRAND }
 
 export const pdfStyles = StyleSheet.create({
   page: {

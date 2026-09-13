@@ -1,32 +1,38 @@
-import { pdf } from "@react-pdf/renderer"
-import { registerSfProPdfFonts } from "./register-sf-pro-pdf-fonts"
-import {
-  EstudioAhorroConjuntoDocument,
-  EstudioAhorroDocument,
-} from "./estudio-ahorro-document"
-import type {
-  EstudioAhorroConjuntoInput,
-  EstudioAhorroInput,
-} from "./estudio-ahorro-types"
+import { resolveComercializadoraLogoSrc } from "./comercializadora-logo-resolver"
+import { calcTotalesConjunto } from "./estudio-ahorro-calc"
+import { EstudioAhorroConjuntoResumenTemplate, EstudioAhorroDetalleTemplate } from "./estudio-ahorro-template"
+import { renderPagesToPdf } from "./html-to-pdf"
+import type { EstudioAhorroConjuntoInput, EstudioAhorroInput } from "./estudio-ahorro-types"
 
-export type {
-  EstudioAhorroConjuntoInput,
-  EstudioAhorroInput,
-} from "./estudio-ahorro-types"
+export type { EstudioAhorroConjuntoInput, EstudioAhorroInput } from "./estudio-ahorro-types"
 
 export async function generateEstudioAhorroPdf(input: EstudioAhorroInput): Promise<Blob> {
-  registerSfProPdfFonts()
-  const instance = pdf(<EstudioAhorroDocument input={input} />)
-  return instance.toBlob()
+  const logoSrc = await resolveComercializadoraLogoSrc(input.tarifaPropuesta.comercializadora)
+  return renderPagesToPdf([<EstudioAhorroDetalleTemplate input={input} comercializadoraLogoSrc={logoSrc} />])
 }
 
 export async function generateEstudioAhorroConjuntoPdf(
   input: EstudioAhorroConjuntoInput
 ): Promise<Blob> {
   if (input.estudios.length === 0) throw new Error("No hay comparativas seleccionadas")
-  registerSfProPdfFonts()
-  const instance = pdf(<EstudioAhorroConjuntoDocument input={input} />)
-  return instance.toBlob()
+
+  const totales = calcTotalesConjunto(input.estudios)
+  const logoSrcs = await Promise.all(
+    input.estudios.map((estudio) => resolveComercializadoraLogoSrc(estudio.tarifaPropuesta.comercializadora))
+  )
+  const pages = [
+    ...input.estudios.map((estudio, idx) => (
+      <EstudioAhorroDetalleTemplate
+        key={`${estudio.cliente.cups}-${idx}`}
+        input={estudio}
+        comercializadoraLogoSrc={logoSrcs[idx]}
+        indice={{ actual: idx + 1, total: input.estudios.length }}
+      />
+    )),
+    <EstudioAhorroConjuntoResumenTemplate key="resumen" input={input} totales={totales} />,
+  ]
+
+  return renderPagesToPdf(pages)
 }
 
 export function downloadEstudioAhorroPdf(blob: Blob, filenameOrCliente: string): void {
@@ -36,7 +42,7 @@ export function downloadEstudioAhorroPdf(blob: Blob, filenameOrCliente: string):
     : (() => {
         const safe = (filenameOrCliente || "cliente")
           .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[̀-ͯ]/g, "")
           .replace(/[^a-zA-Z0-9-_]+/g, "-")
           .replace(/^-+|-+$/g, "")
           .toLowerCase()
