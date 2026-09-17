@@ -7,6 +7,7 @@ import {
   normalizeListPayload,
   type JsonRecord,
 } from './at-api.ts'
+import { mapAtPricingSource } from './at-tariff-prices.ts'
 import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 
 const UPSERT_BATCH = 50
@@ -38,6 +39,7 @@ interface AtTariffRow {
   active: boolean
   pricing_model?: string | null
   is_indexed?: boolean | null
+  monthly_price?: number | null
   compania?: AtCompany | null
   eletricity_data?: JsonRecord | null
   electricity_data?: JsonRecord | null
@@ -182,27 +184,12 @@ function buildPriceRows(tariffId: string, row: AtTariffRow) {
   const source = electricity ?? gas
   if (!source) return []
 
-  const rows: Array<{
-    tariff_id: string
-    period: string
-    energy_price_kwh: number
-    power_price_kw_day: number
-  }> = []
-
-  for (let i = 1; i <= 6; i += 1) {
-    const energy = asNumber(source[`price_kwh_p${i}`])
-    const power = asNumber(source[`price_kw_day_p${i}`])
-    if (energy === null && power === null) continue
-
-    rows.push({
-      tariff_id: tariffId,
-      period: `P${i}`,
-      energy_price_kwh: energy ?? 0,
-      power_price_kw_day: power ?? 0,
-    })
-  }
-
-  return rows
+  return mapAtPricingSource(source).map((price) => ({
+    tariff_id: tariffId,
+    period: price.period,
+    energy_price_kwh: price.energy_price_kwh,
+    power_price_kw_day: price.power_price_kw_day,
+  }))
 }
 
 function roundPrice(value: number | null | undefined): number {
@@ -488,7 +475,7 @@ function mapTariffRow(row: AtTariffRow, providerId: string | null, syncedAt: str
     pricing_model: row.pricing_model ?? null,
     is_indexed: row.is_indexed === true,
     is_solar_rate: pricingSource?.is_solar_rate === true,
-    sva_price_monthly: asNumber(pricingSource?.monthly_maintenance),
+    sva_price_monthly: asNumber(pricingSource?.monthly_maintenance) ?? asNumber(row.monthly_price),
     at_synced_at: syncedAt,
   }
 }
