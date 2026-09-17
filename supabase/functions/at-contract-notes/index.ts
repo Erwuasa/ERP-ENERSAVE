@@ -5,6 +5,7 @@ import {
   fetchAtChildList,
   fetchAtRecord,
   getSupabaseAdmin,
+  isAtApiDisabledError,
 } from '../_shared/at-api.ts'
 import {
   mapAtDocuments,
@@ -141,6 +142,9 @@ Deno.serve(async (request) => {
       emails,
     })
   } catch (error) {
+    if (isAtApiDisabledError(error)) {
+      return json(request, { ok: false, skipped: true, error: 'AT_API_DISABLED' }, 503)
+    }
     console.error('[at-contract-notes]', error)
     return json(
       request,

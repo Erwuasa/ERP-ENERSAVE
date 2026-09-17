@@ -1,3 +1,4 @@
+import { getAtOutboundEnabled } from "./erp-settings"
 import { resolveSupabaseClient, type SupabaseResult } from "./result"
 
 export interface AtContractNote {
@@ -135,6 +136,13 @@ export async function fetchAtContractExtras(input: {
   atContractId: string
   contratoId?: string
 }): Promise<SupabaseResult<AtContractExtras>> {
+  if (!(await getAtOutboundEnabled())) {
+    return {
+      ok: false,
+      reason: "error",
+      message: "La API de AT está apagada. No se consultan notas ni eventos de AT.",
+    }
+  }
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
 

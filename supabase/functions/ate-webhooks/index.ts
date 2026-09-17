@@ -1,5 +1,6 @@
 import { corsHeaders, handleOptions } from '../_shared/cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from '../_shared/at-webhook-auth.ts'
+import { isAtApiDisabledError, isAtApiEnabled } from '../_shared/at-api.ts'
 import { runMarcoSync } from '../_shared/sync-marcos.ts'
 import { runTariffSync } from '../_shared/sync-tariffs.ts'
 import { runClientSync } from '../_shared/sync-clients.ts'
@@ -58,6 +59,10 @@ Deno.serve(async (request) => {
     return respondWithJson({ error: 'Unauthorized' }, 401)
   }
 
+  if (!(await isAtApiEnabled())) {
+    return respondWithJson({ ok: true, skipped: true, reason: 'disabled' })
+  }
+
   let body: Record<string, unknown> | undefined
   if (rawBody) {
     try {
@@ -97,6 +102,9 @@ Deno.serve(async (request) => {
       stats: result.stats,
     })
   } catch (error) {
+    if (isAtApiDisabledError(error)) {
+      return respondWithJson({ ok: true, event, skipped: true, reason: 'disabled' })
+    }
     console.error('[ate-webhooks]', event, error)
     return respondWithJson(
       {

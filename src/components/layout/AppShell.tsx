@@ -10,8 +10,10 @@ import {
   LogOut,
   Menu,
   Moon,
+  PlugZap,
   SlidersHorizontal,
   Sun,
+  Unplug,
   UserCircle2,
   X,
   Zap,
@@ -28,7 +30,8 @@ import { getVisibleSidebarItems, getPreviewSidebarItems, getSidebarItemDisplayNa
 import { buildSidebarActionBadges } from "@/lib/sidebar-action-badges"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
-import type { Profile, UserRole } from "@/types/profile"
+import { AtApiDisabledBanner } from "@/components/AtApiDisabledBanner"
+import { useAtApiSettings } from "@/providers/AtApiSettingsProvider"
 
 export interface AppShellProps {
   children: ReactNode
@@ -79,6 +82,8 @@ export function AppShell({
   onOpenFiscalProfile,
   fiscalProfileIncomplete = false,
 }: AppShellProps) {
+  const { active: atOutboundEnabled, busy: atOutboundBusy, canToggle, toggle: onToggleAtOutbound } =
+    useAtApiSettings()
   const { setTheme, resolvedTheme } = useTheme()
   const location = useLocation()
   const isMobile = useIsMobileSidebar()
@@ -344,6 +349,45 @@ export function AppShell({
                 </button>
               </div>
             )}
+            {canToggle ? (
+              <div className="p-3 border-b border-brand-border bg-slate-500/5">
+                <button
+                  type="button"
+                  onClick={() => void onToggleAtOutbound()}
+                  disabled={atOutboundBusy}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-brand-surface hover:bg-brand-elevated text-brand-text border border-brand-border rounded-xl cursor-pointer text-xs font-bold transition-all shadow-sm disabled:opacity-60"
+                  title={
+                    atOutboundEnabled
+                      ? "Apagar FTP, tarifas, marcos y el resto de llamadas a AT"
+                      : "Encender FTP, tarifas, marcos y el resto de llamadas a AT"
+                  }
+                >
+                  <div className="flex items-center space-x-2 truncate">
+                    {atOutboundEnabled ? (
+                      <PlugZap className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <Unplug className="w-3.5 h-3.5 text-amber-500" />
+                    )}
+                    {isExpanded && (
+                      <span className="truncate text-[11px] font-bold">
+                        {atOutboundEnabled ? "API AT activa" : "API AT apagada"}
+                      </span>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <span
+                      className={`text-[8px] font-mono px-1.5 py-0.5 rounded uppercase font-bold ${
+                        atOutboundEnabled
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : "bg-amber-500/10 text-amber-500"
+                      }`}
+                    >
+                      {atOutboundEnabled ? "On" : "Off"}
+                    </span>
+                  )}
+                </button>
+              </div>
+            ) : null}
 
             <nav className="p-3 space-y-1" aria-label="Navegación principal">
               {menuOptions.map((opt) => {
@@ -505,16 +549,27 @@ export function AppShell({
               <div className="pointer-events-none absolute bottom-10 left-10 h-80 w-80 rounded-full bg-[var(--brand-glow-amber)] blur-3xl" />
             </>
           ) : null}
-          <div
-            className={`relative z-[1] flex min-h-0 flex-1 flex-col ${
-              isFullBleedWorkspacePage
-                ? "overflow-hidden"
-                : isComparadorPage
-                  ? "overflow-x-hidden overflow-y-auto lg:overflow-hidden scrollbar-overlay min-h-0"
-                  : "space-y-8 overflow-x-hidden overflow-y-auto scrollbar-overlay"
-            }`}
-          >
-            {children}
+          <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
+            {!atOutboundEnabled ? (
+              <div
+                className={`shrink-0 ${
+                  isFullBleedWorkspacePage ? "px-4 pt-4 pb-3 sm:px-6" : "pb-3"
+                }`}
+              >
+                <AtApiDisabledBanner tab={currentMenuTab} />
+              </div>
+            ) : null}
+            <div
+              className={`flex min-h-0 flex-1 flex-col ${
+                isFullBleedWorkspacePage
+                  ? "overflow-hidden"
+                  : isComparadorPage
+                    ? "overflow-x-hidden overflow-y-auto lg:overflow-hidden scrollbar-overlay min-h-0"
+                    : "space-y-8 overflow-x-hidden overflow-y-auto scrollbar-overlay"
+              }`}
+            >
+              {children}
+            </div>
           </div>
         </div>
       </div>

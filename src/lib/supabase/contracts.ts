@@ -9,6 +9,7 @@ import {
 import { insertContratoHistorialCambioEstado } from "./contrato-historial"
 import type { NewContractFormState } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
+import { pushContractToAt } from "./push-contract-at"
 import {
   num,
   resolveSupabaseClient,
@@ -600,6 +601,7 @@ export async function updateTeamContract(
   }
 
   const providers = await loadProviderByAtCompanyId(resolved.client)
+  void pushContractToAt(id)
   return { ok: true, data: mapRowToContract(data as Row, providers) }
 }
 
@@ -645,5 +647,7 @@ export async function saveTeamContractToSupabase(
 
   if (error) return toFailure(error)
 
-  return { ok: true, id: String(data.id) }
+  const id = String(data.id)
+  void pushContractToAt(id)
+  return { ok: true, id }
 }
