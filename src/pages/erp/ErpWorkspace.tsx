@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell"
 import { Outlet } from "react-router-dom"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/erp-workspace-context"
 import { StaffFeedsProvider } from "@/pages/erp/providers/StaffFeedsProvider"
+import { AtApiSettingsProvider } from "@/providers/AtApiSettingsProvider"
 import { ErpWorkspaceModals } from "@/pages/erp/workspace/ErpWorkspaceModals"
 import { VentasFichaOverlay } from "@/pages/ventas/overlays/VentasFichaOverlay"
 
@@ -24,25 +25,27 @@ export function ErpWorkspaceShell() {
   } = ws
 
   return (
-    <StaffFeedsProvider>
-      <AppShell
-        activeModule={activeModule}
-        currentMenuTab={currentMenuTab}
-        activeRole={activeRole}
-        activeUser={activeUser}
-        superadminViewMode={superadminViewMode}
-        onNavigateToTab={navigateToTab}
-        onSwitchModule={switchAppModule}
-        onToggleSuperadminMode={handleToggleSuperadminMode}
-        onLogout={logout}
-        onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
-        fiscalProfileIncomplete={canEditFiscalProfile && !activeUserFiscalComplete}
-      >
-        <Outlet />
-        <VentasFichaOverlay />
-        <WorkspaceChrome />
-      </AppShell>
-      <ErpWorkspaceModals />
-    </StaffFeedsProvider>
+    <AtApiSettingsProvider canToggle={activeRole === "superadmin"}>
+      <StaffFeedsProvider>
+        <AppShell
+          activeModule={activeModule}
+          currentMenuTab={currentMenuTab}
+          activeRole={activeRole}
+          activeUser={activeUser}
+          superadminViewMode={superadminViewMode}
+          onNavigateToTab={navigateToTab}
+          onSwitchModule={switchAppModule}
+          onToggleSuperadminMode={handleToggleSuperadminMode}
+          onLogout={logout}
+          onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
+          fiscalProfileIncomplete={canEditFiscalProfile && !activeUserFiscalComplete}
+        >
+          <Outlet />
+          <VentasFichaOverlay />
+          <WorkspaceChrome />
+        </AppShell>
+        <ErpWorkspaceModals />
+      </StaffFeedsProvider>
+    </AtApiSettingsProvider>
   )
 }

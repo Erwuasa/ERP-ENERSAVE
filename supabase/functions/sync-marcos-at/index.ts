@@ -4,6 +4,7 @@ import {
   AT_PAGE_SIZE,
   buildFieldSummary,
   fetchFromAt,
+  isAtApiDisabledError,
   normalizeListPayload,
   type JsonRecord,
 } from '../_shared/at-api.ts'
@@ -174,6 +175,9 @@ Deno.serve(async (request) => {
       ...result,
     })
   } catch (error) {
+    if (isAtApiDisabledError(error)) {
+      return respondWithJson({ ok: true, skipped: true, reason: 'disabled' })
+    }
     console.error('[sync-marcos-at]', error)
     return respondWithJson(
       {

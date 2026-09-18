@@ -1,4 +1,5 @@
 import { asNumber, asString, asUuid, fetchAtRecord, type JsonRecord } from './at-api.ts'
+import { mapAtPricingSource } from './at-tariff-prices.ts'
 
 function nestedRecord(row: JsonRecord, key: string): JsonRecord {
   const value = row[key]
@@ -86,25 +87,25 @@ export function mapAtPrices(record: JsonRecord | null) {
   const sources = [
     record,
     nestedRecord(record, 'electricity_data'),
+    nestedRecord(record, 'eletricity_data'),
     nestedRecord(record, 'gas_data'),
     nestedRecord(record, 'pricing'),
     nestedRecord(record, 'prices'),
   ]
   const out: Array<{ period: string; energy: number | null; power: number | null }> = []
 
-  for (let i = 1; i <= 6; i++) {
-    let energy: number | null = null
-    let power: number | null = null
-    for (const source of sources) {
-      energy ??= asNumber(source[`price_kwh_p${i}`] ?? source[`energia_p${i}`] ?? source[`energy_p${i}`])
-      power ??= asNumber(source[`price_kw_day_p${i}`] ?? source[`potencia_p${i}`] ?? source[`power_p${i}`])
-    }
-    if (energy == null && power == null) continue
-    out.push({ period: `P${i}`, energy, power })
+  for (const source of sources) {
+    const mapped = mapAtPricingSource(source)
+    if (mapped.length === 0) continue
+    return mapped.map((row) => ({
+      period: row.period,
+      energy: row.energy_price_kwh,
+      power: row.power_price_kw_day,
+    }))
   }
 
   const list = record.prices ?? record.tariff_prices ?? record.period_prices
-  if (out.length === 0 && Array.isArray(list)) {
+  if (Array.isArray(list)) {
     for (const item of list) {
       if (!item || typeof item !== 'object') continue
       const row = item as JsonRecord

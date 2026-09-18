@@ -1,6 +1,7 @@
 import { corsHeaders, handleOptions } from '../_shared/cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from '../_shared/at-webhook-auth.ts'
 import { exploreTariffs, parseTariffFetchOptions, runTariffSync } from '../_shared/sync-tariffs.ts'
+import { isAtApiDisabledError } from '../_shared/at-api.ts'
 
 declare const Deno: {
   serve: (handler: (request: Request) => Response | Promise<Response>) => void
@@ -98,6 +99,9 @@ Deno.serve(async (request) => {
       ...result,
     })
   } catch (error) {
+    if (isAtApiDisabledError(error)) {
+      return respondWithJson({ ok: true, skipped: true, reason: 'disabled' })
+    }
     console.error('[sync-tariffs-at]', error)
     return respondWithJson(
       {

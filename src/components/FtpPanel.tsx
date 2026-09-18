@@ -12,6 +12,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Unplug,
   Upload,
   X,
 } from "lucide-react"
@@ -357,16 +358,26 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
 
               {ftp.folders.length === 0 && ftp.files.length === 0 && (
                 <div className="text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-surface/30">
-                  <Folder className="h-10 w-10 mx-auto text-brand-subtext/60 mb-3" />
+                  {ftp.viewingAt && !ftp.atApiEnabled ? (
+                    <Unplug className="h-10 w-10 mx-auto text-amber-500/80 mb-3" />
+                  ) : (
+                    <Folder className="h-10 w-10 mx-auto text-brand-subtext/60 mb-3" />
+                  )}
                   <p className="text-sm font-semibold text-brand-text">
-                    {ftp.search ? "Sin resultados en esta carpeta" : "Carpeta vacía"}
+                    {ftp.search
+                      ? "Sin resultados en esta carpeta"
+                      : ftp.viewingAt && !ftp.atApiEnabled
+                        ? "Archivo AT pausado"
+                        : "Carpeta vacía"}
                   </p>
                   <p className="text-xs text-brand-subtext mt-1">
-                    {ftp.canMutateHere
-                      ? "Sube documentos PDF, Word, Excel o CSV desde aquí."
-                      : ftp.viewingAt
-                        ? "No hay documentos en esta carpeta de AT."
-                        : "No hay documentos en esta ubicación."}
+                    {ftp.viewingAt && !ftp.atApiEnabled
+                      ? "La API de AT está apagada. El archivo de AT no se consulta."
+                      : ftp.canMutateHere
+                        ? "Sube documentos PDF, Word, Excel o CSV desde aquí."
+                        : ftp.viewingAt
+                          ? "No hay documentos en esta carpeta de AT."
+                          : "No hay documentos en esta ubicación."}
                   </p>
                 </div>
               )}

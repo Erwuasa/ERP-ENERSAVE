@@ -333,6 +333,7 @@ export function formatPrecioEnergia(value: number): string {
   return `${value.toLocaleString("es-ES", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €/kWh`
 }
 
-export function formatPrecioPotencia(value: number): string {
-  return `${value.toLocaleString("es-ES", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €/kW·día`
+export function formatPrecioPotencia(value: number, tipo: "luz" | "gas" = "luz"): string {
+  const unit = tipo === "gas" ? "€/día" : "€/kW·día"
+  return `${value.toLocaleString("es-ES", { minimumFractionDigits: 4, maximumFractionDigits: 4 })} ${unit}`
 }

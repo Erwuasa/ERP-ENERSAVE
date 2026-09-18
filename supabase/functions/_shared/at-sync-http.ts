@@ -1,6 +1,6 @@
 import { corsHeaders, handleOptions } from './cors.ts'
 import { ateEventName, isAtWebhookAuthorized } from './at-webhook-auth.ts'
-import { asUuid, exploreAtList, fetchFromAt } from './at-api.ts'
+import { asUuid, exploreAtList, fetchFromAt, isAtApiDisabledError } from './at-api.ts'
 import type { AtSyncContext } from './at-webhook-entity.ts'
 
 declare const Deno: {
@@ -136,6 +136,13 @@ export function serveAtSyncFunction(options: {
         ...extra,
       })
     } catch (error) {
+      if (isAtApiDisabledError(error)) {
+        return respondWithJson({
+          ok: true,
+          skipped: true,
+          reason: 'disabled',
+        })
+      }
       console.error(`[${options.logName}]`, error)
       return respondWithJson(
         {

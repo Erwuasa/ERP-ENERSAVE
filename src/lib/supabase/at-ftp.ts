@@ -1,5 +1,6 @@
 import type { FtpNode } from "../../types/ftp"
 import { FTP_AT_ROOT_ID, atNodeId } from "../ftp-sources"
+import { getAtOutboundEnabled } from "./erp-settings"
 import { resolveSupabaseClient, type SupabaseResult } from "./result"
 
 export interface AtFtpElement {
@@ -58,6 +59,13 @@ export function mapAtElementToFtpNode(element: AtFtpElement, parentId: string): 
 }
 
 export async function listAtFtpFolder(ruta = ""): Promise<SupabaseResult<FtpNode[]>> {
+  if (!(await getAtOutboundEnabled())) {
+    return {
+      ok: false,
+      reason: "error",
+      message: "La API de AT está apagada. El archivo AT no se consulta.",
+    }
+  }
   const response = await authorizedAtFtpFetch(
     `action=list&ruta=${encodeURIComponent(ruta)}`
   )
@@ -85,6 +93,13 @@ export async function listAtFtpFolder(ruta = ""): Promise<SupabaseResult<FtpNode
 }
 
 export async function fetchAtFtpBlob(ruta: string): Promise<SupabaseResult<Blob>> {
+  if (!(await getAtOutboundEnabled())) {
+    return {
+      ok: false,
+      reason: "error",
+      message: "La API de AT está apagada. El archivo AT no se puede descargar.",
+    }
+  }
   const response = await authorizedAtFtpFetch(
     `action=file&ruta=${encodeURIComponent(ruta)}`
   )

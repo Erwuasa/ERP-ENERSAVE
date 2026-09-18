@@ -26,7 +26,7 @@ function firstEnergyPrice(product: ProductoTarifa): string {
 function firstPowerPrice(product: ProductoTarifa): string {
   for (const n of [1, 2, 3, 4, 5, 6] as const) {
     const value = product.precios.potencia[`p${n}`]
-    if (value != null) return formatPrecioPotencia(value)
+    if (value != null) return formatPrecioPotencia(value, product.tipo)
   }
   return "—"
 }
@@ -91,7 +91,7 @@ export function ProductosTable({
               Energía
             </th>
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
-              Potencia
+              {products[0]?.tipo === "gas" ? "Término fijo" : "Potencia"}
             </th>
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right w-[100px]">
               Acciones

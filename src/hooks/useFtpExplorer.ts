@@ -26,9 +26,10 @@ import {
   listFtpNodes,
   uploadFtpFile,
 } from "../lib/supabase/ftp-nodes"
-import type { FtpNode } from "../types/ftp"
+import { useAtApiSettings } from "@/providers/AtApiSettingsProvider"
 
 export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
+  const { active: atApiEnabled } = useAtApiSettings()
   const [localNodes, setLocalNodes] = useState<FtpNode[]>([])
   const [optimisticNodes, addOptimisticFtpNode] = useOptimistic(
     localNodes,
@@ -47,6 +48,10 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   }, [])
 
   const loadAtFolder = useCallback(async (folderId: string) => {
+    if (!atApiEnabled) {
+      setAtChildren([])
+      return
+    }
     const ruta = atRutaFromId(folderId)
     const result = await listAtFtpFolder(ruta)
     if (!result.ok) {
@@ -55,7 +60,11 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
       return
     }
     setAtChildren(result.data)
-  }, [])
+  }, [atApiEnabled])
+
+  useEffect(() => {
+    if (!atApiEnabled) setAtChildren([])
+  }, [atApiEnabled])
 
   useEffect(() => {
     let cancelled = false
@@ -102,6 +111,10 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     setCurrentFolderId(folderId)
     setSearch("")
     if (folderId && isAtFtpId(folderId)) {
+      if (!atApiEnabled) {
+        setAtChildren([])
+        return
+      }
       setLoading(true)
       await loadAtFolder(folderId)
       setLoading(false)
@@ -243,6 +256,10 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
 
   async function handleDownload(node: FtpNode) {
     if (node.source === "at" && node.atRuta) {
+      if (!atApiEnabled) {
+        toast.error("La API de AT está apagada. El archivo AT no se puede descargar.")
+        return
+      }
       const result = await downloadAtFtpFile(node.atRuta, node.name)
       if (!result.ok) toast.error(result.message)
       return
@@ -267,6 +284,7 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     breadcrumbs,
     canMutateHere,
     viewingAt,
+    atApiEnabled,
     navigateToFolder,
     handleCreateFolder,
     handleUploadFiles,

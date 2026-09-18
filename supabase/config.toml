@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.staff-login-otp]
 verify_jwt = false
+
+[functions.push-contract-at]
+verify_jwt = false

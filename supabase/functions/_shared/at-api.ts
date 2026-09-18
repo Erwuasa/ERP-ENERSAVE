@@ -23,6 +23,44 @@ export function getSupabaseAdmin() {
   })
 }
 
+export class AtApiDisabledError extends Error {
+  constructor() {
+    super('AT_API_DISABLED')
+    this.name = 'AtApiDisabledError'
+  }
+}
+
+let atApiEnabledCache: { value: boolean; at: number } | null = null
+const AT_API_ENABLED_TTL_MS = 3000
+
+export async function isAtApiEnabled(): Promise<boolean> {
+  if (atApiEnabledCache && Date.now() - atApiEnabledCache.at < AT_API_ENABLED_TTL_MS) {
+    return atApiEnabledCache.value
+  }
+
+  const supabase = getSupabaseAdmin()
+  const { data, error } = await supabase
+    .from('erp_settings')
+    .select('at_outbound_enabled')
+    .eq('id', 1)
+    .maybeSingle()
+
+  const enabled = !error && data?.at_outbound_enabled === true
+  atApiEnabledCache = { value: enabled, at: Date.now() }
+  return enabled
+}
+
+export function isAtApiDisabledError(error: unknown): boolean {
+  return (
+    error instanceof AtApiDisabledError ||
+    (error instanceof Error && (error.name === 'AtApiDisabledError' || error.message === 'AT_API_DISABLED'))
+  )
+}
+
+async function assertAtApiEnabled() {
+  if (!(await isAtApiEnabled())) throw new AtApiDisabledError()
+}
+
 const AT_429_MAX_ATTEMPTS = 6
 const AT_429_BASE_MS = 1000
 const AT_429_CAP_MS = 4000
@@ -42,7 +80,53 @@ function retryAfterMs(response: Response, attempt: number): number {
   return Math.min(AT_429_BASE_MS * 2 ** attempt, AT_429_CAP_MS)
 }
 
+export async function sendToAt(method: 'POST' | 'PATCH', path: string, body: unknown) {
+  await assertAtApiEnabled()
+  const apiKey = getEnv('AT_ENTERPRISE_API_KEY')
+  if (!apiKey) {
+    throw new Error('Missing AT_ENTERPRISE_API_KEY secret in Supabase Edge Function env.')
+  }
+
+  const url = `${AT_BASE_URL}${path}`
+  let lastPayload: unknown = null
+  let lastStatus = 0
+
+  for (let attempt = 0; attempt < AT_429_MAX_ATTEMPTS; attempt++) {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+
+    const text = await response.text()
+    try {
+      lastPayload = text ? JSON.parse(text) : null
+    } catch {
+      lastPayload = { raw: text }
+    }
+    lastStatus = response.status
+
+    if (response.ok) return lastPayload
+
+    if (response.status === 429 && attempt < AT_429_MAX_ATTEMPTS - 1) {
+      const waitMs = retryAfterMs(response, attempt)
+      console.warn(`[at-api] 429 ${method} ${path} attempt ${attempt + 1}/${AT_429_MAX_ATTEMPTS}, retry in ${waitMs}ms`)
+      await sleep(waitMs)
+      continue
+    }
+
+    throw new Error(`AT Enterprise ${response.status}: ${JSON.stringify(lastPayload)}`)
+  }
+
+  throw new Error(`AT Enterprise ${lastStatus}: ${JSON.stringify(lastPayload)}`)
+}
+
 export async function fetchFromAt(path: string, searchParams?: URLSearchParams) {
+  await assertAtApiEnabled()
   const apiKey = getEnv('AT_ENTERPRISE_API_KEY')
   if (!apiKey) {
     throw new Error('Missing AT_ENTERPRISE_API_KEY secret in Supabase Edge Function env.')
