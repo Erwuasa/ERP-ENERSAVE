@@ -206,21 +206,20 @@ export function SuperadminDashboard({
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-wrap xl:flex-nowrap gap-1.5">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {kpiCards.map((kpi) => (
-          <div key={kpi.key} className="min-w-[9.5rem] flex-1 basis-[calc(50%-0.375rem)] sm:basis-[calc(33.333%-0.5rem)] lg:basis-0">
-            <KpiMetricCard
-              compact
-              label={kpi.label}
-              displayValue={kpi.displayValue}
-              hint={"hint" in kpi ? kpi.hint : undefined}
-              icon={kpi.icon}
-              iconClass={kpi.iconClass}
-              valueClass={kpi.valueClass}
-              accentClass={kpi.accentClass}
-              onClick={kpi.onClick}
-            />
-          </div>
+          <KpiMetricCard
+            key={kpi.key}
+            label={kpi.label}
+            displayValue={kpi.displayValue}
+            hint={"hint" in kpi ? kpi.hint : undefined}
+            icon={kpi.icon}
+            iconClass={kpi.iconClass}
+            valueClass={kpi.valueClass}
+            accentClass={kpi.accentClass}
+            onClick={kpi.onClick}
+            className="h-full"
+          />
         ))}
       </div>
 

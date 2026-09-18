@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Loader2, UserCircle2, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import {
   isComercialFiscalProfileComplete,
@@ -63,8 +64,6 @@ export function PerfilComercialModal({
     if (open) setForm(initialForm)
   }, [open, initialForm])
 
-  if (!open) return null
-
   const profileComplete = isComercialFiscalProfileComplete(form)
 
   async function handleSubmit(event: React.FormEvent) {
@@ -95,7 +94,7 @@ export function PerfilComercialModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={onClose} zIndex={110}>
       <div
         className="w-full max-w-lg rounded-2xl border border-brand-border bg-brand-panel shadow-xl"
         role="dialog"
@@ -181,6 +180,6 @@ export function PerfilComercialModal({
           </div>
         </form>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

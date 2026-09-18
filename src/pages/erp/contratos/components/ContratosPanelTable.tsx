@@ -1,5 +1,5 @@
 import { useState, type MutableRefObject, ReactNode } from "react"
-import { Flame, Lightbulb, Trash2 } from "lucide-react"
+import { Flame, Lightbulb, Pencil, Trash2 } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import {
   calcularPenalizacion,
@@ -14,7 +14,6 @@ import {
 } from "@/lib/contract-segment-rules"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { isRenovacionProxima } from "@/lib/contract-renewal"
-import { formatAtPricesInline } from "@/components/contratos/contrato-tarifa-marco-view"
 import { formatPotenciaContratadaDisplay } from "@/lib/contract-registration"
 import {
   contractsListFilterLabel,
@@ -35,6 +34,7 @@ import { TABLE_ROW_SELECTED } from "@/lib/enersave-ui-theme"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import {
   CONTRACTS_TD,
+  CONTRACTS_TD_LEFT,
   CONTRACTS_TD_MIDDLE,
   CONTRACTS_TH,
   CONTRACTS_TH_SUB,
@@ -64,6 +64,7 @@ type Props = {
   onDismissRecommendation?: (contractId: string) => void
   onDismissRenewalAlert?: (contractId: string) => void
   onOpenDetalle?: (contract: Contract) => void
+  onEditDraft?: (contract: Contract) => void
   /** True while the initial contracts fetch is in flight and there's nothing to show yet. */
   loading?: boolean
 }
@@ -109,6 +110,7 @@ export function ContratosPanelTable({
   onDismissRecommendation,
   onDismissRenewalAlert,
   onOpenDetalle,
+  onEditDraft,
   loading = false,
 }: Props) {
   const [openRecId, setOpenRecId] = useState<string | null>(null)
@@ -149,11 +151,11 @@ export function ContratosPanelTable({
                 ·
               </span>
             </th>
-            <th className={CONTRACTS_TH}>
+            <th className={`${CONTRACTS_TH} text-left`}>
               <span className="block">Cliente</span>
               <span className={CONTRACTS_TH_SUB}>CUPS · NIF</span>
             </th>
-            <th className={CONTRACTS_TH}>
+            <th className={`${CONTRACTS_TH} text-left`}>
               <span className="block">Compañía</span>
               <span className={CONTRACTS_TH_SUB}>Tarifa</span>
             </th>
@@ -163,7 +165,9 @@ export function ContratosPanelTable({
             </th>
             <th className={`${CONTRACTS_TH} text-center`}>
               <span className="block">Potencia</span>
-              <span className={CONTRACTS_TH_SUB}>Precio kWh</span>
+              <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
+                ·
+              </span>
             </th>
             <th className={`${CONTRACTS_TH} text-center`}>
               <span className="block">Dirección</span>
@@ -196,7 +200,6 @@ export function ContratosPanelTable({
             const renewal = getRenewalSchedule(c)
             const dias = renewal.diasRenovacion ?? 0
             const activationDate = getContractActivationDate(c)
-            const preciosInline = formatAtPricesInline(c.atPrices, c.atAccessTariff || c.atr)
             const showRenewalCountdown = renewal.estadoRenovacion !== "No aplica"
             const aplicaPenalizacion = aplicaPenalizacionCincoPorCiento(c)
             const nibaRenovPct = getNibaRenovacionComisionPct(c)
@@ -222,7 +225,7 @@ export function ContratosPanelTable({
                   rowRefs.current[c.id] = el
                 }}
                 onClick={(event) => handleRowClick(event, c)}
-                className={`transition-colors duration-200 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/40 ${
+                className={`h-[4.5rem] transition-colors duration-200 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/40 ${
                   onOpenDetalle ? "cursor-pointer" : ""
                 } ${
                   isHighlighted
@@ -232,13 +235,26 @@ export function ContratosPanelTable({
                       : ""
                 }`}
               >
-                <td className={`${CONTRACTS_TD} overflow-hidden text-center`}>
-                  <div className="flex min-w-0 flex-col gap-1.5">
+                <td className={`${CONTRACTS_TD} overflow-hidden`}>
+                  <div className="flex min-w-0 flex-col items-center justify-center gap-1 h-full">
                     <div className="flex w-full min-w-0 justify-center">{renderEstadoCell(c)}</div>
-                    {(onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId)) ||
+                    {(onEditDraft &&
+                      normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO) ||
+                    (onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId)) ||
                     (showTarifaRecommendations && tarifaRecommendations?.has(c.id)) ||
                     contractHasActiveRenewalAlert(c.id, isRenovacionProxima(c)) ? (
                       <div className="flex flex-col items-center gap-1">
+                    {onEditDraft &&
+                    normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO ? (
+                      <ContractQuickActionButton
+                        tone="edit"
+                        title="Completar borrador"
+                        ariaLabel={`Completar borrador ${c.clientName}`}
+                        onClick={() => onEditDraft(c)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </ContractQuickActionButton>
+                    ) : null}
                     {onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId) ? (
                       <ContractQuickActionButton
                         tone="danger"
@@ -294,111 +310,106 @@ export function ContratosPanelTable({
                     ) : null}
                   </div>
                 </td>
-                <td className={`${CONTRACTS_TD} overflow-hidden`}>
-                  <p className="break-words font-semibold leading-snug text-brand-text">
-                    {renderEditableCell(c, "clientName", { placeholder: "Cliente" })}
-                  </p>
-                  <p className="mt-1 break-all font-mono text-[10px] text-cyan-600 dark:text-cyan-400">
-                    {renderEditableCell(c, "cups", {
-                      placeholder: "CUPS",
-                      className: "font-mono",
-                    })}
-                  </p>
-                  <p className="mt-1 font-mono text-[9px] text-brand-subtext">
-                    {renderEditableCell(c, "nif", { placeholder: "NIF/CIF" })}
-                  </p>
-                </td>
-                <td className={`${CONTRACTS_TD} overflow-hidden`}>
-                  <div className="flex items-start justify-between gap-1">
-                    <p className="min-w-0 flex-1 break-words font-medium leading-snug text-brand-text">
-                      {renderEditableCell(c, "compania")}
+                <td className={`${CONTRACTS_TD_LEFT} overflow-hidden`}>
+                  <div className="flex flex-col justify-center min-h-[3rem]">
+                    <p className="break-words font-semibold leading-snug text-brand-text line-clamp-1">
+                      {renderEditableCell(c, "clientName", { placeholder: "Cliente" })}
                     </p>
-                    <ContractSupplyTypeIcon tipo={c.tipo} />
+                    <p className="mt-0.5 break-all font-mono text-[10px] text-cyan-600 dark:text-cyan-400 line-clamp-1">
+                      {renderEditableCell(c, "cups", {
+                        placeholder: "CUPS",
+                        className: "font-mono",
+                      })}
+                    </p>
+                    <p className="mt-0.5 font-mono text-[9px] text-brand-subtext line-clamp-1">
+                      {renderEditableCell(c, "nif", { placeholder: "NIF/CIF" })}
+                    </p>
                   </div>
-                  <p className="mt-1 break-words font-mono text-[10px] text-brand-subtext">
-                    {renderEditableCell(c, "tarifa")}
-                  </p>
-                  {preciosInline ? (
-                    <p className="mt-1 font-mono text-[9px] leading-snug text-brand-subtext">
-                      {preciosInline}
-                    </p>
-                  ) : null}
                 </td>
-                <td className={`${CONTRACTS_TD} text-center`}>
-                  <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text leading-snug">
-                    {activationDate || c.createdAt ? (
-                      formatActivationDate(activationDate ?? String(c.createdAt))
-                    ) : (
-                      <TableEmptyDash />
-                    )}
-                  </p>
-                  {showRenewalCountdown ? (
-                    <div className="mt-1 space-y-0.5">
-                      <p className="font-mono text-[9px] tabular-nums text-brand-subtext">
-                        {dias} d restantes
+                <td className={`${CONTRACTS_TD_LEFT} overflow-hidden`}>
+                  <div className="flex flex-col justify-center min-h-[3rem]">
+                    <div className="flex items-center justify-between gap-1">
+                      <p className="min-w-0 flex-1 break-words font-medium leading-snug text-brand-text line-clamp-1">
+                        {renderEditableCell(c, "compania")}
                       </p>
-                      {renewal.estadoRenovacion === "Renovacion proxima" && (
-                        <span className="inline-block rounded bg-violet-500/10 px-1 py-0.5 text-[7px] font-mono font-bold text-violet-700 dark:text-violet-300">
-                          Próxima
-                        </span>
-                      )}
-                      {nibaRenovPct != null && (
-                        <p className="text-[7px] font-mono text-cyan-700 dark:text-cyan-300">
-                          Renov. {nibaRenovPct}%
-                        </p>
-                      )}
+                      <ContractSupplyTypeIcon tipo={c.tipo} />
                     </div>
-                  ) : (
-                    <p className="mt-1">
-                      <TableEmptyDash />
+                    <p className="mt-0.5 line-clamp-1 font-mono text-[10px] text-brand-subtext">
+                      {renderEditableCell(c, "tarifa")}
                     </p>
-                  )}
+                  </div>
                 </td>
-                <td className={`${CONTRACTS_TD} text-center font-mono text-brand-text`}>
-                  <p className="tabular-nums">
-                    {c.potenciaContratada ? (
-                      formatPotenciaContratadaDisplay(c.potenciaContratada)
-                    ) : (
-                      <TableEmptyDash />
-                    )}
-                  </p>
-                  <p className="mt-1 tabular-nums text-[10px] text-brand-subtext">
-                    {c.precioFijoConsumo != null && Number(c.precioFijoConsumo) > 0
-                      ? `${Number(c.precioFijoConsumo).toLocaleString("es-ES", {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 6,
-                        })} €/kWh`
+                <td className={CONTRACTS_TD}>
+                  <div className="flex flex-col items-center justify-center min-h-[3rem] gap-0.5">
+                    <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text leading-snug">
+                      {activationDate || c.createdAt ? (
+                        formatActivationDate(activationDate ?? String(c.createdAt))
+                      ) : (
+                        <TableEmptyDash />
+                      )}
+                    </p>
+                    {showRenewalCountdown ? (
+                      <>
+                        <p className="font-mono text-[9px] tabular-nums text-brand-subtext">
+                          {dias} d restantes
+                        </p>
+                        {renewal.estadoRenovacion === "Renovacion proxima" && (
+                          <span className="inline-block rounded bg-violet-500/10 px-1 py-0.5 text-[7px] font-mono font-bold text-violet-700 dark:text-violet-300">
+                            Próxima
+                          </span>
+                        )}
+                        {nibaRenovPct != null && (
+                          <p className="text-[7px] font-mono text-cyan-700 dark:text-cyan-300">
+                            Renov. {nibaRenovPct}%
+                          </p>
+                        )}
+                      </>
+                    ) : null}
+                  </div>
+                </td>
+                <td className={`${CONTRACTS_TD_MIDDLE} font-mono text-brand-text`}>
+                  <div className="flex items-center justify-center min-h-[3rem]">
+                    <p className="tabular-nums">
+                      {c.potenciaContratada ? (
+                        formatPotenciaContratadaDisplay(c.potenciaContratada)
+                      ) : (
+                        <TableEmptyDash />
+                      )}
+                    </p>
+                  </div>
+                </td>
+                <td className={`${CONTRACTS_TD} max-w-0`}>
+                  <div className="flex flex-col items-center justify-center min-h-[3rem] gap-0.5">
+                    <p className="truncate w-full text-[9px] leading-snug text-brand-subtext">
+                      {renderEditableCell(c, "direccionSuministro")}
+                    </p>
+                    <p className="truncate w-full font-mono text-[10px] text-brand-text">
+                      {renderEditableCell(c, "iban")}
+                    </p>
+                  </div>
+                </td>
+                <td className={`${CONTRACTS_TD_MIDDLE} font-mono tabular-nums`}>
+                  <div className="flex items-center justify-center min-h-[3rem]">
+                    {consumoTabla != null
+                      ? `${Number(consumoTabla).toLocaleString("es-ES")} kWh`
                       : <TableEmptyDash />}
-                  </p>
+                  </div>
                 </td>
-                <td className={`${CONTRACTS_TD} max-w-0 text-center`}>
-                  <p className="truncate text-[9px] leading-snug text-brand-subtext">
-                    {renderEditableCell(c, "direccionSuministro")}
-                  </p>
-                  <p className="mt-1 truncate font-mono text-[10px] text-brand-text">
-                    {renderEditableCell(c, "iban")}
-                  </p>
-                </td>
-                <td className={`${CONTRACTS_TD_MIDDLE} text-center font-mono tabular-nums`}>
-                  {consumoTabla != null
-                    ? `${Number(consumoTabla).toLocaleString("es-ES")} kWh`
-                    : <TableEmptyDash />}
-                </td>
-                <td className={`${CONTRACTS_TD} text-center`}>
+                <td className={CONTRACTS_TD}>
                   {!aplicaPenalizacion ? (
-                    <div className="flex min-h-[2.5rem] items-center justify-center">
+                    <div className="flex min-h-[3rem] items-center justify-center">
                       <span className="font-mono text-[9px] text-brand-subtext">No aplica</span>
                     </div>
                   ) : penalizacion != null &&
                     c.precioFijoConsumo != null &&
                     consumoTabla != null &&
                     consumoTabla > 0 ? (
-                    <div>
+                    <div className="flex min-h-[3rem] flex-col items-center justify-center gap-0.5">
                       <p className="font-mono font-bold text-rose-600 dark:text-rose-400">
                         {formatPenalizacionDisplay(penalizacion)}
                       </p>
                       <p
-                        className="mt-0.5 text-[8px] font-mono leading-tight text-brand-subtext"
+                        className="text-[8px] font-mono leading-tight text-brand-subtext text-center"
                         title="Penalización 5% · PYME/autónomo"
                       >
                         {formatPenalizacionFormula(
@@ -410,12 +421,16 @@ export function ContratosPanelTable({
                       </p>
                     </div>
                   ) : (
-                    <TableEmptyDash />
+                    <div className="flex min-h-[3rem] items-center justify-center">
+                      <TableEmptyDash />
+                    </div>
                   )}
                 </td>
                 {showComercialColumn ? (
                   <td className={`${CONTRACTS_TD} font-medium text-brand-text`}>
-                    {renderEditableCell(c, "comercialName")}
+                    <div className="flex min-h-[3rem] items-center justify-center">
+                      {renderEditableCell(c, "comercialName")}
+                    </div>
                   </td>
                 ) : null}
               </tr>

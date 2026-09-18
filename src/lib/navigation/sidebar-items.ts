@@ -36,7 +36,7 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Dashboard", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: LayoutDashboard },
   { name: "Liquidaciones internas", allowedRoles: ["superadmin", "jefe_comercial", "comercial"], icon: WalletCards },
   { name: "Liquidaciones externas", allowedRoles: ["superadmin", "tramitacion"], icon: WalletCards },
-  { name: "Usuarios", allowedRoles: ["superadmin", "tramitacion"], icon: Users },
+  { name: "Usuarios", allowedRoles: ["tramitacion"], icon: Users },
   { name: "Cashflow", allowedRoles: ["superadmin"], icon: DollarSign, previewOnly: true },
   { name: "Mi Equipo", allowedRoles: ["jefe_comercial"], icon: Users },
   { name: "Contratos", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: FileSpreadsheet },
@@ -123,7 +123,6 @@ export function getVisibleSidebarItems({
       const superadminTramitacionTabs = [
         "Dashboard",
         "Liquidaciones externas",
-        "Usuarios",
         "Contratos",
         "Mis Clientes",
         "Tarifas",

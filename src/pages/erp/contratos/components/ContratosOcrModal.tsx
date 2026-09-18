@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 
 export interface ContratosOcrModalProps {
@@ -18,10 +19,8 @@ export function ContratosOcrModal({
   onClose,
   onApply,
 }: ContratosOcrModalProps) {
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={onClose}>
       <div className="bg-brand-panel border border-brand-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
         <div className="p-5 border-b border-brand-border">
           <h3 className="text-sm font-extrabold text-brand-text uppercase tracking-wide">
@@ -88,6 +87,6 @@ export function ContratosOcrModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

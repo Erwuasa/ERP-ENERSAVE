@@ -1,3 +1,5 @@
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
+
 interface ConfirmDeleteProspectoModalProps {
   open: boolean
   nombre: string
@@ -13,10 +15,8 @@ export function ConfirmDeleteProspectoModal({
   onConfirm,
   onCancel,
 }: ConfirmDeleteProspectoModalProps) {
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={onCancel} closeOnBackdrop={!loading}>
       <div
         className="w-full max-w-sm rounded-2xl border border-brand-border bg-brand-panel shadow-xl p-4 space-y-3"
         role="alertdialog"
@@ -49,6 +49,6 @@ export function ConfirmDeleteProspectoModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

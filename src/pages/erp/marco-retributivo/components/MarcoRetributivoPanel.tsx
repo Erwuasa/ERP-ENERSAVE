@@ -4,6 +4,7 @@ import { MarcoRetributivoEditModal } from "@/pages/erp/marco-retributivo/compone
 import { MarcoRetributivoTable } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoTable"
 import { MarcoRetributivoToolbar } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoToolbar"
 import { useMarcoRetributivoPanel } from "@/pages/erp/marco-retributivo/hooks/useMarcoRetributivoPanel"
+import { buildMarcoTableScopeKey } from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
 
 type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
 
@@ -25,6 +26,12 @@ export function MarcoRetributivoPanel({
   renderCompaniaLogo,
 }: MarcoRetributivoPanelProps) {
   const vm = useMarcoRetributivoPanel({ activeRole, activeUserId, superadminViewMode })
+  const tableScopeKey = buildMarcoTableScopeKey({
+    compania: vm.companiaFilter,
+    tipo: vm.tipoFilter,
+    segmento: vm.segmentoFilter,
+    peaje: vm.peajeFilter,
+  })
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
@@ -50,7 +57,9 @@ export function MarcoRetributivoPanel({
 
         <div className="min-h-0 flex-1">
           <MarcoRetributivoTable
+            key={tableScopeKey}
             loading={vm.loading}
+            companiaFilter={vm.companiaFilter}
             filteredRows={vm.filteredRows}
             canEdit={vm.canEdit}
             commissionPercentage={commissionPercentage}

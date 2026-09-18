@@ -26,6 +26,7 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
     closeContractWizard,
     contractWizardOpen,
     contractWizardProspectoId,
+    editingContractId,
     handleCreateContract,
     isCreatingContract,
     isActivateOpen,
@@ -114,6 +115,7 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
           activeUserRole={activeRole}
           clients={clients}
           contracts={contracts}
+          editingContractId={editingContractId}
         />
       </Suspense>
     </>

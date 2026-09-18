@@ -8,9 +8,13 @@ export const CONTRACTS_TH_SUB =
 export const CONTRACTS_TH_SUB_SPACER =
   "mt-0.5 block text-[9px] font-normal normal-case invisible leading-tight select-none pointer-events-none"
 
-export const CONTRACTS_TD = "px-2.5 py-2 align-top border-b border-brand-border/70"
+export const CONTRACTS_TD =
+  "px-2.5 py-1.5 align-middle border-b border-brand-border/70 text-center"
 
-export const CONTRACTS_TD_MIDDLE = "px-2.5 py-2 align-middle border-b border-brand-border/70"
+export const CONTRACTS_TD_LEFT =
+  "px-2.5 py-1.5 align-middle border-b border-brand-border/70 text-left"
+
+export const CONTRACTS_TD_MIDDLE = CONTRACTS_TD
 
 export interface ProfileOption {
   id: string

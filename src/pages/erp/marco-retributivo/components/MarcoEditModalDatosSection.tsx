@@ -125,7 +125,7 @@ export function MarcoEditModalDatosSection({ form, disabled, patchForm }: Props)
               value={form.condicion_1 ?? ""}
               onChange={(e) => patchForm({ condicion_1: e.target.value })}
               className={MARCO_INPUT_CLASS}
-              placeholder="Ej. =&lt;10 KW MOBILE NEGOCIO"
+              placeholder="Ej. Camp: AIRE"
             />
           )}
         </div>

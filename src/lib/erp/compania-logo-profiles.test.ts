@@ -24,10 +24,10 @@ describe("compania-logo-profiles", () => {
     expect(profile.fillWidth).toBeGreaterThanOrEqual(1.1)
   })
 
-  it("maximizes niba within the logo box", () => {
+  it("keeps niba wordmark crisp without aggressive crop", () => {
     const profile = resolveCompaniaLogoProfile("niba", "xl")
-    expect(profile.boost).toBeGreaterThan(1.9)
-    expect(profile.fillHeight).toBeGreaterThanOrEqual(1.22)
+    expect(profile.crop.bottom).toBeLessThan(0.2)
+    expect(profile.boost).toBeLessThanOrEqual(1.15)
   })
 
   it("maximizes endesa horizontal wordmark", () => {

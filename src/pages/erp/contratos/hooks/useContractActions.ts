@@ -5,10 +5,13 @@ import { useErpData } from "@/providers/ErpDataProvider"
 import type { Contract } from "@/types/contract"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 import {
+  buildContractPatchFromForm,
+  contractToNewContractForm,
   EMPTY_NEW_CONTRACT_FORM,
   inferTipoPrecioFromTarifa,
   type NewContractFormState,
 } from "@/lib/contract-registration"
+import { accessTariffToPeajeSegment } from "@/lib/contract-peaje-segment"
 import { getTariffPeajeType, spreadPotenciaFromP1 } from "@/lib/contract-potencia"
 import { buildNewContractFormFromProspecto } from "@/lib/ventas/prospecto-to-contract"
 import type { ProductoTarifa } from "@/lib/productos-catalog"
@@ -29,13 +32,27 @@ import {
   buildOcrFormPatch,
   buildResetNewContractForm,
 } from "@/lib/erp/new-contract-form-utils"
-import { deleteTeamContract } from "@/lib/supabase/contracts"
+import { deleteTeamContract, updateTeamContract } from "@/lib/supabase/contracts"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   canUserDeleteContract,
   contractDeletionBlockedMessage,
   type ContractDeleteRole,
 } from "@/lib/contract-deletion"
 import { isContractDeletable } from "@/lib/contract-registration"
+
+export interface ComparadorContractWizardInput {
+  companyName: string
+  tariffName: string
+  marcoEntryId?: string
+  segment: "residencial" | "pyme"
+  tipo: "luz" | "gas"
+  accessTariff: string
+  clientName?: string
+  cups?: string
+  potenciaP1?: number
+  consumoAnual?: number
+}
 
 export interface UseContractActionsOptions {}
 
@@ -62,6 +79,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   const [contractWizardProspectoId, setContractWizardProspectoId] = useState<string | null>(
     null
   )
+  const [editingContractId, setEditingContractId] = useState<string | null>(null)
   const [isCreatingContract, setIsCreatingContract] = useState(false)
 
   const [isActivateOpen, setIsActivateOpen] = useState(false)
@@ -187,8 +205,73 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   const closeContractWizard = useCallback(() => {
     setContractWizardOpen(false)
     setContractWizardProspectoId(null)
+    setEditingContractId(null)
     resetNewContractForm()
   }, [resetNewContractForm])
+
+  const openContractWizardFromComparador = useCallback(
+    (input: ComparadorContractWizardInput) => {
+      const user = profiles.find((p) => p.id === activeUserId) || profiles[0]
+      const jefe = user.managerId ? profiles.find((p) => p.id === user.managerId) : undefined
+      const peajeSegment = accessTariffToPeajeSegment(input.accessTariff)
+      const potenciaP1 =
+        input.potenciaP1 != null && input.potenciaP1 > 0 ? String(input.potenciaP1) : ""
+
+      resetNewContractForm()
+      patchNewContractForm({
+        compania: input.companyName,
+        tarifa: input.tariffName,
+        marcoEntryId: input.marcoEntryId ?? "",
+        wizardStep: "cliente",
+        wizardSegment: input.segment,
+        tipoCliente: input.segment === "pyme" ? "pyme" : "residencial",
+        tipo: input.tipo,
+        peajeSegment,
+        tipoPrecio: inferTipoPrecioFromTarifa(input.tariffName),
+        clientName: input.clientName ?? "",
+        clientNombre: input.clientName ?? "",
+        cups: input.cups ?? "",
+        consumoAnual: input.consumoAnual ?? "",
+        ...(potenciaP1
+          ? {
+              potenciaContratada: `${potenciaP1} kW`,
+              ...spreadPotenciaFromP1(potenciaP1, getTariffPeajeType(`${peajeSegment}TD`)),
+            }
+          : {}),
+        nombreComercial: user.fullName,
+        jefeEquipo: jefe?.fullName ?? "",
+      })
+      setEditingContractId(null)
+      setContractWizardProspectoId(null)
+      setContractWizardOpen(true)
+    },
+    [profiles, activeUserId, resetNewContractForm, patchNewContractForm]
+  )
+
+  const openContractWizardForDraft = useCallback(
+    (contract: Contract) => {
+      if (normalizeContractEstado(contract.estado) !== "Borrador") {
+        toast.error("Solo los borradores pueden completarse desde el wizard.")
+        return
+      }
+
+      const user = profiles.find((p) => p.id === activeUserId) || profiles[0]
+      const jefe = user.managerId ? profiles.find((p) => p.id === user.managerId) : undefined
+
+      patchNewContractForm({
+        ...contractToNewContractForm(contract, {
+          nombreComercial: user.fullName,
+          jefeEquipo: jefe?.fullName ?? "",
+        }),
+        fechaInicio: contract.fechaActivacion ?? new Date().toISOString().split("T")[0],
+        wizardStep: "cliente",
+      })
+      setEditingContractId(contract.id)
+      setContractWizardProspectoId(null)
+      setContractWizardOpen(true)
+    },
+    [profiles, activeUserId, patchNewContractForm]
+  )
 
   const handleCreateContract = useCallback(
     (
@@ -197,6 +280,50 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       createOptions?: { incomplete?: boolean; prospectoId?: string }
     ) => {
       e.preventDefault()
+
+      if (editingContractId) {
+        const contractId = editingContractId
+        const patch = buildContractPatchFromForm(newContractForm)
+
+        startTransition(async () => {
+          setIsCreatingContract(true)
+          addOptimisticContract({
+            type: "patch",
+            id: contractId,
+            changes: { ...patch, updatedAt: new Date().toISOString() },
+          })
+
+          try {
+            if (isSupabaseConfigured()) {
+              const result = await updateTeamContract(contractId, patch)
+              if (result.ok === false) {
+                toast.error(result.message)
+                return
+              }
+              setContracts((prev) =>
+                prev.map((item) => (item.id === contractId ? result.data : item))
+              )
+            } else {
+              setContracts((prev) =>
+                prev.map((item) =>
+                  item.id === contractId ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item
+                )
+              )
+            }
+
+            resetNewContractForm()
+            setEditingContractId(null)
+            onSuccess?.()
+            toast.success("Borrador actualizado.")
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "Error al guardar el borrador"
+            toast.error(msg)
+          } finally {
+            setIsCreatingContract(false)
+          }
+        })
+        return
+      }
 
       const optimisticContract = buildOptimisticContractFromForm(newContractForm, {
         activeUserId,
@@ -273,6 +400,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       setContracts,
       setSettlements,
       resetNewContractForm,
+      editingContractId,
     ]
   )
 
@@ -534,6 +662,9 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     openContractWizardFromProducto,
     openContractWizardForProspecto,
     openContractWizardFromRecommendation,
+    openContractWizardFromComparador,
+    openContractWizardForDraft,
+    editingContractId,
     handleCreateContract,
     isCreatingContract,
     isActivateOpen,

@@ -1,5 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react"
 import { Search, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { SUBTIPOS_PROSPECTO } from "../../lib/ventas/pipeline"
 import type { ProspectoImportSource } from "../../lib/ventas/prospecto-import-sources"
 import type { SubtipoProspecto } from "../../lib/ventas/types"
@@ -51,8 +52,6 @@ export function NuevoProspectoModal({
         s.cups?.toLowerCase().includes(q)
     )
   }, [importSources, importQuery])
-
-  if (!open) return null
 
   function resetForm() {
     setNombre("")
@@ -124,7 +123,7 @@ export function NuevoProspectoModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={handleClose}>
       <div
         className="w-full max-w-md bg-brand-panel border border-brand-border rounded-2xl shadow-xl max-h-[90vh] flex flex-col"
         role="dialog"
@@ -316,6 +315,6 @@ export function NuevoProspectoModal({
           </form>
         )}
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

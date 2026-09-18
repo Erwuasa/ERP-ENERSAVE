@@ -1,7 +1,16 @@
 import type { MouseEvent, ReactNode } from "react"
-import { Loader2, Pencil, Trash2 } from "lucide-react"
-import { formatMarcoComisionUsuario } from "@/data/marco-retributivo-catalog"
+import { Euro, Loader2, Pencil, Trash2 } from "lucide-react"
+import {
+  formatMarcoComisionFijaUsuario,
+  formatMarcoComisionUsuario,
+} from "@/data/marco-retributivo-catalog"
+import { formatMarcoCondicionesCelda } from "@/lib/marco-condiciones-display"
+import { formatMarcoPermanenciaFromRow } from "@/lib/marco-permanencia"
 import { marcoRowToCatalogEntry, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+import {
+  buildMarcoTableRowKey,
+  filterMarcoRowsForTable,
+} from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
 
 const MARCO_TH =
   "px-2.5 py-2 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-nowrap"
@@ -10,6 +19,7 @@ const MARCO_TD = "px-2.5 py-2.5 align-top border-b border-brand-border/70"
 
 type Props = {
   loading: boolean
+  companiaFilter: string
   filteredRows: MarcoRetributivoRow[]
   canEdit: boolean
   commissionPercentage: number
@@ -21,6 +31,7 @@ type Props = {
 
 export function MarcoRetributivoTable({
   loading,
+  companiaFilter,
   filteredRows,
   canEdit,
   commissionPercentage,
@@ -29,6 +40,8 @@ export function MarcoRetributivoTable({
   onOpenEntry,
   onDeactivate,
 }: Props) {
+  const visibleRows = filterMarcoRowsForTable(filteredRows, companiaFilter)
+
   if (loading) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center gap-2 rounded-xl border border-brand-border/60 bg-brand-surface/30 text-brand-subtext">
@@ -62,7 +75,7 @@ export function MarcoRetributivoTable({
           </tr>
         </thead>
         <tbody>
-          {filteredRows.length === 0 ? (
+          {visibleRows.length === 0 ? (
             <tr>
               <td
                 colSpan={7}
@@ -72,11 +85,11 @@ export function MarcoRetributivoTable({
               </td>
             </tr>
           ) : (
-            filteredRows.map((row) => {
+            visibleRows.map((row, index) => {
               const entry = marcoRowToCatalogEntry(row)
               return (
                 <tr
-                  key={row.id}
+                  key={buildMarcoTableRowKey(row, index)}
                   onClick={() => onOpenEntry(row)}
                   className="hover:bg-slate-50 dark:hover:bg-brand-elevated/50 transition-colors cursor-pointer"
                 >
@@ -104,18 +117,26 @@ export function MarcoRetributivoTable({
                     {row.peaje}
                   </td>
                   <td className={`${MARCO_TD} text-[11px] text-brand-subtext leading-snug`}>
-                    <span className="line-clamp-2">
-                      {row.condiciones ??
-                        [row.condicion_1, row.condicion_2].filter(Boolean).join(" · ")}
-                    </span>
+                    <span className="line-clamp-2">{formatMarcoCondicionesCelda(row)}</span>
                   </td>
                   <td className={`${MARCO_TD} font-mono text-[10px] text-brand-subtext`}>
-                    {row.vigencia_meses === 0
-                      ? "Sin permanencia"
-                      : `${row.vigencia_meses} meses`}
+                    {formatMarcoPermanenciaFromRow(row)}
                   </td>
                   <td className={`${MARCO_TD} text-right font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-500`}>
-                    {formatMarcoComisionUsuario(entry, commissionPercentage, formatCurrency)}
+                    {entry.comisionTipo === "fija" ? (
+                      <span className="inline-flex items-center justify-end gap-1">
+                        <Euro className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        <span>
+                          {formatMarcoComisionFijaUsuario(
+                            entry,
+                            commissionPercentage,
+                            formatCurrency
+                          )}
+                        </span>
+                      </span>
+                    ) : (
+                      formatMarcoComisionUsuario(entry, commissionPercentage, formatCurrency)
+                    )}
                   </td>
                   <td className={`${MARCO_TD} text-right`}>
                     <div className="flex items-center justify-end gap-1">

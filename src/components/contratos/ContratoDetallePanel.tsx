@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
-import { FileText, X } from "lucide-react"
+import { FileText, Pencil, X } from "lucide-react"
+import { CONTRACT_ESTADO_BORRADOR, normalizeContractEstado } from "@/lib/contract-estado"
 import type { Contract } from "@/types/contract"
 import { formatActivationDate } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import {
@@ -49,6 +50,7 @@ interface ContratoDetallePanelProps {
   activeUserId: string
   activeUserName: string
   onContractUpdated: (contract: Contract) => void
+  onCompleteDraft?: (contract: Contract) => void
 }
 
 function renderActiveTab(
@@ -149,6 +151,7 @@ export function ContratoDetallePanel({
   activeUserId,
   activeUserName,
   onContractUpdated,
+  onCompleteDraft,
 }: ContratoDetallePanelProps) {
   const [activeTab, setActiveTab] = useState<ContratoDetalleTab>("contrato")
   const [isOpen, setIsOpen] = useState(false)
@@ -156,6 +159,7 @@ export function ContratoDetallePanel({
   const closeTimerRef = useRef<number | null>(null)
   const scrollContainerRef = useRef<HTMLElement | null>(null)
   const displayId = formatContractDisplayId(contract.id)
+  const isDraft = normalizeContractEstado(contract.estado) === CONTRACT_ESTADO_BORRADOR
   const atExtras = useAtContractNotes({
     atContractId: contract.atContractId,
     contratoId: contract.id,
@@ -306,6 +310,16 @@ export function ContratoDetallePanel({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {isDraft && onCompleteDraft ? (
+                <button
+                  type="button"
+                  onClick={() => onCompleteDraft(liveContract)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-[11px] font-bold text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 transition-colors cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Completar borrador
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={requestClose}

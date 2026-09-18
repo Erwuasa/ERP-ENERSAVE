@@ -1,4 +1,5 @@
 import { AlertOctagon, RefreshCw, ShieldAlert } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { IntegrityFinding } from "../lib/runtime-integrity"
 
 interface RuntimeIntegrityBlockModalProps {
@@ -11,14 +12,19 @@ export function RuntimeIntegrityBlockModal({
   findings,
 }: RuntimeIntegrityBlockModalProps) {
   return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="integrity-block-title"
-      aria-describedby="integrity-block-description"
+    <AppFullScreenModal
+      open
+      zIndex={200}
+      closeOnBackdrop={false}
+      backdropClassName="bg-slate-950/90 backdrop-blur-sm"
     >
-      <div className="w-full max-w-lg rounded-2xl border border-rose-500/40 bg-brand-panel shadow-2xl overflow-hidden">
+      <div
+        className="w-full max-w-lg rounded-2xl border border-rose-500/40 bg-brand-panel shadow-2xl overflow-hidden"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="integrity-block-title"
+        aria-describedby="integrity-block-description"
+      >
         <div className="px-6 py-5 border-b border-brand-border bg-rose-500/10">
           <div className="flex items-start gap-3">
             <span className="p-2 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-300">
@@ -83,6 +89,6 @@ export function RuntimeIntegrityBlockModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import { formatMarcoComisionBase } from "@/data/marco-retributivo-catalog"
 import type { MarcoEntryInput, MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 import { marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
+import { migrateMarcoCondicionesFields } from "@/lib/marco-tramo-condicion"
 import {
   emptyMarcoForm,
   marcoRowToForm,
@@ -75,16 +76,17 @@ export function useMarcoRetributivoEditModal({
       return
     }
     setSaving(true)
+    const migrated = migrateMarcoCondicionesFields(form.condicion_1, form.condicion_2)
     const payload: MarcoEntryInput = {
       ...form,
       comision_tipo: "fija",
       comision_unidad: "eur_cups",
       vigencia_meses: form.segmento === "pyme" ? 12 : form.vigencia_meses,
-      condicion_1: form.condicion_1?.trim() || null,
-      condicion_2: form.condicion_2?.trim() || null,
+      condicion_1: migrated.condicion_1.trim() || null,
+      condicion_2: migrated.condicion_2.trim() || null,
       condiciones:
         form.condiciones?.trim() ||
-        [form.condicion_1, form.condicion_2].filter(Boolean).join(". ") ||
+        [migrated.condicion_1, migrated.condicion_2].filter(Boolean).join(". ") ||
         null,
       fecha_inicio: entry?.fecha_inicio ?? form.fecha_inicio,
     }

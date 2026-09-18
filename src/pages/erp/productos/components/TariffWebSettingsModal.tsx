@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Building2, Eye, Globe, Pencil, X, Zap } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { ProductoTarifa } from "@/lib/productos-catalog"
 import type { TariffWebSettingsPatch } from "@/lib/supabase/tariffs"
 
@@ -31,11 +32,9 @@ export function TariffWebSettingsModal({
     setWebAlias(product.webAlias ?? "")
   }, [product])
 
-  if (!open || !product) return null
-
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!canEdit || saving || !product) return
+    if (!product || !canEdit || saving) return
 
     await onSave(product.id, {
       web_visible: webVisible,
@@ -44,10 +43,11 @@ export function TariffWebSettingsModal({
     })
   }
 
-  const previewName = webAlias.trim() || product.catalogName
+  const previewName = product ? webAlias.trim() || product.catalogName : ""
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open={open && product != null} onClose={onClose}>
+      {product ? (
       <div
         role="dialog"
         aria-modal="true"
@@ -177,6 +177,7 @@ export function TariffWebSettingsModal({
           </div>
         </form>
       </div>
-    </div>
+      ) : null}
+    </AppFullScreenModal>
   )
 }

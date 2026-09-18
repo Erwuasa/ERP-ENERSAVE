@@ -34,6 +34,8 @@ export function useErpWorkspace() {
   const {
     openContractWizardForProspecto,
     openContractWizardFromProducto,
+    openContractWizardFromComparador,
+    openContractWizardForDraft,
   } = useContractActionsContext();
   const activeRole = activeUser.role;
   const {
@@ -233,6 +235,8 @@ export function useErpWorkspace() {
     setHighlightContractId,
     openContractWizardForProspecto,
     openContractWizardFromProducto,
+    openContractWizardFromComparador,
+    openContractWizardForDraft,
     activeRole,
     activeModule,
     currentMenuTab,

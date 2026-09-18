@@ -10,6 +10,7 @@ import {
 import { format, getDay, parse, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
 import { CalendarDays, Loader2, PlusCircle, Trash2, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import { colorForCalendarioUsuario } from "../../lib/calendario-colors"
@@ -409,8 +410,7 @@ export function CalendarioPanel({
         </div>
       </div>
 
-      {formOpen ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <AppFullScreenModal open={formOpen} onClose={() => setFormOpen(false)}>
           <div
             role="dialog"
             aria-modal="true"
@@ -601,8 +601,7 @@ export function CalendarioPanel({
               </div>
             </form>
           </div>
-        </div>
-      ) : null}
+      </AppFullScreenModal>
     </div>
   )
 }

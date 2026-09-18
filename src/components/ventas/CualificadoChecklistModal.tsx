@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import {
   CUALIFICADO_CHECKLIST_ITEMS,
   createEmptyCualificadoChecklist,
@@ -31,12 +32,15 @@ export function CualificadoChecklistModal({
     if (open) setChecklist(createEmptyCualificadoChecklist())
   }, [open, prospecto?.id])
 
-  if (!open || !prospecto) return null
-
   const complete = isCualificadoChecklistComplete(checklist)
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+    <AppFullScreenModal
+      open={open && prospecto != null}
+      onClose={onCancel}
+      backdropClassName="bg-black/40 backdrop-blur-md"
+    >
+      {prospecto ? (
       <div
         className="w-full max-w-md rounded-2xl border border-brand-border bg-brand-panel/95 dark:bg-brand-panel/90 backdrop-blur-xl shadow-2xl shadow-cyan-500/10"
         role="dialog"
@@ -114,6 +118,7 @@ export function CualificadoChecklistModal({
           </div>
         </div>
       </div>
-    </div>
+      ) : null}
+    </AppFullScreenModal>
   )
 }

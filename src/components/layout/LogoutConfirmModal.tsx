@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { LogOut } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 
 export interface LogoutConfirmModalProps {
   open: boolean
@@ -27,19 +28,13 @@ export function LogoutConfirmModal({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [open, onCancel])
 
-  if (!open) return null
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={onCancel}
-    >
+    <AppFullScreenModal open={open} onClose={onCancel}>
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="logout-modal-title"
         aria-describedby="logout-modal-desc"
-        onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm bg-brand-panel border border-brand-border rounded-2xl shadow-xl p-6 space-y-5 animate-fade-in"
       >
         <div className="flex items-center gap-3">
@@ -77,6 +72,6 @@ export function LogoutConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

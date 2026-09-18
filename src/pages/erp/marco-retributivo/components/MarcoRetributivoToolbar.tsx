@@ -110,7 +110,7 @@ export function MarcoRetributivoToolbar({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 max-h-36 overflow-y-auto pr-1">
         {companyTabs.map((tab) => {
           const count = countsByCompania[tab] ?? 0
           return (

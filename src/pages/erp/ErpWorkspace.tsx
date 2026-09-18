@@ -40,9 +40,9 @@ export function ErpWorkspaceShell() {
       >
         <Outlet />
         <VentasFichaOverlay />
-        <ErpWorkspaceModals />
         <WorkspaceChrome />
       </AppShell>
+      <ErpWorkspaceModals />
     </StaffFeedsProvider>
   )
 }

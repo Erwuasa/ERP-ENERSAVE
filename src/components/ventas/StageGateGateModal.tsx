@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import {
   createEmptyChecklistCompletion,
@@ -43,9 +44,7 @@ export function StageGateGateModal({
     if (open && gate) setChecklist(createEmptyChecklistCompletion(gate.items))
   }, [open, prospecto?.id, gate])
 
-  if (!open || !prospecto || !gate) return null
-
-  const complete = isChecklistComplete(gate.items, checklist)
+  const complete = gate ? isChecklistComplete(gate.items, checklist) : false
 
   async function handleAttachFiles(itemId: string, files: FileList | File[] | null) {
     if (!files) return
@@ -81,7 +80,12 @@ export function StageGateGateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+    <AppFullScreenModal
+      open={open && prospecto != null && gate != null}
+      onClose={onCancel}
+      backdropClassName="bg-black/40 backdrop-blur-md"
+    >
+      {prospecto && gate ? (
       <div
         className="w-full max-w-md rounded-2xl border border-brand-border bg-brand-panel/95 dark:bg-brand-panel/90 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 max-h-[90vh] flex flex-col"
         role="dialog"
@@ -215,6 +219,7 @@ export function StageGateGateModal({
           </button>
         </div>
       </div>
-    </div>
+      ) : null}
+    </AppFullScreenModal>
   )
 }

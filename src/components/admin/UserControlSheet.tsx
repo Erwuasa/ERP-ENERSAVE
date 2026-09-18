@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { motion } from "motion/react"
+import { AppFullScreenPortal } from "@/components/ui/AppFullScreenModal"
 import { Mail, ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { mfaStatusLabel } from "@/lib/admin-mfa-policy"
 import { fetchAdminMfaStatus } from "@/lib/supabase/admin-mfa"
@@ -121,6 +122,7 @@ export function UserControlSheet({
   }
 
   return (
+    <AppFullScreenPortal open>
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
       <motion.div
         initial={{ opacity: 0 }}
@@ -367,5 +369,6 @@ export function UserControlSheet({
         ) : null}
       </motion.aside>
     </div>
+    </AppFullScreenPortal>
   )
 }

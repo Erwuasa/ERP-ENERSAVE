@@ -1,3 +1,4 @@
+import { migrateMarcoCondicionesFields } from "@/lib/marco-tramo-condicion"
 import type { MarcoEntryInput, MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 import { normalizeSegmento } from "@/lib/supabase/marco-retributivo"
 
@@ -38,14 +39,19 @@ export function emptyMarcoForm(): MarcoEntryInput {
 }
 
 export function marcoRowToForm(row: MarcoRetributivoRow): MarcoEntryInput {
+  const { condicion_1, condicion_2 } = migrateMarcoCondicionesFields(
+    row.condicion_1,
+    row.condicion_2
+  )
+
   return {
     compania: row.compania,
     tarifa: row.tarifa,
     tipo: row.tipo,
     peaje: row.peaje,
     segmento: normalizeSegmento(row.segmento),
-    condicion_1: row.condicion_1 ?? "",
-    condicion_2: row.condicion_2 ?? "",
+    condicion_1,
+    condicion_2,
     condiciones: row.condiciones ?? "",
     comision_tipo: row.comision_tipo,
     comision_base: row.comision_base,

@@ -12,6 +12,15 @@ import {
   type MarcoRetributivoRow,
   type NewMarcoEntryInput,
 } from "@/lib/supabase/marco-retributivo"
+import {
+  filterMarcoRowsForTable,
+  marcoCompaniaMatchesFilter,
+  marcoPeajeMatchesFilter,
+} from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
+import {
+  expandMarcoRowsByTramos,
+  resolveMarcoParentRowId,
+} from "@/pages/erp/marco-retributivo/lib/marco-table-rows"
 
 type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
 type MarcoSegmentoFilter = "todos" | "residencial" | "pyme"
@@ -58,21 +67,7 @@ export function useMarcoRetributivoPanel({
     void loadRows()
   }, [loadRows])
 
-  const peajeOptions = useMemo(() => {
-    const set = new Set(
-      rows
-        .filter((e) => tipoFilter === "todos" || e.tipo === tipoFilter)
-        .filter(
-          (e) =>
-            segmentoFilter === "todos" ||
-            normalizeSegmento(e.segmento) === segmentoFilter
-        )
-        .map((e) => e.peaje)
-    )
-    return ["todos", ...Array.from(set).sort()]
-  }, [rows, tipoFilter, segmentoFilter])
-
-  const filteredRows = useMemo(() => {
+  const scopedRows = useMemo(() => {
     return rows.filter((entry) => {
       if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
       if (
@@ -81,11 +76,21 @@ export function useMarcoRetributivoPanel({
       ) {
         return false
       }
-      if (companiaFilter !== "Todos" && entry.compania !== companiaFilter) return false
-      if (peajeFilter !== "todos" && !entry.peaje.includes(peajeFilter)) return false
+      if (!marcoCompaniaMatchesFilter(entry.compania, companiaFilter)) return false
       return true
     })
-  }, [rows, companiaFilter, tipoFilter, segmentoFilter, peajeFilter])
+  }, [rows, companiaFilter, tipoFilter, segmentoFilter])
+
+  const peajeOptions = useMemo(() => {
+    const set = new Set(scopedRows.map((e) => e.peaje).filter(Boolean))
+    return ["todos", ...Array.from(set).sort()]
+  }, [scopedRows])
+
+  const filteredRows = useMemo(() => {
+    const byPeaje = scopedRows.filter((entry) => marcoPeajeMatchesFilter(entry.peaje, peajeFilter))
+    const expanded = expandMarcoRowsByTramos(byPeaje)
+    return filterMarcoRowsForTable(expanded, companiaFilter)
+  }, [scopedRows, peajeFilter, companiaFilter])
 
   const countsByCompania = useMemo(() => {
     const scoped = rows.filter((e) => {
@@ -114,7 +119,9 @@ export function useMarcoRetributivoPanel({
   }, [countsByCompania])
 
   function openEntryModal(entry: MarcoRetributivoRow) {
-    setModalEntry(entry)
+    const parentId = resolveMarcoParentRowId(entry.id)
+    const parentRow = rows.find((row) => row.id === parentId) ?? entry
+    setModalEntry(parentRow)
     setIsCreateMode(false)
     setModalOpen(true)
   }
@@ -202,7 +209,8 @@ export function useMarcoRetributivoPanel({
   function requestDeactivate(id: string, e: MouseEvent) {
     e.stopPropagation()
     if (!canEdit || deactivating) return
-    const row = rows.find((entry) => entry.id === id)
+    const parentId = resolveMarcoParentRowId(id)
+    const row = rows.find((entry) => entry.id === parentId)
     if (!row) return
     setPendingDeactivate(row)
   }
@@ -247,11 +255,16 @@ export function useMarcoRetributivoPanel({
     setPeajeFilter("todos")
   }
 
+  function setCompaniaFilterWithReset(compania: string) {
+    setCompaniaFilter(compania)
+    setPeajeFilter("todos")
+  }
+
   return {
     rows,
     loading,
     companiaFilter,
-    setCompaniaFilter,
+    setCompaniaFilter: setCompaniaFilterWithReset,
     tipoFilter,
     setTipoFilter: setTipoFilterWithReset,
     segmentoFilter,

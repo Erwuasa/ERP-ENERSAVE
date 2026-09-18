@@ -25,6 +25,8 @@ export function useContratosPage({
   const { profiles, activeUserId, activeUser } = useAuth()
   const {
     contracts,
+    clients,
+    setClients,
     setContracts,
     addOptimisticContract,
     contractsSearchQuery,
@@ -49,6 +51,7 @@ export function useContratosPage({
     openBajaModal,
     handleDeleteContract,
     openContractWizardFromRecommendation,
+    openContractWizardForDraft,
   } = useContractActionsContext()
 
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
@@ -143,6 +146,8 @@ export function useContratosPage({
       showUserFilter: showContractsUserFilter,
       userFilterId: contractsUserFilterId,
       onUserFilterChange: setContractsUserFilterId,
+      clients,
+      setClients,
       setContracts,
       addOptimisticContract,
       contractsSearchQuery,
@@ -159,6 +164,7 @@ export function useContratosPage({
       onResetNewContractForm: resetNewContractForm,
       applyOcrToNewContractForm,
       onOpenNewContract: openContractWizardBlank,
+      onEditDraft: openContractWizardForDraft,
       highlightContractId,
       profiles: profileOptions,
       commissionPercentage: activeUser.commissionPercentage,

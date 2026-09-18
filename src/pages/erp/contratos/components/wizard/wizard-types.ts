@@ -26,4 +26,5 @@ export interface NuevoContratoWizardProps {
   activeUserRole: string
   clients: Client[]
   contracts: Contract[]
+  editingContractId?: string | null
 }

@@ -34,58 +34,119 @@ export function WizardClienteStep({
   handleCodigoPostalChange,
 }: Props) {
   return (
-    <>
-      <ClientPortfolioSearch clients={clients} activeUserId={activeUserId} onSelectClient={onChange} />
+    <div className="h-full flex flex-col gap-3 min-h-0">
+      <div className="shrink-0">
+        <ClientPortfolioSearch clients={clients} activeUserId={activeUserId} onSelectClient={onChange} />
+      </div>
 
-      <section className="space-y-4">
-        <h3 className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-          Datos del titular
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>Nombre</label>
-            <input
-              type="text"
-              value={form.clientNombre}
-              onChange={(e) => handleNombreChange(e.target.value)}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>Apellidos</label>
-            <input
-              type="text"
-              value={form.clientApellidos}
-              onChange={(e) => handleApellidosChange(e.target.value)}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>DNI-NIE</label>
-            <input
-              type="text"
-              value={form.nif}
-              onChange={(e) => onChange({ nif: e.target.value.toUpperCase() })}
-              className={`${WIZARD_INPUT_CLASS} font-mono uppercase`}
-            />
-          </div>
+      <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 flex-1 min-h-0 content-start">
+        <div className="col-span-12 sm:col-span-4">
+          <label className={WIZARD_LABEL_CLASS}>Nombre</label>
+          <input
+            type="text"
+            value={form.clientNombre}
+            onChange={(e) => handleNombreChange(e.target.value)}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+        <div className="col-span-12 sm:col-span-4">
+          <label className={WIZARD_LABEL_CLASS}>Apellidos</label>
+          <input
+            type="text"
+            value={form.clientApellidos}
+            onChange={(e) => handleApellidosChange(e.target.value)}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+        <div className="col-span-12 sm:col-span-4">
+          <label className={WIZARD_LABEL_CLASS}>DNI-NIE</label>
+          <input
+            type="text"
+            value={form.nif}
+            onChange={(e) => onChange({ nif: e.target.value.toUpperCase() })}
+            className={`${WIZARD_INPUT_CLASS} font-mono uppercase py-1.5`}
+          />
         </div>
 
-        <div className="border border-brand-border rounded-xl overflow-hidden">
+        <div className="col-span-12 sm:col-span-6">
+          <label className={WIZARD_LABEL_CLASS}>Teléfono</label>
+          <input
+            type="tel"
+            value={form.telefono}
+            onChange={(e) => onChange({ telefono: e.target.value })}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+        <div className="col-span-12 sm:col-span-6">
+          <label className={WIZARD_LABEL_CLASS}>Email</label>
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => onChange({ email: e.target.value })}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+
+        <div className="col-span-12">
+          <label className={WIZARD_LABEL_CLASS}>Dirección</label>
+          <input
+            type="text"
+            value={form.direccionFiscal}
+            onChange={(e) => onChange({ direccionFiscal: e.target.value })}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+
+        <div className="col-span-12 sm:col-span-4">
+          <label className={WIZARD_LABEL_CLASS}>
+            Código postal
+            {cpLookupLoading && (
+              <span className="text-cyan-500 normal-case ml-1">detectando…</span>
+            )}
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={5}
+            value={form.codigoPostal}
+            onChange={(e) => handleCodigoPostalChange(e.target.value)}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+        <div className="col-span-12 sm:col-span-4">
+          <label className={WIZARD_LABEL_CLASS}>Localidad</label>
+          <input
+            type="text"
+            value={form.poblacion}
+            onChange={(e) => onChange({ poblacion: e.target.value })}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+        <div className="col-span-12 sm:col-span-4">
+          <label className={WIZARD_LABEL_CLASS}>Provincia</label>
+          <input
+            type="text"
+            value={form.provincia}
+            onChange={(e) => onChange({ provincia: e.target.value })}
+            className={`${WIZARD_INPUT_CLASS} py-1.5`}
+          />
+        </div>
+
+        <div className="col-span-12 border border-brand-border rounded-xl overflow-hidden">
           <button
             type="button"
             onClick={() => setEmpresaOpen((o) => !o)}
-            className="w-full flex items-center gap-2 px-4 py-3 text-left text-xs font-semibold text-brand-text hover:bg-brand-surface/60 cursor-pointer"
+            className="w-full flex items-center gap-2 px-3 py-2 text-left text-[11px] font-semibold text-brand-text hover:bg-brand-surface/60 cursor-pointer"
           >
             {empresaOpen ? (
-              <ChevronDown className="w-4 h-4 text-brand-subtext" />
+              <ChevronDown className="w-3.5 h-3.5 text-brand-subtext" />
             ) : (
-              <ChevronRight className="w-4 h-4 text-brand-subtext" />
+              <ChevronRight className="w-3.5 h-3.5 text-brand-subtext" />
             )}
             Empresa / Pyme (opcional)
           </button>
           {empresaOpen && (
-            <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-brand-border pt-3">
+            <div className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-brand-border pt-2">
               <div>
                 <label className={WIZARD_LABEL_CLASS}>Tipo de cliente</label>
                 <select
@@ -97,7 +158,7 @@ export function WizardClienteStep({
                       marcoEntryId: "",
                     })
                   }
-                  className={WIZARD_INPUT_CLASS}
+                  className={`${WIZARD_INPUT_CLASS} py-1.5`}
                 >
                   {TIPO_CLIENTE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -117,82 +178,14 @@ export function WizardClienteStep({
                       clientName: e.target.value || buildClientNameFromForm(form),
                     })
                   }
-                  className={WIZARD_INPUT_CLASS}
+                  className={`${WIZARD_INPUT_CLASS} py-1.5`}
                   placeholder="Empresa S.L."
                 />
               </div>
             </div>
           )}
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>Teléfono</label>
-            <input
-              type="tel"
-              value={form.telefono}
-              onChange={(e) => onChange({ telefono: e.target.value })}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => onChange({ email: e.target.value })}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className={WIZARD_LABEL_CLASS}>Dirección</label>
-          <input
-            type="text"
-            value={form.direccionFiscal}
-            onChange={(e) => onChange({ direccionFiscal: e.target.value })}
-            className={WIZARD_INPUT_CLASS}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>
-              Código postal
-              {cpLookupLoading && (
-                <span className="text-cyan-500 normal-case ml-1">detectando…</span>
-              )}
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={5}
-              value={form.codigoPostal}
-              onChange={(e) => handleCodigoPostalChange(e.target.value)}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>Localidad</label>
-            <input
-              type="text"
-              value={form.poblacion}
-              onChange={(e) => onChange({ poblacion: e.target.value })}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-          <div>
-            <label className={WIZARD_LABEL_CLASS}>Provincia</label>
-            <input
-              type="text"
-              value={form.provincia}
-              onChange={(e) => onChange({ provincia: e.target.value })}
-              className={WIZARD_INPUT_CLASS}
-            />
-          </div>
-        </div>
-      </section>
-    </>
+      </div>
+    </div>
   )
 }

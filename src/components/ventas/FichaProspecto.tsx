@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { listTareasByProspecto } from "../../lib/supabase/ventas"
 import {
   getFaseAvanceRequisito,
@@ -138,7 +139,7 @@ export function FichaProspecto({
 
   if (error || !prospecto) {
     return (
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40">
+      <AppFullScreenModal open onClose={onClose} backdropClassName="bg-black/40">
         <div className="w-full max-w-sm bg-brand-panel border border-brand-border rounded-xl p-4 space-y-3">
           <p className="text-xs text-rose-600 dark:text-rose-400">
             {error ?? "Prospecto no encontrado."}
@@ -151,7 +152,7 @@ export function FichaProspecto({
             Cerrar
           </button>
         </div>
-      </div>
+      </AppFullScreenModal>
     )
   }
 
@@ -171,7 +172,7 @@ export function FichaProspecto({
     prospecto.fase === "pendiente_firma" && !contractActivado
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40">
+    <AppFullScreenModal open onClose={onClose} backdropClassName="bg-black/40">
       <div
         className="w-full max-w-lg bg-brand-panel border border-brand-border rounded-xl shadow-lg overflow-hidden max-h-[85vh] flex flex-col relative"
         role="dialog"
@@ -349,6 +350,6 @@ export function FichaProspecto({
           onSuccess={refreshActividades}
         />
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

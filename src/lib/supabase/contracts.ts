@@ -88,6 +88,7 @@ export function buildTeamContractRow(
       : null,
     precio_fijo_consumo: contract.precioFijoConsumo ?? null,
     fecha_inicio: contract.createdAt ?? null,
+    cliente_id: contract.clientId ?? null,
     tipo_cliente: form.tipoCliente,
     forma_pago: form.formaPago,
     nombre_comercial: form.nombreComercial || contract.comercialName,
@@ -611,6 +612,48 @@ export async function deleteTeamContract(id: string): Promise<TeamContractResult
   if (error) return toFailure(error)
 
   return { ok: true, data: undefined }
+}
+
+export function buildTeamContractRowFromImport(contract: Contract): Row {
+  const row = buildTeamContractPatch(contract)
+  row.cliente_id = contract.clientId ?? null
+  row.referencia = contract.referencia ?? null
+  row.source = "manual"
+  row.documentos = contract.documentos ?? []
+  row.comentarios_internos = contract.comentariosInternos ?? []
+  row.metadata = {
+    client_id: contract.clientId,
+    atr: contract.atr,
+    import_source: "excel",
+  }
+  return row
+}
+
+export async function insertTeamContractFromImport(
+  contract: Contract
+): Promise<SaveTeamContractResult> {
+  if (!isSupabaseConfigured()) {
+    return {
+      ok: false,
+      reason: "not_configured",
+      message: "Supabase no está configurado.",
+    }
+  }
+
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    return {
+      ok: false,
+      reason: "not_configured",
+      message: "No se pudo inicializar el cliente de Supabase.",
+    }
+  }
+
+  const row = buildTeamContractRowFromImport(contract)
+  const { data, error } = await supabase.from(TABLE).insert(row).select("id").single()
+  if (error) return toFailure(error)
+
+  return { ok: true, id: String(data.id) }
 }
 
 export async function saveTeamContractToSupabase(

@@ -1,5 +1,6 @@
 import { motion } from "motion/react"
 import { Package, X } from "lucide-react"
+import { AppFullScreenPortal } from "@/components/ui/AppFullScreenModal"
 import type {
   MarcoEntryInput,
   MarcoRetributivoRow,
@@ -27,6 +28,7 @@ export function TarifaDetailPanel({
   if (!open || !entry) return null
 
   return (
+    <AppFullScreenPortal open>
     <div className="fixed inset-0 z-[100] overflow-hidden flex justify-end">
       <motion.div
         initial={{ opacity: 0 }}
@@ -92,5 +94,6 @@ export function TarifaDetailPanel({
         </footer>
       </motion.aside>
     </div>
+    </AppFullScreenPortal>
   )
 }

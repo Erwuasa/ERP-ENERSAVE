@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Loader2, Upload, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import { FileDropZone } from "../ui/FileDropZone"
 import { importedRowsToContracts, parseContractsFromExcel } from "../../lib/excel-import"
@@ -8,7 +9,7 @@ import type { Contract } from "../../types/contract"
 interface ContractsExcelImportModalProps {
   open: boolean
   onClose: () => void
-  onImport: (contracts: Contract[]) => void
+  onImport: (contracts: Contract[]) => void | Promise<void>
   comercialId: string
   comercialName: string
   existingContractCount: number
@@ -23,8 +24,6 @@ export function ContractsExcelImportModal({
   existingContractCount,
 }: ContractsExcelImportModalProps) {
   const [loading, setLoading] = useState(false)
-
-  if (!open) return null
 
   async function handleFiles(files: File[]) {
     const file = files[0]
@@ -47,8 +46,8 @@ export function ContractsExcelImportModal({
         comercialName,
         existingCount: existingContractCount,
       })
-      onImport(imported)
-      toast.success(`Importados ${imported.length} contratos desde Excel`)
+      await onImport(imported)
+      toast.success(`Importados ${imported.length} contratos desde Excel (guardados en Supabase)`)
       onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error al leer el Excel"
@@ -59,7 +58,7 @@ export function ContractsExcelImportModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={onClose}>
       <div className="bg-brand-panel border border-brand-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-brand-border">
           <div>
@@ -67,7 +66,7 @@ export function ContractsExcelImportModal({
               Importar Excel
             </h3>
             <p className="text-[10px] font-mono text-brand-subtext mt-1">
-              Columnas mínimas: Cliente, CUPS, Compañía, Estado
+              Cliente, CUPS, Compañía, Estado · opcional: Fecha creación, Fecha activación, NIF, Potencia…
             </p>
           </div>
           <button
@@ -93,12 +92,12 @@ export function ContractsExcelImportModal({
               onFiles={handleFiles}
               className="min-h-[140px]"
               label="Arrastra un .xlsx o haz clic para seleccionar"
-              hint="Columnas: Cliente, CUPS, Compañía, Estado, NIF, Tipo…"
+              hint="Cliente, CUPS, Compañía, Estado, Fecha creación, Fecha activación, NIF, Potencia, IBAN…"
               icon={<Upload className="w-8 h-8 text-brand-subtext" />}
             />
           )}
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

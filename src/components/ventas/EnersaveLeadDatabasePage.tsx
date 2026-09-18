@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react"
 import { Database, Plus, Search, Trash2, Upload } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import { DEMO_ENERSAVE_LEADS } from "../../lib/demo/enersave-leads-seed"
 import {
@@ -277,8 +278,7 @@ export function EnersaveLeadDatabasePage() {
         </p>
       </div>
 
-      {manualOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50">
+      <AppFullScreenModal open={manualOpen} onClose={() => setManualOpen(false)} backdropClassName="bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-brand-border bg-brand-panel p-4 space-y-3 shadow-xl">
             <h3 className="text-sm font-bold">Nuevo contacto EnerSave</h3>
             <input
@@ -328,8 +328,7 @@ export function EnersaveLeadDatabasePage() {
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </AppFullScreenModal>
     </div>
   )
 }

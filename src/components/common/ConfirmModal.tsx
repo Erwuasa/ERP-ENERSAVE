@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 
 export interface ConfirmModalProps {
   open: boolean
@@ -36,21 +37,19 @@ export function ConfirmModal({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [open, loading, onCancel])
 
-  if (!open) return null
-
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={() => {
+    <AppFullScreenModal
+      open={open}
+      onClose={() => {
         if (!loading) onCancel()
       }}
+      closeOnBackdrop={!loading}
     >
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-desc"
-        onClick={(event) => event.stopPropagation()}
         className="w-full max-w-sm rounded-2xl border border-brand-border bg-brand-panel shadow-xl p-4 space-y-3"
       >
         <h3 id="confirm-modal-title" className="text-sm font-bold text-brand-text">
@@ -79,6 +78,6 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

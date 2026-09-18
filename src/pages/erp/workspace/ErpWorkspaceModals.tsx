@@ -1,7 +1,6 @@
 import { AnimatePresence } from "motion/react"
 import { UserControlSheet } from "@/components/admin/UserControlSheet"
 import { PerfilComercialModal } from "@/components/PerfilComercialModal"
-import { ComparadorContractModal } from "@/pages/erp/workspace/modals/ComparadorContractModal"
 import { CreateUserModal } from "@/pages/erp/workspace/modals/CreateUserModal"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 import { canResetTargetMfa } from "@/lib/admin-mfa-policy"
@@ -91,8 +90,6 @@ export function ErpWorkspaceModals() {
           onSaved={handleSaveFiscalProfile}
         />
       ) : null}
-
-      <ComparadorContractModal ws={ws} />
     </>
   )
 }

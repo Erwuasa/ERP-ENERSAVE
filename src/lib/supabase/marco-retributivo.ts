@@ -1,9 +1,12 @@
 import type { MarcoRetributivoEntry } from "../../data/marco-retributivo-catalog"
+import { parseMarcoTramosJson } from "../marco-consumo-tramo"
 import { computeComisionBreakdown } from "../marco-commission"
+import { isMarcoGenericPlaceholderTariff } from "../marco-dedup"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
 export type MarcoComisionUnidad =
   | "eur_cups"
+  | "eur_mwh"
   | "porcentaje_facturado"
   | "porcentaje_consumo"
   | "porcentaje_termino"
@@ -82,6 +85,9 @@ export interface MarcoRetributivoRow {
   at_marco_id?: string | null
   collaborator_min?: number | null
   collaborator_max?: number | null
+  at_kwh_min?: number | null
+  at_kwh_max?: number | null
+  tramos?: unknown
   source?: "manual" | "at" | null
 }
 
@@ -109,7 +115,10 @@ export interface MarcoEntryInput {
 export type NewMarcoEntryInput = MarcoEntryInput
 
 const MARCO_SELECT =
-  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6, tipo_precio, incluye_sva, potencia_boe, tariff_id, at_rate_id, at_marco_id, collaborator_min, collaborator_max, source"
+  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6, tipo_precio, incluye_sva, potencia_boe, tariff_id, at_rate_id, at_marco_id, collaborator_min, collaborator_max, at_kwh_min, at_kwh_max, tramos, source"
+
+/** PostgREST devuelve como máximo 1000 filas por petición; paginamos para traer todo el catálogo. */
+export const MARCO_LIST_PAGE_SIZE = 500
 
 function mapError(error: { message: string }): MarcoRetributivoResult<never> {
   return { ok: false, message: error.message }
@@ -154,6 +163,9 @@ function mapRow(row: MarcoRetributivoRow): MarcoRetributivoRow {
     potencia_p6: numeric(row.potencia_p6),
     incluye_sva: row.incluye_sva == null ? null : Boolean(row.incluye_sva),
     potencia_boe: row.potencia_boe == null ? null : Boolean(row.potencia_boe),
+    at_kwh_min: numeric(row.at_kwh_min),
+    at_kwh_max: numeric(row.at_kwh_max),
+    tramos: row.tramos,
   }
 }
 
@@ -208,6 +220,7 @@ export function catalogEntryToRow(entry: MarcoRetributivoEntry): MarcoRetributiv
 }
 
 export function marcoRowToCatalogEntry(row: MarcoRetributivoRow): MarcoRetributivoEntry {
+  const tramos = parseMarcoTramosJson(row.tramos)
   return {
     id: row.id,
     compania: row.compania,
@@ -215,6 +228,8 @@ export function marcoRowToCatalogEntry(row: MarcoRetributivoRow): MarcoRetributi
     tipo: row.tipo,
     peaje: row.peaje,
     segmento: row.segmento,
+    condicion1: row.condicion_1 ?? undefined,
+    condicion2: row.condicion_2 ?? undefined,
     condiciones:
       row.condiciones ??
       [row.condicion_1, row.condicion_2].filter(Boolean).join(" ") ??
@@ -223,6 +238,9 @@ export function marcoRowToCatalogEntry(row: MarcoRetributivoRow): MarcoRetributi
     comisionBase: row.comision_base,
     comisionUnidad: row.comision_unidad,
     vigenciaMeses: row.vigencia_meses,
+    atKwhMin: row.at_kwh_min,
+    atKwhMax: row.at_kwh_max,
+    tramos: tramos.length > 0 ? tramos : undefined,
   }
 }
 
@@ -249,6 +267,16 @@ function toDbPatch(
   return row
 }
 
+function isMarcoTableMissingError(error: { message?: string; code?: string }): boolean {
+  return (
+    Boolean(error.message?.includes("does not exist")) ||
+    Boolean(error.message?.includes("relation")) ||
+    Boolean(error.message?.includes("schema cache")) ||
+    error.code === "42P01" ||
+    error.code === "PGRST205"
+  )
+}
+
 export async function listMarcoRetributivo(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
@@ -257,28 +285,35 @@ export async function listMarcoRetributivo(): Promise<
     return { ok: true, data: [] }
   }
 
-  const { data, error } = await clientOrError
-    .from("marco_retributivo")
-    .select(MARCO_SELECT)
-    .eq("activo", true)
-    .order("compania")
-    .order("tarifa")
+  const allRows: MarcoRetributivoRow[] = []
+  let from = 0
 
-  if (error) {
-    if (
-      error.message.includes("does not exist") ||
-      error.message.includes("relation") ||
-      error.message.includes("schema cache") ||
-      error.code === "42P01" ||
-      error.code === "PGRST205"
-    ) {
-      return { ok: true, data: [] }
+  while (true) {
+    const { data, error } = await clientOrError
+      .from("marco_retributivo")
+      .select(MARCO_SELECT)
+      .eq("activo", true)
+      .order("compania")
+      .order("tarifa")
+      .range(from, from + MARCO_LIST_PAGE_SIZE - 1)
+
+    if (error) {
+      if (isMarcoTableMissingError(error)) {
+        return { ok: true, data: [] }
+      }
+      return mapError(error)
     }
-    return mapError(error)
+
+    const batch = ((data ?? []) as MarcoRetributivoRow[])
+      .map(mapRow)
+      .filter((row) => !isMarcoGenericPlaceholderTariff(row))
+    allRows.push(...batch)
+
+    if (batch.length < MARCO_LIST_PAGE_SIZE) break
+    from += MARCO_LIST_PAGE_SIZE
   }
 
-  const rows = ((data ?? []) as MarcoRetributivoRow[]).map(mapRow)
-  return { ok: true, data: rows }
+  return { ok: true, data: allRows }
 }
 
 export async function createMarcoEntry(

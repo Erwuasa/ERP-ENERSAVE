@@ -1,5 +1,6 @@
 import { useRef, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react"
 import type { Contract } from "@/types/contract"
+import type { Client } from "@/types/client"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { ContractsExcelImportModal } from "@/components/contratos/ContractsExcelImportModal"
@@ -21,8 +22,10 @@ export interface ContratosPanelProps {
   activeUserName: string
   canEditContractEstado: boolean
   visibleContracts: Contract[]
+  clients: Client[]
   /** True while the initial contracts fetch is in flight and there's nothing to show yet. */
   erpDataLoading?: boolean
+  setClients: Dispatch<SetStateAction<Client[]>>
   setContracts: Dispatch<SetStateAction<Contract[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
@@ -43,6 +46,7 @@ export interface ContratosPanelProps {
   onResetNewContractForm: () => void
   applyOcrToNewContractForm: (data: ContractOcrResult) => void
   onOpenNewContract?: () => void
+  onEditDraft?: (contract: Contract) => void
   highlightContractId?: string | null
   profiles: ProfileOption[]
   commissionPercentage: number
@@ -66,7 +70,9 @@ export function ContratosPanel({
   activeUserName,
   canEditContractEstado,
   visibleContracts,
+  clients,
   erpDataLoading = false,
+  setClients,
   setContracts,
   addOptimisticContract,
   contractsSearchQuery,
@@ -80,6 +86,7 @@ export function ContratosPanel({
   onResetNewContractForm,
   applyOcrToNewContractForm,
   onOpenNewContract,
+  onEditDraft,
   highlightContractId,
   profiles,
   formatCurrency,
@@ -103,6 +110,8 @@ export function ContratosPanel({
   const vm = useContratosPanel({
     canEditContractEstado,
     visibleContracts,
+    clients,
+    setClients,
     setContracts,
     addOptimisticContract,
     contractsSearchQuery,
@@ -172,6 +181,7 @@ export function ContratosPanel({
             onDismissRecommendation={onDismissRecommendation}
             onDismissRenewalAlert={onDismissRenewalAlert}
             onOpenDetalle={setContratoSeleccionado}
+            onEditDraft={onEditDraft}
           />
         </div>
 
@@ -222,6 +232,14 @@ export function ContratosPanel({
             renderCompaniaLogo={renderCompaniaLogo}
             activeUserId={activeUserId}
             activeUserName={activeUserName}
+            onCompleteDraft={
+              onEditDraft
+                ? (contract) => {
+                    setContratoSeleccionado(null)
+                    onEditDraft(contract)
+                  }
+                : undefined
+            }
             onContractUpdated={(updated) => {
               setContratoSeleccionado(updated)
               setContracts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))

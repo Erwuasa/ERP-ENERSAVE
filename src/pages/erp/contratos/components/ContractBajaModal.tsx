@@ -1,5 +1,6 @@
 import { motion } from "motion/react"
 import { AlertTriangle, Trash2 } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { FormEvent } from "react"
 import type { Contract } from "@/types/contract"
 import {
@@ -33,20 +34,16 @@ export function ContractBajaModal({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs"
-      />
-
+    <AppFullScreenModal
+      open
+      onClose={onClose}
+      backdropClassName="bg-slate-950/80 backdrop-blur-sm"
+    >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl z-10 text-slate-300"
+        className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl text-slate-300"
       >
         <div className="absolute top-0 inset-x-0 h-[3px] bg-gradient-to-r from-rose-500 to-amber-500" />
 
@@ -192,6 +189,6 @@ export function ContractBajaModal({
           </button>
         </div>
       </motion.div>
-    </div>
+    </AppFullScreenModal>
   )
 }

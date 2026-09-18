@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
-import { motion, AnimatePresence } from "motion/react"
+import { motion } from "motion/react"
 import { AlertTriangle, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type {
   IncidenciaEstado,
   IncidenciaOrigen,
@@ -35,21 +36,16 @@ export function IncidenciaEditModal({ ticket, onClose, onSave }: Props) {
   }
 
   return (
-    <AnimatePresence>
-      {draft && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs"
-          />
+    <AppFullScreenModal
+      open={draft != null}
+      onClose={onClose}
+      backdropClassName="bg-slate-950/80 backdrop-blur-sm"
+    >
+      {draft ? (
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl z-10"
+            className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-rose-400">
@@ -180,8 +176,7 @@ export function IncidenciaEditModal({ ticket, onClose, onSave }: Props) {
               </div>
             </form>
           </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+      ) : null}
+    </AppFullScreenModal>
   )
 }

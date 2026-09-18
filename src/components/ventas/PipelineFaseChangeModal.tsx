@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react"
 import { X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type {
   Prospecto,
   ProspectoFase,
@@ -28,15 +29,14 @@ export function PipelineFaseChangeModal({
 }: PipelineFaseChangeModalProps) {
   const [input, setInput] = useState<UpdateProspectoFaseInput | null>(null)
 
-  if (!open || !prospecto || !fromFase || !toFase) return null
-
   function handleConfirm() {
     if (!input) return
     onConfirm(input)
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppFullScreenModal open={open && prospecto != null && fromFase != null && toFase != null} onClose={onCancel}>
+      {prospecto && fromFase && toFase ? (
       <div
         className="w-full max-w-md bg-brand-panel border border-brand-border rounded-2xl shadow-xl"
         role="dialog"
@@ -90,6 +90,7 @@ export function PipelineFaseChangeModal({
           </div>
         </div>
       </div>
-    </div>
+      ) : null}
+    </AppFullScreenModal>
   )
 }

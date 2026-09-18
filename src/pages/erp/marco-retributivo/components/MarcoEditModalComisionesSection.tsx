@@ -1,4 +1,6 @@
-import { Layers } from "lucide-react"
+import { Euro, Layers } from "lucide-react"
+import { formatMarcoPermanenciaLabel } from "@/lib/marco-permanencia"
+import { resolveMarcoCondicion2Label } from "@/lib/marco-tramo-condicion"
 import type { MarcoEntryInput } from "@/lib/supabase/marco-retributivo"
 import { MARCO_INPUT_CLASS, ReadOnlyBox } from "@/pages/erp/marco-retributivo/components/MarcoEditModalFields"
 
@@ -17,8 +19,39 @@ export function MarcoEditModalComisionesSection({
   comisionPreview,
   patchForm,
 }: Props) {
-  const permanenciaLabel =
-    form.vigencia_meses > 0 ? `${form.vigencia_meses} meses` : "—"
+  const permanenciaLabel = formatMarcoPermanenciaLabel({
+    compania: form.compania,
+    segmento: form.segmento,
+    vigencia_meses: form.vigencia_meses,
+    condiciones: form.condiciones,
+    condicion_2: form.condicion_2,
+  })
+
+  const condicion2Label =
+    resolveMarcoCondicion2Label({
+      id: "modal",
+      ...form,
+      condicion_1: form.condicion_1 || null,
+      condicion_2: form.condicion_2 || null,
+      condiciones: form.condiciones || null,
+      created_at: "",
+      updated_at: "",
+      updated_by: null,
+      activo: form.activo ?? true,
+      energia_p1: null,
+      energia_p2: null,
+      energia_p3: null,
+      energia_p4: null,
+      energia_p5: null,
+      energia_p6: null,
+      potencia_p1: null,
+      potencia_p2: null,
+      potencia_p3: null,
+      potencia_p4: null,
+      potencia_p5: null,
+      potencia_p6: null,
+    }) ??
+    (form.condicion_2?.trim() || "—")
 
   return (
     <section className="space-y-3">
@@ -51,11 +84,11 @@ export function MarcoEditModalComisionesSection({
                     value={form.condicion_2 ?? ""}
                     onChange={(e) => patchForm({ condicion_2: e.target.value })}
                     className={`${MARCO_INPUT_CLASS} text-[11px] py-2`}
-                    placeholder="Ej. DE 0 A 10 KW"
+                    placeholder="Ej. 750-1250 MWh"
                   />
                 ) : (
                   <span className="text-brand-text font-medium uppercase text-[11px]">
-                    {form.condicion_2?.trim() || "—"}
+                    {condicion2Label}
                   </span>
                 )}
               </td>
@@ -84,7 +117,7 @@ export function MarcoEditModalComisionesSection({
                       className={`${MARCO_INPUT_CLASS} text-right w-[5.5rem] py-1.5 tabular-nums`}
                       aria-label="Valor comisión"
                     />
-                    <span className="text-[10px] text-brand-subtext font-semibold">€/CUPS</span>
+                    <Euro className="h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden />
                   </div>
                 ) : (
                   comisionPreview
@@ -95,11 +128,6 @@ export function MarcoEditModalComisionesSection({
         </table>
       </div>
 
-      {canEdit && (
-        <p className="text-[10px] text-brand-subtext leading-relaxed px-1">
-          Comisión en €/CUPS. Solo superadmin puede modificar el importe. Permanencia PYME: 12 meses.
-        </p>
-      )}
     </section>
   )
 }

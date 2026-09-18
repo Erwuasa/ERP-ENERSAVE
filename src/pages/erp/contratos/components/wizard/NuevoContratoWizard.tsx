@@ -1,4 +1,5 @@
 import { ArrowLeft, ArrowRight, Loader2, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { useNuevoContratoWizard } from "@/pages/erp/contratos/components/wizard/useNuevoContratoWizard"
 import { WizardCompanyStep } from "@/pages/erp/contratos/components/wizard/WizardCompanyStep"
 import { WizardClienteStep } from "@/pages/erp/contratos/components/wizard/WizardClienteStep"
@@ -11,6 +12,9 @@ import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/
 
 export type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 
+const WIZARD_PANEL_CLASS =
+  "bg-brand-panel border border-brand-border rounded-2xl shadow-2xl w-[960px] max-w-[calc(100vw-2rem)] h-[740px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+
 export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
   const {
     open,
@@ -21,37 +25,32 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
     activeUserId,
     activeUserName,
     clients,
+    editingContractId,
+    commissionPercentage,
   } = props
 
   const vm = useNuevoContratoWizard(props)
 
-  if (!open) return null
-
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={vm.handleClose}
-      >
-        <div
-          className="bg-brand-panel border border-brand-border rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <AppFullScreenModal open={open} onClose={vm.handleClose} zIndex={100}>
+        <div className={WIZARD_PANEL_CLASS}>
           <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border shrink-0">
             <div>
               <h2 className="text-sm font-extrabold text-brand-text uppercase tracking-wide">
-                Crear contrato
+                {editingContractId ? "Completar borrador" : "Crear contrato"}
               </h2>
               <p className="text-[10px] text-brand-subtext font-mono mt-0.5">
                 {vm.isCompanyStep
                   ? "Selecciona comercializadora"
-                  : `${formatCompaniaLabel(form.compania)} · ${vm.segment} · ${form.tipo}`}
+                  : `${formatCompaniaLabel(form.compania)} · ${vm.segment} · ${form.tipo} · ${form.peajeSegment}`}
               </p>
             </div>
             <button
               type="button"
               onClick={vm.handleClose}
-              className="p-2 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="p-2 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
             </button>
@@ -62,7 +61,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               form={form}
               segment={vm.segment}
               featuredCompanies={vm.featuredCompanies}
-              atRestCompanies={vm.atRestCompanies}
               companySupplyTypes={vm.companySupplyTypes}
               setSegment={vm.setSegment}
               setTipo={vm.setTipo}
@@ -102,7 +100,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                 </nav>
               </div>
 
-              <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              <div className="px-6 py-4 flex-1 min-h-0 overflow-hidden">
                 {vm.activeTab === "cliente" && (
                   <WizardClienteStep
                     form={form}
@@ -122,18 +120,24 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                   <WizardSuministroStep
                     form={form}
                     activeUserName={activeUserName}
-                    tariffSearch={vm.tariffSearch}
-                    setTariffSearch={vm.setTariffSearch}
                     filteredTariffs={vm.filteredTariffs}
                     duplicateCups={vm.duplicateCups}
                     commissionEstimate={vm.commissionEstimate}
+                    marcoTramoResolution={vm.marcoTramoResolution}
                     formatCurrency={formatCurrency}
-                    newComment={vm.newComment}
-                    setNewComment={vm.setNewComment}
+                    commissionPercentage={commissionPercentage}
+                    serviciosExtrasOptions={vm.serviciosExtrasOptions}
+                    selectedServiciosExtras={form.selectedServiciosExtras}
+                    serviciosExtrasExpanded={vm.serviciosExtrasExpanded}
+                    onToggleServiciosExtras={() =>
+                      vm.setServiciosExtrasExpanded(!vm.serviciosExtrasExpanded)
+                    }
+                    onToggleServicioExtra={vm.toggleServicioExtra}
                     onChange={onChange}
                     selectTariff={vm.selectTariff}
+                    setPeajeSegment={vm.setPeajeSegment}
+                    setTipo={vm.setTipo}
                     handlePotenciaP1Change={vm.handlePotenciaP1Change}
-                    postComment={vm.postComment}
                   />
                 )}
 
@@ -144,48 +148,47 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     documentosObligatorios={vm.documentosObligatorios}
                     addDocumentosForTipo={vm.addDocumentosForTipo}
                     removeDocumentoForTipo={vm.removeDocumentoForTipo}
+                    newComment={vm.newComment}
+                    setNewComment={vm.setNewComment}
+                    postComment={vm.postComment}
                   />
                 )}
               </div>
 
-              <div className="px-6 py-4 border-t border-brand-border flex gap-3 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onChange({ wizardStep: 1 })}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-brand-subtext hover:text-brand-text border border-brand-border rounded-lg cursor-pointer"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  onClick={vm.handleClose}
-                  className="px-4 py-2.5 text-xs font-bold text-brand-subtext hover:text-brand-text cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Procesando…
-                    </>
-                  ) : (
-                    <>
-                      Crear contrato
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+              <div className="px-6 py-4 border-t border-brand-border shrink-0">
+                {vm.isLastWizardStep ? (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-lg text-xs uppercase tracking-wider disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Procesando…
+                      </>
+                    ) : (
+                      <>
+                        {editingContractId ? "Guardar borrador" : "Crear contrato"}
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={vm.goNextStep}
+                    className="w-full py-2.5 bg-blue-600 dark:bg-gradient-to-r dark:from-cyan-500 dark:to-blue-600 hover:opacity-95 text-white font-extrabold rounded-lg text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    Siguiente
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </form>
           )}
         </div>
-      </div>
+      </AppFullScreenModal>
 
       <WizardIncompleteConfirmModal
         open={vm.incompleteConfirmOpen}
@@ -193,6 +196,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
         onClose={() => vm.setIncompleteConfirmOpen(false)}
         onConfirmIncomplete={vm.confirmIncompleteSave}
       />
+
     </>
   )
 }

@@ -6,6 +6,7 @@ import {
 } from "./comparador-tariff-pricing"
 import type { ComparadorCostExtras, ComparadorPeriodInputs } from "./tarifa-cost-calculator"
 import { estimateMarcoCommissionEur } from "./marco-commission"
+import { resolveMarcoTramoForConsumo } from "./marco-consumo-tramo"
 import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 import {
   marcoRowToCatalogEntry,
@@ -197,14 +198,38 @@ export function buildComparadorEnVivoRanking(
     if (rowPrecision === "estimado") precision = "estimado"
 
     let comisionEstimada: number | null = null
-    if (marco && consumoAnual > 0) {
-      const entry: MarcoRetributivoEntry = marcoRowToCatalogEntry(marco)
-      comisionEstimada = estimateMarcoCommissionEur(
-        entry,
-        commissionPercentage,
-        consumoAnual,
-        formatCurrency
-      ).amountEur
+    if (marco) {
+      const candidates = marcoRows
+        .filter(
+          (row) =>
+            row.compania === marco.compania &&
+            row.tarifa === marco.tarifa &&
+            row.tipo === marco.tipo
+        )
+        .map(marcoRowToCatalogEntry)
+      const resolution = resolveMarcoTramoForConsumo(
+        candidates.length > 0 ? candidates : [marcoRowToCatalogEntry(marco)],
+        consumoAnual > 0 ? consumoAnual : null
+      )
+      const entry: MarcoRetributivoEntry | null = resolution.entry ?? marcoRowToCatalogEntry(marco)
+      if (entry) {
+        if (resolution.precision === "exacto" && consumoAnual > 0) {
+          comisionEstimada = estimateMarcoCommissionEur(
+            entry,
+            commissionPercentage,
+            consumoAnual,
+            formatCurrency
+          ).amountEur
+        } else if (
+          resolution.comisionMin != null &&
+          resolution.comisionMax != null &&
+          entry.comisionTipo === "fija"
+        ) {
+          const rate = commissionPercentage / 100
+          comisionEstimada =
+            Math.round(((resolution.comisionMin + resolution.comisionMax) / 2) * rate * 100) / 100
+        }
+      }
     }
 
     resultados.push({

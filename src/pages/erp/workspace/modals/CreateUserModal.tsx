@@ -1,5 +1,6 @@
-import { AnimatePresence, motion } from "motion/react"
+import { motion } from "motion/react"
 import { UserPlus, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { StaffRole } from "@/types/profile"
 import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 
@@ -36,22 +37,12 @@ export function CreateUserModal({
   handleAddNewUser,
 }: Props) {
   return (
-    <AnimatePresence>
-      {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsCreateOpen(false)}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 15 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 15 }}
-            className="bg-brand-panel border border-brand-border w-full max-w-md rounded-2xl p-6 relative z-10 space-y-4 shadow-xl"
-          >
+    <AppFullScreenModal open={isCreateOpen} onClose={() => setIsCreateOpen(false)}>
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 15 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        className="bg-brand-panel border border-brand-border w-full max-w-md rounded-2xl p-6 space-y-4 shadow-xl"
+      >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-cyan-600" />
@@ -149,9 +140,7 @@ export function CreateUserModal({
                 </button>
               </div>
             </form>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+      </motion.div>
+    </AppFullScreenModal>
   )
 }

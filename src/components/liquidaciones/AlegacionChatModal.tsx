@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Loader2, Paperclip, Send, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import {
   filesToAlegacionAdjuntos,
@@ -215,14 +216,7 @@ export function AlegacionChatModal({
   const mensajes = alegacion?.mensajes ?? []
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Cerrar alegación"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
-        onClick={onClose}
-      />
-
+    <AppFullScreenModal open={open} onClose={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -418,7 +412,7 @@ export function AlegacionChatModal({
           </div>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }
 

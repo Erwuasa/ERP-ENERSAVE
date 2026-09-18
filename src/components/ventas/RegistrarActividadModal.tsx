@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react"
 import { X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { createActividad } from "../../lib/supabase/ventas"
 import type { CreateActividadInput } from "../../lib/ventas/types"
 
@@ -67,7 +68,7 @@ export function RegistrarActividadModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={onClose}>
       <div
         className="w-full max-w-md bg-brand-panel border border-brand-border rounded-2xl shadow-xl"
         role="dialog"
@@ -128,6 +129,6 @@ export function RegistrarActividadModal({
           </button>
         </form>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

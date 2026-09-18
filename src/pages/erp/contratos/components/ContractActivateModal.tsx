@@ -1,5 +1,6 @@
 import { motion } from "motion/react"
 import { CheckCircle, Zap } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { Contract } from "@/types/contract"
 import type { Profile } from "@/types/profile"
 import { computeActivationSplitPreview } from "@/lib/erp/contract-activation"
@@ -35,20 +36,16 @@ export function ContractActivateModal({
   )
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs"
-      />
-
+    <AppFullScreenModal
+      open
+      onClose={onClose}
+      backdropClassName="bg-slate-950/80 backdrop-blur-sm"
+    >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl z-10"
+        className="relative bg-slate-900 border border-white/10 rounded-2xl w-full max-w-lg p-6 overflow-hidden space-y-4 shadow-2xl"
       >
         <div className="flex items-center space-x-3 text-emerald-400">
           <Zap className="w-5 h-5" />
@@ -201,6 +198,6 @@ export function ContractActivateModal({
           </button>
         </div>
       </motion.div>
-    </div>
+    </AppFullScreenModal>
   )
 }

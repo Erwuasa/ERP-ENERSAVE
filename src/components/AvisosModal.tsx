@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { AlertCircle, AlertTriangle, Info, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import {
   AVISO_TIPO_SORT_ORDER,
   avisoTipoBadgeClass,
@@ -89,14 +90,7 @@ export function AvisosModal({
   const Icon = styles.icon
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
-      <button
-        type="button"
-        aria-label="Cerrar avisos"
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-default"
-        onClick={() => void dismissAllAndClose()}
-      />
-
+    <AppFullScreenModal open={open} onClose={() => void dismissAllAndClose()}>
       <div
         role="dialog"
         aria-modal="true"
@@ -166,6 +160,6 @@ export function AvisosModal({
           </article>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

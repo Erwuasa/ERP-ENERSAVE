@@ -14,16 +14,33 @@ import {
   filterMarcoTariffs,
   getWizardCompanies,
   getWizardCompanySupplyTypes,
+  isMarcoEntryForSegment,
   type ContractWizardSegment,
 } from "@/lib/contract-tariff-filter"
 import type { NewContractFormState, WizardStep } from "@/lib/contract-registration"
+import { WIZARD_TABS } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 import {
   buildClientNameFromForm,
   inferTipoPrecioFromTarifa,
   newContractFormToRegistrationInput,
   validateContractRegistration,
 } from "@/lib/contract-registration"
-import { getTariffPeajeType, inferPeajeTypeFromSegment, spreadPotenciaFromP1 } from "@/lib/contract-potencia"
+import type { ContractPeajeSegment } from "@/lib/contract-peaje-segment"
+import {
+  getTariffPeajeType,
+  inferPeajeTypeFromSegment,
+  peajeSegmentToTariffPeajeType,
+  spreadPotenciaFromP1,
+} from "@/lib/contract-potencia"
+import {
+  computeServiciosExtrasCommissionEur,
+  listServiciosExtrasForWizard,
+} from "@/lib/marco-servicios-extras"
+import {
+  dedupeMarcoTariffsForSelect,
+  findMarcoTramoCandidates,
+  resolveMarcoTramoForConsumo,
+} from "@/lib/marco-consumo-tramo"
 import { lookupSpainPostalCode } from "@/lib/spain-postal-code"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wizard-ui"
@@ -53,6 +70,7 @@ export function useNuevoContratoWizard({
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
+  const [serviciosExtrasExpanded, setServiciosExtrasExpanded] = useState(false)
   const [atCompanies, setAtCompanies] = useState<string[]>([])
   const [tariffCompanies, setTariffCompanies] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
@@ -89,6 +107,25 @@ export function useNuevoContratoWizard({
     onChange({ wizardStep: tab })
   }
 
+  const isLastWizardStep = activeTab === "documentos"
+
+  function goNextStep() {
+    if (!activeTab || isLastWizardStep) return
+    const order = WIZARD_TABS.map((tab) => tab.id)
+    const index = order.indexOf(activeTab)
+    if (index >= 0 && index < order.length - 1) {
+      goToTab(order[index + 1]!)
+    }
+  }
+
+  function setPeajeSegment(next: ContractPeajeSegment) {
+    const peajeChanged = form.peajeSegment !== next
+    onChange({
+      peajeSegment: next,
+      ...(peajeChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", selectedServiciosExtras: [] } : {}),
+    })
+  }
+
   function setSegment(next: ContractWizardSegment) {
     const segmentChanged = form.wizardSegment !== next
     onChange({
@@ -114,10 +151,34 @@ export function useNuevoContratoWizard({
     [segment, marcoCatalog, form.tipo, tariffCompanies]
   )
 
+  // Companies known to marco_retributivo, mapped to which segment(s) they
+  // actually serve (independent of the currently active tab). Used below to
+  // stop a pyme-only (or residencial-only) company from leaking into the
+  // "resto" AT-catalog list when the *other* tab is active — the AT catalog
+  // itself carries no segmento info, so we fall back to whatever
+  // marco_retributivo already knows about that company.
+  const marcoCompanySegments = useMemo(() => {
+    const map = new Map<string, Set<ContractWizardSegment>>()
+    for (const entry of marcoCatalog) {
+      const key = normalizeCompaniaKey(entry.compania)
+      const segs = map.get(key) ?? new Set<ContractWizardSegment>()
+      if (isMarcoEntryForSegment(entry, "residencial")) segs.add("residencial")
+      if (isMarcoEntryForSegment(entry, "pyme")) segs.add("pyme")
+      map.set(key, segs)
+    }
+    return map
+  }, [marcoCatalog])
+
   const atRestCompanies = useMemo(() => {
     const featuredKeys = new Set(featuredCompanies.map(normalizeCompaniaKey))
-    return atCompanies.filter((name) => !featuredKeys.has(normalizeCompaniaKey(name)))
-  }, [atCompanies, featuredCompanies])
+    return atCompanies.filter((name) => {
+      const key = normalizeCompaniaKey(name)
+      if (featuredKeys.has(key)) return false
+      const knownSegments = marcoCompanySegments.get(key)
+      if (knownSegments && !knownSegments.has(segment)) return false
+      return true
+    })
+  }, [atCompanies, featuredCompanies, marcoCompanySegments, segment])
 
   const companies = useMemo(
     () => mergeCompanyNames([featuredCompanies, atRestCompanies]),
@@ -133,27 +194,69 @@ export function useNuevoContratoWizard({
     return map
   }, [featuredCompanies, segment, marcoCatalog, form.tipo])
 
-  const filteredTariffs = useMemo(
+  const filteredTariffCandidates = useMemo(
     () =>
       filterMarcoTariffs({
         compania: form.compania,
         segment,
         tipo: form.tipo,
         tipoCliente: form.tipoCliente,
+        peajeSegment: form.peajeSegment,
         search: tariffSearch,
         catalog: marcoCatalog,
       }),
-    [form.compania, form.tipo, form.tipoCliente, segment, tariffSearch, marcoCatalog]
+    [form.compania, form.tipo, form.tipoCliente, form.peajeSegment, segment, tariffSearch, marcoCatalog]
+  )
+
+  const filteredTariffs = useMemo(
+    () => dedupeMarcoTariffsForSelect(filteredTariffCandidates),
+    [filteredTariffCandidates]
+  )
+
+  const marcoTramoCandidates = useMemo(() => {
+    if (!form.tarifa.trim()) return []
+    return findMarcoTramoCandidates(marcoCatalog, {
+      compania: form.compania,
+      tarifa: form.tarifa,
+      tipo: form.tipo,
+    })
+  }, [marcoCatalog, form.compania, form.tarifa, form.tipo])
+
+  const consumoAnualKwh = form.consumoAnual === "" ? null : Number(form.consumoAnual)
+
+  const marcoTramoResolution = useMemo(
+    () => resolveMarcoTramoForConsumo(marcoTramoCandidates, consumoAnualKwh),
+    [marcoTramoCandidates, consumoAnualKwh]
+  )
+
+  const serviciosExtrasOptions = useMemo(
+    () =>
+      listServiciosExtrasForWizard({
+        catalog: marcoCatalog,
+        compania: form.compania,
+        segment,
+        peajeSegment: form.peajeSegment,
+        preferredEntryId: form.marcoEntryId || undefined,
+      }),
+    [marcoCatalog, form.compania, form.peajeSegment, form.marcoEntryId, segment]
   )
 
   const selectedMarcoEntry = useMemo(() => {
+    if (marcoTramoResolution.entry) return marcoTramoResolution.entry
     if (form.marcoEntryId) {
       return marcoCatalog.find((e) => e.id === form.marcoEntryId)
     }
     return marcoCatalog.find(
       (e) => e.compania === form.compania && e.tarifa === form.tarifa && e.tipo === form.tipo
     )
-  }, [form.marcoEntryId, form.compania, form.tarifa, form.tipo, marcoCatalog])
+  }, [marcoTramoResolution.entry, form.marcoEntryId, form.compania, form.tarifa, form.tipo, marcoCatalog])
+
+  useEffect(() => {
+    if (!open) return
+    const resolvedId = marcoTramoResolution.entry?.id
+    if (!resolvedId || form.marcoEntryId === resolvedId) return
+    onChange({ marcoEntryId: resolvedId })
+  }, [open, marcoTramoResolution.entry?.id, form.marcoEntryId, onChange])
 
   const documentosObligatorios = useMemo(
     () => getDocumentosObligatoriosForMarco(selectedMarcoEntry),
@@ -161,19 +264,76 @@ export function useNuevoContratoWizard({
   )
 
   const commissionEstimate = useMemo(() => {
-    if (!selectedMarcoEntry) return null
-    const consumo = form.consumoAnual === "" ? 0 : Number(form.consumoAnual)
-    if (!consumo || consumo <= 0) return null
-    return estimateMarcoCommissionEur(
-      selectedMarcoEntry,
-      commissionPercentage,
-      consumo,
-      formatCurrency
+    const consumo = consumoAnualKwh ?? 0
+    const rate = commissionPercentage / 100
+    const extrasAmount = computeServiciosExtrasCommissionEur(
+      serviciosExtrasOptions,
+      form.selectedServiciosExtras,
+      commissionPercentage
     )
-  }, [selectedMarcoEntry, commissionPercentage, form.consumoAnual, formatCurrency])
+
+    let baseAmount = 0
+    let amountLabel = ""
+    let detail = ""
+
+    if (selectedMarcoEntry) {
+      if (marcoTramoResolution.precision === "exacto" && consumo > 0) {
+        const baseEstimate = estimateMarcoCommissionEur(
+          selectedMarcoEntry,
+          commissionPercentage,
+          consumo,
+          formatCurrency
+        )
+        baseAmount = baseEstimate.amountEur
+        detail = baseEstimate.detail
+        amountLabel = formatCurrency(baseAmount)
+      } else if (
+        marcoTramoResolution.precision === "estimado" &&
+        marcoTramoResolution.comisionMin != null &&
+        marcoTramoResolution.comisionMax != null
+      ) {
+        const minAmount = Math.round(marcoTramoResolution.comisionMin * rate * 100) / 100
+        const maxAmount = Math.round(marcoTramoResolution.comisionMax * rate * 100) / 100
+        baseAmount = maxAmount
+        amountLabel =
+          minAmount === maxAmount
+            ? formatCurrency(minAmount)
+            : `${formatCurrency(minAmount)} – ${formatCurrency(maxAmount)}`
+        detail = marcoTramoResolution.condicionLabel
+      } else if (selectedMarcoEntry.comisionTipo === "fija") {
+        baseAmount = Math.round(selectedMarcoEntry.comisionBase * rate * 100) / 100
+        amountLabel = formatCurrency(baseAmount)
+        detail = marcoTramoResolution.condicionLabel
+      }
+    }
+
+    const amountEur = Math.round((baseAmount + extrasAmount) * 100) / 100
+    if (amountEur <= 0 && !amountLabel) return null
+
+    return {
+      amountEur,
+      amountLabel: amountLabel || formatCurrency(amountEur),
+      precision: marcoTramoResolution.precision,
+      condicionLabel: marcoTramoResolution.condicionLabel,
+      detail,
+      extrasAmount,
+      selectedExtrasCount: form.selectedServiciosExtras.length,
+    }
+  }, [
+    selectedMarcoEntry,
+    commissionPercentage,
+    consumoAnualKwh,
+    form.selectedServiciosExtras,
+    formatCurrency,
+    serviciosExtrasOptions,
+    marcoTramoResolution,
+  ])
 
   const peajeType = getTariffPeajeType(selectedMarcoEntry?.peaje)
-  const effectivePeajeType = peajeType ?? inferPeajeTypeFromSegment(form.wizardSegment)
+  const effectivePeajeType =
+    peajeSegmentToTariffPeajeType(form.peajeSegment) ??
+    peajeType ??
+    inferPeajeTypeFromSegment(form.wizardSegment)
 
   const duplicateCups = useMemo(() => {
     const cups = form.cups.trim().toUpperCase()
@@ -277,13 +437,32 @@ export function useNuevoContratoWizard({
     })
   }
 
-  function selectTariff(entryId: string, tarifa: string) {
-    const entry = marcoCatalog.find((e) => e.id === entryId)
+  function selectTariff(tarifa: string) {
+    const candidates = findMarcoTramoCandidates(marcoCatalog, {
+      compania: form.compania,
+      tarifa,
+      tipo: form.tipo,
+    })
+    const resolution = resolveMarcoTramoForConsumo(
+      candidates,
+      form.consumoAnual === "" ? null : Number(form.consumoAnual)
+    )
+    const entry = resolution.entry ?? candidates[0]
     onChange({
-      marcoEntryId: entryId,
+      marcoEntryId: entry?.id ?? "",
       tarifa,
       tipoPrecio: inferTipoPrecioFromTarifa(tarifa),
       tipo: entry?.tipo ?? form.tipo,
+      selectedServiciosExtras: [],
+    })
+  }
+
+  function toggleServicioExtra(id: string) {
+    const selected = form.selectedServiciosExtras
+    onChange({
+      selectedServiciosExtras: selected.includes(id)
+        ? selected.filter((item) => item !== id)
+        : [...selected, id],
     })
   }
 
@@ -362,6 +541,14 @@ export function useNuevoContratoWizard({
     handleClose,
     selectCompany,
     selectTariff,
+    isLastWizardStep,
+    goNextStep,
+    setPeajeSegment,
+    serviciosExtrasExpanded,
+    setServiciosExtrasExpanded,
+    marcoTramoResolution,
+    serviciosExtrasOptions,
+    toggleServicioExtra,
     addDocumentosForTipo,
     removeDocumentoForTipo,
     postComment,

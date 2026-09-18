@@ -1,4 +1,9 @@
 import type { Contract } from "../types/contract"
+import {
+  accessTariffToPeajeSegment,
+  peajeSegmentToAccessTariff,
+  type ContractPeajeSegment,
+} from "./contract-peaje-segment"
 import { normalizeContractEstado } from "./contract-estado"
 
 export type FormaPago =
@@ -52,8 +57,8 @@ export interface NewContractFormState {
   precioFijoConsumo: string
   /** Fecha de activación; no se pide en el alta del contrato */
   fechaInicio?: string
-  /** Segmento de peaje (2.0 / 3.0 / 6.0) para filtrar tarifas y periodos de potencia */
-  peajeSegment: "2.0" | "3.0" | "6.0"
+  /** Peaje de acceso para filtrar tarifas y periodos de potencia */
+  peajeSegment: ContractPeajeSegment
   /** Segmento elegido al seleccionar comercializadora (paso 1) */
   wizardSegment: "residencial" | "pyme"
   /** Fase comercializadora = 1; tabs = cliente | suministro | documentos */
@@ -73,6 +78,8 @@ export interface NewContractFormState {
   potenciaP5: string
   potenciaP6: string
   marcoEntryId: string
+  /** IDs de servicios extras (SVA/SSA) seleccionados en el wizard */
+  selectedServiciosExtras: string[]
   comentariosInternos: ContractComentarioInterno[]
   documentosPorTipo: DocumentosPorTipo
 }
@@ -113,6 +120,7 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   potenciaP5: "",
   potenciaP6: "",
   marcoEntryId: "",
+  selectedServiciosExtras: [],
   comentariosInternos: [],
   documentosPorTipo: {},
 }
@@ -203,11 +211,9 @@ export function formatPotenciaContratadaDisplay(
   return `${periods.map((p) => `P${p.periodo} ${p.kw}`).join(" · ")} kW`
 }
 
-function inferPeajeSegmentFromContract(contract: Contract): NewContractFormState["peajeSegment"] {
-  const atr = contract.atr ?? ""
-  if (atr.includes("6.0")) return "6.0"
-  if (atr.includes("3.0")) return "3.0"
-  return "2.0"
+function inferPeajeSegmentFromContract(contract: Contract): ContractPeajeSegment {
+  const atr = contract.atr ?? contract.atAccessTariff ?? ""
+  return accessTariffToPeajeSegment(atr)
 }
 
 function inferWizardSegmentFromContract(contract: Contract): NewContractFormState["wizardSegment"] {
@@ -431,6 +437,46 @@ function isDeletableContractEstado(estado: string): boolean {
   const raw = estado.trim().toLowerCase()
   if (raw === "pendiente de info." || raw === "pendiente de información") return true
   return DELETABLE_ESTADO_UI.has(normalizeContractEstado(estado))
+}
+
+/** Campos persistibles al completar un borrador desde el wizard. */
+export function buildContractPatchFromForm(form: NewContractFormState): Partial<Contract> {
+  const input = newContractFormToRegistrationInput(form)
+  const tipoPrecio =
+    form.tipoPrecio || (form.tarifa ? inferTipoPrecioFromTarifa(form.tarifa) : undefined)
+
+  return {
+    clientName: buildClientNameFromForm(form),
+    cups: form.cups,
+    tipo: form.tipo,
+    compania: form.compania,
+    tarifa: form.tarifa,
+    tipoPrecio: tipoPrecio === "" ? undefined : tipoPrecio,
+    consumoAnual: input.consumoAnual,
+    consumoAnualManual: form.consumoAnual === "" ? null : Number(form.consumoAnual),
+    nif: form.nif || undefined,
+    telefono: form.telefono || undefined,
+    email: form.email || undefined,
+    iban: form.iban || undefined,
+    direccionSuministro: form.direccionSuministro || undefined,
+    direccionCompleta: input.direccionCompleta,
+    direccionFiscal: form.direccionFiscal || undefined,
+    codigoPostal: form.codigoPostal || undefined,
+    poblacion: form.poblacion || undefined,
+    provincia: form.provincia || undefined,
+    potenciaContratada: buildPotenciaContratadaFromPeriods(form) || form.potenciaContratada,
+    precioFijoConsumo:
+      form.precioFijoConsumo.trim() === ""
+        ? undefined
+        : Number.parseFloat(form.precioFijoConsumo.replace(",", ".")),
+    tipoCliente: form.tipoCliente,
+    formaPago: form.formaPago,
+    nombreComercial: form.nombreComercial || undefined,
+    jefeEquipo: form.jefeEquipo || undefined,
+    marcoEntryId: form.marcoEntryId || undefined,
+    atr: peajeSegmentToAccessTariff(form.peajeSegment),
+    comentariosInternos: form.comentariosInternos,
+  }
 }
 
 /** Solo borradores sin documentos adjuntos (Pendiente de info. / Borrador / PTE DE TRAMITACIÓN). */

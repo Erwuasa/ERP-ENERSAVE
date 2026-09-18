@@ -5,6 +5,7 @@ import type { ReactNode } from "react"
 import type { ComparadorSortMode } from "../lib/comparador-sort"
 import type { ComparadorTariffPricingType } from "../lib/comparador-tariff-pricing-type"
 import { resolveComparadorTariffPricingType } from "../lib/comparador-tariff-pricing-type"
+import { resolveCompaniaLogoKey } from "../lib/erp/compania-logos"
 import {
   breakdownAmountTone,
   type ComparadorOfferBreakdownRow,
@@ -113,6 +114,7 @@ export function ComparadorOfferCard({
   const tone = savingsTone(option.savingsAnnual)
   const savingsPct = Math.abs(option.savingsPercentage ?? 0)
   const breakdownRows = option.breakdownRows ?? []
+  const hasBundledLogo = Boolean(resolveCompaniaLogoKey(option.companyName))
 
   const totalClass =
     tone === "positive"
@@ -151,10 +153,16 @@ export function ComparadorOfferCard({
           {renderCompaniaLogo(option.companyName, option.companyLogoUrl)}
         </div>
         <div className="min-w-0 flex-1 py-0.5">
-          <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 truncate">
-            {option.companyName}
-          </p>
-          <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-50 leading-tight flex items-center gap-2 flex-wrap mt-1">
+          {!hasBundledLogo ? (
+            <p className="text-[11px] font-mono uppercase tracking-[0.12em] text-slate-400 dark:text-slate-500 truncate">
+              {option.companyName}
+            </p>
+          ) : null}
+          <h3
+            className={`text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-50 leading-tight flex items-center gap-2 flex-wrap ${
+              hasBundledLogo ? "" : "mt-1"
+            }`}
+          >
             <span>{option.tariffName}</span>
             {option.isBestOption ? (
               <span

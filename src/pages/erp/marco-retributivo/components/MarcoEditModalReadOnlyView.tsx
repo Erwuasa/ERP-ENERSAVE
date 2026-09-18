@@ -1,5 +1,7 @@
 import { Layers } from "lucide-react"
-import { formatMarcoComisionUsuario } from "@/data/marco-retributivo-catalog"
+import { formatMarcoComisionFijaUsuario } from "@/data/marco-retributivo-catalog"
+import { formatMarcoPermanenciaLabel } from "@/lib/marco-permanencia"
+import { resolveMarcoCondicion2Label } from "@/lib/marco-tramo-condicion"
 import {
   formatMarcoSegmentoLabel,
   marcoRowToCatalogEntry,
@@ -21,8 +23,13 @@ export function MarcoEditModalReadOnlyView({
   commissionPercentage,
   formatCurrency,
 }: Props) {
-  const permanenciaLabel =
-    form.vigencia_meses > 0 ? `${form.vigencia_meses} meses` : "Sin permanencia"
+  const permanenciaLabel = formatMarcoPermanenciaLabel({
+    compania: form.compania,
+    segmento: form.segmento,
+    vigencia_meses: form.vigencia_meses,
+    condiciones: form.condiciones,
+    condicion_2: form.condicion_2,
+  })
 
   const draftEntry = marcoRowToCatalogEntry({
     id: "readonly",
@@ -48,7 +55,7 @@ export function MarcoEditModalReadOnlyView({
     potencia_p6: null,
   })
 
-  const tuComision = formatMarcoComisionUsuario(
+  const tuComision = formatMarcoComisionFijaUsuario(
     draftEntry,
     commissionPercentage,
     formatCurrency
@@ -82,7 +89,32 @@ export function MarcoEditModalReadOnlyView({
         <DetailPanel columns={3}>
           <DetailField
             label="Condición 2"
-            value={form.condicion_2?.trim() || "—"}
+            value={
+              resolveMarcoCondicion2Label({
+                id: "readonly",
+                ...form,
+                condicion_1: form.condicion_1 || null,
+                condicion_2: form.condicion_2 || null,
+                condiciones: form.condiciones || null,
+                created_at: "",
+                updated_at: "",
+                updated_by: null,
+                activo: form.activo ?? true,
+                energia_p1: null,
+                energia_p2: null,
+                energia_p3: null,
+                energia_p4: null,
+                energia_p5: null,
+                energia_p6: null,
+                potencia_p1: null,
+                potencia_p2: null,
+                potencia_p3: null,
+                potencia_p4: null,
+                potencia_p5: null,
+                potencia_p6: null,
+              }) ??
+              (form.condicion_2?.trim() || "—")
+            }
             className="uppercase"
           />
           <DetailField label="Permanencia" value={permanenciaLabel} align="center" />

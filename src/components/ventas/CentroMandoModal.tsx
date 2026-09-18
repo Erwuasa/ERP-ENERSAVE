@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Trash2, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import type { VentasActor } from "../../lib/ventas/hooks/types"
 import { mergeProspectoMetadata } from "../../lib/ventas/prospecto-display"
@@ -181,7 +182,7 @@ export function CentroMandoModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/45 backdrop-blur-md">
+      <AppFullScreenModal open={open} onClose={onClose} backdropClassName="bg-black/45 backdrop-blur-md">
         <div
           className="w-full max-w-lg max-h-[90vh] flex flex-col rounded-2xl border border-brand-border bg-brand-panel/95 dark:bg-brand-panel/90 backdrop-blur-xl shadow-2xl"
           role="dialog"
@@ -325,7 +326,7 @@ export function CentroMandoModal({
             </section>
           </div>
         </div>
-      </div>
+      </AppFullScreenModal>
 
       <ConfirmDeleteProspectoModal
         open={deleteOpen}

@@ -15,7 +15,6 @@ type Props = {
   form: NewContractFormState
   segment: ContractWizardSegment
   featuredCompanies: string[]
-  atRestCompanies: string[]
   companySupplyTypes: Record<string, Array<"luz" | "gas">>
   setSegment: (next: ContractWizardSegment) => void
   setTipo: (next: "luz" | "gas") => void
@@ -39,7 +38,7 @@ function CompanyCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`flex flex-col items-center justify-center gap-2.5 p-4 ${radius["2xl"]} border transition-all min-h-[112px] cursor-pointer ${
+      className={`flex flex-col items-center justify-center gap-2 p-3 ${radius["2xl"]} border transition-all min-h-[96px] cursor-pointer ${
         selected
           ? "border-cyan-500 bg-cyan-500/10 ring-2 ring-cyan-500/30"
           : "border-brand-border bg-brand-surface hover:border-cyan-500/50 hover:bg-cyan-500/5"
@@ -69,7 +68,6 @@ export function WizardCompanyStep({
   form,
   segment,
   featuredCompanies,
-  atRestCompanies,
   companySupplyTypes,
   setSegment,
   setTipo,
@@ -82,16 +80,12 @@ export function WizardCompanyStep({
     () => filterAndSortWizardCompanies(featuredCompanies, query),
     [featuredCompanies, query]
   )
-  const atVisible = useMemo(
-    () => filterAndSortWizardCompanies(atRestCompanies, query),
-    [atRestCompanies, query]
-  )
-  const total = featuredCompanies.length + atRestCompanies.length
+  const total = featuredCompanies.length
   const tipoLabel = form.tipo === "gas" ? "gas" : "luz"
   const segmentLabel = segment === "pyme" ? "PYME" : "residencial"
 
   return (
-    <div className="p-6 overflow-y-auto flex-1 space-y-5">
+    <div className="flex flex-1 min-h-0 flex-col gap-4 overflow-hidden p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2">
           {(["residencial", "pyme"] as const).map((s) => (
@@ -138,55 +132,34 @@ export function WizardCompanyStep({
         </label>
       </div>
 
-      {featuredVisible.length === 0 && atVisible.length === 0 ? (
-        <p className={`py-10 text-center text-xs ${fonts.mono} text-brand-subtext`}>
-          {query.trim()
-            ? `Ninguna comercializadora coincide con “${query.trim()}”.`
-            : `No hay comercializadoras de ${tipoLabel} ${segmentLabel}.`}
-        </p>
-      ) : (
-        <div className="space-y-6">
-          {featuredVisible.length > 0 ? (
-            <section className="space-y-2">
-              <h3 className={`text-[10px] ${fonts.mono} font-bold uppercase text-brand-subtext`}>
-                {tipoLabel} · {segmentLabel}
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {featuredVisible.map((compania) => (
-                  <CompanyCard
-                    key={compania}
-                    compania={compania}
-                    selected={form.compania === compania}
-                    tipos={companySupplyTypes[compania] ?? []}
-                    onSelect={() => selectCompany(compania)}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {featuredVisible.length === 0 ? (
+          <p className={`py-10 text-center text-xs ${fonts.mono} text-brand-subtext`}>
+            {query.trim()
+              ? `Ninguna comercializadora coincide con “${query.trim()}”.`
+              : `No hay comercializadoras de ${tipoLabel} ${segmentLabel}.`}
+          </p>
+        ) : (
+          <section className="space-y-2">
+            <h3 className={`text-[10px] ${fonts.mono} font-bold uppercase text-brand-subtext`}>
+              {tipoLabel} · {segmentLabel}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+              {featuredVisible.map((compania) => (
+                <CompanyCard
+                  key={compania}
+                  compania={compania}
+                  selected={form.compania === compania}
+                  tipos={companySupplyTypes[compania] ?? []}
+                  onSelect={() => selectCompany(compania)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
 
-          {atVisible.length > 0 ? (
-            <section className="space-y-2">
-              <h3 className={`text-[10px] ${fonts.mono} font-bold uppercase text-brand-subtext`}>
-                Catálogo AT
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {atVisible.map((compania) => (
-                  <CompanyCard
-                    key={compania}
-                    compania={compania}
-                    selected={form.compania === compania}
-                    tipos={[]}
-                    onSelect={() => selectCompany(compania)}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      )}
-
-      <div className="pt-2 border-t border-brand-border flex gap-3">
+      <div className="shrink-0 border-t border-brand-border pt-3 flex gap-3">
         <button
           type="button"
           onClick={onClose}

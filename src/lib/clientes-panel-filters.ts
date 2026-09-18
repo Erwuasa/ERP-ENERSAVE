@@ -53,10 +53,7 @@ export function getVisibleClientsForRole(
     return clients
   }
   if (activeRole === "tramitacion") return clients
-  if (activeRole === "jefe_comercial") {
-    const teamIds = new Set([activeUserId, ...teamMemberIds])
-    return clients.filter((c) => teamIds.has(c.comercialId))
-  }
+  // Jefe comercial: solo su cartera de clientes (no la del equipo).
   return clients.filter((c) => c.comercialId === activeUserId)
 }
 

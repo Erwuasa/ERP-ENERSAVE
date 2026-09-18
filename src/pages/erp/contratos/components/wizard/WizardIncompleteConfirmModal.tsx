@@ -1,3 +1,5 @@
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
+
 type Props = {
   open: boolean
   missing: string[]
@@ -11,17 +13,9 @@ export function WizardIncompleteConfirmModal({
   onClose,
   onConfirmIncomplete,
 }: Props) {
-  if (!open) return null
-
   return (
-    <div
-      className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-brand-panel border border-brand-border rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AppFullScreenModal open={open} onClose={onClose} zIndex={110}>
+      <div className="bg-brand-panel border border-brand-border rounded-2xl w-full max-w-sm shadow-2xl p-6 space-y-4">
         <h3 className="text-sm font-extrabold text-brand-text">Faltan datos o documentos</h3>
         <p className="text-xs text-brand-subtext">
           ¿Guardar como pendiente de información o volver a completar el contrato?
@@ -50,6 +44,6 @@ export function WizardIncompleteConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

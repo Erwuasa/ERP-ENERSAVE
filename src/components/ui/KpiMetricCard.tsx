@@ -35,22 +35,26 @@ export function KpiMetricCard({
 
   const body = (
     <>
-      {accentClass ? <div className={`absolute top-0 left-0 w-1 h-full ${accentClass}`} /> : null}
-      <div className={`flex items-center justify-between gap-2 min-w-0 ${accentClass ? "" : ""}`}>
+      {accentClass ? <div className={`absolute top-0 left-0 w-1 h-full rounded-l-xl ${accentClass}`} /> : null}
+      <div className="flex items-start justify-between gap-3 min-w-0">
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-mono font-bold uppercase text-brand-subtext tracking-wide truncate">
+          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wide leading-snug line-clamp-2">
             {label}
           </p>
           <p
-            className={`${valueSize} font-black font-display mt-0.5 tabular-nums leading-none truncate ${valueClass}`}
+            className={`${valueSize} font-black font-display mt-1 tabular-nums leading-none truncate ${valueClass}`}
           >
             {displayValue}
           </p>
           {hint ? (
-            <p className="text-[9px] font-mono text-brand-subtext mt-1 line-clamp-2 leading-snug">{hint}</p>
+            <p className="text-[10px] font-mono text-brand-subtext mt-1.5">{hint}</p>
           ) : null}
         </div>
-        {Icon ? <Icon className={`${iconSize} shrink-0 ${iconClass}`} /> : null}
+        {Icon ? (
+          <span className="shrink-0 rounded-lg bg-brand-surface border border-brand-border/80 p-1.5">
+            <Icon className={`${iconSize} ${iconClass}`} />
+          </span>
+        ) : null}
       </div>
     </>
   )

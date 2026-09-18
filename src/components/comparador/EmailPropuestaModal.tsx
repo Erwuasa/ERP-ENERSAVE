@@ -1,4 +1,5 @@
 import { Loader2, Mail, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 
 interface EmailPropuestaModalProps {
   open: boolean
@@ -25,17 +26,8 @@ export function EmailPropuestaModal({
   onClose,
   onOpenMailClient,
 }: EmailPropuestaModalProps) {
-  if (!open) return null
-
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
-        aria-label="Cerrar"
-        onClick={onClose}
-      />
-
+    <AppFullScreenModal open={open} onClose={onClose} backdropClassName="bg-black/50 backdrop-blur-sm">
       <div
         role="dialog"
         aria-modal="true"
@@ -126,6 +118,6 @@ export function EmailPropuestaModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

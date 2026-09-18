@@ -1,4 +1,5 @@
 import { Eye, Pencil, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type {
   MarcoEntryInput,
   MarcoRetributivoRow,
@@ -45,13 +46,11 @@ export function MarcoRetributivoEditModal({
     onCreate,
   })
 
-  if (!open) return null
-
   const titleCompania = vm.form.compania || "Nueva entrada"
   const disabled = !canEdit
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open={open} onClose={onClose}>
       <div
         role="dialog"
         aria-modal="true"
@@ -133,6 +132,6 @@ export function MarcoRetributivoEditModal({
           )}
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

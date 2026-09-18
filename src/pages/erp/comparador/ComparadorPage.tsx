@@ -71,7 +71,10 @@ export function ComparadorPage() {
     setEmailPropuestaCuerpo,
     setEmailPropuestaOpen,
     handleOpenEmailPropuestaMailClient,
-    openNewContractModal,
+    openContractWizardFromComparador,
+    compClient,
+    compCups,
+    compTipo,
   } = ws
 
   const [showAdvancedPotencia, setShowAdvancedPotencia] = useState(false)
@@ -336,7 +339,27 @@ export function ComparadorPage() {
                     renderCompaniaLogo={(brandName, logoUrl) =>
                       renderCompaniaLogo(brandName, logoUrl, "xl")
                     }
-                    onContract={() => openNewContractModal(opt)}
+                    onContract={() =>
+                      openContractWizardFromComparador({
+                        companyName: opt.companyName,
+                        tariffName: opt.tariffName,
+                        marcoEntryId: opt.id,
+                        segment: compSegment,
+                        tipo: compTipo,
+                        accessTariff: compAccessTariff,
+                        clientName: compClient,
+                        cups: compCups,
+                        potenciaP1: compPotencias.p1 || undefined,
+                        consumoAnual:
+                          (compConsumos.p1 +
+                            compConsumos.p2 +
+                            compConsumos.p3 +
+                            compConsumos.p4 +
+                            compConsumos.p5 +
+                            compConsumos.p6) *
+                          12,
+                      })
+                    }
                     onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}
                     onSendEmail={
                       opt.savingsAnnual > 0

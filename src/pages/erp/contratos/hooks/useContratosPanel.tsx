@@ -51,10 +51,14 @@ import { updateTeamContract } from "@/lib/supabase/contracts"
 import { useContractActionsContext } from "@/providers/ContractActionsProvider"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
+import { persistImportedContractList } from "@/lib/erp/import-contracts-persist"
+import type { Client } from "@/types/client"
 
 type Options = {
   canEditContractEstado: boolean
   visibleContracts: Contract[]
+  clients: Client[]
+  setClients: Dispatch<SetStateAction<Client[]>>
   setContracts: Dispatch<SetStateAction<Contract[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
@@ -74,6 +78,8 @@ type Options = {
 export function useContratosPanel({
   canEditContractEstado,
   visibleContracts,
+  clients,
+  setClients,
   setContracts,
   addOptimisticContract,
   contractsSearchQuery,
@@ -388,8 +394,17 @@ export function useContratosPanel({
     toast.success(`Exportados ${exportContractsToExcel(filtered)} contratos a Excel`)
   }
 
-  function handleExcelImport(imported: Contract[]) {
-    setContracts((prev) => [...imported, ...prev])
+  async function handleExcelImport(imported: Contract[]) {
+    const result = await persistImportedContractList(imported, clients, visibleContracts)
+
+    setClients(result.clients)
+    setContracts(result.contracts)
+
+    if (result.warnings.length > 0) {
+      toast.warning(
+        `Importados ${result.importedCount} contratos. ${result.warnings.length} aviso(s) de persistencia.`
+      )
+    }
   }
 
   return {

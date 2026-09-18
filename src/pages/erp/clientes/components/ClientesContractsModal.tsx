@@ -1,4 +1,5 @@
 import { FilePenLine, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
 import { supplyBadgeClass, INTERACTIVE_CARD } from "@/lib/enersave-ui-theme"
@@ -17,7 +18,7 @@ export function ClientesContractsModal({
   onSelectContract,
 }: Props) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open onClose={onClose}>
       <div className="bg-brand-panel border border-brand-border rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
         <div className="p-4 border-b border-brand-border flex justify-between items-start">
           <div>
@@ -71,6 +72,6 @@ export function ClientesContractsModal({
           )}
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

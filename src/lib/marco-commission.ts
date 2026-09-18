@@ -1,5 +1,10 @@
 import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 import { formatMarcoComisionUsuario } from "../data/marco-retributivo-catalog"
+import {
+  computeTramoCommissionEur,
+  parseMarcoConsumoTramos,
+  type MarcoConsumoTramo,
+} from "./marco-consumo-tramo"
 
 const DEFAULT_KWH_PRICE = 0.15
 const DEFAULT_ANNUAL_BILL_FACTOR = 1
@@ -15,6 +20,33 @@ export interface ComisionBreakdown {
   comisionEmpresa: number
   comisionComercial: number
   detalle: string
+}
+
+function tramoMatchesConsumo(tramo: MarcoConsumoTramo, consumoKwh: number): boolean {
+  const min = tramo.desde_kwh ?? 0
+  const max = tramo.hasta_kwh ?? Number.MAX_SAFE_INTEGER
+  return consumoKwh >= min && consumoKwh <= max
+}
+
+function resolveActiveTramo(
+  entry: MarcoRetributivoEntry,
+  consumoAnual: number
+): MarcoConsumoTramo | null {
+  const tramos = parseMarcoConsumoTramos(entry)
+  if (tramos.length <= 1) return tramos[0] ?? null
+  return tramos.find((tramo) => tramoMatchesConsumo(tramo, consumoAnual)) ?? null
+}
+
+function formatTramoDetail(
+  tramo: MarcoConsumoTramo,
+  consumoAnual: number,
+  commissionPercentage: number
+): string {
+  if (tramo.unidad === "eur_mwh") {
+    const mwh = (consumoAnual / 1000).toLocaleString("es-ES", { maximumFractionDigits: 2 })
+    return `Comisión ${tramo.comision_base?.toFixed(2)} €/MWh × ${mwh} MWh/año (${commissionPercentage}% comercial).`
+  }
+  return `Comisión fija por contrato (${tramo.comision_base?.toFixed(2)} € base × ${commissionPercentage}%).`
 }
 
 export function computeComisionBreakdown(
@@ -48,9 +80,16 @@ export function estimateMarcoCommissionEur(
   let amountEur = 0
   let detail = ""
 
+  const activeTramo = consumoAnual > 0 ? resolveActiveTramo(entry, consumoAnual) : null
+  if (activeTramo) {
+    amountEur = computeTramoCommissionEur(activeTramo, commissionPercentage, consumoAnual)
+    detail = formatTramoDetail(activeTramo, consumoAnual, commissionPercentage)
+    return { entry, label: formatCurrency(amountEur), amountEur, detail }
+  }
+
   if (entry.comisionTipo === "fija") {
     amountEur = Math.round(entry.comisionBase * rate * 100) / 100
-    detail = `Comisión fija por CUPS activado (${entry.comisionBase.toFixed(2)} € base × ${commissionPercentage}%).`
+    detail = `Comisión fija por contrato (${entry.comisionBase.toFixed(2)} € base × ${commissionPercentage}%).`
   } else if (entry.comisionUnidad === "porcentaje_consumo") {
     const pct = entry.comisionBase * rate
     amountEur = Math.round(consumoAnual * (pct / 100) * 100) / 100

@@ -13,7 +13,8 @@ import {
   aplicaRenovacionAnual,
   computeRenewalSchedule,
 } from "@/lib/contract-segment-rules"
-import { upsertClient, syncClientEstados } from "@/lib/clients"
+import { syncClientEstados } from "@/lib/clients"
+import { ensureClientForContract } from "@/lib/erp/persist-client-for-contract"
 import { computeComisionBreakdown } from "@/lib/marco-commission"
 import { getMarcoEntryById } from "@/lib/supabase/marco-retributivo"
 import { contractsService } from "@/api/erp/contracts.service"
@@ -138,16 +139,21 @@ export async function createContractFromForm(params: {
     ? `${form.direccionFiscal}${form.codigoPostal ? `, ${form.codigoPostal}` : ""}${form.poblacion ? ` ${form.poblacion}` : ""}`
     : form.direccionSuministro
 
-  const { clients: clientsAfterUpsert, client: linkedClient } = upsertClient(clients, {
-    nombre: form.clientName.trim() || "Pendiente de información",
-    comercialId: userAsSeller.id,
-    documento: form.nif,
-    telefono: form.telefono,
-    email: form.email,
-    direccion: direccionCliente,
-    codigoPostal: form.codigoPostal || undefined,
-    ciudad: form.poblacion || undefined,
-  })
+  const { clients: clientsAfterUpsert, client: linkedClient } = await ensureClientForContract(
+    clients,
+    {
+      nombre: form.clientName.trim() || "Pendiente de información",
+      comercialId: userAsSeller.id,
+      documento: form.nif,
+      telefono: form.telefono,
+      email: form.email,
+      direccion: direccionCliente,
+      codigoPostal: form.codigoPostal || undefined,
+      ciudad: form.poblacion || undefined,
+      tipoCliente:
+        form.tipoCliente === "pyme" || form.tipoCliente === "autonomo" ? "empresa" : "particular",
+    }
+  )
 
   const potenciaStr =
     form.potenciaP1 || form.potenciaP2 || form.potenciaP3

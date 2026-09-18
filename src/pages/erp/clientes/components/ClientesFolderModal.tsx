@@ -1,5 +1,6 @@
 import type { RefObject } from "react"
 import { Download, FolderOpen, Trash2, X } from "lucide-react"
+import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import type { Client } from "@/types/client"
 import { downloadClienteArchivo } from "@/pages/erp/clientes/components/clientes-panel-utils"
 
@@ -17,7 +18,7 @@ export function ClientesFolderModal({
   onRemoveArchivo,
 }: Props) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <AppFullScreenModal open onClose={onClose}>
       <div className="bg-brand-panel border border-brand-border rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
         <div className="p-4 border-b border-brand-border flex justify-between items-start">
           <div>
@@ -84,6 +85,6 @@ export function ClientesFolderModal({
           </button>
         </div>
       </div>
-    </div>
+    </AppFullScreenModal>
   )
 }

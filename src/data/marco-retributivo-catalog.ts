@@ -1,5 +1,6 @@
 export type MarcoComisionUnidad =
   | "eur_cups"
+  | "eur_mwh"
   | "porcentaje_facturado"
   | "porcentaje_consumo"
   | "porcentaje_termino"
@@ -11,11 +12,16 @@ export interface MarcoRetributivoEntry {
   tipo: "luz" | "gas"
   peaje: string
   segmento?: "residencial" | "pyme" | "autonomo" | "comunidades"
+  condicion1?: string
+  condicion2?: string
   condiciones: string
   comisionTipo: "fija" | "porcentaje"
   comisionBase: number
   comisionUnidad: MarcoComisionUnidad
   vigenciaMeses: number
+  atKwhMin?: number | null
+  atKwhMax?: number | null
+  tramos?: import("@/lib/marco-consumo-tramo").MarcoConsumoTramo[]
   documentosObligatorios?: string[]
 }
 
@@ -38,7 +44,10 @@ export const MARCO_COMPANIAS_LUZ = [
 
 export function formatMarcoComisionBase(entry: MarcoRetributivoEntry): string {
   if (entry.comisionTipo === "fija") {
-    return `${entry.comisionBase.toFixed(2)} €/CUPS`
+    if (entry.comisionUnidad === "eur_mwh") {
+      return `${entry.comisionBase.toFixed(2)} €/MWh`
+    }
+    return `${entry.comisionBase.toFixed(2)} €`
   }
   if (entry.comisionUnidad === "porcentaje_facturado") {
     return `${entry.comisionBase.toFixed(2)}% facturado`
@@ -49,14 +58,22 @@ export function formatMarcoComisionBase(entry: MarcoRetributivoEntry): string {
   return `${entry.comisionBase.toFixed(2)}% término`
 }
 
+export function formatMarcoComisionFijaUsuario(
+  entry: MarcoRetributivoEntry,
+  commissionPercentage: number,
+  formatCurrency: (val: number) => string
+): string {
+  const amount = Math.round(entry.comisionBase * (commissionPercentage / 100) * 100) / 100
+  return formatCurrency(amount)
+}
+
 export function formatMarcoComisionUsuario(
   entry: MarcoRetributivoEntry,
   commissionPercentage: number,
   formatCurrency: (val: number) => string
 ): string {
   if (entry.comisionTipo === "fija") {
-    const amount = Math.round(entry.comisionBase * (commissionPercentage / 100) * 100) / 100
-    return `${formatCurrency(amount)}/CUPS`
+    return formatMarcoComisionFijaUsuario(entry, commissionPercentage, formatCurrency)
   }
   const pct = Math.round(entry.comisionBase * (commissionPercentage / 100) * 100) / 100
   if (entry.comisionUnidad === "porcentaje_facturado") {
