@@ -16,6 +16,56 @@ interface RenderPagesToPdfOptions {
   pageWidthPx?: number
 }
 
+/**
+ * html2canvas locates the baseline of every font by placing a 1x1 <img> right after a sample
+ * text. Tailwind's preflight sets `img { display: block }`, which drops that probe onto its own
+ * line, so all text ended up painted ~0.5em lower than the browser lays it out (figures and
+ * labels visibly off-centre inside their boxes). The probe is restored to `display: inline`
+ * while a capture is in flight. The selector only matches html2canvas' own 1x1 GIF sitting in
+ * its hidden probe container, so no other image of the page is affected.
+ * It is also made 2px tall: html2canvas adds a fixed +2 to the measured baseline, which
+ * overshoots by exactly the height of a 1px probe, so a 2px probe yields the true ascent
+ * (calibrated against SF Pro: text lands within ~1px of the browser's own layout).
+ *
+ * This relies on html2canvas 1.4.1 internals (font-metrics.js: the +2, the SMALL_IMAGE GIF and
+ * the probe living in the main document): revalidate it whenever html2canvas is upgraded.
+ */
+const FONT_PROBE_IMAGE_SELECTOR = 'div[style*="visibility: hidden"] > img[src^="data:image/gif;base64,R0lGODlhAQAB"]'
+let fontProbeFixStyle: HTMLStyleElement | null = null
+let fontProbeFixUsers = 0
+
+function acquireFontProbeFix(): () => void {
+  if (fontProbeFixUsers === 0) {
+    fontProbeFixStyle = document.createElement("style")
+    fontProbeFixStyle.textContent = `${FONT_PROBE_IMAGE_SELECTOR} { display: inline !important; height: 2px !important; }`
+    document.head.appendChild(fontProbeFixStyle)
+  }
+  fontProbeFixUsers += 1
+  return () => {
+    fontProbeFixUsers -= 1
+    if (fontProbeFixUsers === 0) {
+      fontProbeFixStyle?.remove()
+      fontProbeFixStyle = null
+    }
+  }
+}
+
+/**
+ * The baseline probe above is appended to <body> and inherits its font weight and style. When
+ * that face of a family has not been downloaded yet the browser measures with a fallback font
+ * instead, which skews the baseline again, so every family used by the page is loaded with the
+ * body's weight/style before capturing.
+ */
+async function preloadProbeFonts(root: HTMLElement): Promise<void> {
+  if (typeof document.fonts?.load !== "function") return
+  const { fontStyle, fontWeight } = getComputedStyle(document.body)
+  const families = new Set<string>()
+  root.querySelectorAll<HTMLElement>("*").forEach((el) => families.add(getComputedStyle(el).fontFamily))
+  await Promise.all(
+    Array.from(families, (family) => document.fonts.load(`${fontStyle} ${fontWeight} 16px ${family}`).catch(() => []))
+  )
+}
+
 function waitForImages(root: HTMLElement): Promise<void> {
   const imgs = Array.from(root.querySelectorAll("img"))
   return Promise.all(
@@ -87,6 +137,7 @@ export async function renderPagesToPdf(
   document.body.appendChild(container)
 
   const pdfDoc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" })
+  const releaseFontProbeFix = acquireFontProbeFix()
 
   try {
     for (let i = 0; i < pages.length; i += 1) {
@@ -106,6 +157,8 @@ export async function renderPagesToPdf(
 
       // eslint-disable-next-line no-await-in-loop
       await waitForImages(pageHost)
+      // eslint-disable-next-line no-await-in-loop
+      await preloadProbeFonts(pageHost)
       if (typeof document.fonts?.ready !== "undefined") {
         // eslint-disable-next-line no-await-in-loop
         await document.fonts.ready
@@ -126,6 +179,7 @@ export async function renderPagesToPdf(
       container.removeChild(pageHost)
     }
   } finally {
+    releaseFontProbeFix()
     document.body.removeChild(container)
   }
 

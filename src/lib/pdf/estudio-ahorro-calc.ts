@@ -5,12 +5,17 @@ import type {
   TarifaEstudioAhorro,
 } from "./estudio-ahorro-types"
 
+/**
+ * `useGrouping: true` always inserts the thousands separator; the es-ES default skips it for
+ * 4-digit numbers ("1073,74 €" next to "13.666,65 €" in the same column).
+ */
 export function formatEur(value: number): string {
   return new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+    useGrouping: true,
   }).format(value)
 }
 
@@ -18,6 +23,7 @@ export function formatNum(value: number, decimals = 2): string {
   return new Intl.NumberFormat("es-ES", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
+    useGrouping: true,
   }).format(value)
 }
 
@@ -69,9 +75,4 @@ export function calcTotalesConjunto(estudios: EstudioAhorroInput[]): AhorroConju
     ahorroAnualPct: gastoActualAnual > 0 ? (ahorroAnualEur / gastoActualAnual) * 100 : 0,
     suministros: estudios.length,
   }
-}
-
-export function buildDisclaimer(fechaGeneracion: string): string {
-  const year = new Date().getFullYear()
-  return `© ${year} EnerSave. Todos los derechos reservados. Generado el ${fechaGeneracion}. Documento informativo sujeto a validación comercial y técnica.`
 }

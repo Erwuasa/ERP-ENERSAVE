@@ -1,4 +1,5 @@
 import { resolveComercializadoraLogoSrc } from "./comercializadora-logo-resolver"
+import { resolveEnersaveLogoSrc } from "./enersave-logo"
 import { calcTotalesConjunto } from "./estudio-ahorro-calc"
 import { EstudioAhorroConjuntoResumenTemplate, EstudioAhorroDetalleTemplate } from "./estudio-ahorro-template"
 import { renderPagesToPdf } from "./html-to-pdf"
@@ -7,8 +8,13 @@ import type { EstudioAhorroConjuntoInput, EstudioAhorroInput } from "./estudio-a
 export type { EstudioAhorroConjuntoInput, EstudioAhorroInput } from "./estudio-ahorro-types"
 
 export async function generateEstudioAhorroPdf(input: EstudioAhorroInput): Promise<Blob> {
-  const logoSrc = await resolveComercializadoraLogoSrc(input.tarifaPropuesta.comercializadora)
-  return renderPagesToPdf([<EstudioAhorroDetalleTemplate input={input} comercializadoraLogoSrc={logoSrc} />])
+  const [logoSrc, enersaveLogoSrc] = await Promise.all([
+    resolveComercializadoraLogoSrc(input.tarifaPropuesta.comercializadora),
+    resolveEnersaveLogoSrc(),
+  ])
+  return renderPagesToPdf([
+    <EstudioAhorroDetalleTemplate input={input} comercializadoraLogoSrc={logoSrc} enersaveLogoSrc={enersaveLogoSrc} />,
+  ])
 }
 
 export async function generateEstudioAhorroConjuntoPdf(
@@ -17,19 +23,21 @@ export async function generateEstudioAhorroConjuntoPdf(
   if (input.estudios.length === 0) throw new Error("No hay comparativas seleccionadas")
 
   const totales = calcTotalesConjunto(input.estudios)
-  const logoSrcs = await Promise.all(
-    input.estudios.map((estudio) => resolveComercializadoraLogoSrc(estudio.tarifaPropuesta.comercializadora))
-  )
+  const [enersaveLogoSrc, ...logoSrcs] = await Promise.all([
+    resolveEnersaveLogoSrc(),
+    ...input.estudios.map((estudio) => resolveComercializadoraLogoSrc(estudio.tarifaPropuesta.comercializadora)),
+  ])
   const pages = [
     ...input.estudios.map((estudio, idx) => (
       <EstudioAhorroDetalleTemplate
         key={`${estudio.cliente.cups}-${idx}`}
         input={estudio}
         comercializadoraLogoSrc={logoSrcs[idx]}
+        enersaveLogoSrc={enersaveLogoSrc}
         indice={{ actual: idx + 1, total: input.estudios.length }}
       />
     )),
-    <EstudioAhorroConjuntoResumenTemplate key="resumen" input={input} totales={totales} />,
+    <EstudioAhorroConjuntoResumenTemplate key="resumen" input={input} totales={totales} enersaveLogoSrc={enersaveLogoSrc} />,
   ]
 
   return renderPagesToPdf(pages)

@@ -9,6 +9,8 @@ const BACKGROUND_ALPHA_THRESHOLD = 12
 const BACKGROUND_WHITE_THRESHOLD = 248
 /** Si el recorte apenas reduce el lienzo, no compensa el coste: se descarta. */
 const MIN_TRIM_RATIO = 0.98
+/** Margin kept around the trimmed content, as a fraction of the image's longest side. */
+const DEFAULT_PADDING_RATIO = 0.02
 
 function isBackgroundPixel(r: number, g: number, b: number, a: number): boolean {
   if (a < BACKGROUND_ALPHA_THRESHOLD) return true
@@ -26,7 +28,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /** Devuelve una data URL con el mismo contenido recortado a su caja real, o `src` si no procede. */
-export async function trimImageWhitespace(src: string): Promise<string> {
+export async function trimImageWhitespace(src: string, paddingRatio = DEFAULT_PADDING_RATIO): Promise<string> {
   try {
     const img = await loadImage(src)
     const width = img.naturalWidth
@@ -60,7 +62,7 @@ export async function trimImageWhitespace(src: string): Promise<string> {
 
     if (maxX < minX || maxY < minY) return src // imagen vacía: no hay nada que recortar
 
-    const padding = Math.round(Math.max(width, height) * 0.02)
+    const padding = Math.round(Math.max(width, height) * paddingRatio)
     const cropX = Math.max(0, minX - padding)
     const cropY = Math.max(0, minY - padding)
     const cropW = Math.min(width, maxX + padding + 1) - cropX
