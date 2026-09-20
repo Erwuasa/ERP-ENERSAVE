@@ -7,6 +7,7 @@ import {
   Lightbulb,
   TrendingDown,
   WalletCards,
+  type LucideIcon,
 } from "lucide-react"
 import {
   CartesianGrid,
@@ -22,7 +23,7 @@ import type { Contract } from "../../types/contract"
 import type { Settlement } from "../../types/settlement"
 import type { IncidenciaTicket } from "../../lib/incidencias"
 import { formatMonthKeyShort } from "../../lib/date-range"
-import { KpiMetricCard } from "../ui/KpiMetricCard"
+import { KpiCard, KpiGrid, kpiColumnsFor, type KpiTone } from "../common/kpi"
 import {
   activacionesMensuales12Meses,
   bajasEsteMes,
@@ -121,57 +122,52 @@ export function SuperadminDashboard({
     [contracts]
   )
 
-  const kpiCards = [
+  const kpiCards: {
+    key: string
+    label: string
+    value: string | number
+    icon: LucideIcon
+    tone: KpiTone
+    onClick: () => void
+  }[] = [
     {
       key: "liquidaciones",
       label: isOrgLiquidaciones ? "Liquidaciones este mes" : "Mis liquidaciones",
-      displayValue: formatCurrency(liquidacionesMesEuros),
-      hint: "Ver →",
+      value: formatCurrency(liquidacionesMesEuros),
       icon: WalletCards,
-      iconClass: "text-emerald-600/70 dark:text-emerald-400/80",
-      valueClass: "text-emerald-700 dark:text-emerald-400",
-      accentClass: "bg-emerald-500",
+      tone: "emerald",
       onClick: () => onNavigate?.("liquidaciones"),
     },
     {
       key: "activos",
       label: "Contratos activos",
-      displayValue: activos.toLocaleString("es-ES"),
-      hint: "Ver →",
+      value: activos,
       icon: FileText,
-      iconClass: "text-blue-600/70 dark:text-blue-400/80",
-      valueClass: "text-blue-700 dark:text-blue-400",
-      accentClass: "bg-blue-500",
+      tone: "blue",
       onClick: () => onNavigate?.("contratos_activos"),
     },
     {
       key: "nuevos",
       label: "Contratos nuevos este mes",
-      displayValue: nuevosMes.value.toLocaleString("es-ES"),
+      value: nuevosMes.value,
       icon: FileText,
-      iconClass: "text-cyan-600/70 dark:text-cyan-400/80",
-      valueClass: "text-cyan-700 dark:text-cyan-400",
-      accentClass: "bg-cyan-500",
+      tone: "cyan",
       onClick: () => onNavigate?.("contratos_nuevos"),
     },
     {
       key: "bajas",
       label: "Bajas este mes",
-      displayValue: bajasMes.value.toLocaleString("es-ES"),
+      value: bajasMes.value,
       icon: TrendingDown,
-      iconClass: "text-orange-600/70 dark:text-orange-500/80",
-      valueClass: "text-orange-700 dark:text-orange-400",
-      accentClass: "bg-orange-500",
+      tone: "orange",
       onClick: () => onNavigate?.("bajas"),
     },
     {
       key: "incidencias",
       label: "Incidencias abiertas",
-      displayValue: incidenciasCount.toLocaleString("es-ES"),
+      value: incidenciasCount,
       icon: AlertTriangle,
-      iconClass: "text-amber-600/70 dark:text-amber-400/80",
-      valueClass: "text-amber-700 dark:text-amber-400",
-      accentClass: "bg-amber-500",
+      tone: "rose",
       onClick: () => onNavigate?.("incidencias"),
     },
     ...(oportunidadesMejora != null
@@ -179,11 +175,9 @@ export function SuperadminDashboard({
           {
             key: "oportunidades",
             label: "Oportunidades de mejora",
-            displayValue: oportunidadesMejora.toLocaleString("es-ES"),
+            value: oportunidadesMejora,
             icon: Lightbulb,
-            iconClass: "text-amber-600/70 dark:text-amber-400/80",
-            valueClass: "text-amber-700 dark:text-amber-400",
-            accentClass: "bg-amber-500",
+            tone: "amber" as const,
             onClick: () => onNavigate?.("oportunidades_mejora"),
           },
         ]
@@ -193,35 +187,22 @@ export function SuperadminDashboard({
           {
             key: "renovaciones",
             label: "Renovaciones próximas",
-            displayValue: renovacionesProximas.toLocaleString("es-ES"),
+            value: renovacionesProximas,
             icon: Clock,
-            iconClass: "text-orange-600/70 dark:text-orange-500/80",
-            valueClass: "text-orange-700 dark:text-orange-400",
-            accentClass: "bg-orange-500",
+            tone: "violet" as const,
             onClick: () => onNavigate?.("renovaciones_proximas"),
           },
         ]
       : []),
-  ] as const
+  ]
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        {kpiCards.map((kpi) => (
-          <KpiMetricCard
-            key={kpi.key}
-            label={kpi.label}
-            displayValue={kpi.displayValue}
-            hint={"hint" in kpi ? kpi.hint : undefined}
-            icon={kpi.icon}
-            iconClass={kpi.iconClass}
-            valueClass={kpi.valueClass}
-            accentClass={kpi.accentClass}
-            onClick={kpi.onClick}
-            className="h-full"
-          />
+      <KpiGrid columns={kpiColumnsFor(kpiCards.length)} aria-label="Indicadores del dashboard">
+        {kpiCards.map(({ key, ...kpi }) => (
+          <KpiCard key={key} {...kpi} />
         ))}
-      </div>
+      </KpiGrid>
 
       <section className="bg-brand-panel p-5 rounded-2xl border border-brand-border shadow-sm space-y-4">
         <div className="flex items-start justify-between gap-2">

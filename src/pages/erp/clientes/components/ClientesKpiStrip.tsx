@@ -1,6 +1,6 @@
 import { Building2, CheckCircle, User, Users, type LucideIcon } from "lucide-react"
 import type { ClienteTipoFilter } from "@/lib/clientes-panel-filters"
-import { KpiMetricCard } from "@/components/ui/KpiMetricCard"
+import { KpiCard, KpiGrid, type KpiTone } from "@/components/common/kpi"
 
 type Props = {
   total: number
@@ -18,10 +18,8 @@ interface KpiCardConfig {
   id: KpiCardId
   label: string
   value: number
-  valueClass: string
-  accentClass: string
+  tone: KpiTone
   icon: LucideIcon
-  iconClass: string
   selectable: boolean
 }
 
@@ -35,60 +33,29 @@ export function ClientesKpiStrip({
   onContratosActivosClick,
 }: Props) {
   const cards: KpiCardConfig[] = [
-    {
-      id: "todos",
-      label: "Clientes",
-      value: total,
-      valueClass: "text-brand-text",
-      accentClass: "bg-slate-700 dark:bg-slate-300",
-      icon: Users,
-      iconClass: "text-brand-subtext",
-      selectable: true,
-    },
-    {
-      id: "particular",
-      label: "Particulares",
-      value: particulares,
-      valueClass: "text-cyan-700 dark:text-cyan-400",
-      accentClass: "bg-cyan-500",
-      icon: User,
-      iconClass: "text-cyan-600/70 dark:text-cyan-400/80",
-      selectable: true,
-    },
-    {
-      id: "empresa",
-      label: "PYMEs",
-      value: pymes,
-      valueClass: "text-orange-700 dark:text-orange-400",
-      accentClass: "bg-orange-500",
-      icon: Building2,
-      iconClass: "text-orange-600/70 dark:text-orange-500/80",
-      selectable: true,
-    },
+    { id: "todos", label: "Clientes", value: total, tone: "neutral", icon: Users, selectable: true },
+    { id: "particular", label: "Particulares", value: particulares, tone: "cyan", icon: User, selectable: true },
+    { id: "empresa", label: "PYMEs", value: pymes, tone: "orange", icon: Building2, selectable: true },
     {
       id: "contratos",
       label: "Contratos activos",
       value: contratosActivos,
-      valueClass: "text-emerald-700 dark:text-emerald-400",
-      accentClass: "bg-emerald-500",
+      tone: "emerald",
       icon: CheckCircle,
-      iconClass: "text-emerald-600/70 dark:text-emerald-500/80",
       selectable: Boolean(onContratosActivosClick),
     },
   ]
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+    <KpiGrid columns={4} aria-label="Indicadores de clientes">
       {cards.map((kpi) => (
-        <KpiMetricCard
+        <KpiCard
           key={kpi.id}
           label={kpi.label}
-          displayValue={String(kpi.value)}
-          valueClass={kpi.valueClass}
-          accentClass={kpi.accentClass}
+          value={kpi.value}
+          tone={kpi.tone}
           icon={kpi.icon}
-          iconClass={kpi.iconClass}
-          selected={kpi.selectable && tipoFilter === kpi.id}
+          selected={kpi.id === "contratos" ? undefined : kpi.selectable && tipoFilter === kpi.id}
           onClick={
             kpi.id === "contratos"
               ? onContratosActivosClick
@@ -98,6 +65,6 @@ export function ClientesKpiStrip({
           }
         />
       ))}
-    </div>
+    </KpiGrid>
   )
 }

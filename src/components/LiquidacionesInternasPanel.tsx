@@ -4,13 +4,16 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Clock,
   FileText,
   Loader2,
   Megaphone,
   MessageCircleWarning,
   Search,
+  Undo2,
   WalletCards,
   X,
+  type LucideIcon,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -40,7 +43,7 @@ import type { Settlement } from "../types/settlement"
 import { isoDateToDate, toIsoDate, type DateRangePickerValue } from "../lib/date-range"
 import { DateRangePicker } from "./ui/DateRangePicker"
 import { SearchableSelectFilterDropdown } from "./ui/SearchableSelectFilterDropdown"
-import { KpiMetricCard } from "./ui/KpiMetricCard"
+import { KpiCard, KpiGrid, type KpiTone } from "./common/kpi"
 import { CompaniaFilterDropdown } from "./contratos/CompaniaFilterDropdown"
 import { filterPillClass, segmentTabClass } from "../lib/enersave-ui-theme"
 import type { SettlementReclamacion } from "../types/settlement-reclamacion"
@@ -1066,24 +1069,37 @@ export function LiquidacionesInternasPanel({
     }
   }
 
-  const kpiCards: { id: LiquidacionesTab; label: string; value: number; hint: string }[] = [
+  const kpiCards: {
+    id: LiquidacionesTab
+    label: string
+    value: number
+    hint: string
+    icon: LucideIcon
+    tone: KpiTone
+  }[] = [
     {
       id: "totales",
       label: "Liquidaciones totales",
       value: kpiTotales,
       hint: "Cobradas menos retrocomisiones",
+      icon: WalletCards,
+      tone: "emerald",
     },
     {
       id: "pendientes",
       label: "Pendientes de cobro",
       value: kpiPendientes,
       hint: "Residencial: día 10 · Resto: día 31 del mes siguiente",
+      icon: Clock,
+      tone: "amber",
     },
     {
       id: "retrocomisiones",
       label: "Retrocomisiones",
       value: kpiRetro,
       hint: "Importes negativos / clawback",
+      icon: Undo2,
+      tone: "rose",
     },
   ]
 
@@ -1321,32 +1337,20 @@ export function LiquidacionesInternasPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+      <KpiGrid columns={3} aria-label="Resumen de liquidaciones">
         {kpiCards.map((kpi) => (
-          <KpiMetricCard
+          <KpiCard
             key={kpi.id}
             label={kpi.label}
-            displayValue={formatCurrency(kpi.value)}
+            value={formatCurrency(kpi.value)}
             hint={kpi.hint}
-            valueClass={
-              kpi.id === "retrocomisiones"
-                ? "text-rose-700 dark:text-rose-400"
-                : kpi.id === "pendientes"
-                  ? "text-amber-700 dark:text-amber-400"
-                  : "text-emerald-700 dark:text-emerald-400"
-            }
-            accentClass={
-              kpi.id === "retrocomisiones"
-                ? "bg-rose-500"
-                : kpi.id === "pendientes"
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
-            }
+            icon={kpi.icon}
+            tone={kpi.tone}
             selected={activeTab === kpi.id}
             onClick={() => setActiveTab(kpi.id)}
           />
         ))}
-      </div>
+      </KpiGrid>
 
       <div className="flex flex-wrap items-center gap-2">
         {QUICK_DATE_RANGES.map((preset) => (

@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { ArrowLeft, ChevronRight, TrendingUp, Users, Wallet } from "lucide-react"
+import { ArrowLeft, Network, Receipt, TrendingUp, Users, Wallet } from "lucide-react"
 import type { Contract } from "../types/contract"
 import type { Settlement } from "../types/settlement"
 import { defaultDateRange, type DateRangePickerValue } from "../lib/date-range"
@@ -17,6 +17,7 @@ import {
   type LiquidacionesProfile,
 } from "../lib/liquidaciones-consolidadas"
 import { DateRangePicker } from "./ui/DateRangePicker"
+import { KpiCard, KpiGrid } from "./common/kpi"
 
 interface LiquidacionesConsolidadasSuperadminSectionProps {
   activeRole: "superadmin" | "tramitacion"
@@ -271,85 +272,42 @@ export function LiquidacionesConsolidadasSuperadminSection({
         </span>
       </div>
 
-      <div
-        className={`grid grid-cols-1 md:grid-cols-2 ${isSuperadmin ? "lg:grid-cols-4" : "lg:grid-cols-3"} gap-4`}
-      >
+      <KpiGrid columns={isSuperadmin ? 4 : 3} aria-label="Resumen de liquidaciones EnerSave">
         {isSuperadmin && (
           <KpiCard
             label="Facturación EnerSave"
             value={formatCurrency(facturacionEnerSave)}
-            valueClassName="text-blue-600 dark:text-cyan-400"
+            icon={Receipt}
+            tone="blue"
           />
         )}
 
         <KpiCard
-          label="Liquidación Comerciales"
+          label="Liquidación comerciales"
           value={formatCurrency(liquidacionComerciales)}
-          valueClassName="text-amber-500"
+          hint="Ver detalle"
+          icon={Users}
+          tone="amber"
           onClick={() => navigateTo("comerciales")}
-          clickable
         />
 
         <KpiCard
-          label="Liquidación Jefes de Equipo"
+          label="Liquidación jefes de equipo"
           value={formatCurrency(liquidacionJefes)}
-          valueClassName="text-emerald-500"
+          hint="Ver detalle"
+          icon={Network}
+          tone="emerald"
           onClick={() => navigateTo("jefes_equipo")}
-          clickable
         />
 
         <KpiCard
-          label="Caja Neta EnerSave"
+          label="Caja neta EnerSave"
           value={formatCurrency(cajaNeta)}
-          valueClassName="text-indigo-600 dark:text-indigo-300"
-          containerClassName="bg-indigo-500/5 border-indigo-500/25"
+          icon={Wallet}
+          tone="indigo"
         />
-      </div>
+      </KpiGrid>
     </div>
-  )
-}
-
-function KpiCard({
-  label,
-  value,
-  valueClassName,
-  containerClassName = "bg-brand-panel border-brand-border",
-  onClick,
-  clickable = false,
-}: {
-  label: string
-  value: string
-  valueClassName: string
-  containerClassName?: string
-  onClick?: () => void
-  clickable?: boolean
-}) {
-  const Tag = clickable ? "button" : "div"
-  return (
-    <Tag
-      type={clickable ? "button" : undefined}
-      onClick={onClick}
-      className={`p-4 border rounded-xl text-left ${containerClassName} ${
-        clickable
-          ? "cursor-pointer hover:border-blue-400/40 transition-all group"
-          : ""
-      }`}
-    >
-      <span className="text-[9px] text-slate-400 uppercase font-mono block font-semibold">
-        {label}
-      </span>
-      <strong
-        className={`text-xl font-bold font-mono tracking-tight block mt-0.5 ${valueClassName}`}
-      >
-        {value}
-      </strong>
-      {clickable && (
-        <span className="inline-flex items-center gap-1 text-[9px] text-slate-500 font-mono mt-2 group-hover:text-blue-500">
-          Ver detalle
-          <ChevronRight className="w-3 h-3" />
-        </span>
-      )}
-    </Tag>
   )
 }
 

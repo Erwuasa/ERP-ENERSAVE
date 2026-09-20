@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, RefreshCw, Wallet } from "lucide-react"
 import type { CashflowKpiValues } from "@/lib/erp/cashflow-demo-data"
-import { CashflowKpiCard } from "@/pages/erp/cashflow/components/CashflowKpiCard"
+import { KpiCard, KpiGrid } from "@/components/common/kpi"
 
 type Props = {
   kpi: CashflowKpiValues
@@ -9,52 +9,35 @@ type Props = {
 
 export function CashflowKpiStrip({ kpi, formatCurrency }: Props) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      <CashflowKpiCard
-        title="POR PAGAR"
+    <KpiGrid columns={4} aria-label="Indicadores de cash-flow">
+      <KpiCard
+        label="Por pagar"
         value={formatCurrency(kpi.porPagar)}
-        subtitle="colaboradores pendientes"
-        borderClass="border-orange-200 dark:border-orange-500/30"
-        icon={
-          <span className="p-2 rounded-xl bg-orange-500/10 text-orange-500">
-            <ArrowUp className="w-5 h-5" />
-          </span>
-        }
+        hint="Colaboradores pendientes"
+        tone="orange"
+        icon={ArrowUp}
       />
-      <CashflowKpiCard
-        title="ADELANTO VIVO"
+      <KpiCard
+        label="Adelanto vivo"
         value={formatCurrency(kpi.adelantoVivo)}
-        subtitle="en contratos adelantados"
-        badge="CASH-FLOW"
-        borderClass="border-red-200 dark:border-red-500/30"
-        icon={
-          <span className="p-2 rounded-xl bg-red-500/10 text-red-500">
-            <ArrowDown className="w-5 h-5" />
-          </span>
-        }
+        hint="En contratos adelantados"
+        tone="rose"
+        icon={ArrowDown}
       />
-      <CashflowKpiCard
-        title="PAGADO HISTÓRICO"
+      <KpiCard
+        label="Pagado histórico"
         value={formatCurrency(kpi.pagadoHistorico)}
-        subtitle="conciliado a la fecha"
-        borderClass="border-emerald-200 dark:border-emerald-500/30"
-        icon={
-          <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-            <RefreshCw className="w-5 h-5" />
-          </span>
-        }
+        hint="Conciliado a la fecha"
+        tone="emerald"
+        icon={RefreshCw}
       />
-      <CashflowKpiCard
-        title="POR COBRAR (COMERCIAL.)"
+      <KpiCard
+        label="Por cobrar"
         value={formatCurrency(kpi.porCobrar)}
-        subtitle="pendiente de comercializadoras"
-        borderClass="border-blue-200 dark:border-blue-500/30"
-        icon={
-          <span className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
-            <Wallet className="w-5 h-5" />
-          </span>
-        }
+        hint="Pendiente de comercializadoras"
+        tone="blue"
+        icon={Wallet}
       />
-    </div>
+    </KpiGrid>
   )
 }

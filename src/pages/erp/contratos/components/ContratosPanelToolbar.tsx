@@ -5,12 +5,12 @@ import { EstadoFilterDropdown } from "@/components/contratos/EstadoFilterDropdow
 import { CompaniaFilterDropdown } from "@/components/contratos/CompaniaFilterDropdown"
 import { UserFilterDropdown } from "@/components/contratos/UserFilterDropdown"
 import { SelectFilterDropdown } from "@/components/ui/SelectFilterDropdown"
-import { CONTRACT_ESTADO_KPI_META } from "@/lib/contract-estado-kpis"
 import type { ContractEstadoUiFilter } from "@/lib/contract-estado-kpis"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { DateRangePickerValue } from "@/lib/date-range"
 import { profileRoleLabel, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { SEARCH_INPUT } from "@/lib/enersave-ui-theme"
+import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
 
 type Props = {
   contractsSearchQuery: string
@@ -90,15 +90,7 @@ export function ContratosPanelToolbar({
             label="Vista"
             value={contractsListFilter}
             defaultValue="all"
-            options={[
-              { id: "all", label: "Todos" },
-              { id: "ultima_modificacion", label: "Última modificación" },
-              { id: "renovacion_proxima", label: "Renovación próxima" },
-              ...(showTarifaRecommendations
-                ? [{ id: "con_recomendacion" as const, label: "Con recomendación" }]
-                : []),
-              ...CONTRACT_ESTADO_KPI_META.map((m) => ({ id: m.id, label: m.label })),
-            ]}
+            options={buildContractsListFilterOptions({ showTarifaRecommendations, current: contractsListFilter })}
             onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
             minWidthClass="min-w-[132px]"
             maxWidthClass="max-w-[148px]"

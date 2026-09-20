@@ -1,7 +1,7 @@
 import { Search, X } from "lucide-react"
 import { SelectFilterDropdown } from "@/components/ui/SelectFilterDropdown"
-import { CONTRACT_ESTADO_KPI_META } from "@/lib/contract-estado-kpis"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
+import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
 
 type Props = {
   contractsSearchQuery: string
@@ -45,15 +45,7 @@ export function ContratosPanelSearchRow({
         label="Vista"
         value={contractsListFilter}
         defaultValue="all"
-        options={[
-          { id: "all", label: "Todos" },
-          { id: "ultima_modificacion", label: "Última modificación" },
-          { id: "renovacion_proxima", label: "Renovación próxima" },
-          ...(showTarifaRecommendations
-            ? [{ id: "con_recomendacion" as const, label: "Con recomendación" }]
-            : []),
-          ...CONTRACT_ESTADO_KPI_META.map((m) => ({ id: m.id, label: m.label })),
-        ]}
+        options={buildContractsListFilterOptions({ showTarifaRecommendations, current: contractsListFilter })}
         onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
         minWidthClass="min-w-[140px]"
       />
