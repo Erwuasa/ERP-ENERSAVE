@@ -2,6 +2,7 @@
 import type { CSSProperties, ReactNode } from "react"
 import { fonts, radius } from "@/constants/styles"
 import { COMPANIA_LOGO_SRC } from "./compania-logo-assets"
+import { getCompaniaLogoBucketUrl } from "./compania-logo-storage"
 import {
   cropToClipPath,
   resolveCompaniaLogoProfile,
@@ -102,6 +103,17 @@ export function CompaniaLogo({
     setSrc(primarySrc)
   }, [primarySrc, name])
 
+  useEffect(() => {
+    if (!key) return
+    let cancelled = false
+    void getCompaniaLogoBucketUrl(key).then((bucketUrl) => {
+      if (!cancelled && bucketUrl) setSrc(bucketUrl)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [key])
+
   if (!src) {
     return <CompaniaLogoInitials name={name} size={size} />
   }
@@ -113,7 +125,7 @@ export function CompaniaLogo({
     >
       <img
         src={src}
-        alt=""
+        alt={label}
         className="block pointer-events-none select-none"
         style={buildLogoImageStyle(profile)}
         onError={() => {

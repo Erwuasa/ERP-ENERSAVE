@@ -1,6 +1,7 @@
 import { CalendarDays, Flame, Lightbulb, Loader2, Package, Phone, Search, X } from "lucide-react"
 import type { ProductoSuministroTab, ProductoTarifa } from "@/lib/productos-catalog"
 import { SUPPLY_KIND_THEME, supplyTabClass } from "@/lib/enersave-ui-theme"
+import { CompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { ProductosTable } from "@/pages/erp/productos/components/ProductosTable"
 
 type Props = {
@@ -144,13 +145,15 @@ export function ProductosPanelHeader({
                 key={c}
                 type="button"
                 onClick={() => setCompania(c)}
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors ${
+                title={c}
+                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors duration-200 ${
                   compania === c
                     ? "border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                     : "border-brand-border text-brand-subtext hover:border-emerald-500/30"
                 }`}
               >
-                {c}
+                <CompaniaLogo name={c} size="sm" />
+                <span className="hidden sm:inline max-w-[7rem] truncate">{c}</span>
                 <span className="inline-flex min-w-[1.1rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
                   {countsByCompania[c] ?? 0}
                 </span>

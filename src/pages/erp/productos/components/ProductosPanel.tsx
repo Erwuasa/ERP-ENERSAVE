@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { preloadCompaniaLogoBucketUrls } from "@/lib/erp/compania-logo-storage"
 import type { ReactNode } from "react"
 import { CalendarioEconomicoPanel } from "@/pages/erp/productos/components/CalendarioEconomicoPanel"
 import { ProductosFiltersSidebar } from "@/pages/erp/productos/components/ProductosFiltersSidebar"
@@ -26,6 +27,10 @@ export function ProductosPanel({
 }: ProductosPanelProps) {
   const [view, setView] = useState<"catalog" | "calendario">("catalog")
   const vm = useProductosPanel({ activeRole, superadminViewMode })
+
+  useEffect(() => {
+    preloadCompaniaLogoBucketUrls()
+  }, [])
 
   if (view === "calendario") {
     return (

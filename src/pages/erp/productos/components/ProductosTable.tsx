@@ -4,6 +4,7 @@ import { PeriodPricesBlock } from "@/components/productos/PeriodPricesBlock"
 import { supplyBadgeClass } from "@/lib/enersave-ui-theme"
 import { type ProductoTarifa } from "@/lib/productos-catalog"
 import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
+import { CompaniaLogo } from "@/lib/erp/render-compania-logo"
 
 type Props = {
   products: ProductoTarifa[]
@@ -50,7 +51,7 @@ export function ProductosTable({
               colSpan={2}
               className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold"
             >
-              Compañía / Tarifa
+              Marca / Tarifa
             </th>
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
               Peaje
@@ -91,12 +92,14 @@ export function ProductosTable({
                 title="Ver precios por periodo"
               >
                 <td colSpan={2} className="px-3 py-2 align-top">
-                  <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 items-start">
-                    <div className="flex flex-col gap-1.5">
-                      <span className="font-mono text-[11px] font-bold uppercase text-brand-text tracking-wide leading-none">
-                        {formatCompaniaLabel(product.compania).toUpperCase()}
-                      </span>
+                  <div className="grid grid-cols-[5rem_minmax(0,1fr)] gap-x-3 items-start sm:grid-cols-[5.5rem_minmax(0,1fr)] sm:gap-x-4">
+                    <div className="flex flex-col items-start gap-1.5">
+                      <CompaniaLogo
+                        name={product.compania}
+                        size="md"
+                      />
                       <SupplyTypeBadge product={product} />
+                      <span className="sr-only">{formatCompaniaLabel(product.compania)}</span>
                     </div>
                     <div className="min-w-0 pt-0">
                       <span className="font-semibold text-[13px] text-brand-text leading-snug block">
