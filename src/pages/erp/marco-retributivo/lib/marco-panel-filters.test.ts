@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 import {
+  buildMarcoPeajeFilterOptions,
   filterMarcoRowsForTable,
   marcoCompaniaMatchesFilter,
   marcoPeajeMatchesFilter,
@@ -84,8 +85,23 @@ describe("marcoPeajeMatchesFilter", () => {
     expect(marcoPeajeMatchesFilter("Todas", "3.0TD")).toBe(false)
   })
 
+  it("aplica Todas a un peaje concreto si la compañía está seleccionada", () => {
+    expect(marcoPeajeMatchesFilter("Todas", "2.0TD", { matchGenericToSpecific: true })).toBe(true)
+    expect(marcoPeajeMatchesFilter("Todas", "3.0TD", { matchGenericToSpecific: true })).toBe(true)
+  })
+
   it("matches substring peaje", () => {
     expect(marcoPeajeMatchesFilter("3.0TD", "3.0TD")).toBe(true)
     expect(marcoPeajeMatchesFilter("6.1TD", "3.0TD")).toBe(false)
+  })
+})
+
+describe("buildMarcoPeajeFilterOptions", () => {
+  it("mantiene 2.0TD y 3.0TD aunque haya entradas con peaje Todas", () => {
+    expect(buildMarcoPeajeFilterOptions(["Todas", "2.0TD", "3.0TD", "Todas"])).toEqual([
+      "todos",
+      "2.0TD",
+      "3.0TD",
+    ])
   })
 })

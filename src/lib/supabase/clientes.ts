@@ -120,6 +120,35 @@ export async function searchClientes(options: {
   return { ok: true, data: (data ?? []).map((row) => mapRowToClient(row as Row)) }
 }
 
+function compactDocumento(value: string): string {
+  return value.replace(/[\s.-]/g, "").toUpperCase()
+}
+
+/** Un NIF/CIF = un cliente, sin filtrar por comercial. */
+export async function findClienteByDocumento(
+  documento: string
+): Promise<SupabaseResult<Client | null>> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const compact = compactDocumento(documento)
+  if (!compact) return { ok: true, data: null }
+
+  const { data, error } = await resolved.client
+    .from(TABLE)
+    .select("*")
+    .or(`nif_cif.eq.${documento.trim()},nif_cif.ilike.${compact}`)
+    .limit(20)
+
+  if (error) return toFailure(error)
+
+  const match = (data ?? [])
+    .map((row) => mapRowToClient(row as Row))
+    .find((client) => compactDocumento(client.documento ?? "") === compact)
+
+  return { ok: true, data: match ?? null }
+}
+
 /**
  * El id local (`cli-<timestamp>`) no es un uuid válido, así que se descarta y
  * se deja que Postgres genere el definitivo. El llamante debe reconciliar el
@@ -129,10 +158,22 @@ export async function createCliente(client: Client): Promise<SupabaseResult<Clie
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
 
+  const documento = client.documento?.trim()
+  if (documento) {
+    const existing = await findClienteByDocumento(documento)
+    if (existing.ok && existing.data) return { ok: true, data: existing.data }
+  }
+
   const row: Row = { ...buildClientPatch(client), archivos: client.archivos ?? [] }
 
   const { data, error } = await resolved.client.from(TABLE).insert(row).select("*").single()
-  if (error) return toFailure(error)
+  if (error) {
+    if (error.code === "23505" && documento) {
+      const existing = await findClienteByDocumento(documento)
+      if (existing.ok && existing.data) return { ok: true, data: existing.data }
+    }
+    return toFailure(error)
+  }
 
   return { ok: true, data: mapRowToClient(data as Row) }
 }

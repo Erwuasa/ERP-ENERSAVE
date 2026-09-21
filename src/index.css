@@ -425,6 +425,12 @@
 
 .calendario-rbc-theme .rbc-event {
   border: none !important;
+  cursor: grab;
+}
+
+.calendario-rbc-theme .rbc-addons-dnd-dragged-event,
+.calendario-rbc-theme .rbc-event:active {
+  cursor: grabbing;
 }
 
 .calendario-rbc-theme .rbc-time-slot,

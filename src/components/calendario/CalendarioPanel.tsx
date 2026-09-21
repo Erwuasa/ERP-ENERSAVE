@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 import {
   Calendar as BigCalendar,
   dateFnsLocalizer,
@@ -7,13 +7,18 @@ import {
   type View,
   Views,
 } from "react-big-calendar"
+import withDragAndDrop, {
+  type EventInteractionArgs,
+} from "react-big-calendar/lib/addons/dragAndDrop"
 import { format, getDay, parse, startOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
 import { CalendarDays, Loader2, PlusCircle, Trash2, X } from "lucide-react"
 import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { toast } from "sonner"
 import "react-big-calendar/lib/css/react-big-calendar.css"
+import "react-big-calendar/lib/addons/dragAndDrop/styles.css"
 import { colorForCalendarioUsuario } from "../../lib/calendario-colors"
+import { calendarRangeToStoredDates, toCalendarDate } from "../../lib/calendario-dnd"
 import {
   createCalendarioEvento,
   deleteCalendarioEvento,
@@ -77,6 +82,8 @@ interface CalendarUiEvent extends BigCalendarEvent {
   id: string
   resource: CalendarioEvento
 }
+
+const DnDCalendar = withDragAndDrop<CalendarUiEvent>(BigCalendar)
 
 interface EventFormState {
   id?: string
@@ -154,6 +161,7 @@ export function CalendarioPanel({
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState<EventFormState>(() => emptyForm(activeUserId))
   const [saving, setSaving] = useState(false)
+  const didDragRef = useRef(false)
 
   const showUserFilter = activeRole === "superadmin" || activeRole === "jefe_comercial"
 
@@ -277,6 +285,48 @@ export function CalendarioPanel({
     }
   }
 
+  async function persistEventRange(
+    uiEvent: CalendarUiEvent,
+    start: string | Date,
+    end: string | Date,
+    isAllDay?: boolean
+  ) {
+    const evento = uiEvent.resource
+    const range = calendarRangeToStoredDates(start, end, isAllDay ?? evento.todoElDia)
+    if (range.fechaInicio === evento.fechaInicio && range.fechaFin === evento.fechaFin) return
+
+    const previous = eventos
+    const optimistic: CalendarioEvento = {
+      ...evento,
+      fechaInicio: range.fechaInicio,
+      fechaFin: range.fechaFin,
+      todoElDia: range.todoElDia,
+    }
+    onEventosChange(eventos.map((item) => (item.id === evento.id ? optimistic : item)))
+
+    if (!isSupabaseConfigured()) {
+      toast.success("Evento movido (demo).")
+      return
+    }
+
+    const result = await updateCalendarioEvento(evento.id, {
+      fechaInicio: range.fechaInicio,
+      fechaFin: range.fechaFin,
+      todoElDia: range.todoElDia,
+    })
+    if (!result.ok) {
+      onEventosChange(previous)
+      toast.error(result.message)
+      return
+    }
+    onEventosChange(previous.map((item) => (item.id === evento.id ? result.data : item)))
+  }
+
+  function handleEventInteraction({ event, start, end, isAllDay }: EventInteractionArgs<CalendarUiEvent>) {
+    didDragRef.current = true
+    void persistEventRange(event, toCalendarDate(start), toCalendarDate(end), isAllDay)
+  }
+
   async function handleDelete() {
     if (!form.id) return
     setSaving(true)
@@ -373,7 +423,7 @@ export function CalendarioPanel({
         ) : null}
 
         <div className="rounded-2xl border border-brand-border bg-brand-panel p-3 sm:p-4 calendario-rbc-theme min-h-[620px]">
-          <BigCalendar
+          <DnDCalendar
             localizer={localizer}
             events={uiEvents}
             view={view}
@@ -384,9 +434,19 @@ export function CalendarioPanel({
             messages={CALENDAR_MESSAGES}
             culture="es"
             selectable
+            resizable
             popup
+            draggableAccessor={() => true}
+            onEventDrop={handleEventInteraction}
+            onEventResize={handleEventInteraction}
             onSelectSlot={openCreate}
-            onSelectEvent={(event) => openEdit((event as CalendarUiEvent).resource)}
+            onSelectEvent={(event) => {
+              if (didDragRef.current) {
+                didDragRef.current = false
+                return
+              }
+              openEdit((event as CalendarUiEvent).resource)
+            }}
             eventPropGetter={(event) => {
               const resource = (event as CalendarUiEvent).resource
               const color = colorForCalendarioUsuario(resource.usuarioId)
