@@ -25,6 +25,7 @@ export interface MisClientesPanelProps {
   setClientesSearchQuery: (value: string) => void
   onNavigateToContract: (contract: Contract) => void
   onNavigateToContratosActivos?: () => void
+  canExportDatabase?: boolean
 }
 
 export function MisClientesPanel(props: MisClientesPanelProps) {
@@ -53,6 +54,7 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
       <ClientesPanelToolbar
         clientesSearchQuery={clientesSearchQuery}
         setClientesSearchQuery={setClientesSearchQuery}
+        canExportDatabase={props.canExportDatabase ?? false}
         onExportCsv={vm.exportCsv}
         tipoFilter={vm.tipoFilter}
         setTipoFilter={vm.setTipoFilter}

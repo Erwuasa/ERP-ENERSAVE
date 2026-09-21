@@ -2,6 +2,7 @@ import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
 import type { Contract } from "@/types/contract"
 import type { MisClientesPanelProps } from "@/pages/erp/clientes/components/MisClientesPanel"
+import { canExportDatabase } from "@/lib/staff-permissions"
 
 export interface UseClientesPageOptions {
   clientesSearchQuery: string
@@ -36,6 +37,7 @@ export function useClientesPage({
       setClientesSearchQuery,
       onNavigateToContract,
       onNavigateToContratosActivos,
+      canExportDatabase: canExportDatabase(activeRole, activeUser.permissions),
     },
   }
 }

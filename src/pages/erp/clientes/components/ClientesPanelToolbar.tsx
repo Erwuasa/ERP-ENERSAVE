@@ -9,6 +9,7 @@ import { ClientesFilterPill } from "@/pages/erp/clientes/components/ClientesFilt
 type Props = {
   clientesSearchQuery: string
   setClientesSearchQuery: (value: string) => void
+  canExportDatabase?: boolean
   onExportCsv: () => void
   tipoFilter: ClienteTipoFilter
   setTipoFilter: (value: ClienteTipoFilter) => void
@@ -21,6 +22,7 @@ type Props = {
 export function ClientesPanelToolbar({
   clientesSearchQuery,
   setClientesSearchQuery,
+  canExportDatabase = false,
   onExportCsv,
   tipoFilter,
   setTipoFilter,
@@ -52,14 +54,16 @@ export function ClientesPanelToolbar({
             </button>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onExportCsv}
-          className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer ${ENERSAVE_ACTION.secondary}`}
-        >
-          <FileSpreadsheet className="w-3.5 h-3.5" />
-          Excel
-        </button>
+        {canExportDatabase ? (
+          <button
+            type="button"
+            onClick={onExportCsv}
+            className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer ${ENERSAVE_ACTION.secondary}`}
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Excel
+          </button>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between border-t border-brand-border/70 pt-2.5">

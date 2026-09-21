@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Building2, Eye, Globe, Pencil, X, Zap } from "lucide-react"
 import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
+import { TariffPeriodPricesGrid } from "@/components/productos/PeriodPricesBlock"
 import type { ProductoTarifa } from "@/lib/productos-catalog"
 import type { TariffWebSettingsPatch } from "@/lib/supabase/tariffs"
 
@@ -52,7 +53,7 @@ export function TariffWebSettingsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="tariff-settings-modal-title"
-        className="bg-brand-panel border border-brand-border rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col animate-fade-in"
+        className="bg-brand-panel border border-brand-border rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col animate-fade-in"
       >
         <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-brand-border">
           <div className="space-y-1.5 min-w-0">
@@ -155,6 +156,13 @@ export function TariffWebSettingsModal({
                 {product.peaje} · {product.tipoClienteLabel}
               </p>
             </div>
+
+            <TariffPeriodPricesGrid
+              energia={product.precios.energia}
+              potencia={product.precios.potencia}
+              peaje={product.peaje}
+              tipo={product.tipo}
+            />
           </div>
 
           <div className="px-5 py-3 border-t border-brand-border flex justify-end gap-2">

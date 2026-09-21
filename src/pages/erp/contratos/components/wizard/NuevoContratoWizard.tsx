@@ -106,6 +106,10 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     form={form}
                     clients={clients}
                     activeUserId={activeUserId}
+                    activeRole={props.activeUserRole}
+                    teamMemberIds={props.profiles
+                      .filter((profile) => profile.managerId === activeUserId)
+                      .map((profile) => profile.id)}
                     empresaOpen={vm.empresaOpen}
                     setEmpresaOpen={vm.setEmpresaOpen}
                     cpLookupLoading={vm.cpLookupLoading}

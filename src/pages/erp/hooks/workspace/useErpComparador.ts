@@ -30,6 +30,7 @@ import {
   mapComparadorHistoryListToEstudioAhorroConjunto,
   mapComparadorHistoryToEstudioAhorro,
   mapComparadorToEstudioAhorro,
+  resolveOfferPrecios,
 } from '@/lib/pdf/map-comparador-estudio-ahorro';
 import {
   downloadEstudioAhorroPdf,
@@ -42,20 +43,16 @@ import {
   buildPeriodosMayorConsumo,
   inferTarifaPrecioTipoFromNombre,
 } from '@/lib/ia/comparador-email-helpers';
-
-export interface ComparisonHistoryEntry {
-  id: string;
-  clientName: string;
-  cups: string;
-  accessTariff: ComparadorAccessTariff;
-  currentAnnualExpense: number;
-  maxAnnualSavings: number;
-  bestTariffName: string;
-  date: string;
-  source?: "local" | "at";
-}
-
+import type { ComparadorOfferOption } from '@/components/ComparadorOfferCard';
+import {
+  loadLocalComparisonHistory,
+  persistLocalComparisonHistory,
+  type ComparisonHistoryEntry,
+} from '@/lib/comparador-history-storage';
+import { COMPARADOR_MESES_ANUAL } from '@/lib/comparador-billing';
 import type { AppModule } from '@/constants/navigation';
+
+export type { ComparisonHistoryEntry };
 
 interface UseErpComparadorParams {
   activeUser: Profile;
@@ -166,7 +163,9 @@ export function useErpComparador({
   const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
   const [isGeneratingJointPdf, setIsGeneratingJointPdf] = useState(false);
 
-  const [comparisonsHistory, setComparisonsHistory] = useState<ComparisonHistoryEntry[]>([]);
+  const [comparisonsHistory, setComparisonsHistory] = useState<ComparisonHistoryEntry[]>(
+    () => loadLocalComparisonHistory()
+  );
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -192,10 +191,15 @@ export function useErpComparador({
       }));
       setComparisonsHistory((prev) => {
         const local = prev.filter((item) => item.source !== 'at');
+        persistLocalComparisonHistory(local);
         return [...fromAt, ...local];
       });
     });
   }, [currentMenuTab]);
+
+  useEffect(() => {
+    persistLocalComparisonHistory(comparisonsHistory);
+  }, [comparisonsHistory]);
 
   const handleCompareRates = useCallback(() => {
     const { results, summary } = computeComparadorOffers({
@@ -289,35 +293,55 @@ export function useErpComparador({
     }
   }
 
-  async function handleDownloadComparadorPdf(option?: ComparadorRateOption) {
-    const best = option ?? compResults?.find((o) => o.isBestOption) ?? compResults?.[0];
+  function buildEstudioParamsFromOffer(option: ComparadorOfferOption) {
+    const currentAnnualExpense = Math.round(
+      Number(compCurrentBill || 0) * COMPARADOR_MESES_ANUAL || option.annualCost + option.savingsAnnual
+    );
+    return {
+      clienteNombre: compClient || 'Cliente',
+      cups: compCups,
+      accessTariff: compAccessTariff,
+      tarifaActualNombre: compTarifaActual,
+      comercializadoraActual: compCompaniaActual,
+      potencias: compPotencias,
+      consumos: compConsumos,
+      preciosPotenciaActual: compPreciosPotenciaActual,
+      preciosEnergiaActual: compPreciosEnergiaActual,
+      diasFacturacion: compDiasFacturados,
+      rentMeterMonthly: compRentMeter,
+      bonoSocial: compBonoSocial,
+      energiaReactiva: compEnergiaReactiva,
+      otrosCostesSva: compOtrosCostesSva,
+      currentBillMonthly: compCurrentBill,
+      bestOption: {
+        companyName: option.companyName,
+        tariffName: option.tariffName,
+        annualCost: option.annualCost,
+        potenciaBreakdown: option.potenciaBreakdown,
+        consumoBreakdown: option.consumoBreakdown,
+        rentCostAnnual: Math.round(compRentMeter * COMPARADOR_MESES_ANUAL),
+        savingsAnnual: option.savingsAnnual,
+        savingsPercentage: option.savingsPercentage ?? 0,
+        precios: option.precios ?? resolveOfferPrecios(option),
+      },
+      summary: {
+        bestTariffName: option.tariffName,
+        bestTariffCompany: option.companyName,
+        maxAnnualSavings: option.savingsAnnual,
+        maxSavingsPercentage: option.savingsPercentage ?? 0,
+        currentAnnualExpense,
+      },
+    };
+  }
+
+  async function handleDownloadComparadorPdf(option?: ComparadorOfferOption) {
+    const best = option ?? (compResults?.[0] as ComparadorOfferOption | undefined);
     if (!best) {
       toast.error('Ejecuta la comparativa antes de descargar el PDF.');
       return;
     }
-    const summary =
-      compSummary ??
-      ({
-        bestTariffName: best.tariffName,
-        bestTariffCompany: best.companyName,
-        maxAnnualSavings: best.savingsAnnual,
-        maxSavingsPercentage: best.savingsPercentage ?? 0,
-        currentAnnualExpense: Math.round(Number(compCurrentBill || 0) * 12),
-      } satisfies ComparadorRateSummary);
     try {
-      const input = mapComparadorToEstudioAhorro({
-        clienteNombre: compClient || 'Cliente',
-        cups: compCups,
-        accessTariff: compAccessTariff,
-        tarifaActualNombre: compTarifaActual,
-        comercializadoraActual: compCompaniaActual,
-        potencias: compPotencias,
-        consumos: compConsumos,
-        rentMeterMonthly: compRentMeter,
-        currentBillMonthly: compCurrentBill,
-        bestOption: best,
-        summary,
-      });
+      const input = mapComparadorToEstudioAhorro(buildEstudioParamsFromOffer(best));
       const blob = await generateEstudioAhorroPdf(input);
       downloadEstudioAhorroPdf(blob, compClient || 'cliente');
       toast.success('Estudio de ahorro descargado correctamente.');
@@ -327,8 +351,100 @@ export function useErpComparador({
     }
   }
 
+  function handleSaveComparativaToHistory(option: ComparadorOfferOption) {
+    const already = comparisonsHistory.some(
+      (item) =>
+        item.source !== 'at' &&
+        item.bestTariffName === option.tariffName &&
+        item.cups === (compCups.trim() || item.cups) &&
+        item.snapshot?.companyName === option.companyName
+    );
+    if (already) {
+      toast.message('Esta comparativa ya está en el historial.');
+      return;
+    }
+
+    const params = buildEstudioParamsFromOffer(option);
+    const entry: ComparisonHistoryEntry = {
+      id: `comp-${Date.now()}-${option.id}`,
+      clientName: compClient.trim() || 'Cliente',
+      cups: compCups.trim() || '—',
+      accessTariff: compAccessTariff,
+      currentAnnualExpense: params.summary.currentAnnualExpense,
+      maxAnnualSavings: option.savingsAnnual,
+      bestTariffName: option.tariffName,
+      date: new Date().toISOString().split('T')[0],
+      source: 'local',
+      snapshot: {
+        potencias: compPotencias,
+        consumos: compConsumos,
+        preciosPotenciaActual: compPreciosPotenciaActual,
+        preciosEnergiaActual: compPreciosEnergiaActual,
+        preciosOferta: option.precios ?? resolveOfferPrecios(option),
+        diasFacturacion: compDiasFacturados,
+        rentMeterMonthly: compRentMeter,
+        bonoSocial: compBonoSocial,
+        energiaReactiva: compEnergiaReactiva,
+        otrosCostesSva: compOtrosCostesSva,
+        currentBillMonthly: compCurrentBill,
+        tarifaActualNombre: compTarifaActual,
+        comercializadoraActual: compCompaniaActual,
+        companyName: option.companyName,
+        monthlyCost: option.monthlyCost,
+        annualCost: option.annualCost,
+      },
+    };
+    setComparisonsHistory((prev) => [entry, ...prev]);
+    toast.success(`Comparativa de ${option.tariffName} guardada en el historial.`);
+  }
+
   async function handleDownloadHistoryPdf(item: ComparisonHistoryEntry) {
     try {
+      const snapshot = item.snapshot
+        ? {
+            clienteNombre: item.clientName,
+            cups: item.cups,
+            accessTariff: item.accessTariff,
+            tarifaActualNombre: item.snapshot.tarifaActualNombre,
+            comercializadoraActual: item.snapshot.comercializadoraActual,
+            potencias: item.snapshot.potencias,
+            consumos: item.snapshot.consumos,
+            preciosPotenciaActual: item.snapshot.preciosPotenciaActual,
+            preciosEnergiaActual: item.snapshot.preciosEnergiaActual,
+            diasFacturacion: item.snapshot.diasFacturacion,
+            rentMeterMonthly: item.snapshot.rentMeterMonthly,
+            bonoSocial: item.snapshot.bonoSocial,
+            energiaReactiva: item.snapshot.energiaReactiva,
+            otrosCostesSva: item.snapshot.otrosCostesSva,
+            currentBillMonthly: item.snapshot.currentBillMonthly,
+            bestOption: {
+              companyName: item.snapshot.companyName,
+              tariffName: item.bestTariffName,
+              annualCost: item.snapshot.annualCost,
+              potenciaBreakdown: 0,
+              consumoBreakdown: 0,
+              rentCostAnnual: Math.round(
+                item.snapshot.rentMeterMonthly * COMPARADOR_MESES_ANUAL
+              ),
+              savingsAnnual: item.maxAnnualSavings,
+              savingsPercentage:
+                item.currentAnnualExpense > 0
+                  ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
+                  : 0,
+              precios: item.snapshot.preciosOferta,
+            },
+            summary: {
+              bestTariffName: item.bestTariffName,
+              bestTariffCompany: item.snapshot.companyName,
+              maxAnnualSavings: item.maxAnnualSavings,
+              maxSavingsPercentage:
+                item.currentAnnualExpense > 0
+                  ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
+                  : 0,
+              currentAnnualExpense: item.currentAnnualExpense,
+            },
+          }
+        : undefined;
       const input = mapComparadorHistoryToEstudioAhorro({
         clientName: item.clientName,
         cups: item.cups,
@@ -336,6 +452,8 @@ export function useErpComparador({
         currentAnnualExpense: item.currentAnnualExpense,
         maxAnnualSavings: item.maxAnnualSavings,
         bestTariffName: item.bestTariffName,
+        bestTariffCompany: item.snapshot?.companyName,
+        snapshot,
       });
       const blob = await generateEstudioAhorroPdf(input);
       downloadEstudioAhorroPdf(blob, item.clientName);
@@ -368,6 +486,52 @@ export function useErpComparador({
           currentAnnualExpense: item.currentAnnualExpense,
           maxAnnualSavings: item.maxAnnualSavings,
           bestTariffName: item.bestTariffName,
+          bestTariffCompany: item.snapshot?.companyName,
+          snapshot: item.snapshot
+            ? {
+                clienteNombre: item.clientName,
+                cups: item.cups,
+                accessTariff: item.accessTariff,
+                tarifaActualNombre: item.snapshot.tarifaActualNombre,
+                comercializadoraActual: item.snapshot.comercializadoraActual,
+                potencias: item.snapshot.potencias,
+                consumos: item.snapshot.consumos,
+                preciosPotenciaActual: item.snapshot.preciosPotenciaActual,
+                preciosEnergiaActual: item.snapshot.preciosEnergiaActual,
+                diasFacturacion: item.snapshot.diasFacturacion,
+                rentMeterMonthly: item.snapshot.rentMeterMonthly,
+                bonoSocial: item.snapshot.bonoSocial,
+                energiaReactiva: item.snapshot.energiaReactiva,
+                otrosCostesSva: item.snapshot.otrosCostesSva,
+                currentBillMonthly: item.snapshot.currentBillMonthly,
+                bestOption: {
+                  companyName: item.snapshot.companyName,
+                  tariffName: item.bestTariffName,
+                  annualCost: item.snapshot.annualCost,
+                  potenciaBreakdown: 0,
+                  consumoBreakdown: 0,
+                  rentCostAnnual: Math.round(
+                    item.snapshot.rentMeterMonthly * COMPARADOR_MESES_ANUAL
+                  ),
+                  savingsAnnual: item.maxAnnualSavings,
+                  savingsPercentage:
+                    item.currentAnnualExpense > 0
+                      ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
+                      : 0,
+                  precios: item.snapshot.preciosOferta,
+                },
+                summary: {
+                  bestTariffName: item.bestTariffName,
+                  bestTariffCompany: item.snapshot.companyName,
+                  maxAnnualSavings: item.maxAnnualSavings,
+                  maxSavingsPercentage:
+                    item.currentAnnualExpense > 0
+                      ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
+                      : 0,
+                  currentAnnualExpense: item.currentAnnualExpense,
+                },
+              }
+            : undefined,
         }))
       );
       const blob = await generateEstudioAhorroConjuntoPdf(input);
@@ -381,7 +545,7 @@ export function useErpComparador({
     }
   }
 
-  async function handleGenerarEmailPropuesta(option: ComparadorRateOption) {
+  async function handleGenerarEmailPropuesta(option: ComparadorOfferOption) {
     setEmailPropuestaGeneratingId(option.id);
     setEmailPropuestaOpen(true);
     setEmailPropuestaLoading(true);
@@ -709,6 +873,7 @@ export function useErpComparador({
     handleCreateContractFromModal,
     handleComparadorInvoiceOcr,
     handleDownloadComparadorPdf,
+    handleSaveComparativaToHistory,
     handleGenerarEmailPropuesta,
     handleOpenEmailPropuestaMailClient,
   };

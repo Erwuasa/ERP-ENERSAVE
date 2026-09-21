@@ -143,7 +143,7 @@ export async function createContractFromForm(params: {
     clients,
     {
       nombre: form.clientName.trim() || "Pendiente de información",
-      comercialId: userAsSeller.id,
+      comercialId: activeUserId,
       documento: form.nif,
       telefono: form.telefono,
       email: form.email,

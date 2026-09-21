@@ -68,6 +68,7 @@ export interface ContratosPanelProps {
   onDownloadRecommendationPdf?: (contract: Contract, recommendation: TarifaRecommendation) => void
   onDismissRecommendation?: (contractId: string) => void
   onDismissRenewalAlert?: (contractId: string) => void
+  canExportDatabase?: boolean
 }
 
 export function ContratosPanel({
@@ -111,6 +112,7 @@ export function ContratosPanel({
   onDownloadRecommendationPdf,
   onDismissRecommendation,
   onDismissRenewalAlert,
+  canExportDatabase = false,
 }: ContratosPanelProps) {
   const [contractPendingDelete, setContractPendingDelete] = useState<Contract | null>(null)
   const [isDeletingContract, setIsDeletingContract] = useState(false)
@@ -137,6 +139,7 @@ export function ContratosPanel({
     canMutateContract: (contract) => canUserMutateContract(contract, activeRole, activeUserId),
     reviewedContractIds,
     tarifaRecommendations,
+    canExportDatabase,
   })
 
   return (
@@ -165,6 +168,7 @@ export function ContratosPanel({
           renderCompaniaLogo={renderCompaniaLogo}
           contractDateRange={vm.contractDateRange}
           setContractDateRange={vm.setContractDateRange}
+          canExportDatabase={canExportDatabase}
           onExportExcel={vm.handleExportExcel}
           onOpenExcelImport={() => vm.setExcelImportOpen(true)}
           onOpenWizard={vm.openWizard}

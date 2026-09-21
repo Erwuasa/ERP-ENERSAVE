@@ -64,7 +64,7 @@ export function defaultPermissionsForRole(role: UserRole): Profile["permissions"
     return {
       contractsView: true,
       comparatorAccess: false,
-      quickSettlement: false,
+      quickSettlement: true,
       exportDatabase: true,
       viewRetrocommissions: false,
     }
@@ -72,7 +72,7 @@ export function defaultPermissionsForRole(role: UserRole): Profile["permissions"
   return {
     contractsView: true,
     comparatorAccess: true,
-    quickSettlement: role !== "comercial",
+    quickSettlement: false,
     exportDatabase: role === "superadmin",
     viewRetrocommissions: role !== "comercial",
   }
@@ -85,7 +85,7 @@ export function mergePermissionsForRole(
   const defaults = defaultPermissionsForRole(role)
   if (!stored || typeof stored !== "object" || Array.isArray(stored)) return defaults
   const src = stored as Record<string, unknown>
-  return {
+  const merged: Profile["permissions"] = {
     contractsView:
       typeof src.contractsView === "boolean" ? src.contractsView : defaults.contractsView,
     comparatorAccess:
@@ -103,6 +103,12 @@ export function mergePermissionsForRole(
         ? src.viewRetrocommissions
         : defaults.viewRetrocommissions,
   }
+
+  if (role === "comercial" || role === "jefe_comercial") {
+    merged.quickSettlement = false
+  }
+
+  return merged
 }
 
 export function defaultCommissionForRole(role: UserRole): number {

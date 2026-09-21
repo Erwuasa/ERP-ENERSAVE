@@ -16,6 +16,7 @@ import type { LiquidacionesConsolidadasView } from "@/lib/liquidaciones-consolid
 import type { Contract } from "@/types/contract"
 import type { Settlement } from "@/types/settlement"
 import type { Dispatch, SetStateAction } from "react"
+import type { Profile } from "@/types/profile"
 
 export interface LiquidacionesExternasPanelProps {
   activeRole: LiquidacionesRole
@@ -36,6 +37,7 @@ export interface LiquidacionesExternasPanelProps {
   formatCurrency: (val: number) => string
   setLiquidacionesConsolidadasView: (view: LiquidacionesConsolidadasView) => void
   renderCompaniaLogo: (brandName: string) => ReactNode
+  staffPermissions: Profile["permissions"]
 }
 
 export function LiquidacionesExternasPanel(props: LiquidacionesExternasPanelProps) {

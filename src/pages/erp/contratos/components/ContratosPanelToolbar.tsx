@@ -36,6 +36,7 @@ type Props = {
   renderCompaniaLogo: (brandName: string) => ReactNode
   contractDateRange: DateRangePickerValue
   setContractDateRange: (value: DateRangePickerValue) => void
+  canExportDatabase?: boolean
   onExportExcel: () => void
   onOpenExcelImport: () => void
   onOpenWizard: () => void
@@ -64,6 +65,7 @@ export function ContratosPanelToolbar({
   renderCompaniaLogo,
   contractDateRange,
   setContractDateRange,
+  canExportDatabase = false,
   onExportExcel,
   onOpenExcelImport,
   onOpenWizard,
@@ -117,14 +119,16 @@ export function ContratosPanelToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-end">
-          <button
-            type="button"
-            onClick={onExportExcel}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-surface hover:bg-brand-panel border border-brand-border text-brand-text font-semibold rounded-xl text-xs transition-colors duration-200 cursor-pointer"
-          >
-            <Download className="w-4 h-4 shrink-0" />
-            <span>Exportar</span>
-          </button>
+          {canExportDatabase ? (
+            <button
+              type="button"
+              onClick={onExportExcel}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-brand-surface hover:bg-brand-panel border border-brand-border text-brand-text font-semibold rounded-xl text-xs transition-colors duration-200 cursor-pointer"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span>Exportar</span>
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onOpenExcelImport}

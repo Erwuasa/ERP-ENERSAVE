@@ -45,6 +45,7 @@ type Options = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
   profiles: ClientesProfileOption[]
   clientesSearchQuery: string
+  canExportDatabase?: boolean
 }
 
 export function useMisClientesPanel({
@@ -57,6 +58,7 @@ export function useMisClientesPanel({
   activeRole,
   profiles,
   clientesSearchQuery,
+  canExportDatabase = false,
 }: Options) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [folderClientId, setFolderClientId] = useState<string | null>(null)
@@ -212,6 +214,10 @@ export function useMisClientesPanel({
   }
 
   function exportCsv() {
+    if (!canExportDatabase) {
+      toast.error("No tienes permiso para exportar la base de datos.")
+      return
+    }
     const headers = [
       "Cliente",
       "Alta",

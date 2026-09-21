@@ -8,13 +8,14 @@ import {
   type StaffRole,
   type UserRole,
 } from '@/types/profile';
-import { listErpComerciales, updateErpComercial, deleteStaffUser, inviteStaffUser, cancelStaffInvitation, saveStaffPermissions, type ErpComercialRow } from '@/lib/supabase/erp-comerciales';
+import { listErpComerciales, updateErpComercial, deleteStaffUser, inviteStaffUser, cancelStaffInvitation, saveStaffCommissionPercentage, saveStaffPermissions, type ErpComercialRow } from '@/lib/supabase/erp-comerciales';
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 import { fetchAdminMfaSummary, resetAdminMfa } from '@/lib/supabase/admin-mfa';
 import { canResetTargetMfa } from '@/lib/admin-mfa-policy';
 import { sendStaffInvitationEmail } from '@/lib/supabase/staff-invitation';
 import { normalizeStaffEmail } from '@/lib/erp-comercial-id';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+import { sanitizeStaffPermissionsForRole } from '@/lib/staff-permissions';
 
 function profilesFromComerciales(rows: ErpComercialRow[]): Profile[] {
   return rows.map((row) =>
@@ -70,6 +71,7 @@ export function useErpUsuarios({
   const [isDeletingUserId, setIsDeletingUserId] = useState<string | null>(null);
   const [isResendingInvitationId, setIsResendingInvitationId] = useState<string | null>(null);
   const [isSavingPermissions, setIsSavingPermissions] = useState<boolean>(false);
+  const [isSavingCommission, setIsSavingCommission] = useState<boolean>(false);
 
   const isSuperadmin = activeRole === 'superadmin';
 
@@ -390,22 +392,51 @@ export function useErpUsuarios({
     );
   };
 
+  async function handleSaveUserCommission(
+    userId: string,
+    commissionPercentage: number
+  ) {
+    setIsSavingCommission(true);
+    const result = await saveStaffCommissionPercentage(userId, commissionPercentage);
+    setIsSavingCommission(false);
+    if (result.ok === false) {
+      toast.error(result.message);
+      return;
+    }
+    setProfiles((prev) =>
+      prev.map((p) =>
+        p.id === userId ? { ...p, commissionPercentage: result.data.commission_percentage } : p
+      )
+    );
+    setActiveUserForSheet((prev) =>
+      prev && prev.id === userId
+        ? { ...prev, commissionPercentage: result.data.commission_percentage }
+        : prev
+    );
+    toast.success('Comisión visible guardada. El marco retributivo del comercial se actualizará con este porcentaje.');
+  }
+
   async function handleSaveUserPermissions(
     userId: string,
     permissions: Profile['permissions']
   ) {
+    const target = profiles.find((p) => p.id === userId)
+    const sanitized = sanitizeStaffPermissionsForRole(
+      target?.role ?? 'comercial',
+      permissions
+    )
     setIsSavingPermissions(true);
-    const result = await saveStaffPermissions(userId, permissions);
+    const result = await saveStaffPermissions(userId, sanitized);
     setIsSavingPermissions(false);
     if (result.ok === false) {
       toast.error(result.message);
       return;
     }
     setProfiles((prev) =>
-      prev.map((p) => (p.id === userId ? { ...p, permissions } : p))
+      prev.map((p) => (p.id === userId ? { ...p, permissions: sanitized } : p))
     );
     setActiveUserForSheet((prev) =>
-      prev && prev.id === userId ? { ...prev, permissions } : prev
+      prev && prev.id === userId ? { ...prev, permissions: sanitized } : prev
     );
     toast.success('Permisos guardados en Supabase.');
   }
@@ -432,6 +463,7 @@ export function useErpUsuarios({
     isCreatingUser,
     isSavingUserSheet,
     isSavingPermissions,
+    isSavingCommission,
     isSyncingErpUsers,
     isDeletingUserId,
     isResendingInvitationId,
@@ -440,6 +472,7 @@ export function useErpUsuarios({
     appUsersError,
     handleAddNewUser,
     handleSaveUserRoleToSupabase,
+    handleSaveUserCommission,
     handleSaveUserPermissions,
     handleDeleteUserFromSupabase,
     handleResetUserMfa,

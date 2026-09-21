@@ -21,8 +21,12 @@ import {
   Users,
   WalletCards,
 } from "lucide-react"
-import type { UserRole } from "@/types/profile"
+import { defaultPermissionsForRole, type Profile, type UserRole } from "@/types/profile"
 import type { AppModule } from "@/constants/navigation"
+import {
+  canAccessComparator,
+  canViewContracts,
+} from "@/lib/staff-permissions"
 
 export interface SidebarMenuItem {
   name: string
@@ -69,12 +73,30 @@ export interface SidebarVisibilityOptions {
   activeModule: AppModule
   activeRole: UserRole
   superadminViewMode: "tramitacion" | "comercial"
+  staffPermissions?: Profile["permissions"]
+}
+
+function isSidebarItemAllowedByPermissions(
+  itemName: string,
+  activeRole: UserRole,
+  staffPermissions?: Profile["permissions"]
+): boolean {
+  if (!staffPermissions) return true
+  if (itemName === "Contratos" && !canViewContracts(activeRole, staffPermissions)) return false
+  if (
+    (itemName === "Comparador" || itemName === "Historial de Comparativas") &&
+    !canAccessComparator(activeRole, staffPermissions)
+  ) {
+    return false
+  }
+  return true
 }
 
 export function getVisibleSidebarItems({
   activeModule,
   activeRole,
   superadminViewMode,
+  staffPermissions,
 }: SidebarVisibilityOptions): SidebarMenuItem[] {
   const canViewMarcoRetributivo =
     activeRole === "jefe_comercial" ||
@@ -92,7 +114,16 @@ export function getVisibleSidebarItems({
     activeRole === "superadmin"
 
   if (activeModule === "ventas") {
-    return VENTAS_SIDEBAR_ITEMS.filter((item) => item.allowedRoles.includes(activeRole))
+    return VENTAS_SIDEBAR_ITEMS.filter((item) => {
+      if (!item.allowedRoles.includes(activeRole)) return false
+      if (
+        item.name === "Mis Contratos" &&
+        !canViewContracts(activeRole, staffPermissions ?? defaultPermissionsForRole(activeRole))
+      ) {
+        return false
+      }
+      return true
+    })
   }
 
   return ERP_SIDEBAR_ITEMS.filter((item) => {
@@ -152,10 +183,12 @@ export function getVisibleSidebarItems({
         "FTP",
         "Comunicaciones",
       ]
-      return tramitacionTabs.includes(item.name)
+      if (!tramitacionTabs.includes(item.name)) return false
+      return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions)
     }
 
-    return item.allowedRoles.includes(activeRole)
+    if (!item.allowedRoles.includes(activeRole)) return false
+    return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions)
   })
 }
 

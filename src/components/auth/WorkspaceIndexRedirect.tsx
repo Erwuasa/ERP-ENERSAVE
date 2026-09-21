@@ -1,9 +1,10 @@
-import { Navigate } from "react-router-dom"
+import { Navigate, useLocation } from "react-router-dom"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
 import { useAuth } from "@/hooks/useAuth"
 
 export function WorkspaceIndexRedirect() {
   const { isLoggedIn, isBootstrapping, activeUser } = useAuth()
+  const location = useLocation()
 
   if (isBootstrapping) {
     return (
@@ -14,7 +15,7 @@ export function WorkspaceIndexRedirect() {
   }
 
   if (!isLoggedIn) {
-    return <Navigate to={ROUTES.login} replace />
+    return <Navigate to={`${ROUTES.login}${location.search}`} replace />
   }
 
   return <Navigate to={getDefaultAppPath(activeUser.role)} replace />

@@ -12,6 +12,7 @@ import {
   resolveVisibleContracts,
   type ContractsTeamScope,
 } from "@/lib/contract-visibility"
+import { canExportDatabase } from "@/lib/staff-permissions"
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
@@ -129,12 +130,15 @@ export function useContratosPage({
     onCreateFromRecommendation: openContractWizardFromRecommendation,
   })
 
+  const canExportContracts = canExportDatabase(activeRole, activeUser.permissions)
+
   return {
     panelProps: {
       activeRole,
       activeUserId,
       activeUserName: activeUser.fullName,
       canEditContractEstado,
+      canExportDatabase: canExportContracts,
       visibleContracts,
       erpDataLoading,
       showUserFilter: showContractsUserFilter,

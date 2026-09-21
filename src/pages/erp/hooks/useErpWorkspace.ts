@@ -17,6 +17,7 @@ import { useIncidenciasContext } from '@/pages/erp/incidencias/IncidenciasProvid
 import { useErpUsuarios } from './workspace/useErpUsuarios';
 import { useErpComparador } from './workspace/useErpComparador';
 import { useErpFiscalProfile } from './workspace/useErpFiscalProfile';
+import { canAccessComparator, canViewContracts } from '@/lib/staff-permissions';
 
 export function useErpWorkspace() {
   const { profiles, setProfiles, activeUserId, setActiveUserId, activeUser, logout } = useAuth();
@@ -105,17 +106,28 @@ export function useErpWorkspace() {
       return;
     }
 
-    const commercialOnlyTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
-    if (!commercialOnlyTabs.includes(currentMenuTab)) return;
+    const permissions = activeUser.permissions;
 
-    const blocked =
-      activeRole === 'tramitacion' ||
-      (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
-
-    if (blocked) {
-      navigateToTab('erp', 'Dashboard');
+    if (
+      (currentMenuTab === 'Contratos' || currentMenuTab === 'Mis Contratos') &&
+      !canViewContracts(activeRole, permissions)
+    ) {
+      navigateToTab(activeModule, activeModule === 'ventas' ? 'Mi Día' : 'Dashboard');
+      return;
     }
-  }, [activeRole, superadminViewMode, currentMenuTab, navigateToTab]);
+
+    const commercialOnlyTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
+    if (commercialOnlyTabs.includes(currentMenuTab)) {
+      const blockedByRole =
+        activeRole === 'tramitacion' ||
+        (activeRole === 'superadmin' && superadminViewMode === 'tramitacion');
+      const blockedByPermission = !canAccessComparator(activeRole, permissions);
+
+      if (blockedByRole || blockedByPermission) {
+        navigateToTab('erp', 'Dashboard');
+      }
+    }
+  }, [activeRole, superadminViewMode, currentMenuTab, navigateToTab, activeUser.permissions, activeModule]);
 
   const handleToggleSuperadminMode = () => {
     const nextMode = superadminViewMode === 'tramitacion' ? 'comercial' : 'tramitacion';

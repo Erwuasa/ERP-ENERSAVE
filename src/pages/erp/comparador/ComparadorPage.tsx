@@ -59,6 +59,8 @@ export function ComparadorPage() {
     compOcrProgress,
     handleComparadorInvoiceOcr,
     handleDownloadComparadorPdf,
+    handleSaveComparativaToHistory,
+    comparisonsHistory,
     handleGenerarEmailPropuesta,
     emailPropuestaOpen,
     emailPropuestaLoading,
@@ -330,12 +332,20 @@ export function ComparadorPage() {
               </div>
             ) : (
               <div className="space-y-4 min-h-[12rem]">
-                {offerOptions.map((opt) => (
+                {offerOptions.map((opt) => {
+                  const savedToHistory = comparisonsHistory.some(
+                    (item) =>
+                      item.source !== "at" &&
+                      item.bestTariffName === opt.tariffName &&
+                      item.snapshot?.companyName === opt.companyName
+                  )
+                  return (
                   <ComparadorOfferCard
                     key={opt.id}
                     option={opt}
                     segment={compSegment}
                     sortMode={compSortMode}
+                    savedToHistory={savedToHistory}
                     renderCompaniaLogo={(brandName, logoUrl) =>
                       renderCompaniaLogo(brandName, logoUrl, "xl")
                     }
@@ -361,6 +371,7 @@ export function ComparadorPage() {
                       })
                     }
                     onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}
+                    onSaveToHistory={() => handleSaveComparativaToHistory(opt)}
                     onSendEmail={
                       opt.savingsAnnual > 0
                         ? () => void handleGenerarEmailPropuesta(opt)
@@ -368,7 +379,8 @@ export function ComparadorPage() {
                     }
                     sendingEmail={emailPropuestaGeneratingId === opt.id}
                   />
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

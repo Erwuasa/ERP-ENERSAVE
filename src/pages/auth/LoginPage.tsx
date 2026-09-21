@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Navigate } from "react-router-dom"
+import { Navigate, useSearchParams } from "react-router-dom"
 import { AlertCircle, ChevronRight, Eye, EyeOff, Lock, User } from "lucide-react"
 import { EnersaveMarkLogin } from "@/components/common/EnersaveMarkLogin"
 import { MfaLoginPanel } from "@/components/auth/MfaLoginPanel"
@@ -27,9 +27,16 @@ export function LoginPage() {
     submitMfa,
     cancelLoginFlow,
   } = useAuth()
+  const [searchParams] = useSearchParams()
+  const inviteFromEmail = searchParams.get("invite") === "1"
+  const emailFromLink = searchParams.get("email")?.trim() ?? ""
   const [mfaCode, setMfaCode] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [showFirstAccessHint, setShowFirstAccessHint] = useState(false)
+
+  useEffect(() => {
+    if (emailFromLink) setLoginEmail(emailFromLink)
+  }, [emailFromLink, setLoginEmail])
 
   useEffect(() => {
     const email = loginEmail.trim().toLowerCase()
@@ -173,9 +180,10 @@ export function LoginPage() {
               </button>
             </form>
 
-            {showFirstAccessHint ? (
+            {showFirstAccessHint || inviteFromEmail ? (
               <p className="text-center text-xs text-brand-subtext">
-                Usa la contraseña temporal del correo en tu primer acceso.
+                Primer acceso: usa el email y la contraseña temporal del correo. Después registrarás tu
+                contraseña definitiva y escanearás el QR de Google Authenticator.
               </p>
             ) : (
               <p className="text-center text-xs text-brand-subtext">

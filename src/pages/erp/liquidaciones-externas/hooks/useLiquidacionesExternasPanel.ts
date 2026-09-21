@@ -19,6 +19,8 @@ import type {
 } from "@/pages/erp/liquidaciones-externas/lib/liquidaciones-externas-types"
 import type { Contract } from "@/types/contract"
 import type { Settlement } from "@/types/settlement"
+import type { Profile } from "@/types/profile"
+import { canConsolidateLiquidaciones } from "@/lib/staff-permissions"
 
 type Options = {
   activeRole: LiquidacionesRole
@@ -38,6 +40,7 @@ type Options = {
   setIsConsolidating: (value: boolean) => void
   formatCurrency: (val: number) => string
   setLiquidacionesConsolidadasView: (view: LiquidacionesConsolidadasView) => void
+  staffPermissions: Profile["permissions"]
 }
 
 export function useLiquidacionesExternasPanel({
@@ -58,8 +61,9 @@ export function useLiquidacionesExternasPanel({
   setIsConsolidating,
   formatCurrency,
   setLiquidacionesConsolidadasView,
+  staffPermissions,
 }: Options) {
-  const canConsolidate = activeRole === "superadmin" || activeRole === "tramitacion"
+  const canConsolidate = canConsolidateLiquidaciones(activeRole, staffPermissions)
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set())
 
   const pendingContracts = useMemo(

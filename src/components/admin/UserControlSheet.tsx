@@ -43,6 +43,9 @@ interface UserControlSheetProps {
   onTogglePermission: (key: keyof UserControlProfile["permissions"]) => void
   onSavePermissions?: (permissions: UserControlProfile["permissions"]) => Promise<void>
   savingPermissions?: boolean
+  onSaveCommission?: (commissionPercentage: number) => Promise<void>
+  savingCommission?: boolean
+  canEditCommission?: boolean
   onDelete?: () => void
   mfaEnrolled?: boolean
   mfaLoading?: boolean
@@ -63,8 +66,19 @@ const PERMISSION_ITEMS: Array<{
   { key: "viewRetrocommissions", name: "Ver retrocomisiones", desc: "Comisiones diferidas del equipo." },
   { key: "contractsView", name: "Lectura de contratos", desc: "Acceso a contratos del canal." },
   { key: "comparatorAccess", name: "Acceso al Comparador", desc: "Simular y cotizar ofertas." },
-  { key: "quickSettlement", name: "Gestión rápida de comisiones", desc: "Aprobación instantánea de comisiones." },
+  {
+    key: "quickSettlement",
+    name: "Consolidar liquidaciones",
+    desc: "Marcar pagadas en liquidaciones externas (tramitación). No afecta a las alegaciones.",
+  },
 ]
+
+function permissionItemsForRole(role: UserControlRole) {
+  return PERMISSION_ITEMS.filter((item) => {
+    if (item.key !== "quickSettlement") return true
+    return role === "tramitacion" || role === "superadmin"
+  })
+}
 
 export function UserControlSheet({
   user,
@@ -80,6 +94,9 @@ export function UserControlSheet({
   onTogglePermission,
   onSavePermissions,
   savingPermissions,
+  onSaveCommission,
+  savingCommission = false,
+  canEditCommission = false,
   onDelete,
   mfaEnrolled = false,
   mfaLoading = false,
@@ -257,27 +274,54 @@ export function UserControlSheet({
             </select>
           </div>
 
-          <div className="rounded-xl border border-brand-border bg-brand-bg/50 p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono uppercase text-amber-600 font-bold">
-                Comisión visible (%)
-              </span>
-              <span className="text-xs font-mono font-bold text-brand-text">
-                {user.commissionPercentage}%
-              </span>
+          {(user.role === "comercial" || user.role === "jefe_comercial") && (
+            <div className="rounded-xl border border-brand-border bg-brand-bg/50 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[10px] font-mono uppercase text-amber-600 font-bold">
+                  Comisión visible (%)
+                </span>
+                <span className="text-xs font-mono font-bold text-brand-text">
+                  {user.commissionPercentage}%
+                </span>
+              </div>
+              <p className="text-[10px] text-brand-subtext leading-relaxed">
+                El marco retributivo, las comisiones de contratos y las liquidaciones del comercial
+                usan las mismas tarifas del superadmin, multiplicadas por este porcentaje. Ejemplo:
+                si Naturgy por uso paga 80 € al 100 %, con 50 % verá 40 €.
+              </p>
+              {canEditCommission ? (
+                <>
+                  <input
+                    type="range"
+                    min={10}
+                    max={100}
+                    step={5}
+                    disabled={savingCommission || saving}
+                    value={user.commissionPercentage}
+                    onChange={(e) =>
+                      onChange({ ...user, commissionPercentage: Number(e.target.value) })
+                    }
+                    className="w-full accent-cyan-600 disabled:opacity-50"
+                  />
+                  {onSaveCommission ? (
+                    <button
+                      type="button"
+                      disabled={savingCommission || saving}
+                      onClick={() => void onSaveCommission(user.commissionPercentage)}
+                      className="w-full py-2 text-[11px] font-bold rounded-lg border border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 disabled:opacity-40 flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      {savingCommission ? "Guardando…" : "Guardar comisión visible"}
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-[10px] font-mono text-brand-subtext">
+                  Solo el superadmin puede modificar este porcentaje.
+                </p>
+              )}
             </div>
-            <input
-              type="range"
-              min={10}
-              max={100}
-              step={5}
-              value={user.commissionPercentage}
-              onChange={(e) =>
-                onChange({ ...user, commissionPercentage: Number(e.target.value) })
-              }
-              className="w-full accent-cyan-600"
-            />
-          </div>
+          )}
 
           {user.role !== "customer" ? (
           <div className="rounded-xl border border-brand-border bg-brand-bg/50 p-4 space-y-3">
@@ -327,7 +371,7 @@ export function UserControlSheet({
             <span className="text-[10px] font-mono uppercase text-brand-subtext font-bold block border-b border-brand-border pb-2">
               Acciones / permisos
             </span>
-            {PERMISSION_ITEMS.map((item) => {
+            {permissionItemsForRole(user.role).map((item) => {
               const isChecked = Boolean(user.permissions[item.key])
               return (
                 <div

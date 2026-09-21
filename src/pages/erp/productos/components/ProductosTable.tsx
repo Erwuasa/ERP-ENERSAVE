@@ -1,11 +1,8 @@
 import type { MouseEvent } from "react"
 import { Flame, Plus, Zap } from "lucide-react"
+import { PeriodPricesBlock } from "@/components/productos/PeriodPricesBlock"
 import { supplyBadgeClass } from "@/lib/enersave-ui-theme"
-import {
-  formatPrecioEnergia,
-  formatPrecioPotencia,
-  type ProductoTarifa,
-} from "@/lib/productos-catalog"
+import { type ProductoTarifa } from "@/lib/productos-catalog"
 import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
 
 type Props = {
@@ -13,22 +10,6 @@ type Props = {
   canManageTariffs: boolean
   onCreateContract: (product: ProductoTarifa) => void
   onOpenTariff: (product: ProductoTarifa) => void
-}
-
-function firstEnergyPrice(product: ProductoTarifa): string {
-  for (const n of [1, 2, 3, 4, 5, 6] as const) {
-    const value = product.precios.energia[`p${n}`]
-    if (value != null) return formatPrecioEnergia(value)
-  }
-  return "—"
-}
-
-function firstPowerPrice(product: ProductoTarifa): string {
-  for (const n of [1, 2, 3, 4, 5, 6] as const) {
-    const value = product.precios.potencia[`p${n}`]
-    if (value != null) return formatPrecioPotencia(value, product.tipo)
-  }
-  return "—"
 }
 
 function SupplyTypeBadge({ product }: { product: ProductoTarifa }) {
@@ -61,7 +42,7 @@ export function ProductosTable({
   return (
     <div className="overflow-x-auto scrollbar-overlay rounded-2xl border border-brand-border">
       <table
-        className={`w-full text-left text-xs ${canManageTariffs ? "min-w-[920px]" : "min-w-[720px]"}`}
+        className={`w-full text-left text-xs ${canManageTariffs ? "min-w-[1080px]" : "min-w-[880px]"}`}
       >
         <thead>
           <tr className="bg-slate-100 dark:bg-brand-surface/80 border-b border-brand-border">
@@ -87,11 +68,11 @@ export function ProductosTable({
                 </th>
               </>
             ) : null}
-            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
-              Energía
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+              {products[0]?.tipo === "gas" ? "Término fijo" : "Fijo"}
             </th>
-            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right">
-              {products[0]?.tipo === "gas" ? "Término fijo" : "Potencia"}
+            <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold">
+              Consumo
             </th>
             <th className="px-3 py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 font-bold text-right w-[100px]">
               Acciones
@@ -105,13 +86,9 @@ export function ProductosTable({
             return (
               <tr
                 key={product.id}
-                onClick={canManageTariffs ? () => onOpenTariff(product) : undefined}
-                className={`bg-white dark:bg-[#0f172a] transition-colors ${
-                  canManageTariffs
-                    ? "hover:bg-slate-50 dark:hover:bg-brand-elevated/50 cursor-pointer"
-                    : ""
-                }`}
-                title={canManageTariffs ? "Configurar tarifa" : undefined}
+                onClick={() => onOpenTariff(product)}
+                className="bg-white dark:bg-[#0f172a] transition-colors hover:bg-slate-50 dark:hover:bg-brand-elevated/50 cursor-pointer"
+                title="Ver precios por periodo"
               >
                 <td colSpan={2} className="px-3 py-2 align-top">
                   <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-4 items-start">
@@ -171,11 +148,19 @@ export function ProductosTable({
                     </td>
                   </>
                 ) : null}
-                <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
-                  {firstEnergyPrice(product)}
+                <td className="px-3 py-2.5 align-top min-w-[11rem]">
+                  <PeriodPricesBlock
+                    prices={product.precios.potencia}
+                    peaje={product.peaje}
+                    kind="potencia"
+                  />
                 </td>
-                <td className="px-3 py-2.5 align-top font-mono text-[10px] text-brand-text text-right tabular-nums whitespace-nowrap">
-                  {firstPowerPrice(product)}
+                <td className="px-3 py-2.5 align-top min-w-[9rem]">
+                  <PeriodPricesBlock
+                    prices={product.precios.energia}
+                    peaje={product.peaje}
+                    kind="energia"
+                  />
                 </td>
                 <td className="px-3 py-2.5 align-top" onClick={stopRowClick}>
                   <div className="flex items-center justify-end">

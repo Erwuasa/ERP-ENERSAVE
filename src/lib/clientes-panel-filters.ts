@@ -28,6 +28,7 @@ export function matchesClientSearch(client: Client, query: string): boolean {
   const q = foldSearchText(query)
   const haystack = [
     client.nombre,
+    client.apellidos,
     client.documento,
     client.telefono,
     client.email,

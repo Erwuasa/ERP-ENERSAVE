@@ -29,64 +29,70 @@ function replaceLocalClient(
 }
 
 /**
- * Encuentra o crea el cliente ligado a un contrato.
- * Un NIF identifica a la misma persona en toda la cartera.
+ * Encuentra o crea el cliente en la cartera del usuario que carga el contrato.
+ * Si ya tiene el mismo cliente (mismo NIF o mismos datos), se reutiliza.
  */
 export async function ensureClientForContract(
   clients: Client[],
   input: UpsertClientInput
 ): Promise<{ clients: Client[]; client: Client }> {
-  const { clients: afterLocal, client: localClient } = upsertClient(clients, input)
-  const uniqueLocal = dedupeClients(afterLocal)
-  const uniqueClient =
-    uniqueLocal.idMap.get(localClient.id)
-      ? uniqueLocal.clients.find((client) => client.id === uniqueLocal.idMap.get(localClient.id)) ??
-        localClient
-      : localClient
+  const cartera = clients.filter((client) => client.comercialId === input.comercialId)
+  const others = clients.filter((client) => client.comercialId !== input.comercialId)
+  const { clients: afterCartera, client: localClient } = upsertClient(cartera, input)
+  const combined = [...afterCartera, ...others]
 
-  if (!isSupabaseConfigured() || isPersistedClientId(uniqueClient.id)) {
-    return { clients: uniqueLocal.clients, client: uniqueClient }
+  if (!isSupabaseConfigured()) {
+    return { clients: dedupeClients(combined).clients, client: localClient }
   }
 
-  if (uniqueClient.documento?.trim()) {
-    const byDocumento = await findClienteByDocumento(uniqueClient.documento)
+  if (isPersistedClientId(localClient.id) && localClient.comercialId === input.comercialId) {
+    return { clients: dedupeClients(combined).clients, client: localClient }
+  }
+
+  if (localClient.documento?.trim()) {
+    const byDocumento = await findClienteByDocumento(localClient.documento, {
+      comercialId: input.comercialId,
+    })
     if (byDocumento.ok && byDocumento.data) {
       return {
-        clients: replaceLocalClient(uniqueLocal.clients, uniqueClient.id, byDocumento.data),
+        clients: replaceLocalClient(combined, localClient.id, byDocumento.data),
         client: byDocumento.data,
       }
     }
   }
 
-  const lookupQuery = uniqueClient.documento?.trim() || uniqueClient.nombre.trim()
+  const lookupQuery = localClient.documento?.trim() || localClient.nombre.trim()
   if (lookupQuery) {
     const found = await searchClientes({
       query: lookupQuery,
-      comercialId: uniqueClient.comercialId,
+      comercialId: input.comercialId,
       limit: 12,
     })
     if (found.ok) {
       const existing = findExistingClient(found.data, {
-        nombre: uniqueClient.nombre,
-        documento: uniqueClient.documento,
-        comercialId: uniqueClient.comercialId,
+        nombre: localClient.nombre,
+        documento: localClient.documento,
+        comercialId: input.comercialId,
       })
       if (existing) {
         return {
-          clients: replaceLocalClient(uniqueLocal.clients, uniqueClient.id, existing),
+          clients: replaceLocalClient(combined, localClient.id, existing),
           client: existing,
         }
       }
     }
   }
 
-  const result = await createCliente(uniqueClient)
+  const result = await createCliente({
+    ...localClient,
+    comercialId: input.comercialId,
+  })
   if (!result.ok) {
-    return { clients: uniqueLocal.clients, client: uniqueClient }
+    return { clients: dedupeClients(combined).clients, client: localClient }
   }
 
   return {
-    clients: replaceLocalClient(uniqueLocal.clients, uniqueClient.id, result.data),
+    clients: replaceLocalClient(combined, localClient.id, result.data),
     client: result.data,
   }
 }

@@ -258,6 +258,7 @@ export function mapRankingToOfferOptions(
       annualCost,
       potenciaBreakdown: Math.round(row.potenciaAnual ?? 0),
       consumoBreakdown: Math.round(row.energiaAnual ?? 0),
+      precios: row.precios,
       savingsAnnual: Math.round(savingsAnnual),
       savingsPercentage:
         currentAnnualExpense > 0

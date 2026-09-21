@@ -4,6 +4,7 @@ import { sendHtmlEmailViaGmail } from "../_shared/send-gmail.ts"
 import {
   buildStaffInvitationEmailHtml,
   buildStaffInvitationEmailSubject,
+  buildStaffInviteLoginHref,
 } from "../_shared/staff-invitation-html.ts"
 
 interface InvitationPayload {
@@ -11,13 +12,6 @@ interface InvitationPayload {
   fullName?: string
   role?: string
   loginUrl?: string
-}
-
-function resolveLoginUrl(explicit?: string): string {
-  const fromEnv = Deno.env.get("APP_PUBLIC_URL")?.replace(/\/$/, "")
-  if (explicit?.trim()) return explicit.trim()
-  if (fromEnv) return `${fromEnv}/login`
-  return "https://erp.enersave.es/login"
 }
 
 function generateTempPassword(length = 12): string {
@@ -79,21 +73,11 @@ Deno.serve(async (req) => {
 
   const admin = createClient(supabaseUrl, serviceRoleKey)
   const tempPassword = generateTempPassword()
-  const loginUrl = resolveLoginUrl(payload.loginUrl)
+  const loginUrl = buildStaffInviteLoginHref(email)
 
   const existingUserId = await findUserIdByEmail(admin, email)
 
   if (existingUserId) {
-    const { data: profile } = await admin
-      .from("user_profiles")
-      .select("role")
-      .eq("id", existingUserId)
-      .maybeSingle()
-
-    if (profile?.role && profile.role !== "customer") {
-      return json(409, { error: "Ese email ya tiene acceso staff." })
-    }
-
     const { error: updateError } = await admin.auth.admin.updateUserById(existingUserId, {
       password: tempPassword,
       email_confirm: true,

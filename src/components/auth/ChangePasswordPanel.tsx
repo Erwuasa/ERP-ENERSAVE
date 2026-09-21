@@ -35,9 +35,10 @@ export function ChangePasswordPanel({
         <div className="mx-auto w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
           <Lock className="w-5 h-5 text-blue-600 dark:text-cyan-400" />
         </div>
-        <h2 className="text-lg font-black text-brand-text">Nueva contraseña</h2>
+        <h2 className="text-lg font-black text-brand-text">Completa tu registro</h2>
         <p className="text-xs text-brand-subtext leading-relaxed">
-          Has entrado con una contraseña temporal. Elige la contraseña definitiva de tu cuenta.
+          Has entrado con la contraseña temporal del correo. Elige ahora tu contraseña definitiva.
+          Después escanearás el QR de Google Authenticator.
         </p>
       </div>
 

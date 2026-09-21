@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { ChevronDown, Download, Mail, Star } from "lucide-react"
+import { ChevronDown, Bookmark, BookmarkCheck, Download, Mail, Star } from "lucide-react"
 import type { ReactNode } from "react"
 import type { ComparadorSortMode } from "../lib/comparador-sort"
 import type { ComparadorTariffPricingType } from "../lib/comparador-tariff-pricing-type"
@@ -10,6 +10,7 @@ import {
   breakdownAmountTone,
   type ComparadorOfferBreakdownRow,
 } from "../lib/comparador-offer-breakdown"
+import type { TariffPreciosPorPeriodo } from "../lib/tarifa-cost-calculator"
 
 export interface ComparadorOfferOption {
   id: string
@@ -26,15 +27,18 @@ export interface ComparadorOfferOption {
   commissionEur?: number
   isBestOption?: boolean
   breakdownRows?: ComparadorOfferBreakdownRow[]
+  precios?: TariffPreciosPorPeriodo
 }
 
 interface ComparadorOfferCardProps {
   option: ComparadorOfferOption
   segment: "residencial" | "pyme"
   sortMode?: ComparadorSortMode
+  savedToHistory?: boolean
   renderCompaniaLogo: (brandName: string, logoUrl?: string | null) => ReactNode
   onContract: () => void
   onDownloadPdf: () => void
+  onSaveToHistory?: () => void
   onSendEmail?: () => void
   sendingEmail?: boolean
 }
@@ -93,9 +97,11 @@ export function ComparadorOfferCard({
   option,
   segment,
   sortMode = "ahorro",
+  savedToHistory = false,
   renderCompaniaLogo,
   onContract,
   onDownloadPdf,
+  onSaveToHistory,
   onSendEmail,
   sendingEmail = false,
 }: ComparadorOfferCardProps) {
@@ -138,15 +144,36 @@ export function ComparadorOfferCard({
           : "border-brand-border"
       }`}
     >
-      <button
-        type="button"
-        onClick={onDownloadPdf}
-        className="absolute top-4 right-4 p-1.5 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-brand-surface border border-transparent hover:border-brand-border transition-colors cursor-pointer"
-        aria-label={`Descargar estudio PDF de ${option.companyName}`}
-        title="Descargar PDF"
-      >
-        <Download className="h-4 w-4" />
-      </button>
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        {onSaveToHistory ? (
+          <button
+            type="button"
+            onClick={onSaveToHistory}
+            className="p-1.5 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-brand-surface border border-transparent hover:border-brand-border transition-colors cursor-pointer"
+            aria-label={
+              savedToHistory
+                ? `Comparativa de ${option.tariffName} ya guardada`
+                : `Guardar ${option.tariffName} en historial de comparativas`
+            }
+            title={savedToHistory ? "Ya está en el historial" : "Guardar en historial"}
+          >
+            {savedToHistory ? (
+              <BookmarkCheck className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+            ) : (
+              <Bookmark className="h-4 w-4" />
+            )}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onDownloadPdf}
+          className="p-1.5 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-brand-surface border border-transparent hover:border-brand-border transition-colors cursor-pointer"
+          aria-label={`Descargar estudio PDF de ${option.companyName}`}
+          title="Descargar PDF"
+        >
+          <Download className="h-4 w-4" />
+        </button>
+      </div>
 
       <div className="flex items-center gap-5 pr-10">
         <div className="shrink-0 flex items-center">

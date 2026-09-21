@@ -1,5 +1,18 @@
 import type { ComparadorAccessTariff } from "@/lib/erp/comparador-rates"
+import type { ComparadorPeriodValues } from "@/lib/erp/comparador-rates"
 import { normalizeComparadorAccessTariff } from "@/lib/comparador-access-tariff"
+import {
+  COMPARADOR_MESES_ANUAL,
+  calcularCosteComparadorDesdePreciosActuales,
+  calcularCosteComparadorDesdeTariffPrecios,
+  normalizeComparadorDiasFacturacion,
+  type ComparadorBillingBreakdown,
+} from "@/lib/comparador-billing"
+import {
+  activeConsumoPeriodSlots,
+  activePotenciaPeriodSlots,
+} from "@/lib/comparador-periods"
+import type { TariffPeriodKey, TariffPreciosPorPeriodo } from "@/lib/tarifa-cost-calculator"
 import type {
   EstudioAhorroConjuntoInput,
   EstudioAhorroInput,
@@ -10,26 +23,7 @@ import type {
 } from "./estudio-ahorro-types"
 
 const PERIODOS: PeriodoTarifa[] = ["P1", "P2", "P3", "P4", "P5", "P6"]
-const DAYS_IN_YEAR = 365
-const IVA_PCT = 21
-
-interface PotenciasMap {
-  p1: number
-  p2: number
-  p3: number
-  p4: number
-  p5: number
-  p6: number
-}
-
-interface ConsumosMap {
-  p1: number
-  p2: number
-  p3: number
-  p4: number
-  p5: number
-  p6: number
-}
+const IVA_PCT = 0
 
 export interface ComparadorPdfOption {
   companyName: string
@@ -42,6 +36,7 @@ export interface ComparadorPdfOption {
   savingsPercentage: number
   potRates?: number[]
   conRates?: number[]
+  precios?: TariffPreciosPorPeriodo
 }
 
 export interface ComparadorPdfSummary {
@@ -56,12 +51,18 @@ export interface MapComparadorEstudioAhorroParams {
   clienteNombre: string
   cups: string
   direccion?: string
-  accessTariff: ComparadorAccessTariff
+  accessTariff: ComparadorAccessTariff | string
   tarifaActualNombre?: string
   comercializadoraActual?: string
-  potencias: PotenciasMap
-  consumos: ConsumosMap
+  potencias: ComparadorPeriodValues
+  consumos: ComparadorPeriodValues
+  preciosPotenciaActual?: ComparadorPeriodValues
+  preciosEnergiaActual?: ComparadorPeriodValues
+  diasFacturacion?: number
   rentMeterMonthly: number
+  bonoSocial?: number
+  energiaReactiva?: number
+  otrosCostesSva?: number
   currentBillMonthly: number
   bestOption: ComparadorPdfOption
   summary: ComparadorPdfSummary
@@ -76,6 +77,7 @@ export interface ComparadorHistoryPdfParams {
   bestTariffName: string
   bestTariffCompany?: string
   date?: string
+  snapshot?: MapComparadorEstudioAhorroParams
 }
 
 function formatFechaGeneracion(date = new Date()): string {
@@ -88,202 +90,193 @@ function formatFechaGeneracion(date = new Date()): string {
   }).format(date)
 }
 
-function potenciaValues(map: PotenciasMap): number[] {
-  return [map.p1, map.p2, map.p3, map.p4, map.p5, map.p6]
+function emptyPeriodValues(): ComparadorPeriodValues {
+  return { p1: 0, p2: 0, p3: 0, p4: 0, p5: 0, p6: 0 }
 }
 
-function consumoValues(map: ConsumosMap): number[] {
-  return [map.p1, map.p2, map.p3, map.p4, map.p5, map.p6]
+export function rateArraysToPrecios(
+  potRates: number[] = [],
+  conRates: number[] = []
+): TariffPreciosPorPeriodo {
+  const precios: TariffPreciosPorPeriodo = {}
+  for (let index = 0; index < 6; index += 1) {
+    const key = `P${index + 1}` as TariffPeriodKey
+    const energyPriceKwh = Number(conRates[index] ?? 0)
+    const powerPriceKwDay = Number(potRates[index] ?? 0)
+    if (energyPriceKwh > 0 || powerPriceKwDay > 0) {
+      precios[key] = { energyPriceKwh, powerPriceKwDay }
+    }
+  }
+  return precios
 }
 
-function activePeriodCount(accessTariff: string): number {
-  if (accessTariff === "2.0TD") return 3
-  return 6
+export function resolveOfferPrecios(option: {
+  precios?: TariffPreciosPorPeriodo
+  potRates?: number[]
+  conRates?: number[]
+}): TariffPreciosPorPeriodo {
+  if (option.precios && Object.keys(option.precios).length > 0) return option.precios
+  return rateArraysToPrecios(option.potRates, option.conRates)
 }
 
 function buildTerminoPotencia(
-  potencias: number[],
-  potRates: number[],
-  accessTariff: string
+  breakdown: ComparadorBillingBreakdown,
+  peaje: string
 ): TerminoPotenciaRow[] {
-  const count = activePeriodCount(accessTariff)
-  return PERIODOS.slice(0, count).map((periodo, idx) => {
-    const kw = potencias[idx] ?? 0
-    const rate = potRates[idx] ?? 0
-    const total = kw * rate * DAYS_IN_YEAR
+  return activePotenciaPeriodSlots(peaje).map((slot, _idx, _slots) => {
+    const index = Number(slot.slice(1)) - 1
+    const kw = breakdown.potencias[index] ?? 0
+    const rate = breakdown.potenciaRates[index] ?? 0
     return {
-      periodo,
+      periodo: PERIODOS[index],
       potenciaContratadaKw: kw,
       precioEurDia: rate,
-      total,
+      total: kw * rate * breakdown.diasFacturacion,
     }
   })
 }
 
 function buildTerminoEnergia(
-  consumos: number[],
-  conRates: number[],
-  accessTariff: string
+  breakdown: ComparadorBillingBreakdown,
+  peaje: string
 ): TerminoEnergiaRow[] {
-  const count = activePeriodCount(accessTariff)
-  return PERIODOS.slice(0, count).map((periodo, idx) => {
-    const kwh = consumos[idx] ?? 0
-    const rate = conRates[idx] ?? 0
-    const total = kwh * rate
+  return activeConsumoPeriodSlots(peaje).map((slot) => {
+    const index = Number(slot.slice(1)) - 1
+    const kwh = breakdown.consumos[index] ?? 0
+    const rate = breakdown.energiaRates[index] ?? 0
     return {
-      periodo,
+      periodo: PERIODOS[index],
       consumoKwh: kwh,
       precioEurKwh: rate,
-      total,
+      total: kwh * rate,
     }
   })
 }
 
-function getDefaultRates(accessTariff: string): { potRates: number[]; conRates: number[] } {
-  if (accessTariff === "2.0TD") {
-    return {
-      potRates: [0.085, 0.028, 0, 0, 0, 0],
-      conRates: [0.172, 0.152, 0.128, 0, 0, 0],
-    }
+function buildOtros(breakdown: ComparadorBillingBreakdown) {
+  const rows = []
+  if (breakdown.alquilerMensual > 0) {
+    rows.push({
+      concepto: "Alquiler equipo",
+      precio: breakdown.alquilerMensual,
+      total: breakdown.alquilerMensual,
+    })
   }
-  if (accessTariff === "3.0TD") {
-    return {
-      potRates: [0.112, 0.092, 0.05, 0.042, 0.026, 0.017],
-      conRates: [0.148, 0.136, 0.12, 0.112, 0.105, 0.094],
-    }
+  if (breakdown.extrasMensual > 0) {
+    rows.push({
+      concepto: "Otros conceptos",
+      precio: breakdown.extrasMensual,
+      total: breakdown.extrasMensual,
+    })
   }
-  return {
-    potRates: [0.108, 0.088, 0.048, 0.04, 0.023, 0.015],
-    conRates: [0.128, 0.115, 0.106, 0.098, 0.09, 0.08],
-  }
+  return rows
 }
 
-function scaleRatesToTargetAnnual(
-  potencias: number[],
-  consumos: number[],
-  potRates: number[],
-  conRates: number[],
-  rentAnnual: number,
-  targetAnnual: number,
-  accessTariff: string
-): { potRates: number[]; conRates: number[] } {
-  const potRows = buildTerminoPotencia(potencias, potRates, accessTariff)
-  const eneRows = buildTerminoEnergia(consumos, conRates, accessTariff)
-  const subtotal = potRows.reduce((a, r) => a + r.total, 0) + eneRows.reduce((a, r) => a + r.total, 0) + rentAnnual
-  if (subtotal <= 0 || targetAnnual <= 0) return { potRates, conRates }
-  const factor = (targetAnnual - rentAnnual) / Math.max(subtotal - rentAnnual, 1)
-  return {
-    potRates: potRates.map((r) => r * factor),
-    conRates: conRates.map((r) => r * factor),
-  }
-}
-
-function buildTarifa(
+function buildTarifaFromBreakdown(
   comercializadora: string,
   nombreTarifa: string,
-  potencias: number[],
-  consumos: number[],
-  potRates: number[],
-  conRates: number[],
-  rentAnnual: number,
-  accessTariff: string,
-  targetAnnual?: number
+  breakdown: ComparadorBillingBreakdown,
+  peaje: string
 ): TarifaEstudioAhorro {
-  let rates = { potRates, conRates }
-  if (targetAnnual != null && targetAnnual > 0) {
-    rates = scaleRatesToTargetAnnual(
-      potencias,
-      consumos,
-      potRates,
-      conRates,
-      rentAnnual,
-      targetAnnual,
-      accessTariff
-    )
-  }
-
-  const terminoPotencia = buildTerminoPotencia(potencias, rates.potRates, accessTariff)
-  const terminoEnergia = buildTerminoEnergia(consumos, rates.conRates, accessTariff)
-  const potenciaTotal = terminoPotencia.reduce((a, r) => a + r.total, 0)
-  const energiaTotal = terminoEnergia.reduce((a, r) => a + r.total, 0)
-  const baseImponible = potenciaTotal + energiaTotal + rentAnnual
-  const iva = baseImponible * (IVA_PCT / 100)
-  const totalFactura = baseImponible + iva
-
   return {
     comercializadora,
     nombreTarifa,
-    terminoPotencia,
-    terminoEnergia,
-    otrosConceptos: rentAnnual > 0
-      ? [{ concepto: "Alquiler equipo", precio: rentAnnual / 12, total: rentAnnual }]
-      : [],
+    terminoPotencia: buildTerminoPotencia(breakdown, peaje),
+    terminoEnergia: buildTerminoEnergia(breakdown, peaje),
+    otrosConceptos: buildOtros(breakdown),
     ivaPct: IVA_PCT,
-    totalFactura,
+    totalFactura: breakdown.totalMensual,
   }
 }
 
-function inferCompanyFromTariffName(tariffName: string): string {
-  const lower = tariffName.toLowerCase()
-  if (lower.includes("enerluz") || lower.includes("enersave")) return "EnerLuz"
-  if (lower.includes("iberdrola")) return "Iberdrola"
-  if (lower.includes("endesa")) return "Endesa"
-  if (lower.includes("naturgy")) return "Naturgy"
-  if (lower.includes("repsol")) return "Repsol"
-  if (lower.includes("axpo")) return "Axpo"
-  return "Comercializadora"
+function lumpSumActualTarifa(
+  comercializadora: string,
+  nombreTarifa: string,
+  monthly: number
+): TarifaEstudioAhorro {
+  return {
+    comercializadora,
+    nombreTarifa,
+    terminoPotencia: [],
+    terminoEnergia: [],
+    otrosConceptos:
+      monthly > 0
+        ? [{ concepto: "Factura actual", precio: monthly, total: monthly }]
+        : [],
+    ivaPct: IVA_PCT,
+    totalFactura: monthly,
+  }
 }
 
 export function mapComparadorToEstudioAhorro(
   params: MapComparadorEstudioAhorroParams
 ): EstudioAhorroInput {
-  const potencias = potenciaValues(params.potencias)
-  const consumos = consumoValues(params.consumos)
-  const rentAnnual = params.rentMeterMonthly * 12
-  const currentAnnual =
-    params.currentBillMonthly > 0
-      ? params.currentBillMonthly * 12
-      : params.summary.currentAnnualExpense
+  const peaje = normalizeComparadorAccessTariff(params.accessTariff)
+  const dias = normalizeComparadorDiasFacturacion(params.diasFacturacion)
+  const extras = {
+    alquilerContador: params.rentMeterMonthly,
+    bonoSocial: params.bonoSocial ?? 0,
+    energiaReactiva: params.energiaReactiva ?? 0,
+    otrosCostesSva: params.otrosCostesSva ?? 0,
+    diasFacturacion: dias,
+  }
+  const preciosActualesPotencia = params.preciosPotenciaActual ?? emptyPeriodValues()
+  const preciosActualesEnergia = params.preciosEnergiaActual ?? emptyPeriodValues()
+  const hasActualPrices = Object.values({
+    ...preciosActualesPotencia,
+    ...preciosActualesEnergia,
+  }).some((value) => Number(value) > 0)
 
-  const currentDefaults = getDefaultRates(params.accessTariff)
-  const currentPotRates = currentDefaults.potRates.map((r) => r * 1.12)
-  const currentConRates = currentDefaults.conRates.map((r) => r * 1.12)
+  const actualBreakdown = hasActualPrices
+    ? calcularCosteComparadorDesdePreciosActuales(
+        params.potencias,
+        params.consumos,
+        preciosActualesPotencia,
+        preciosActualesEnergia,
+        peaje,
+        params.rentMeterMonthly,
+        extras
+      )
+    : null
 
-  const proposedPotRates = params.bestOption.potRates ?? currentDefaults.potRates
-  const proposedConRates = params.bestOption.conRates ?? currentDefaults.conRates
-
-  const tarifaActual = buildTarifa(
-    params.comercializadoraActual ?? "Comercializadora actual",
-    params.tarifaActualNombre ?? "Tarifa actual",
-    potencias,
-    consumos,
-    currentPotRates,
-    currentConRates,
-    rentAnnual,
-    params.accessTariff,
-    currentAnnual
+  const offerPrecios = resolveOfferPrecios(params.bestOption)
+  const { breakdown: proposedBreakdown } = calcularCosteComparadorDesdeTariffPrecios(
+    offerPrecios,
+    peaje,
+    { potencias: params.potencias, consumos: params.consumos },
+    extras,
+    params.rentMeterMonthly
   )
 
-  const tarifaPropuesta = buildTarifa(
+  const tarifaActual = actualBreakdown
+    ? buildTarifaFromBreakdown(
+        params.comercializadoraActual ?? "Comercializadora actual",
+        params.tarifaActualNombre || "Tarifa actual",
+        actualBreakdown,
+        peaje
+      )
+    : lumpSumActualTarifa(
+        params.comercializadoraActual ?? "Comercializadora actual",
+        params.tarifaActualNombre || "Tarifa actual",
+        params.currentBillMonthly > 0
+          ? params.currentBillMonthly
+          : params.summary.currentAnnualExpense / COMPARADOR_MESES_ANUAL
+      )
+
+  const tarifaPropuesta = buildTarifaFromBreakdown(
     params.bestOption.companyName,
     params.bestOption.tariffName,
-    potencias,
-    consumos,
-    proposedPotRates,
-    proposedConRates,
-    rentAnnual,
-    params.accessTariff,
-    params.bestOption.annualCost
+    proposedBreakdown,
+    peaje
   )
 
-  const ahorroPorFacturaEur = Math.max(0, tarifaActual.totalFactura - tarifaPropuesta.totalFactura)
+  const ahorroPorFacturaEur = tarifaActual.totalFactura - tarifaPropuesta.totalFactura
   const ahorroPorFacturaPct =
     tarifaActual.totalFactura > 0
       ? (ahorroPorFacturaEur / tarifaActual.totalFactura) * 100
       : 0
-  const ahorroAnualEur = Math.max(0, params.summary.maxAnnualSavings)
-  const ahorroAnualPct =
-    currentAnnual > 0 ? (ahorroAnualEur / currentAnnual) * 100 : params.summary.maxSavingsPercentage
+  const ahorroAnualEur = ahorroPorFacturaEur * COMPARADOR_MESES_ANUAL
+  const ahorroAnualPct = ahorroPorFacturaPct
 
   return {
     cliente: {
@@ -320,51 +313,48 @@ export function mapComparadorHistoryListToEstudioAhorroConjunto(
 export function mapComparadorHistoryToEstudioAhorro(
   params: ComparadorHistoryPdfParams
 ): EstudioAhorroInput {
-  const accessTariff = normalizeComparadorAccessTariff(params.accessTariff)
-  const defaults = getDefaultRates(accessTariff)
-  const potencias =
-    accessTariff === "2.0TD"
-      ? { p1: 4.6, p2: 4.6, p3: 0, p4: 0, p5: 0, p6: 0 }
-      : { p1: 15, p2: 15, p3: 10, p4: 10, p5: 5, p6: 5 }
-  const consumos =
-    accessTariff === "2.0TD"
-      ? { p1: 1200, p2: 900, p3: 1500, p4: 0, p5: 0, p6: 0 }
-      : { p1: 8000, p2: 7000, p3: 6000, p4: 5000, p5: 4000, p6: 3000 }
+  if (params.snapshot) {
+    return mapComparadorToEstudioAhorro(params.snapshot)
+  }
 
-  const company = params.bestTariffCompany ?? inferCompanyFromTariffName(params.bestTariffName)
-  const proposedAnnual = Math.max(0, params.currentAnnualExpense - params.maxAnnualSavings)
-  const savingsPct =
-    params.currentAnnualExpense > 0
-      ? (params.maxAnnualSavings / params.currentAnnualExpense) * 100
-      : 0
+  const accessTariff = normalizeComparadorAccessTariff(params.accessTariff)
+  const currentMonthly = params.currentAnnualExpense / COMPARADOR_MESES_ANUAL
+  const proposedMonthly = Math.max(
+    0,
+    (params.currentAnnualExpense - params.maxAnnualSavings) / COMPARADOR_MESES_ANUAL
+  )
 
   return mapComparadorToEstudioAhorro({
     clienteNombre: params.clientName,
     cups: params.cups,
     accessTariff,
-    tarifaActualNombre: "Tarifa actual estimada",
+    tarifaActualNombre: "Tarifa actual",
     comercializadoraActual: "Comercializadora actual",
-    potencias,
-    consumos,
-    rentMeterMonthly: 1.84,
-    currentBillMonthly: params.currentAnnualExpense / 12,
+    potencias: emptyPeriodValues(),
+    consumos: emptyPeriodValues(),
+    rentMeterMonthly: 0,
+    currentBillMonthly: currentMonthly,
     bestOption: {
-      companyName: company,
+      companyName: params.bestTariffCompany ?? "Comercializadora",
       tariffName: params.bestTariffName,
-      annualCost: proposedAnnual,
+      annualCost: proposedMonthly * COMPARADOR_MESES_ANUAL,
       potenciaBreakdown: 0,
       consumoBreakdown: 0,
       rentCostAnnual: 0,
       savingsAnnual: params.maxAnnualSavings,
-      savingsPercentage: savingsPct,
-      potRates: defaults.potRates,
-      conRates: defaults.conRates,
+      savingsPercentage:
+        params.currentAnnualExpense > 0
+          ? (params.maxAnnualSavings / params.currentAnnualExpense) * 100
+          : 0,
     },
     summary: {
       bestTariffName: params.bestTariffName,
-      bestTariffCompany: company,
+      bestTariffCompany: params.bestTariffCompany ?? "Comercializadora",
       maxAnnualSavings: params.maxAnnualSavings,
-      maxSavingsPercentage: savingsPct,
+      maxSavingsPercentage:
+        params.currentAnnualExpense > 0
+          ? (params.maxAnnualSavings / params.currentAnnualExpense) * 100
+          : 0,
       currentAnnualExpense: params.currentAnnualExpense,
     },
   })

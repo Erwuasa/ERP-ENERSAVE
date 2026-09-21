@@ -128,6 +128,37 @@ export async function updateErpComercial(
   return { ok: true, data: mapRow(row) }
 }
 
+export async function saveStaffCommissionPercentage(
+  id: string,
+  commissionPercentage: number
+): Promise<ErpComercialResult<ErpComercialRow>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return clientOrError
+  }
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { data, error } = await client.rpc("save_staff_commission_v1", {
+    p_user_id: id,
+    p_commission_percentage: commissionPercentage,
+  })
+  if (error) {
+    const message =
+      error.message.includes("not authorized") || error.code === "42501"
+        ? "Solo el superadmin puede guardar la comisión visible."
+        : error.message.includes("only applies to comercial")
+          ? "La comisión visible solo aplica a comerciales y jefes comerciales."
+          : error.message.includes("between 0 and 100")
+            ? "La comisión debe estar entre 0 y 100."
+            : error.message.includes("user not found")
+              ? "Usuario no encontrado."
+              : error.message
+    return { ok: false, message }
+  }
+  const row = data as Record<string, unknown> | null
+  if (!row) return { ok: false, message: "Usuario no encontrado tras guardar comisión" }
+  return { ok: true, data: mapRow(row) }
+}
+
 export async function saveStaffPermissions(
   id: string,
   permissions: Profile["permissions"]

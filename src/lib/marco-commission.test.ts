@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
+import { formatMarcoComisionFijaUsuario } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "./marco-commission"
 
 const formatCurrency = (value: number) => `${value.toFixed(2)} €`
@@ -35,6 +36,25 @@ function makeNaturgyBaseEntry(): MarcoRetributivoEntry {
     ],
   }
 }
+
+describe("formatMarcoComisionFijaUsuario", () => {
+  it("escala la comisión base del superadmin al porcentaje del comercial", () => {
+    const entry: MarcoRetributivoEntry = {
+      id: "naturgy-por-uso",
+      compania: "Naturgy",
+      tarifa: "Por uso",
+      tipo: "luz",
+      peaje: "2.0TD",
+      condiciones: "",
+      comisionTipo: "fija",
+      comisionBase: 80,
+      comisionUnidad: "eur_cups",
+      vigenciaMeses: 12,
+    }
+    expect(formatMarcoComisionFijaUsuario(entry, 50, formatCurrency)).toBe("40.00 €")
+    expect(formatMarcoComisionFijaUsuario(entry, 100, formatCurrency)).toBe("80.00 €")
+  })
+})
 
 describe("estimateMarcoCommissionEur Naturgy tramos", () => {
   it("aplica comisión fija por debajo de 10 MWh", () => {

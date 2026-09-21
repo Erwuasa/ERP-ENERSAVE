@@ -1,5 +1,6 @@
 import { LiquidacionesInternasPanel } from "@/components/LiquidacionesInternasPanel"
 import { SensitiveScreenShell } from "@/components/SensitiveScreenShell"
+import { canViewRetrocommissions } from "@/lib/staff-permissions"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 
 export function LiquidacionesInternasPage() {
@@ -45,6 +46,7 @@ export function LiquidacionesInternasPage() {
         fiscalProfileComplete={activeUserFiscalComplete}
         onGenerateAutofactura={handleGenerateAutofactura}
         onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
+        canViewRetrocommissions={canViewRetrocommissions(activeRole, activeUser.permissions)}
       />
     </SensitiveScreenShell>
   )

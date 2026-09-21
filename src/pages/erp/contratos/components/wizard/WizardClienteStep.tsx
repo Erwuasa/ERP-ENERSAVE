@@ -1,7 +1,13 @@
 import { ChevronDown, ChevronRight } from "lucide-react"
+import { useMemo, useState } from "react"
 import { buildClientNameFromForm, type NewContractFormState, type TipoClienteContrato } from "@/lib/contract-registration"
 import type { Client } from "@/types/client"
-import { ClientPortfolioSearch } from "@/components/contratos/ClientPortfolioSearch"
+import { ClientPortfolioSearch, ClientSuggestList } from "@/components/contratos/ClientPortfolioSearch"
+import {
+  clientToContractFormPatch,
+  rankPortfolioMatches,
+  visiblePortfolioClients,
+} from "@/lib/client-portfolio-search"
 import {
   TIPO_CLIENTE_OPTIONS,
   WIZARD_INPUT_CLASS,
@@ -12,6 +18,8 @@ type Props = {
   form: NewContractFormState
   clients: Client[]
   activeUserId: string
+  activeRole: string
+  teamMemberIds?: string[]
   empresaOpen: boolean
   setEmpresaOpen: (open: boolean | ((prev: boolean) => boolean)) => void
   cpLookupLoading: boolean
@@ -25,6 +33,8 @@ export function WizardClienteStep({
   form,
   clients,
   activeUserId,
+  activeRole,
+  teamMemberIds = [],
   empresaOpen,
   setEmpresaOpen,
   cpLookupLoading,
@@ -33,21 +43,55 @@ export function WizardClienteStep({
   handleApellidosChange,
   handleCodigoPostalChange,
 }: Props) {
+  const [nombreFocused, setNombreFocused] = useState(false)
+  const portfolio = useMemo(
+    () =>
+      visiblePortfolioClients({
+        clients,
+        activeRole,
+        activeUserId,
+        teamMemberIds,
+      }),
+    [clients, activeRole, activeUserId, teamMemberIds]
+  )
+  const nombreMatches = useMemo(
+    () => (form.clientNombre.trim().length >= 1 ? rankPortfolioMatches(portfolio, form.clientNombre, 8) : []),
+    [portfolio, form.clientNombre]
+  )
+  const showNombreSuggest = nombreFocused && form.clientNombre.trim().length >= 1 && nombreMatches.length > 0
+
+  function selectExistingClient(client: Client) {
+    onChange(clientToContractFormPatch(client))
+    setNombreFocused(false)
+  }
+
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
       <div className="shrink-0">
-        <ClientPortfolioSearch clients={clients} activeUserId={activeUserId} onSelectClient={onChange} />
+        <ClientPortfolioSearch
+          clients={clients}
+          activeUserId={activeUserId}
+          activeRole={activeRole}
+          teamMemberIds={teamMemberIds}
+          onSelectClient={onChange}
+        />
       </div>
 
       <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 flex-1 min-h-0 content-start">
-        <div className="col-span-12 sm:col-span-4">
+        <div className="col-span-12 sm:col-span-4 relative">
           <label className={WIZARD_LABEL_CLASS}>Nombre</label>
           <input
             type="text"
             value={form.clientNombre}
             onChange={(e) => handleNombreChange(e.target.value)}
+            onFocus={() => setNombreFocused(true)}
+            onBlur={() => window.setTimeout(() => setNombreFocused(false), 150)}
+            autoComplete="off"
             className={`${WIZARD_INPUT_CLASS} py-1.5`}
           />
+          {showNombreSuggest ? (
+            <ClientSuggestList clients={nombreMatches} onSelect={selectExistingClient} />
+          ) : null}
         </div>
         <div className="col-span-12 sm:col-span-4">
           <label className={WIZARD_LABEL_CLASS}>Apellidos</label>

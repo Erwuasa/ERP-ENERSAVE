@@ -88,10 +88,10 @@ function escapeIlikePattern(value: string): string {
   return value.replace(/[%_\\]/g, "\\$&")
 }
 
-/** Búsqueda en cartera del comercial (debounce en el cliente, ~250ms). */
+/** Búsqueda en cartera. `comercialId` acota a un comercial; superadmin/tramitación lo omiten. */
 export async function searchClientes(options: {
   query?: string
-  comercialId: string
+  comercialId?: string
   limit?: number
 }): Promise<SupabaseResult<Client[]>> {
   const resolved = resolveSupabaseClient()
@@ -103,14 +103,15 @@ export async function searchClientes(options: {
   let request = resolved.client
     .from(TABLE)
     .select("*")
-    .eq("comercial_id", comercialId)
     .order("nombre", { ascending: true })
     .limit(limit)
+
+  if (comercialId) request = request.eq("comercial_id", comercialId)
 
   if (trimmed) {
     const pattern = `%${escapeIlikePattern(trimmed)}%`
     request = request.or(
-      `nombre.ilike.${pattern},nif_cif.ilike.${pattern},email.ilike.${pattern}`
+      `nombre.ilike.${pattern},apellidos.ilike.${pattern},nif_cif.ilike.${pattern},email.ilike.${pattern},telefono.ilike.${pattern}`
     )
   }
 
@@ -124,9 +125,10 @@ function compactDocumento(value: string): string {
   return value.replace(/[\s.-]/g, "").toUpperCase()
 }
 
-/** Un NIF/CIF = un cliente, sin filtrar por comercial. */
+/** Busca un NIF/CIF. Si se pasa comercialId, solo en esa cartera. */
 export async function findClienteByDocumento(
-  documento: string
+  documento: string,
+  options?: { comercialId?: string }
 ): Promise<SupabaseResult<Client | null>> {
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return resolved
@@ -134,12 +136,15 @@ export async function findClienteByDocumento(
   const compact = compactDocumento(documento)
   if (!compact) return { ok: true, data: null }
 
-  const { data, error } = await resolved.client
+  let request = resolved.client
     .from(TABLE)
     .select("*")
     .or(`nif_cif.eq.${documento.trim()},nif_cif.ilike.${compact}`)
     .limit(20)
 
+  if (options?.comercialId) request = request.eq("comercial_id", options.comercialId)
+
+  const { data, error } = await request
   if (error) return toFailure(error)
 
   const match = (data ?? [])
@@ -160,7 +165,7 @@ export async function createCliente(client: Client): Promise<SupabaseResult<Clie
 
   const documento = client.documento?.trim()
   if (documento) {
-    const existing = await findClienteByDocumento(documento)
+    const existing = await findClienteByDocumento(documento, { comercialId: client.comercialId })
     if (existing.ok && existing.data) return { ok: true, data: existing.data }
   }
 
@@ -169,6 +174,8 @@ export async function createCliente(client: Client): Promise<SupabaseResult<Clie
   const { data, error } = await resolved.client.from(TABLE).insert(row).select("*").single()
   if (error) {
     if (error.code === "23505" && documento) {
+      const inCartera = await findClienteByDocumento(documento, { comercialId: client.comercialId })
+      if (inCartera.ok && inCartera.data) return { ok: true, data: inCartera.data }
       const existing = await findClienteByDocumento(documento)
       if (existing.ok && existing.data) return { ok: true, data: existing.data }
     }

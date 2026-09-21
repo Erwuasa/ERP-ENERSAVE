@@ -23,7 +23,8 @@ export function ProtectedRoute({
   }
 
   if (!isLoggedIn) {
-    return <Navigate to={ROUTES.login} state={{ from: location }} replace />
+    const loginPath = `${ROUTES.login}${location.search}`
+    return <Navigate to={loginPath} state={{ from: location }} replace />
   }
 
   if (area === "staff" && !isStaffRole(activeUser.role)) {

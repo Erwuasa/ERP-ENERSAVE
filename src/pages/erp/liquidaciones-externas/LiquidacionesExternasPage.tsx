@@ -46,6 +46,7 @@ export function LiquidacionesExternasPage({ ws }: Props) {
       formatCurrency={formatCurrency}
       setLiquidacionesConsolidadasView={setLiquidacionesConsolidadasView}
       renderCompaniaLogo={renderCompaniaLogo}
+      staffPermissions={activeUser.permissions}
     />
   )
 }

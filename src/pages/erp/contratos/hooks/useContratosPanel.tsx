@@ -74,6 +74,7 @@ type Options = {
   canMutateContract?: (contract: Contract) => boolean
   reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
+  canExportDatabase?: boolean
 }
 
 export function useContratosPanel({
@@ -96,6 +97,7 @@ export function useContratosPanel({
   canMutateContract,
   reviewedContractIds,
   tarifaRecommendations,
+  canExportDatabase = false,
 }: Options) {
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const [ocrLoading, setOcrLoading] = useState(false)
@@ -395,6 +397,10 @@ export function useContratosPanel({
   }, [filtered, contractsListFilter])
 
   function handleExportExcel() {
+    if (!canExportDatabase) {
+      toast.error("No tienes permiso para exportar la base de datos.")
+      return
+    }
     toast.success(`Exportados ${exportContractsToExcel(filtered)} contratos a Excel`)
   }
 

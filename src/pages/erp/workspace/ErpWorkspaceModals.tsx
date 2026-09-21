@@ -16,7 +16,9 @@ export function ErpWorkspaceModals() {
     handleSaveUserRoleToSupabase,
     togglePermission,
     handleSaveUserPermissions,
+    handleSaveUserCommission,
     isSavingPermissions,
+    isSavingCommission,
     handleDeleteUserFromSupabase,
     handleResendInvitation,
     handleResetUserMfa,
@@ -71,6 +73,11 @@ export function ErpWorkspaceModals() {
             savingPermissions={isSavingPermissions}
             onSavePermissions={(permissions) =>
               handleSaveUserPermissions(activeUserForSheet.id, permissions)
+            }
+            canEditCommission={activeRole === "superadmin"}
+            savingCommission={isSavingCommission}
+            onSaveCommission={(commissionPercentage) =>
+              handleSaveUserCommission(activeUserForSheet.id, commissionPercentage)
             }
             onDelete={() => handleDeleteUserFromSupabase(activeUserForSheet.id)}
             canResendInvitation={activeRole === "superadmin"}

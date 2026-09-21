@@ -90,6 +90,7 @@ import {
   filterAutofacturaRecordsForGestion,
 } from "../lib/liquidaciones-tramitacion"
 import type { AutofacturaRecord } from "../types/autofactura-record"
+import { canAlegarLiquidaciones } from "../lib/staff-permissions"
 
 type LiquidacionesTab = "totales" | "pendientes" | "retrocomisiones"
 type JefeLiquidacionesView = "equipo" | "solo"
@@ -148,6 +149,7 @@ interface LiquidacionesInternasPanelProps {
   fiscalProfileComplete?: boolean
   onGenerateAutofactura?: () => Promise<void>
   onOpenFiscalProfile?: () => void
+  canViewRetrocommissions?: boolean
 }
 
 function formatActivationDate(iso: string): string {
@@ -556,6 +558,7 @@ export function LiquidacionesInternasPanel({
   fiscalProfileComplete = false,
   onGenerateAutofactura,
   onOpenFiscalProfile,
+  canViewRetrocommissions = true,
 }: LiquidacionesInternasPanelProps) {
   const [isGeneratingMonthly, setIsGeneratingMonthly] = useState(false)
   const [isGeneratingAutofactura, setIsGeneratingAutofactura] = useState(false)
@@ -585,6 +588,12 @@ export function LiquidacionesInternasPanel({
   const dateFrom = dateRange.from ? toIsoDate(dateRange.from) : defaults.dateFrom
   const dateTo = dateRange.to ? toIsoDate(dateRange.to) : defaults.dateTo
   const [activeTab, setActiveTab] = useState<LiquidacionesTab>("totales")
+
+  useEffect(() => {
+    if (!canViewRetrocommissions && activeTab === "retrocomisiones") {
+      setActiveTab("totales")
+    }
+  }, [canViewRetrocommissions, activeTab])
   const [compania, setCompania] = useState<string>("Todos")
   const [search, setSearch] = useState("")
   const [segmentoSort, setSegmentoSort] = useState<LiquidacionesSortDirection | null>(null)
@@ -835,10 +844,7 @@ export function LiquidacionesInternasPanel({
     return tableRows.filter((row) => row.comercialId !== activeUserId)
   }, [activeRole, activeUserId, jefeTeamView, tableRows])
 
-  const showRowActions =
-    activeRole === "comercial" ||
-    activeRole === "jefe_comercial" ||
-    isAdminLiquidaciones
+  const showRowActions = canAlegarLiquidaciones(activeRole)
 
   const showAlegacionIcon = useCallback(
     (row: LiquidacionInternaRow) => {
@@ -857,6 +863,7 @@ export function LiquidacionesInternasPanel({
   )
 
   function openAlegacionChat(row: LiquidacionInternaRow) {
+    if (!canAlegarLiquidaciones(activeRole)) return
     const existing = alegacionBySettlementId.get(row.settlement.id) ?? null
     const originalRow = scopedBaseRows.find((item) => item.settlement.id === row.settlement.id)
     setChatRow(row)
@@ -1093,14 +1100,18 @@ export function LiquidacionesInternasPanel({
       icon: Clock,
       tone: "amber",
     },
-    {
-      id: "retrocomisiones",
-      label: "Retrocomisiones",
-      value: kpiRetro,
-      hint: "Importes negativos / clawback",
-      icon: Undo2,
-      tone: "rose",
-    },
+    ...(canViewRetrocommissions
+      ? [
+          {
+            id: "retrocomisiones" as const,
+            label: "Retrocomisiones",
+            value: kpiRetro,
+            hint: "Importes negativos / clawback",
+            icon: Undo2,
+            tone: "rose" as const,
+          },
+        ]
+      : []),
   ]
 
   const tableCommonProps = {

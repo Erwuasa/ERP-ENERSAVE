@@ -128,8 +128,9 @@ export function AppShell({
       activeModule,
       activeRole,
       superadminViewMode,
+      staffPermissions: activeUser.permissions,
     }),
-    [activeModule, activeRole, superadminViewMode]
+    [activeModule, activeRole, superadminViewMode, activeUser.permissions]
   )
   const menuOptions = useMemo(
     () => getVisibleSidebarItems(sidebarVisibilityOptions),
