@@ -1,4 +1,4 @@
-import type { StaffRole } from "@/types/profile"
+import type { Profile, StaffRole } from "@/types/profile"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 
 export type ErpComercialRole = StaffRole
@@ -18,6 +18,7 @@ export interface ErpComercialRow {
   telefono?: string | null
   iban?: string | null
   integrity_guard_bypass?: boolean
+  permissions?: unknown
 }
 
 export type ErpComercialResult<T> =
@@ -25,7 +26,7 @@ export type ErpComercialResult<T> =
   | { ok: false; message: string }
 
 const STAFF_SELECT =
-  "id, full_name, role, manager_id, email, commission_percentage, activo, dni, direccion, ciudad, codigo_postal, telefono, iban, integrity_guard_bypass"
+  "id, full_name, role, manager_id, email, commission_percentage, activo, dni, direccion, ciudad, codigo_postal, telefono, iban, integrity_guard_bypass, permissions"
 
 function isStaffRole(value: string): value is ErpComercialRole {
   return (
@@ -54,6 +55,7 @@ function mapRow(row: Record<string, unknown>): ErpComercialRow {
     telefono: (row.telefono as string | null) ?? null,
     iban: (row.iban as string | null) ?? null,
     integrity_guard_bypass: row.integrity_guard_bypass === true,
+    permissions: row.permissions ?? {},
   }
 }
 
@@ -80,6 +82,7 @@ export async function listErpComerciales(): Promise<ErpComercialResult<ErpComerc
     .from("user_profiles")
     .select(STAFF_SELECT)
     .neq("role", "customer")
+    .not("activo", "eq", false)
     .order("full_name")
 
   if (error) return mapError(error)
@@ -122,6 +125,33 @@ export async function updateErpComercial(
   if (error) return mapError(error)
   const row = data as Record<string, unknown> | null
   if (!row) return { ok: false, message: "Usuario no encontrado tras actualizar" }
+  return { ok: true, data: mapRow(row) }
+}
+
+export async function saveStaffPermissions(
+  id: string,
+  permissions: Profile["permissions"]
+): Promise<ErpComercialResult<ErpComercialRow>> {
+  const clientOrError = requireClient()
+  if (typeof clientOrError === "object" && "ok" in clientOrError && clientOrError.ok === false) {
+    return clientOrError
+  }
+  const client = clientOrError as NonNullable<ReturnType<typeof getSupabaseClient>>
+  const { data, error } = await client.rpc("save_staff_permissions_v1", {
+    p_user_id: id,
+    p_permissions: permissions,
+  })
+  if (error) {
+    const message =
+      error.message.includes("not authorized") || error.code === "42501"
+        ? "Solo el superadmin puede guardar permisos."
+        : error.message.includes("user not found")
+          ? "Usuario no encontrado."
+          : error.message
+    return { ok: false, message }
+  }
+  const row = data as Record<string, unknown> | null
+  if (!row) return { ok: false, message: "Usuario no encontrado tras guardar permisos" }
   return { ok: true, data: mapRow(row) }
 }
 

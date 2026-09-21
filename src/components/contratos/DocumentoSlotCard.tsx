@@ -14,6 +14,7 @@ interface DocumentoSlotCardProps {
   showInlineFileList?: boolean
   countHint?: string
   accept?: string
+  readOnly?: boolean
 }
 
 export function DocumentoSlotCard({
@@ -27,6 +28,7 @@ export function DocumentoSlotCard({
   showInlineFileList = true,
   countHint,
   accept = "image/*,.pdf,.doc,.docx,.mp3,.wav,.m4a,.xls,.xlsx",
+  readOnly = false,
 }: DocumentoSlotCardProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -67,15 +69,21 @@ export function DocumentoSlotCard({
     <div
       className={`rounded-xl border p-3 space-y-2 transition-all ${borderClass}`}
       onDragEnter={(e) => {
+        if (readOnly) return
         e.preventDefault()
         setDragActive(true)
       }}
       onDragLeave={(e) => {
+        if (readOnly) return
         e.preventDefault()
         setDragActive(false)
       }}
-      onDragOver={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        if (readOnly) return
+        e.preventDefault()
+      }}
       onDrop={(e) => {
+        if (readOnly) return
         e.preventDefault()
         setDragActive(false)
         void emitFiles(e.dataTransfer.files)
@@ -89,6 +97,7 @@ export function DocumentoSlotCard({
             {countHint ? ` · ${countHint}` : ` · ${0} pendiente(s)`}
           </p>
         </div>
+        {readOnly ? null : (
         <button
           type="button"
           disabled={uploading}
@@ -98,6 +107,8 @@ export function DocumentoSlotCard({
           <Upload className="w-3 h-3" />
           Adjuntar
         </button>
+        )}
+        {readOnly ? null : (
         <input
           ref={inputRef}
           type="file"
@@ -109,6 +120,7 @@ export function DocumentoSlotCard({
             e.target.value = ""
           }}
         />
+        )}
       </div>
 
       {showInlineFileList && files.length > 0 && (

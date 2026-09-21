@@ -15,6 +15,8 @@ export function ErpWorkspaceModals() {
     isSavingUserSheet,
     handleSaveUserRoleToSupabase,
     togglePermission,
+    handleSaveUserPermissions,
+    isSavingPermissions,
     handleDeleteUserFromSupabase,
     handleResendInvitation,
     handleResetUserMfa,
@@ -66,8 +68,12 @@ export function ErpWorkspaceModals() {
                 },
               })
             }}
+            savingPermissions={isSavingPermissions}
+            onSavePermissions={(permissions) =>
+              handleSaveUserPermissions(activeUserForSheet.id, permissions)
+            }
             onDelete={() => handleDeleteUserFromSupabase(activeUserForSheet.id)}
-            canResendInvitation={activeRole === "superadmin" || activeRole === "tramitacion"}
+            canResendInvitation={activeRole === "superadmin"}
             resendingInvitation={isResendingInvitationId === activeUserForSheet.id}
             onResendInvitation={() => void handleResendInvitation(activeUserForSheet.id)}
             mfaEnrolled={ws.mfaEnrolledIds.includes(activeUserForSheet.id)}

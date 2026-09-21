@@ -119,7 +119,13 @@ export function matchesUserFilters(
 }
 
 export function userIndentLevel(user: AppUser): 0 | 1 | 2 {
-  if (user.role === "customer" || user.role === "superadmin") return 0
-  if (user.role === "jefe_comercial") return 1
-  return user.managerId ? 2 : 1
+  if (
+    user.role === "customer" ||
+    user.role === "superadmin" ||
+    user.role === "jefe_comercial" ||
+    user.role === "tramitacion"
+  ) {
+    return 0
+  }
+  return user.managerId ? 1 : 0
 }

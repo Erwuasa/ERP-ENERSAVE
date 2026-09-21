@@ -25,15 +25,9 @@ export function canUserDeleteContract(
     return false
   }
 
-  if (
-    activeRole === "superadmin" ||
-    activeRole === "tramitacion" ||
-    activeRole === "jefe_comercial"
-  ) {
-    return true
-  }
+  if (activeRole === "superadmin" || activeRole === "tramitacion") return true
 
-  return activeRole === "comercial" && contract.comercialId === activeUserId
+  return contract.comercialId === activeUserId
 }
 
 /** @deprecated Usa isContractDeletable + canUserDeleteContract */

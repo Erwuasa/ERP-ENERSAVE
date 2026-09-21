@@ -100,6 +100,11 @@ export function useErpWorkspace() {
   );
 
   useEffect(() => {
+    if (currentMenuTab === 'Usuarios' && activeRole !== 'superadmin') {
+      navigateToTab('erp', 'Dashboard');
+      return;
+    }
+
     const commercialOnlyTabs = ['Comparador', 'Comparador de Facturas', 'Historial de Comparativas'];
     if (!commercialOnlyTabs.includes(currentMenuTab)) return;
 

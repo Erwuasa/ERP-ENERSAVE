@@ -17,4 +17,15 @@ describe("getVisibleSidebarItems", () => {
     expect(tramitacion.some((item) => item.name === "Usuarios")).toBe(true)
     expect(comercial.some((item) => item.name === "Usuarios")).toBe(true)
   })
+
+  it("oculta Usuarios a tramitación, jefe y comercial", () => {
+    for (const activeRole of ["tramitacion", "jefe_comercial", "comercial"] as const) {
+      const items = getVisibleSidebarItems({
+        activeModule: "erp",
+        activeRole,
+        superadminViewMode: "tramitacion",
+      })
+      expect(items.some((item) => item.name === "Usuarios")).toBe(false)
+    }
+  })
 })

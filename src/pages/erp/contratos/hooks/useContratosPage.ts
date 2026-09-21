@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
@@ -8,6 +8,10 @@ import { formatCurrency } from "@/lib/erp/format-currency"
 import type { ContratosPanelProps } from "@/pages/erp/contratos/components/ContratosPanel"
 import { useContratosTramitacionNotifications } from "@/pages/erp/contratos/hooks/useContratosTramitacionNotifications"
 import { useContratosRecommendations } from "@/pages/erp/contratos/hooks/useContratosRecommendations"
+import {
+  resolveVisibleContracts,
+  type ContractsTeamScope,
+} from "@/lib/contract-visibility"
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
@@ -72,42 +76,32 @@ export function useContratosPage({
     [profiles, activeUserId]
   )
 
-  const teamContracts = useMemo(
+  const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
+  const showTeamScopeFilter = activeRole === "jefe_comercial"
+
+  const visibleContracts = useMemo(
     () =>
-      contracts.filter(
-        (c) => teamMemberIds.includes(c.comercialId) || c.comercialId === activeUser.id
-      ),
-    [contracts, teamMemberIds, activeUser.id]
+      resolveVisibleContracts({
+        contracts,
+        activeRole,
+        activeUserId: activeUser.id,
+        teamMemberIds,
+        currentMenuTab,
+        showOpsUserFilter: showContractsUserFilter,
+        userFilterId: contractsUserFilterId,
+        teamScope,
+      }),
+    [
+      contracts,
+      activeRole,
+      activeUser.id,
+      teamMemberIds,
+      currentMenuTab,
+      showContractsUserFilter,
+      contractsUserFilterId,
+      teamScope,
+    ]
   )
-
-  const myContracts = useMemo(
-    () => contracts.filter((c) => c.comercialId === activeUser.id),
-    [contracts, activeUser.id]
-  )
-
-  const opsAdminContracts = useMemo(() => {
-    if (!showContractsUserFilter || contractsUserFilterId === "all") {
-      return contracts
-    }
-    return contracts.filter((c) => c.comercialId === contractsUserFilterId)
-  }, [contracts, contractsUserFilterId, showContractsUserFilter])
-
-  const visibleContracts = useMemo(() => {
-    if (currentMenuTab === "Mis Contratos" || activeRole === "comercial") {
-      return myContracts
-    }
-    if (activeRole === "jefe_comercial") return teamContracts
-    if (showContractsUserFilter) return opsAdminContracts
-    return contracts
-  }, [
-    currentMenuTab,
-    activeRole,
-    myContracts,
-    teamContracts,
-    showContractsUserFilter,
-    opsAdminContracts,
-    contracts,
-  ])
 
   const canEditContractEstado =
     activeModule === "erp" &&
@@ -146,6 +140,11 @@ export function useContratosPage({
       showUserFilter: showContractsUserFilter,
       userFilterId: contractsUserFilterId,
       onUserFilterChange: setContractsUserFilterId,
+      showTeamScopeFilter,
+      teamScope,
+      onTeamScopeChange: setTeamScope,
+      showComercialColumn:
+        activeRole === "superadmin" || (activeRole === "jefe_comercial" && teamScope === "team"),
       clients,
       setClients,
       setContracts,

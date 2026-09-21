@@ -26,6 +26,7 @@ interface ContratoDetalleTabDocumentosProps {
   onContractUpdated: (contract: Contract) => void
   atDocuments?: AtContractDocument[]
   atDocumentsLoading?: boolean
+  readOnly?: boolean
 }
 
 function toSlotFiles(docs: ContratoDocumentoRecord[]): ContratoDocumentoArchivo[] {
@@ -61,6 +62,7 @@ export function ContratoDetalleTabDocumentos({
   onContractUpdated,
   atDocuments = [],
   atDocumentsLoading = false,
+  readOnly = false,
 }: ContratoDetalleTabDocumentosProps) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [uploadingTipo, setUploadingTipo] = useState<ContratoDocumentoTipoId | null>(null)
@@ -76,6 +78,7 @@ export function ContratoDetalleTabDocumentos({
   const handleUpload = useCallback(
     async (tipoId: ContratoDocumentoTipoId, files: File[]) => {
       if (files.length === 0) return
+      if (readOnly) return
       setUploadingTipo(tipoId)
 
       let latestContract = contract
@@ -125,7 +128,7 @@ export function ContratoDetalleTabDocumentos({
         setUploadingTipo(null)
       }
     },
-    [activeUserId, activeUserName, contract, onContractUpdated]
+    [activeUserId, activeUserName, contract, onContractUpdated, readOnly]
   )
 
   const handleDownload = useCallback(async (doc: ContratoDocumentoRecord) => {
@@ -179,8 +182,9 @@ export function ContratoDetalleTabDocumentos({
             onAddFiles={() => {}}
             allowRemove={false}
             showInlineFileList={false}
-            countHint="o arrastra aquí tus archivos"
-            onUploadRawFiles={(files) => handleUpload(tipo.id, files)}
+            countHint={readOnly ? "solo lectura" : "o arrastra aquí tus archivos"}
+            readOnly={readOnly}
+            onUploadRawFiles={readOnly ? undefined : (files) => handleUpload(tipo.id, files)}
           />
         ))}
       </div>

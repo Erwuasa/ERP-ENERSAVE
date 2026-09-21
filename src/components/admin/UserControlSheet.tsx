@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { motion } from "motion/react"
 import { AppFullScreenPortal } from "@/components/ui/AppFullScreenModal"
-import { Mail, ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
+import { Mail, Save, ShieldCheck, SlidersHorizontal, Trash2, X } from "lucide-react"
 import { mfaStatusLabel } from "@/lib/admin-mfa-policy"
 import { fetchAdminMfaStatus } from "@/lib/supabase/admin-mfa"
 
@@ -41,6 +41,8 @@ interface UserControlSheetProps {
   onChange: (user: UserControlProfile) => void
   onSaveRole: (role: UserControlRole, managerId: string | null) => Promise<void>
   onTogglePermission: (key: keyof UserControlProfile["permissions"]) => void
+  onSavePermissions?: (permissions: UserControlProfile["permissions"]) => Promise<void>
+  savingPermissions?: boolean
   onDelete?: () => void
   mfaEnrolled?: boolean
   mfaLoading?: boolean
@@ -76,6 +78,8 @@ export function UserControlSheet({
   onChange,
   onSaveRole,
   onTogglePermission,
+  onSavePermissions,
+  savingPermissions,
   onDelete,
   mfaEnrolled = false,
   mfaLoading = false,
@@ -321,7 +325,7 @@ export function UserControlSheet({
 
           <div className="space-y-3">
             <span className="text-[10px] font-mono uppercase text-brand-subtext font-bold block border-b border-brand-border pb-2">
-              Permisos (app local)
+              Acciones / permisos
             </span>
             {PERMISSION_ITEMS.map((item) => {
               const isChecked = Boolean(user.permissions[item.key])
@@ -336,8 +340,9 @@ export function UserControlSheet({
                   </div>
                   <button
                     type="button"
+                    disabled={savingPermissions}
                     onClick={() => onTogglePermission(item.key)}
-                    className={`w-9 h-5 rounded-full p-0.5 flex items-center transition-colors ${
+                    className={`w-9 h-5 rounded-full p-0.5 flex items-center transition-colors disabled:opacity-50 ${
                       isChecked ? "bg-cyan-600 justify-end" : "bg-brand-border justify-start"
                     }`}
                     aria-pressed={isChecked}
@@ -347,6 +352,17 @@ export function UserControlSheet({
                 </div>
               )
             })}
+            {onSavePermissions ? (
+              <button
+                type="button"
+                disabled={savingPermissions || saving}
+                onClick={() => void onSavePermissions(user.permissions)}
+                className="w-full py-2.5 text-xs font-bold rounded-xl border border-cyan-500/30 text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/10 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {savingPermissions ? "Guardando…" : "Guardar acciones"}
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -362,8 +378,8 @@ export function UserControlSheet({
               {deleting ? "Eliminando…" : "Eliminar usuario"}
             </button>
             <p className="mt-2 text-[10px] text-brand-subtext text-center">
-              Borra credenciales Auth y revoca el acceso. Si tiene contratos asociados, se
-              conserva el historial sin email ni login.
+              Se elimina de Auth. El mismo correo se puede volver a registrar. Si tiene
+              contratos, el historial se conserva sin acceso de login.
             </p>
           </footer>
         ) : null}

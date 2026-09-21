@@ -71,6 +71,7 @@ type Options = {
   userFilterId?: string
   activeUserId?: string
   activeUserName?: string
+  canMutateContract?: (contract: Contract) => boolean
   reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
 }
@@ -92,6 +93,7 @@ export function useContratosPanel({
   userFilterId = "all",
   activeUserId = "",
   activeUserName = "",
+  canMutateContract,
   reviewedContractIds,
   tarifaRecommendations,
 }: Options) {
@@ -119,6 +121,8 @@ export function useContratosPanel({
   const fechaHasta = contractDateIso?.to ?? ""
 
   const updateContract = (id: string, field: keyof Contract & string, value: unknown) => {
+    const current = visibleContracts.find((item) => item.id === id)
+    if (current && canMutateContract && !canMutateContract(current)) return
     if (field === "estado" && !canEditEstado) return
     // addOptimisticContract shows the edit immediately; if this transition ends
     // without a matching setContracts call below, React reverts it on its own.

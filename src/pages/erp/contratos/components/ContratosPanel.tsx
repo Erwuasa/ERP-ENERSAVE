@@ -13,6 +13,8 @@ import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-p
 import { PANEL_TOOLBAR } from "@/lib/enersave-ui-theme"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
+import type { ContractsTeamScope } from "@/lib/contract-visibility"
+import { canUserMutateContract } from "@/lib/contract-visibility"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
 
@@ -55,6 +57,10 @@ export interface ContratosPanelProps {
   showUserFilter?: boolean
   userFilterId?: string
   onUserFilterChange?: (userId: string) => void
+  showTeamScopeFilter?: boolean
+  teamScope?: ContractsTeamScope
+  onTeamScopeChange?: (scope: ContractsTeamScope) => void
+  showComercialColumn?: boolean
   showTarifaRecommendations?: boolean
   reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
@@ -94,6 +100,10 @@ export function ContratosPanel({
   showUserFilter = false,
   userFilterId = "all",
   onUserFilterChange,
+  showTeamScopeFilter = false,
+  teamScope = "own",
+  onTeamScopeChange,
+  showComercialColumn,
   showTarifaRecommendations = false,
   reviewedContractIds,
   tarifaRecommendations,
@@ -124,6 +134,7 @@ export function ContratosPanel({
     userFilterId,
     activeUserId,
     activeUserName,
+    canMutateContract: (contract) => canUserMutateContract(contract, activeRole, activeUserId),
     reviewedContractIds,
     tarifaRecommendations,
   })
@@ -140,6 +151,9 @@ export function ContratosPanel({
           showUserFilter={showUserFilter}
           userFilterId={userFilterId}
           onUserFilterChange={onUserFilterChange}
+          showTeamScopeFilter={showTeamScopeFilter}
+          teamScope={teamScope}
+          onTeamScopeChange={onTeamScopeChange}
           profiles={profiles}
           estadoFilterUI={vm.estadoFilterUI}
           setEstadoFilterUI={vm.setEstadoFilterUI}
@@ -182,6 +196,7 @@ export function ContratosPanel({
             onDismissRenewalAlert={onDismissRenewalAlert}
             onOpenDetalle={setContratoSeleccionado}
             onEditDraft={onEditDraft}
+            showComercialColumn={showComercialColumn}
           />
         </div>
 
@@ -232,8 +247,10 @@ export function ContratosPanel({
             renderCompaniaLogo={renderCompaniaLogo}
             activeUserId={activeUserId}
             activeUserName={activeUserName}
+            readOnly={!canUserMutateContract(contratoSeleccionado, activeRole, activeUserId)}
             onCompleteDraft={
-              onEditDraft
+              onEditDraft &&
+              canUserMutateContract(contratoSeleccionado, activeRole, activeUserId)
                 ? (contract) => {
                     setContratoSeleccionado(null)
                     onEditDraft(contract)

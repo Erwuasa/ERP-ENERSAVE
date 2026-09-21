@@ -146,6 +146,7 @@ export async function resolveWorkspaceAfterAuth(
       email: item.email,
       commission_percentage: item.commission_percentage,
       activo: item.activo,
+      permissions: item.permissions,
       dni: item.dni,
       direccion: item.direccion,
       ciudad: item.ciudad,

@@ -51,6 +51,7 @@ interface ContratoDetallePanelProps {
   activeUserName: string
   onContractUpdated: (contract: Contract) => void
   onCompleteDraft?: (contract: Contract) => void
+  readOnly?: boolean
 }
 
 function renderActiveTab(
@@ -71,6 +72,7 @@ function renderActiveTab(
     atDocuments?: AtContractDocument[]
     atEmails?: AtContractEmail[]
     atNotesLoading?: boolean
+    readOnly?: boolean
   }
 ) {
   const {
@@ -125,6 +127,7 @@ function renderActiveTab(
           onContractUpdated={onContractUpdated}
           atDocuments={options.atDocuments}
           atDocumentsLoading={options.atNotesLoading}
+          readOnly={options.readOnly}
         />
       )
     case "historial":
@@ -152,6 +155,7 @@ export function ContratoDetallePanel({
   activeUserName,
   onContractUpdated,
   onCompleteDraft,
+  readOnly = false,
 }: ContratoDetallePanelProps) {
   const [activeTab, setActiveTab] = useState<ContratoDetalleTab>("contrato")
   const [isOpen, setIsOpen] = useState(false)
@@ -310,7 +314,7 @@ export function ContratoDetallePanel({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {isDraft && onCompleteDraft ? (
+              {isDraft && onCompleteDraft && !readOnly ? (
                 <button
                   type="button"
                   onClick={() => onCompleteDraft(liveContract)}
@@ -398,6 +402,7 @@ export function ContratoDetallePanel({
                     atDocuments: atExtras.documents,
                     atEmails: atExtras.emails,
                     atNotesLoading: atExtras.loading,
+                    readOnly,
                   })}
                 </section>
               ))}

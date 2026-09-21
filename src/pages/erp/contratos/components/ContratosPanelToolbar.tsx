@@ -8,6 +8,7 @@ import { SelectFilterDropdown } from "@/components/ui/SelectFilterDropdown"
 import type { ContractEstadoUiFilter } from "@/lib/contract-estado-kpis"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { DateRangePickerValue } from "@/lib/date-range"
+import type { ContractsTeamScope } from "@/lib/contract-visibility"
 import { profileRoleLabel, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { SEARCH_INPUT } from "@/lib/enersave-ui-theme"
 import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
@@ -21,6 +22,9 @@ type Props = {
   showUserFilter: boolean
   userFilterId: string
   onUserFilterChange?: (userId: string) => void
+  showTeamScopeFilter?: boolean
+  teamScope?: ContractsTeamScope
+  onTeamScopeChange?: (scope: ContractsTeamScope) => void
   profiles: ProfileOption[]
   estadoFilterUI: ContractEstadoUiFilter
   setEstadoFilterUI: (value: ContractEstadoUiFilter) => void
@@ -46,6 +50,9 @@ export function ContratosPanelToolbar({
   showUserFilter,
   userFilterId,
   onUserFilterChange,
+  showTeamScopeFilter = false,
+  teamScope = "own",
+  onTeamScopeChange,
   profiles,
   estadoFilterUI,
   setEstadoFilterUI,
@@ -86,6 +93,19 @@ export function ContratosPanelToolbar({
             ) : null}
           </div>
 
+          {showTeamScopeFilter && onTeamScopeChange ? (
+            <SelectFilterDropdown
+              label="Vista"
+              value={teamScope}
+              defaultValue="own"
+              options={[
+                { id: "own", label: "Míos" },
+                { id: "team", label: "EQUIPO" },
+              ]}
+              onChange={(next) => onTeamScopeChange(next as ContractsTeamScope)}
+              minWidthClass="min-w-[120px]"
+            />
+          ) : null}
           <SelectFilterDropdown
             label="Vista"
             value={contractsListFilter}
@@ -93,7 +113,6 @@ export function ContratosPanelToolbar({
             options={buildContractsListFilterOptions({ showTarifaRecommendations, current: contractsListFilter })}
             onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
             minWidthClass="min-w-[132px]"
-            maxWidthClass="max-w-[148px]"
           />
         </div>
 

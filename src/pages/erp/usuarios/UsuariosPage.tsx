@@ -56,7 +56,7 @@ export function UsuariosPage() {
     mfaEnrolledIds,
   } = useErpWorkspaceContext()
 
-  if (activeRole !== "superadmin" && activeRole !== "tramitacion") {
+  if (activeRole !== "superadmin") {
     return (
       <UsuariosAccessDenied
         role={activeRole}

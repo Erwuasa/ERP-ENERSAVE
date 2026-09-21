@@ -8,13 +8,35 @@ import {
   type StaffRole,
   type UserRole,
 } from '@/types/profile';
-import { listErpComerciales, updateErpComercial, deleteStaffUser, inviteStaffUser, cancelStaffInvitation } from '@/lib/supabase/erp-comerciales';
+import { listErpComerciales, updateErpComercial, deleteStaffUser, inviteStaffUser, cancelStaffInvitation, saveStaffPermissions, type ErpComercialRow } from '@/lib/supabase/erp-comerciales';
 import { listAppUsers, type AppUser } from '@/lib/supabase/app-users';
 import { fetchAdminMfaSummary, resetAdminMfa } from '@/lib/supabase/admin-mfa';
 import { canResetTargetMfa } from '@/lib/admin-mfa-policy';
 import { sendStaffInvitationEmail } from '@/lib/supabase/staff-invitation';
 import { normalizeStaffEmail } from '@/lib/erp-comercial-id';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
+
+function profilesFromComerciales(rows: ErpComercialRow[]): Profile[] {
+  return rows.map((row) =>
+    profileFromDirectoryRow({
+      id: row.id,
+      full_name: row.full_name,
+      role: row.role,
+      manager_id: row.manager_id,
+      email: row.email,
+      commission_percentage: row.commission_percentage,
+      activo: row.activo,
+      permissions: row.permissions,
+      dni: row.dni,
+      direccion: row.direccion,
+      ciudad: row.ciudad,
+      codigo_postal: row.codigo_postal,
+      telefono: row.telefono,
+      iban: row.iban,
+      integrity_guard_bypass: row.integrity_guard_bypass,
+    })
+  );
+}
 
 interface UseErpUsuariosParams {
   profiles: Profile[];
@@ -47,11 +69,12 @@ export function useErpUsuarios({
   const [mfaResettingUserId, setMfaResettingUserId] = useState<string | null>(null);
   const [isDeletingUserId, setIsDeletingUserId] = useState<string | null>(null);
   const [isResendingInvitationId, setIsResendingInvitationId] = useState<string | null>(null);
+  const [isSavingPermissions, setIsSavingPermissions] = useState<boolean>(false);
 
-  const isErpOpsAdmin = activeRole === 'superadmin' || activeRole === 'tramitacion';
+  const isSuperadmin = activeRole === 'superadmin';
 
   useEffect(() => {
-    if (currentMenuTab !== 'Usuarios' || !isErpOpsAdmin) return;
+    if (currentMenuTab !== 'Usuarios' || !isSuperadmin) return;
 
     let cancelled = false;
     async function loadErpUsers() {
@@ -74,18 +97,7 @@ export function useErpUsuarios({
           console.warn('[Usuarios] Supabase sync:', comerciales.message);
           return;
         }
-        setProfiles(
-          comerciales.data.map((row) =>
-            profileFromDirectoryRow({
-              id: row.id,
-              full_name: row.full_name,
-              role: row.role,
-              manager_id: row.manager_id,
-              email: row.email,
-              commission_percentage: row.commission_percentage,
-            })
-          )
-        );
+        setProfiles(profilesFromComerciales(comerciales.data));
       });
 
       void fetchAdminMfaSummary().then((mfaSummary) => {
@@ -99,7 +111,7 @@ export function useErpUsuarios({
     return () => {
       cancelled = true;
     };
-  }, [currentMenuTab, activeRole, isErpOpsAdmin, setProfiles]);
+  }, [currentMenuTab, activeRole, isSuperadmin, setProfiles]);
 
   const handleAddNewUser = async (e: FormEvent) => {
     e.preventDefault();
@@ -153,18 +165,7 @@ export function useErpUsuarios({
       toast.success(`${fullName} ahora es ${newUserRole}.`);
       const [comerciales, refreshed] = await Promise.all([listErpComerciales(), listAppUsers()]);
       if (comerciales.ok) {
-        setProfiles(
-          comerciales.data.map((row) =>
-            profileFromDirectoryRow({
-              id: row.id,
-              full_name: row.full_name,
-              role: row.role,
-              manager_id: row.manager_id,
-              email: row.email,
-              commission_percentage: row.commission_percentage,
-            })
-          )
-        );
+        setProfiles(profilesFromComerciales(comerciales.data));
       }
       if (refreshed.ok) setAppUsers(refreshed.data);
       return;
@@ -281,7 +282,7 @@ export function useErpUsuarios({
     if (activeRole === 'superadmin') {
       if (
         !confirm(
-          `¿Eliminar a ${label}? Se borrarán sus credenciales de acceso en Supabase Auth y no podrá volver a entrar.`
+          `¿Eliminar a ${label}? Se borrará de Supabase Auth de forma permanente. Podrás volver a registrar el mismo correo más adelante.`
         )
       ) {
         return;
@@ -299,8 +300,8 @@ export function useErpUsuarios({
       toast.success(
         result.data.message ??
           (result.data.mode === 'deleted'
-            ? 'Usuario eliminado correctamente.'
-            : 'Acceso revocado; historial comercial conservado.')
+            ? 'Usuario eliminado de Supabase. Puedes volver a registrar el mismo correo.'
+            : 'Acceso revocado; historial comercial conservado. Puedes volver a registrar el mismo correo.')
       );
       const accounts = await listAppUsers();
       if (accounts.ok) setAppUsers(accounts.data);
@@ -375,26 +376,39 @@ export function useErpUsuarios({
   }
 
   const togglePermission = (userId: string, permKey: keyof Profile['permissions']) => {
-    const user = profiles.find((p) => p.id === userId);
-    const prevValue = user?.permissions[permKey];
-    setProfiles(
-      profiles.map((p) => {
-        if (p.id === userId) {
-          return {
-            ...p,
-            permissions: {
-              ...p.permissions,
-              [permKey]: !p.permissions[permKey],
-            },
-          };
-        }
-        return p;
+    setProfiles((prev) =>
+      prev.map((p) => {
+        if (p.id !== userId) return p;
+        return {
+          ...p,
+          permissions: {
+            ...p.permissions,
+            [permKey]: !p.permissions[permKey],
+          },
+        };
       })
     );
-    toast.success(
-      `Permiso '${permKey}' de ${user?.fullName} se ha cambiado a ${!prevValue ? 'ACTIVADO' : 'DESACTIVADO'}.`
-    );
   };
+
+  async function handleSaveUserPermissions(
+    userId: string,
+    permissions: Profile['permissions']
+  ) {
+    setIsSavingPermissions(true);
+    const result = await saveStaffPermissions(userId, permissions);
+    setIsSavingPermissions(false);
+    if (result.ok === false) {
+      toast.error(result.message);
+      return;
+    }
+    setProfiles((prev) =>
+      prev.map((p) => (p.id === userId ? { ...p, permissions } : p))
+    );
+    setActiveUserForSheet((prev) =>
+      prev && prev.id === userId ? { ...prev, permissions } : prev
+    );
+    toast.success('Permisos guardados en Supabase.');
+  }
 
   return {
     newUserName,
@@ -417,6 +431,7 @@ export function useErpUsuarios({
     setUserStatusFilter,
     isCreatingUser,
     isSavingUserSheet,
+    isSavingPermissions,
     isSyncingErpUsers,
     isDeletingUserId,
     isResendingInvitationId,
@@ -425,6 +440,7 @@ export function useErpUsuarios({
     appUsersError,
     handleAddNewUser,
     handleSaveUserRoleToSupabase,
+    handleSaveUserPermissions,
     handleDeleteUserFromSupabase,
     handleResetUserMfa,
     togglePermission,

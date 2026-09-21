@@ -59,7 +59,7 @@ export function CreateUserModal({
 
             <form onSubmit={handleAddNewUser} className="space-y-4 text-xs">
               <p className="text-[11px] text-brand-subtext leading-relaxed">
-                Crea la invitación en Supabase. El asesor podrá registrarse después con ese email.
+                Crea la invitación en Supabase y envía el correo de registro con acceso temporal.
               </p>
               <div className="space-y-1">
                 <label className="block text-[10px] font-mono text-brand-subtext uppercase font-bold">

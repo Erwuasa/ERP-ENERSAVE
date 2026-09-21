@@ -45,6 +45,11 @@ export function isStaffRole(role: UserRole): boolean {
   return role !== "customer"
 }
 
+/** Superadmin, jefe comercial y tramitación no tienen nadie asignado por encima. */
+export function roleHasNoManager(role: UserRole): boolean {
+  return role === "superadmin" || role === "jefe_comercial" || role === "tramitacion"
+}
+
 export function defaultPermissionsForRole(role: UserRole): Profile["permissions"] {
   if (role === "customer") {
     return {
@@ -70,6 +75,33 @@ export function defaultPermissionsForRole(role: UserRole): Profile["permissions"
     quickSettlement: role !== "comercial",
     exportDatabase: role === "superadmin",
     viewRetrocommissions: role !== "comercial",
+  }
+}
+
+export function mergePermissionsForRole(
+  role: UserRole,
+  stored?: unknown
+): Profile["permissions"] {
+  const defaults = defaultPermissionsForRole(role)
+  if (!stored || typeof stored !== "object" || Array.isArray(stored)) return defaults
+  const src = stored as Record<string, unknown>
+  return {
+    contractsView:
+      typeof src.contractsView === "boolean" ? src.contractsView : defaults.contractsView,
+    comparatorAccess:
+      typeof src.comparatorAccess === "boolean"
+        ? src.comparatorAccess
+        : defaults.comparatorAccess,
+    quickSettlement:
+      typeof src.quickSettlement === "boolean"
+        ? src.quickSettlement
+        : defaults.quickSettlement,
+    exportDatabase:
+      typeof src.exportDatabase === "boolean" ? src.exportDatabase : defaults.exportDatabase,
+    viewRetrocommissions:
+      typeof src.viewRetrocommissions === "boolean"
+        ? src.viewRetrocommissions
+        : defaults.viewRetrocommissions,
   }
 }
 
@@ -105,6 +137,7 @@ export function profileFromDirectoryRow(row: {
   email: string | null
   commission_percentage?: number
   activo?: boolean
+  permissions?: unknown
   dni?: string | null
   direccion?: string | null
   ciudad?: string | null
@@ -117,12 +150,12 @@ export function profileFromDirectoryRow(row: {
     id: row.id,
     fullName: row.full_name,
     role: row.role,
-    managerId: row.manager_id,
+    managerId: roleHasNoManager(row.role) ? null : row.manager_id,
     email: row.email ?? "",
     status: row.activo === false ? "suspendido" : "activo",
     commissionPercentage:
       row.commission_percentage ?? defaultCommissionForRole(row.role),
-    permissions: defaultPermissionsForRole(row.role),
+    permissions: mergePermissionsForRole(row.role, row.permissions),
     dni: row.dni ?? undefined,
     direccion: row.direccion ?? undefined,
     ciudad: row.ciudad ?? undefined,

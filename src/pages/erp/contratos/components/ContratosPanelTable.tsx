@@ -26,6 +26,7 @@ import {
 import type { useEditableCell } from "@/hooks/use-editable-cell"
 import { ContratosTableSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
 import { canUserDeleteContract } from "@/lib/contract-deletion"
+import { canUserMutateContract } from "@/lib/contract-visibility"
 import { ContractQuickActionButton } from "@/components/contratos/ContractQuickActionButton"
 import { TarifaRecommendationPopover } from "@/components/TarifaRecommendationPopover"
 import { RenovacionProximaPopover } from "@/components/RenovacionProximaPopover"
@@ -65,6 +66,7 @@ type Props = {
   onDismissRenewalAlert?: (contractId: string) => void
   onOpenDetalle?: (contract: Contract) => void
   onEditDraft?: (contract: Contract) => void
+  showComercialColumn?: boolean
   /** True while the initial contracts fetch is in flight and there's nothing to show yet. */
   loading?: boolean
 }
@@ -111,12 +113,13 @@ export function ContratosPanelTable({
   onDismissRenewalAlert,
   onOpenDetalle,
   onEditDraft,
+  showComercialColumn,
   loading = false,
 }: Props) {
   const [openRecId, setOpenRecId] = useState<string | null>(null)
   const [openRenewalId, setOpenRenewalId] = useState<string | null>(null)
 
-  const showComercialColumn = activeRole === "superadmin"
+  const showOwnerColumn = showComercialColumn ?? activeRole === "superadmin"
 
   function handleRowClick(event: React.MouseEvent<HTMLTableRowElement>, contract: Contract) {
     if (!onOpenDetalle) return
@@ -141,7 +144,7 @@ export function ContratosPanelTable({
           <col style={{ width: "14%" }} />
           <col style={{ width: "8%" }} />
           <col style={{ width: "8%" }} />
-          {showComercialColumn ? <col style={{ width: "6%" }} /> : null}
+          {showOwnerColumn ? <col style={{ width: "6%" }} /> : null}
         </colgroup>
         <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-brand-surface/95 backdrop-blur-sm">
           <tr>
@@ -185,7 +188,7 @@ export function ContratosPanelTable({
                 ·
               </span>
             </th>
-            {showComercialColumn ? (
+            {showOwnerColumn ? (
               <th className={CONTRACTS_TH}>
                 <span className="block">Comercial</span>
                 <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
@@ -217,6 +220,8 @@ export function ContratosPanelTable({
             const isHighlighted = highlightContractId === c.id
             const isIncompleteRow =
               normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO
+            const canMutate = canUserMutateContract(c, activeRole, activeUserId)
+            const cellReadOnly = { readOnly: !canMutate }
 
             return (
               <tr
@@ -239,12 +244,14 @@ export function ContratosPanelTable({
                   <div className="flex min-w-0 flex-col items-center justify-center gap-1 h-full">
                     <div className="flex w-full min-w-0 justify-center">{renderEstadoCell(c)}</div>
                     {(onEditDraft &&
+                      canMutate &&
                       normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO) ||
                     (onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId)) ||
                     (showTarifaRecommendations && tarifaRecommendations?.has(c.id)) ||
                     contractHasActiveRenewalAlert(c.id, isRenovacionProxima(c)) ? (
                       <div className="flex flex-col items-center gap-1">
                     {onEditDraft &&
+                    canMutate &&
                     normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO ? (
                       <ContractQuickActionButton
                         tone="edit"
@@ -313,16 +320,17 @@ export function ContratosPanelTable({
                 <td className={`${CONTRACTS_TD_LEFT} overflow-hidden`}>
                   <div className="flex flex-col justify-center min-h-[3rem]">
                     <p className="break-words font-semibold leading-snug text-brand-text line-clamp-1">
-                      {renderEditableCell(c, "clientName", { placeholder: "Cliente" })}
+                      {renderEditableCell(c, "clientName", { placeholder: "Cliente", ...cellReadOnly })}
                     </p>
                     <p className="mt-0.5 break-all font-mono text-[10px] text-cyan-600 dark:text-cyan-400 line-clamp-1">
                       {renderEditableCell(c, "cups", {
                         placeholder: "CUPS",
                         className: "font-mono",
+                        ...cellReadOnly,
                       })}
                     </p>
                     <p className="mt-0.5 font-mono text-[9px] text-brand-subtext line-clamp-1">
-                      {renderEditableCell(c, "nif", { placeholder: "NIF/CIF" })}
+                      {renderEditableCell(c, "nif", { placeholder: "NIF/CIF", ...cellReadOnly })}
                     </p>
                   </div>
                 </td>
@@ -330,12 +338,12 @@ export function ContratosPanelTable({
                   <div className="flex flex-col justify-center min-h-[3rem]">
                     <div className="flex items-center justify-between gap-1">
                       <p className="min-w-0 flex-1 break-words font-medium leading-snug text-brand-text line-clamp-1">
-                        {renderEditableCell(c, "compania")}
+                        {renderEditableCell(c, "compania", cellReadOnly)}
                       </p>
                       <ContractSupplyTypeIcon tipo={c.tipo} />
                     </div>
                     <p className="mt-0.5 line-clamp-1 font-mono text-[10px] text-brand-subtext">
-                      {renderEditableCell(c, "tarifa")}
+                      {renderEditableCell(c, "tarifa", cellReadOnly)}
                     </p>
                   </div>
                 </td>
@@ -381,10 +389,10 @@ export function ContratosPanelTable({
                 <td className={`${CONTRACTS_TD} max-w-0`}>
                   <div className="flex flex-col items-center justify-center min-h-[3rem] gap-0.5">
                     <p className="truncate w-full text-[9px] leading-snug text-brand-subtext">
-                      {renderEditableCell(c, "direccionSuministro")}
+                      {renderEditableCell(c, "direccionSuministro", cellReadOnly)}
                     </p>
                     <p className="truncate w-full font-mono text-[10px] text-brand-text">
-                      {renderEditableCell(c, "iban")}
+                      {renderEditableCell(c, "iban", cellReadOnly)}
                     </p>
                   </div>
                 </td>
@@ -426,10 +434,10 @@ export function ContratosPanelTable({
                     </div>
                   )}
                 </td>
-                {showComercialColumn ? (
+                {showOwnerColumn ? (
                   <td className={`${CONTRACTS_TD} font-medium text-brand-text`}>
                     <div className="flex min-h-[3rem] items-center justify-center">
-                      {renderEditableCell(c, "comercialName")}
+                      {renderEditableCell(c, "comercialName", cellReadOnly)}
                     </div>
                   </td>
                 ) : null}

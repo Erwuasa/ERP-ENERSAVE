@@ -37,7 +37,7 @@ function ManagerCell({ user, manager }: { user: AppUser; manager?: { fullName: s
   if (user.role === "customer") {
     return <span className="text-brand-subtext italic text-[10px]">Web / registro</span>
   }
-  if (user.role === "superadmin") {
+  if (user.role === "superadmin" || user.role === "jefe_comercial" || user.role === "tramitacion") {
     return <span className="text-brand-subtext italic text-[10px]">N/A</span>
   }
   if (manager) {
