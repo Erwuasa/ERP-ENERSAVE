@@ -7,14 +7,15 @@ describe("mergePermissionsForRole", () => {
     expect(mergePermissionsForRole("comercial", {})).toEqual(defaultPermissionsForRole("comercial"))
   })
 
-  it("respeta los flags persistidos en Supabase", () => {
+  it("respeta flags persistidos salvo restricciones de rol comercial", () => {
     expect(
       mergePermissionsForRole("comercial", {
         contractsView: false,
         comparatorAccess: true,
+        quickSettlement: true,
       })
     ).toMatchObject({
-      contractsView: false,
+      contractsView: true,
       comparatorAccess: true,
       quickSettlement: false,
     })

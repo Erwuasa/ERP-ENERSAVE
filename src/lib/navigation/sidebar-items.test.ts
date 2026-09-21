@@ -19,7 +19,7 @@ describe("getVisibleSidebarItems", () => {
     expect(comercial.some((item) => item.name === "Usuarios")).toBe(true)
   })
 
-  it("oculta Contratos y Comparador cuando el comercial no tiene permisos", () => {
+  it("mantiene Contratos para comercial y oculta Comparador sin permiso", () => {
     const permissions = {
       ...defaultPermissionsForRole("comercial"),
       contractsView: false,
@@ -32,7 +32,7 @@ describe("getVisibleSidebarItems", () => {
       staffPermissions: permissions,
     })
 
-    expect(items.some((item) => item.name === "Contratos")).toBe(false)
+    expect(items.some((item) => item.name === "Contratos")).toBe(true)
     expect(items.some((item) => item.name === "Comparador")).toBe(false)
     expect(items.some((item) => item.name === "Historial de Comparativas")).toBe(false)
   })

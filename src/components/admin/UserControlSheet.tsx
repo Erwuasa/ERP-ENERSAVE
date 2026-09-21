@@ -75,8 +75,13 @@ const PERMISSION_ITEMS: Array<{
 
 function permissionItemsForRole(role: UserControlRole) {
   return PERMISSION_ITEMS.filter((item) => {
-    if (item.key !== "quickSettlement") return true
-    return role === "tramitacion" || role === "superadmin"
+    if (item.key === "quickSettlement") {
+      return role === "tramitacion" || role === "superadmin"
+    }
+    if (item.key === "contractsView") {
+      return role === "tramitacion"
+    }
+    return true
   })
 }
 

@@ -15,10 +15,16 @@ export function hasStaffPermission(
   return permissions[key] === true
 }
 
+/** Comerciales y jefes siempre ven contratos (propios/equipo); el flag solo restringe tramitación. */
+export function isSalesContractsRole(role: UserRole): boolean {
+  return role === "comercial" || role === "jefe_comercial"
+}
+
 export function canViewContracts(
   role: UserRole,
   permissions: Profile["permissions"]
 ): boolean {
+  if (isSalesContractsRole(role)) return true
   return hasStaffPermission(role, permissions, "contractsView")
 }
 
@@ -70,8 +76,8 @@ export function sanitizeStaffPermissionsForRole(
   role: UserRole,
   permissions: Profile["permissions"]
 ): Profile["permissions"] {
-  if (role === "comercial" || role === "jefe_comercial") {
-    return { ...permissions, quickSettlement: false }
+  if (isSalesContractsRole(role)) {
+    return { ...permissions, quickSettlement: false, contractsView: true }
   }
   return permissions
 }

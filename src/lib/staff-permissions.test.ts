@@ -25,15 +25,25 @@ describe("staff-permissions", () => {
     expect(canExportDatabase("superadmin", denied)).toBe(true)
   })
 
-  it("respeta contractsView y comparatorAccess para comercial", () => {
+  it("comercial siempre puede ver contratos aunque contractsView esté desactivado en BD", () => {
     const permissions = {
       ...defaultPermissionsForRole("comercial"),
       contractsView: false,
       comparatorAccess: false,
     }
 
-    expect(canViewContracts("comercial", permissions)).toBe(false)
+    expect(canViewContracts("comercial", permissions)).toBe(true)
+    expect(canViewContracts("jefe_comercial", permissions)).toBe(true)
     expect(canAccessComparator("comercial", permissions)).toBe(false)
+  })
+
+  it("respeta contractsView para tramitación", () => {
+    const permissions = {
+      ...defaultPermissionsForRole("tramitacion"),
+      contractsView: false,
+    }
+
+    expect(canViewContracts("tramitacion", permissions)).toBe(false)
   })
 
   it("tramitación puede consolidar con quickSettlement activo", () => {
@@ -55,13 +65,15 @@ describe("staff-permissions", () => {
     expect(canAlegarLiquidaciones("comercial")).toBe(true)
   })
 
-  it("elimina quickSettlement al guardar permisos de comercial", () => {
-    expect(
-      sanitizeStaffPermissionsForRole("comercial", {
-        ...defaultPermissionsForRole("comercial"),
-        quickSettlement: true,
-      }).quickSettlement
-    ).toBe(false)
+  it("fuerza quickSettlement false y contractsView true al guardar permisos de comercial", () => {
+    const sanitized = sanitizeStaffPermissionsForRole("comercial", {
+      ...defaultPermissionsForRole("comercial"),
+      quickSettlement: true,
+      contractsView: false,
+    })
+
+    expect(sanitized.quickSettlement).toBe(false)
+    expect(sanitized.contractsView).toBe(true)
   })
 
   it("oculta retrocomisiones cuando viewRetrocommissions es false", () => {

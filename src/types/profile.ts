@@ -106,6 +106,7 @@ export function mergePermissionsForRole(
 
   if (role === "comercial" || role === "jefe_comercial") {
     merged.quickSettlement = false
+    merged.contractsView = true
   }
 
   return merged
