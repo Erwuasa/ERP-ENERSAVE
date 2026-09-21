@@ -28,10 +28,206 @@ export function deriveClienteEstadoFromContracts(contractEstados: Contract["esta
   return "inactivo"
 }
 
+export function normalizeClientDocumento(documento: string | null | undefined): string {
+  return String(documento ?? "").replace(/[\s.-]/g, "").toUpperCase()
+}
+
 export function clientMatchKey(nombre: string, documento: string | undefined, comercialId: string): string {
-  const doc = documento?.trim().toUpperCase()
+  const doc = normalizeClientDocumento(documento)
   if (doc) return `${comercialId}|doc:${doc}`
   return `${comercialId}|name:${nombre.trim().toUpperCase()}`
+}
+
+export function findExistingClient(
+  clients: Client[],
+  input: { nombre: string; documento?: string; comercialId: string; clientId?: string }
+): Client | undefined {
+  if (input.clientId) {
+    const byId = clients.find((client) => client.id === input.clientId)
+    if (byId) return byId
+  }
+
+  const doc = normalizeClientDocumento(input.documento)
+  if (doc) {
+    const byDoc = clients.find((client) => normalizeClientDocumento(client.documento) === doc)
+    if (byDoc) return byDoc
+  }
+
+  const key = clientMatchKey(input.nombre, input.documento, input.comercialId)
+  const byKey = clients.find(
+    (client) => clientMatchKey(client.nombre, client.documento, client.comercialId) === key
+  )
+  if (byKey) return byKey
+
+  const nameKey = input.nombre.trim().toUpperCase()
+  if (!nameKey) return undefined
+  return clients.find(
+    (client) =>
+      client.comercialId === input.comercialId &&
+      client.nombre.trim().toUpperCase() === nameKey
+  )
+}
+
+const PERSISTED_CLIENT_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isPersistedClientId(id: string): boolean {
+  return PERSISTED_CLIENT_ID_RE.test(id)
+}
+
+function clientCompleteness(client: Client): number {
+  return [client.documento, client.email, client.telefono, client.direccion, client.ciudad].filter(Boolean)
+    .length
+}
+
+function preferClient(a: Client, b: Client): Client {
+  if (isPersistedClientId(a.id) !== isPersistedClientId(b.id)) {
+    return isPersistedClientId(a.id) ? a : b
+  }
+  if (Boolean(normalizeClientDocumento(a.documento)) !== Boolean(normalizeClientDocumento(b.documento))) {
+    return normalizeClientDocumento(a.documento) ? a : b
+  }
+  if (a.estado === "activo" && b.estado !== "activo") return a
+  if (b.estado === "activo" && a.estado !== "activo") return b
+  if (clientCompleteness(a) !== clientCompleteness(b)) {
+    return clientCompleteness(a) > clientCompleteness(b) ? a : b
+  }
+  return a.createdAt <= b.createdAt ? a : b
+}
+
+function mergeClientRecord(winner: Client, loser: Client): Client {
+  return {
+    ...winner,
+    documento: winner.documento || loser.documento,
+    telefono: winner.telefono || loser.telefono,
+    email: winner.email || loser.email,
+    direccion: winner.direccion || loser.direccion,
+    codigoPostal: winner.codigoPostal || loser.codigoPostal,
+    ciudad: winner.ciudad || loser.ciudad,
+    provincia: winner.provincia || loser.provincia,
+    apellidos: winner.apellidos || loser.apellidos,
+    atClientId: winner.atClientId || loser.atClientId,
+    cups: winner.cups || loser.cups,
+  }
+}
+
+/** Un cliente = un NIF. Nunca dos filas de la misma persona en cartera. */
+export function dedupeClients(clients: Client[]): { clients: Client[]; idMap: Map<string, string> } {
+  const idMap = new Map<string, string>()
+  const uniqueById: Client[] = []
+  const seenIds = new Set<string>()
+
+  for (const client of clients) {
+    if (!client.id || seenIds.has(client.id)) continue
+    seenIds.add(client.id)
+    uniqueById.push(client)
+    idMap.set(client.id, client.id)
+  }
+
+  function collapse(list: Client[], keyOf: (client: Client) => string | null): Client[] {
+    const groups = new Map<string, Client[]>()
+    const passthrough: Client[] = []
+
+    for (const client of list) {
+      const key = keyOf(client)
+      if (!key) {
+        passthrough.push(client)
+        continue
+      }
+      const group = groups.get(key) ?? []
+      group.push(client)
+      groups.set(key, group)
+    }
+
+    const collapsed: Client[] = [...passthrough]
+    for (const group of groups.values()) {
+      const winner = group.reduce((current, next) => preferClient(current, next))
+      const merged = group.reduce((current, next) => mergeClientRecord(current, next), winner)
+      collapsed.push(merged)
+      for (const client of group) idMap.set(client.id, merged.id)
+    }
+    return collapsed
+  }
+
+  const byDocumento = collapse(uniqueById, (client) => {
+    const doc = normalizeClientDocumento(client.documento)
+    return doc || null
+  })
+  const byAtId = collapse(byDocumento, (client) => client.atClientId?.trim() || null)
+  const byMatchKey = collapse(byAtId, (client) =>
+    clientMatchKey(client.nombre, client.documento, client.comercialId)
+  )
+  const byNameWithoutDoc = collapse(byMatchKey, (client) => {
+    if (normalizeClientDocumento(client.documento)) return null
+    const name = client.nombre.trim().toUpperCase()
+    return name ? `${client.comercialId}|name:${name}` : null
+  })
+
+  const resolved = new Map<string, string>()
+  function resolveId(id: string): string {
+    let current = id
+    const seen = new Set<string>()
+    while (idMap.has(current) && idMap.get(current) !== current && !seen.has(current)) {
+      seen.add(current)
+      current = idMap.get(current) ?? current
+    }
+    return current
+  }
+  for (const [from, to] of idMap) resolved.set(from, resolveId(to))
+
+  return { clients: byNameWithoutDoc, idMap: resolved }
+}
+
+export function normalizeCups(cups: string | null | undefined): string {
+  return String(cups ?? "").replace(/\s/g, "").toUpperCase()
+}
+
+function preferContract(a: Contract, b: Contract): Contract {
+  const aTime = a.updatedAt || a.createdAt
+  const bTime = b.updatedAt || b.createdAt
+  return aTime >= bTime ? a : b
+}
+
+/** CUPS + tipo + estado + cliente. No mezcla suministros de personas distintas. */
+export function contractSupplyKey(contract: Contract): string {
+  const cups = normalizeCups(contract.cups)
+  if (!cups) return `id:${contract.id}`
+  const clientKey =
+    contract.clientId ||
+    normalizeClientDocumento(contract.nif) ||
+    contract.clientName.trim().toUpperCase()
+  return `${cups}|${contract.tipo}|${contract.estado}|${clientKey}`
+}
+
+/** Un contrato = un id. Un CUPS + tipo + estado del mismo cliente no se lista dos veces. */
+export function dedupeContracts(contracts: Contract[]): Contract[] {
+  const byId = new Map<string, Contract>()
+  for (const contract of contracts) {
+    if (!contract.id) continue
+    const prev = byId.get(contract.id)
+    byId.set(contract.id, prev ? preferContract(prev, contract) : contract)
+  }
+
+  const byAtId = new Map<string, Contract>()
+  const withoutAt: Contract[] = []
+  for (const contract of byId.values()) {
+    const atId = contract.atContractId?.trim()
+    if (!atId) {
+      withoutAt.push(contract)
+      continue
+    }
+    const prev = byAtId.get(atId)
+    byAtId.set(atId, prev ? preferContract(prev, contract) : contract)
+  }
+
+  const bySupply = new Map<string, Contract>()
+  for (const contract of [...byAtId.values(), ...withoutAt]) {
+    const key = contractSupplyKey(contract)
+    const prev = bySupply.get(key)
+    bySupply.set(key, prev ? preferContract(prev, contract) : contract)
+  }
+
+  return Array.from(bySupply.values())
 }
 
 export interface UpsertClientInput {
@@ -50,10 +246,11 @@ export function upsertClient(
   clients: Client[],
   input: UpsertClientInput
 ): { clients: Client[]; client: Client } {
-  const key = clientMatchKey(input.nombre, input.documento, input.comercialId)
-  const existing = clients.find(
-    (c) => clientMatchKey(c.nombre, c.documento, c.comercialId) === key
-  )
+  const existing = findExistingClient(clients, {
+    nombre: input.nombre,
+    documento: input.documento,
+    comercialId: input.comercialId,
+  })
 
   const cp = input.codigoPostal || extractCodigoPostal(input.direccion)
 
@@ -149,11 +346,12 @@ export function linkContractsToClients(
 ): Contract[] {
   return contracts.map((c) => {
     if (c.clientId && clients.some((cl) => cl.id === c.clientId)) return c
-    const match = clients.find(
-      (cl) =>
-        clientMatchKey(c.clientName, c.nif, c.comercialId) ===
-        clientMatchKey(cl.nombre, cl.documento, cl.comercialId)
-    )
+    const match = findExistingClient(clients, {
+      clientId: c.clientId,
+      nombre: c.clientName,
+      documento: c.nif,
+      comercialId: c.comercialId,
+    })
     return match ? { ...c, clientId: match.id } : c
   })
 }
@@ -163,36 +361,52 @@ export function mergeErpCrmState(
   clients: Client[],
   contracts: Contract[]
 ): { clients: Client[]; contracts: Contract[] } {
-  const byKey = new Map<string, Client>()
-  const byId = new Map<string, Client>()
+  const { clients: uniqueClients, idMap } = dedupeClients(clients)
+  const remappedContracts = dedupeContracts(
+    contracts.map((contract) => {
+      const mappedId = contract.clientId ? idMap.get(contract.clientId) : undefined
+      return mappedId && mappedId !== contract.clientId
+        ? { ...contract, clientId: mappedId }
+        : contract
+    })
+  )
 
-  for (const client of clients) {
-    byKey.set(clientMatchKey(client.nombre, client.documento, client.comercialId), client)
-    byId.set(client.id, client)
-  }
+  const byId = new Map(uniqueClients.map((client) => [client.id, client]))
+  const mergedClients = [...uniqueClients]
 
-  const mergedClients = [...clients]
-
-  for (const contract of contracts) {
-    if (contract.clientId && byId.has(contract.clientId)) continue
-
-    const key = clientMatchKey(contract.clientName, contract.nif, contract.comercialId)
-    if (byKey.has(key)) continue
+  for (const contract of remappedContracts) {
+    if (findExistingClient(mergedClients, {
+      clientId: contract.clientId,
+      nombre: contract.clientName,
+      documento: contract.nif,
+      comercialId: contract.comercialId,
+    })) {
+      continue
+    }
 
     const [derived] = buildClientsFromContracts([contract])
     if (!derived) continue
 
     const uniqueId = `cli-${contract.id}`
+    if (byId.has(uniqueId)) continue
     const withId = { ...derived, id: uniqueId }
     mergedClients.push(withId)
-    byKey.set(key, withId)
     byId.set(uniqueId, withId)
   }
 
-  const linkedContracts = linkContractsToClients(contracts, mergedClients)
-  const syncedClients = syncClientEstados(mergedClients, linkedContracts)
+  const { clients: collapsedClients, idMap: derivedIdMap } = dedupeClients(mergedClients)
+  const linkedContracts = linkContractsToClients(
+    remappedContracts.map((contract) => {
+      const mappedId = contract.clientId ? derivedIdMap.get(contract.clientId) : undefined
+      return mappedId && mappedId !== contract.clientId
+        ? { ...contract, clientId: mappedId }
+        : contract
+    }),
+    collapsedClients
+  )
+  const syncedClients = syncClientEstados(collapsedClients, linkedContracts)
 
-  return { clients: syncedClients, contracts: linkedContracts }
+  return { clients: syncedClients, contracts: dedupeContracts(linkedContracts) }
 }
 
 export function getContractsForClient(client: Client, contracts: Contract[]): Contract[] {

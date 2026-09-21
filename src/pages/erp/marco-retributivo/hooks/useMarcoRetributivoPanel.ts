@@ -13,6 +13,7 @@ import {
   type NewMarcoEntryInput,
 } from "@/lib/supabase/marco-retributivo"
 import {
+  buildMarcoPeajeFilterOptions,
   filterMarcoRowsForTable,
   marcoCompaniaMatchesFilter,
   marcoPeajeMatchesFilter,
@@ -82,12 +83,25 @@ export function useMarcoRetributivoPanel({
   }, [rows, companiaFilter, tipoFilter, segmentoFilter])
 
   const peajeOptions = useMemo(() => {
-    const set = new Set(scopedRows.map((e) => e.peaje).filter(Boolean))
-    return ["todos", ...Array.from(set).sort()]
-  }, [scopedRows])
+    const byTipoSegmento = rows.filter((entry) => {
+      if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
+      if (
+        segmentoFilter !== "todos" &&
+        normalizeSegmento(entry.segmento) !== segmentoFilter
+      ) {
+        return false
+      }
+      return true
+    })
+    return buildMarcoPeajeFilterOptions(byTipoSegmento.map((entry) => entry.peaje))
+  }, [rows, tipoFilter, segmentoFilter])
 
   const filteredRows = useMemo(() => {
-    const byPeaje = scopedRows.filter((entry) => marcoPeajeMatchesFilter(entry.peaje, peajeFilter))
+    const byPeaje = scopedRows.filter((entry) =>
+      marcoPeajeMatchesFilter(entry.peaje, peajeFilter, {
+        matchGenericToSpecific: companiaFilter !== "Todos",
+      })
+    )
     const expanded = expandMarcoRowsByTramos(byPeaje)
     return filterMarcoRowsForTable(expanded, companiaFilter)
   }, [scopedRows, peajeFilter, companiaFilter])

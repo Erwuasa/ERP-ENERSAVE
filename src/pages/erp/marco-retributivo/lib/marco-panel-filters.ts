@@ -35,14 +35,34 @@ export function buildMarcoTableRowKey(row: MarcoRetributivoRow, index: number): 
   return `${row.compania}::${row.id}::${index}`
 }
 
+export function isMarcoGenericPeaje(entryPeaje: string | null | undefined): boolean {
+  const peaje = String(entryPeaje ?? "").trim().toLowerCase()
+  return !peaje || peaje === "todos" || peaje.includes("todas")
+}
+
+/** Chips 2.0TD / 3.0TD / … sin el peaje genérico "Todas". */
+export function buildMarcoPeajeFilterOptions(peajes: Array<string | null | undefined>): string[] {
+  const set = new Set<string>()
+  for (const raw of peajes) {
+    const peaje = String(raw ?? "").trim()
+    if (!peaje || isMarcoGenericPeaje(peaje)) continue
+    set.add(peaje)
+  }
+  return ["todos", ...Array.from(set).sort((a, b) => a.localeCompare(b, "es"))]
+}
+
 /**
- * Peaje "Todas" aplica a cualquier peaje solo cuando el filtro de peaje está en "todos".
- * Con un peaje concreto (p. ej. 2.0TD) no mezcla filas de otras compañías ni genéricas.
+ * Peaje "Todas" no se mezcla en el listado global con un peaje concreto.
+ * Si la compañía seleccionada solo declara "Todas", sí aplica a 2.0TD / 3.0TD / etc.
  */
-export function marcoPeajeMatchesFilter(entryPeaje: string | null | undefined, filter: string): boolean {
+export function marcoPeajeMatchesFilter(
+  entryPeaje: string | null | undefined,
+  filter: string,
+  options?: { matchGenericToSpecific?: boolean }
+): boolean {
   if (filter === "todos") return true
   const peaje = String(entryPeaje ?? "").trim().toLowerCase()
   if (!peaje) return false
-  if (peaje === "todos" || peaje.includes("todas")) return false
+  if (isMarcoGenericPeaje(peaje)) return options?.matchGenericToSpecific === true
   return peaje.includes(filter.toLowerCase())
 }

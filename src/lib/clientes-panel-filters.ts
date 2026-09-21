@@ -1,6 +1,6 @@
 import type { Client } from "../types/client"
 import type { Contract } from "../types/contract"
-import { getContractsForClient } from "./clients"
+import { dedupeClients, getContractsForClient } from "./clients"
 import { isContractActivado } from "./contract-estado"
 
 export type ClienteTipoFilter = "todos" | "particular" | "empresa"
@@ -46,15 +46,17 @@ export function getVisibleClientsForRole(
   teamMemberIds: string[],
   options?: { superadminComercialScope?: boolean }
 ): Client[] {
-  if (activeRole === "superadmin") {
-    if (options?.superadminComercialScope) {
-      return clients.filter((c) => c.comercialId === activeUserId)
+  const scoped = (() => {
+    if (activeRole === "superadmin") {
+      if (options?.superadminComercialScope) {
+        return clients.filter((c) => c.comercialId === activeUserId)
+      }
+      return clients
     }
-    return clients
-  }
-  if (activeRole === "tramitacion") return clients
-  // Jefe comercial: solo su cartera de clientes (no la del equipo).
-  return clients.filter((c) => c.comercialId === activeUserId)
+    if (activeRole === "tramitacion") return clients
+    return clients.filter((c) => c.comercialId === activeUserId)
+  })()
+  return dedupeClients(scoped).clients
 }
 
 export function applyClientesPanelFilters(

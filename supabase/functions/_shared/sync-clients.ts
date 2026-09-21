@@ -91,6 +91,7 @@ export async function runClientSync() {
     const toUpdateAt: typeof mapped = []
     const toAttach: Array<{ id: string; at_client_id: string }> = []
     let skippedManual = 0
+    let skippedDuplicateNif = 0
 
     for (const row of mapped) {
       const existingId = byAtId.get(row.at_client_id)
@@ -100,9 +101,13 @@ export async function runClientSync() {
       }
       const nif = normalizeNif(row.nif_cif ?? '')
       const match = nif ? byNif.get(nif) : undefined
-      if (match && !match.at_client_id) {
-        toAttach.push({ id: match.id, at_client_id: row.at_client_id })
-        if (match.source === 'manual') skippedManual += 1
+      if (match) {
+        if (!match.at_client_id) {
+          toAttach.push({ id: match.id, at_client_id: row.at_client_id })
+          if (match.source === 'manual') skippedManual += 1
+        } else {
+          skippedDuplicateNif += 1
+        }
         continue
       }
       toInsert.push(row)
@@ -174,6 +179,7 @@ export async function runClientSync() {
         inserted: toInsert.length,
         updated: toUpdateAt.length,
         attached_nif: toAttach.length,
+        skipped_duplicate_nif: skippedDuplicateNif,
         skipped_manual_overwrite: skippedManual,
         upserted,
         deactivated,

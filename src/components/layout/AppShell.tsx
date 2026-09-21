@@ -30,7 +30,6 @@ import { getVisibleSidebarItems, getPreviewSidebarItems, getSidebarItemDisplayNa
 import { buildSidebarActionBadges } from "@/lib/sidebar-action-badges"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
-import { AtApiDisabledBanner } from "@/components/AtApiDisabledBanner"
 import { useAtApiSettings } from "@/providers/AtApiSettingsProvider"
 
 export interface AppShellProps {
@@ -550,15 +549,6 @@ export function AppShell({
             </>
           ) : null}
           <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
-            {!atOutboundEnabled ? (
-              <div
-                className={`shrink-0 ${
-                  isFullBleedWorkspacePage ? "px-4 pt-4 pb-3 sm:px-6" : "pb-3"
-                }`}
-              >
-                <AtApiDisabledBanner tab={currentMenuTab} />
-              </div>
-            ) : null}
             <div
               className={`flex min-h-0 flex-1 flex-col ${
                 isFullBleedWorkspacePage

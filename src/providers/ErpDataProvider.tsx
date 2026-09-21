@@ -12,9 +12,15 @@ import {
 import type { Contract } from "@/types/contract"
 import type { Client } from "@/types/client"
 import type { Settlement } from "@/types/settlement"
-import { syncClientEstados, mergeErpCrmState } from "@/lib/clients"
+import {
+  buildClientsFromContracts,
+  dedupeClients,
+  dedupeContracts,
+  linkContractsToClients,
+  mergeErpCrmState,
+  syncClientEstados,
+} from "@/lib/clients"
 import { INITIAL_CRM } from "@/lib/erp/initial-crm-state"
-import { buildClientsFromContracts, linkContractsToClients } from "@/lib/clients"
 import {
   getCachedProviderByAtCompanyId,
   listTeamContracts,
@@ -218,10 +224,10 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
           const contract = mapRowToContract(row, getCachedProviderByAtCompanyId())
           setContracts((prev) => {
             const index = prev.findIndex((c) => c.id === contract.id)
-            if (index === -1) return [contract, ...prev]
+            if (index === -1) return dedupeContracts([contract, ...prev])
             const next = [...prev]
             next[index] = contract
-            return next
+            return dedupeContracts(next)
           })
         }
       )
@@ -240,10 +246,24 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
           const client = mapRowToClient(row)
           setClients((prev) => {
             const index = prev.findIndex((c) => c.id === client.id)
-            if (index === -1) return [client, ...prev]
-            const next = [...prev]
-            next[index] = client
-            return next
+            const next = index === -1 ? [client, ...prev] : prev.map((item, i) => (i === index ? client : item))
+            const { clients: unique, idMap } = dedupeClients(next)
+            const remapped = [...idMap.entries()].some(([from, to]) => from !== to)
+            if (remapped) {
+              queueMicrotask(() => {
+                setContracts((prevContracts) =>
+                  dedupeContracts(
+                    prevContracts.map((contract) => {
+                      const mappedId = contract.clientId ? idMap.get(contract.clientId) : undefined
+                      return mappedId && mappedId !== contract.clientId
+                        ? { ...contract, clientId: mappedId }
+                        : contract
+                    })
+                  )
+                )
+              })
+            }
+            return unique
           })
         }
       )

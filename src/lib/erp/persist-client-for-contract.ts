@@ -1,5 +1,10 @@
-import { clientMatchKey, upsertClient, type UpsertClientInput } from "@/lib/clients"
-import { createCliente, searchClientes } from "@/lib/supabase/clientes"
+import {
+  dedupeClients,
+  findExistingClient,
+  upsertClient,
+  type UpsertClientInput,
+} from "@/lib/clients"
+import { createCliente, findClienteByDocumento, searchClientes } from "@/lib/supabase/clientes"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import type { Client } from "@/types/client"
 
@@ -10,55 +15,78 @@ export function isPersistedClientId(id: string): boolean {
   return UUID_RE.test(id)
 }
 
+function replaceLocalClient(
+  clients: Client[],
+  localId: string,
+  existing: Client
+): Client[] {
+  const replaced = clients.map((client) => (client.id === localId ? existing : client))
+  const hasExisting = replaced.some((client) => client.id === existing.id)
+  const next = hasExisting
+    ? replaced
+    : [existing, ...replaced.filter((client) => client.id !== localId)]
+  return dedupeClients(next).clients
+}
+
 /**
  * Encuentra o crea el cliente ligado a un contrato.
- * - Si ya existe en memoria/BD (mismo comercial + NIF o nombre), reutiliza.
- * - Si no existe y Supabase está activo, persiste en `clientes`.
+ * Un NIF identifica a la misma persona en toda la cartera.
  */
 export async function ensureClientForContract(
   clients: Client[],
   input: UpsertClientInput
 ): Promise<{ clients: Client[]; client: Client }> {
   const { clients: afterLocal, client: localClient } = upsertClient(clients, input)
+  const uniqueLocal = dedupeClients(afterLocal)
+  const uniqueClient =
+    uniqueLocal.idMap.get(localClient.id)
+      ? uniqueLocal.clients.find((client) => client.id === uniqueLocal.idMap.get(localClient.id)) ??
+        localClient
+      : localClient
 
-  if (!isSupabaseConfigured() || isPersistedClientId(localClient.id)) {
-    return { clients: afterLocal, client: localClient }
+  if (!isSupabaseConfigured() || isPersistedClientId(uniqueClient.id)) {
+    return { clients: uniqueLocal.clients, client: uniqueClient }
   }
 
-  const lookupQuery = localClient.documento?.trim() || localClient.nombre.trim()
+  if (uniqueClient.documento?.trim()) {
+    const byDocumento = await findClienteByDocumento(uniqueClient.documento)
+    if (byDocumento.ok && byDocumento.data) {
+      return {
+        clients: replaceLocalClient(uniqueLocal.clients, uniqueClient.id, byDocumento.data),
+        client: byDocumento.data,
+      }
+    }
+  }
+
+  const lookupQuery = uniqueClient.documento?.trim() || uniqueClient.nombre.trim()
   if (lookupQuery) {
     const found = await searchClientes({
       query: lookupQuery,
-      comercialId: localClient.comercialId,
+      comercialId: uniqueClient.comercialId,
       limit: 12,
     })
     if (found.ok) {
-      const key = clientMatchKey(localClient.nombre, localClient.documento, localClient.comercialId)
-      const existing = found.data.find(
-        (c) => clientMatchKey(c.nombre, c.documento, c.comercialId) === key
-      )
+      const existing = findExistingClient(found.data, {
+        nombre: uniqueClient.nombre,
+        documento: uniqueClient.documento,
+        comercialId: uniqueClient.comercialId,
+      })
       if (existing) {
-        const clientsWithExisting = afterLocal.map((c) =>
-          c.id === localClient.id ? existing : c
-        )
-        const hasExisting = clientsWithExisting.some((c) => c.id === existing.id)
         return {
-          clients: hasExisting ? clientsWithExisting : [existing, ...clientsWithExisting.filter((c) => c.id !== localClient.id)],
+          clients: replaceLocalClient(uniqueLocal.clients, uniqueClient.id, existing),
           client: existing,
         }
       }
     }
   }
 
-  const result = await createCliente(localClient)
+  const result = await createCliente(uniqueClient)
   if (!result.ok) {
-    return { clients: afterLocal, client: localClient }
+    return { clients: uniqueLocal.clients, client: uniqueClient }
   }
 
-  const persisted = result.data
-  const clientsWithPersisted = afterLocal.map((c) =>
-    c.id === localClient.id ? persisted : c
-  )
-
-  return { clients: clientsWithPersisted, client: persisted }
+  return {
+    clients: replaceLocalClient(uniqueLocal.clients, uniqueClient.id, result.data),
+    client: result.data,
+  }
 }

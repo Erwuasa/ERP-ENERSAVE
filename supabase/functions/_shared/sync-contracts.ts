@@ -409,6 +409,38 @@ export async function runContractSync(ctx?: AtSyncContext) {
       assignMarcoEntryIds(marcoRows)
     }
 
+    const { data: existingSupplyRows, error: supplyError } = await supabase
+      .from('contratos_equipo')
+      .select('at_contract_id, cups, tipo, estado, cliente_id')
+    if (supplyError) throw new Error(`contratos supply lookup failed: ${supplyError.message}`)
+
+    const supplyToAtId = new Map<string, string>()
+    for (const row of existingSupplyRows ?? []) {
+      const cups = String(row.cups ?? '').replace(/\s/g, '').toUpperCase()
+      if (!cups) continue
+      const key = `${cups}|${String(row.tipo ?? '')}|${String(row.estado ?? '')}|${row.cliente_id ?? ''}`
+      const atId = asUuid(row.at_contract_id)
+      if (atId && !supplyToAtId.has(key)) supplyToAtId.set(key, atId)
+    }
+
+    const uniqueMapped: typeof mapped = []
+    for (const row of mapped) {
+      const cups = String(row.cups ?? '').replace(/\s/g, '').toUpperCase()
+      const key = cups
+        ? `${cups}|${row.tipo}|${row.estado}|${row.cliente_id ?? ''}`
+        : `at:${row.at_contract_id}`
+      const keeperAt = supplyToAtId.get(key)
+      if (keeperAt && keeperAt !== row.at_contract_id) {
+        uniqueMapped.push({ ...row, at_contract_id: keeperAt })
+        continue
+      }
+      supplyToAtId.set(key, row.at_contract_id)
+      uniqueMapped.push(row)
+    }
+    const uniqueByAt = new Map<string, (typeof mapped)[number]>()
+    for (const row of uniqueMapped) uniqueByAt.set(row.at_contract_id, row)
+    mapped.splice(0, mapped.length, ...uniqueByAt.values())
+
     const atIds = mapped.map((row) => row.at_contract_id)
     const existingByAt = new Map<
       string,

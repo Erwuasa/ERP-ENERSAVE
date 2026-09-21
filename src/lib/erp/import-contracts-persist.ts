@@ -1,4 +1,4 @@
-import { linkContractsToClients, syncClientEstados } from "@/lib/clients"
+import { contractSupplyKey, mergeErpCrmState } from "@/lib/clients"
 import { ensureClientForContract } from "@/lib/erp/persist-client-for-contract"
 import {
   importedRowsToContracts,
@@ -49,6 +49,7 @@ export async function persistImportedContractList(
   let nextClients = clients
   const persisted: Contract[] = []
   const warnings: string[] = []
+  const seenSupply = new Set(existingContracts.map((contract) => contractSupplyKey(contract)))
 
   for (let i = 0; i < draftContracts.length; i++) {
     const draft = draftContracts[i]
@@ -70,6 +71,15 @@ export async function persistImportedContractList(
     nextClients = withClient
 
     const withClientId: Contract = { ...draft, clientId: client.id }
+    const supplyKey = contractSupplyKey(withClientId)
+    if (seenSupply.has(supplyKey)) {
+      warnings.push(
+        `${draft.clientName} (${draft.cups}): ya existía el mismo CUPS, tipo y estado. No se duplicó.`
+      )
+      continue
+    }
+    seenSupply.add(supplyKey)
+
     const saveResult = await insertTeamContractFromImport(withClientId)
 
     if (saveResult.ok) {
@@ -82,14 +92,12 @@ export async function persistImportedContractList(
     }
   }
 
-  const allContracts = [...persisted, ...existingContracts]
-  const linked = linkContractsToClients(allContracts, nextClients)
-  const syncedClients = syncClientEstados(nextClients, linked)
+  const merged = mergeErpCrmState(nextClients, [...persisted, ...existingContracts])
 
   return {
     ok: true,
-    contracts: linked,
-    clients: syncedClients,
+    contracts: merged.contracts,
+    clients: merged.clients,
     importedCount: persisted.length,
     warnings,
   }
