@@ -390,6 +390,33 @@
 .calendario-rbc-theme .rbc-calendar {
   font-family: var(--font-sans);
   color: var(--brand-text);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.calendario-rbc-theme .rbc-toolbar {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.calendario-rbc-theme .rbc-toolbar-label {
+  flex: 1 1 100%;
+  order: -1;
+  text-align: center;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+@media (min-width: 640px) {
+  .calendario-rbc-theme .rbc-toolbar-label {
+    flex: 1 1 auto;
+    order: 0;
+  }
 }
 
 .calendario-rbc-theme .rbc-toolbar button {
@@ -399,6 +426,8 @@
   border: 1px solid var(--brand-border);
   color: var(--brand-text);
   background: var(--brand-surface);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .calendario-rbc-theme .rbc-toolbar button.rbc-active,
@@ -437,6 +466,18 @@
 .calendario-rbc-theme .rbc-day-bg + .rbc-day-bg,
 .calendario-rbc-theme .rbc-month-row + .rbc-month-row {
   border-color: var(--brand-border);
+}
+
+.calendario-rbc-theme .rbc-month-view,
+.calendario-rbc-theme .rbc-time-view {
+  flex: 1;
+  min-height: 0;
+}
+
+@media (max-width: 639px) {
+  .calendario-rbc-theme .rbc-toolbar button {
+    padding: 4px 8px;
+  }
 }
 
 .sensitive-screen-root {

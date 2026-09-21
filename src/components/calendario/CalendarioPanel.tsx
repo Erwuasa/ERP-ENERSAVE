@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Calendar as BigCalendar,
   dateFnsLocalizer,
@@ -161,7 +161,24 @@ export function CalendarioPanel({
   const [formOpen, setFormOpen] = useState(false)
   const [form, setForm] = useState<EventFormState>(() => emptyForm(activeUserId))
   const [saving, setSaving] = useState(false)
+  const [calendarHeight, setCalendarHeight] = useState(560)
   const didDragRef = useRef(false)
+  const calendarWrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const node = calendarWrapRef.current
+    if (!node) return
+
+    const updateHeight = () => {
+      const next = Math.max(420, Math.floor(node.clientHeight - 4))
+      setCalendarHeight((current) => (current === next ? current : next))
+    }
+
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [showUserFilter])
 
   const showUserFilter = activeRole === "superadmin" || activeRole === "jefe_comercial"
 
@@ -364,12 +381,40 @@ export function CalendarioPanel({
     })
   }
 
+  const userFilterList = (
+    <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+      {filterUsers.map((user) => {
+        const checked = effectiveSelectedIds.has(user.id)
+        const color = colorForCalendarioUsuario(user.id)
+        return (
+          <li key={user.id}>
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={checked}
+                onChange={() => toggleUserFilter(user.id)}
+                className="rounded border-brand-border"
+              />
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: color }}
+              />
+              <span className="text-[11px] text-brand-text group-hover:text-cyan-600 dark:group-hover:text-cyan-400 truncate">
+                {user.fullName}
+              </span>
+            </label>
+          </li>
+        )
+      })}
+    </ul>
+  )
+
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <CalendarDays className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
-          <div>
+    <div className="flex h-full min-h-0 flex-col gap-3 animate-fade-in">
+      <div className="flex flex-wrap items-start justify-between gap-3 shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <CalendarDays className="w-5 h-5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+          <div className="min-w-0">
             <h2 className="text-sm font-bold text-brand-text uppercase tracking-tight">
               Calendario
             </h2>
@@ -381,48 +426,59 @@ export function CalendarioPanel({
         <button
           type="button"
           onClick={() => openCreate()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-xs font-bold cursor-pointer hover:bg-cyan-500/15 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-xs font-bold cursor-pointer hover:bg-cyan-500/15 transition-colors duration-200"
         >
           <PlusCircle className="w-4 h-4" />
           Nuevo evento
         </button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)] gap-4">
+      {showUserFilter ? (
+        <div className="xl:hidden shrink-0 -mx-1 px-1">
+          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext mb-2">
+            Equipo visible
+          </p>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-overlay">
+            {filterUsers.map((user) => {
+              const checked = effectiveSelectedIds.has(user.id)
+              const color = colorForCalendarioUsuario(user.id)
+              return (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => toggleUserFilter(user.id)}
+                  className={`inline-flex items-center gap-1.5 shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors duration-200 cursor-pointer ${
+                    checked
+                      ? "border-cyan-500/40 bg-cyan-500/10 text-brand-text"
+                      : "border-brand-border bg-brand-panel text-brand-subtext"
+                  }`}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
+                  {user.fullName.split(/\s+/)[0]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-1 min-h-0 flex-col xl:flex-row gap-3">
         {showUserFilter ? (
-          <aside className="rounded-2xl border border-brand-border bg-brand-panel p-4 space-y-3 h-fit">
+          <aside className="hidden xl:flex xl:w-56 shrink-0 flex-col rounded-2xl border border-brand-border bg-brand-panel p-4 space-y-3">
             <h3 className="text-[10px] font-mono font-bold uppercase text-brand-subtext">
               Filtrar usuarios
             </h3>
-            <ul className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-              {filterUsers.map((user) => {
-                const checked = effectiveSelectedIds.has(user.id)
-                const color = colorForCalendarioUsuario(user.id)
-                return (
-                  <li key={user.id}>
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleUserFilter(user.id)}
-                        className="rounded border-brand-border"
-                      />
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: color }}
-                      />
-                      <span className="text-[11px] text-brand-text group-hover:text-cyan-600 dark:group-hover:text-cyan-400 truncate">
-                        {user.fullName}
-                      </span>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
+            {userFilterList}
           </aside>
         ) : null}
 
-        <div className="rounded-2xl border border-brand-border bg-brand-panel p-3 sm:p-4 calendario-rbc-theme min-h-[620px]">
+        <div
+          ref={calendarWrapRef}
+          className="flex flex-1 min-h-[420px] min-w-0 flex-col rounded-2xl border border-brand-border bg-brand-panel p-2 sm:p-4 calendario-rbc-theme overflow-hidden"
+        >
           <DnDCalendar
             localizer={localizer}
             events={uiEvents}
@@ -465,7 +521,7 @@ export function CalendarioPanel({
               if (!showUserFilter) return resource.titulo
               return `${resource.titulo} · ${resolveUserName(resource.usuarioId)}`
             }}
-            style={{ height: 580 }}
+            style={{ height: calendarHeight }}
           />
         </div>
       </div>

@@ -54,4 +54,56 @@ describe("mapComparadorToEstudioAhorro", () => {
     )
     expect(input.ahorroAnualEur).toBeCloseTo(input.ahorroPorFacturaEur * 12, 4)
   })
+
+  it("mapea otros conceptos del comparador a las filas del PDF", () => {
+    const input = mapComparadorToEstudioAhorro({
+      clienteNombre: "Cliente",
+      cups: "ES0000000000000000AA",
+      accessTariff: "2.0TD",
+      potencias: { p1: 4.6, p2: 4.6, p3: 0, p4: 0, p5: 0, p6: 0 },
+      consumos: { p1: 100, p2: 80, p3: 120, p4: 0, p5: 0, p6: 0 },
+      preciosPotenciaActual: { p1: 0.1, p2: 0.05, p3: 0, p4: 0, p5: 0, p6: 0 },
+      preciosEnergiaActual: { p1: 0.2, p2: 0.18, p3: 0.15, p4: 0, p5: 0, p6: 0 },
+      diasFacturacion: 30,
+      rentMeterMonthly: 1.5,
+      bonoSocial: 0.4,
+      energiaReactiva: 2.2,
+      otrosCostesSva: 3.1,
+      currentBillMonthly: 0,
+      bestOption: {
+        companyName: "Endesa",
+        tariffName: "One Luz",
+        annualCost: 0,
+        potenciaBreakdown: 0,
+        consumoBreakdown: 0,
+        rentCostAnnual: 0,
+        savingsAnnual: 0,
+        savingsPercentage: 0,
+        precios: {
+          P1: { energyPriceKwh: 0.12, powerPriceKwDay: 0.08 },
+          P2: { energyPriceKwh: 0.11, powerPriceKwDay: 0.04 },
+          P3: { energyPriceKwh: 0.1, powerPriceKwDay: 0 },
+        },
+      },
+      summary: {
+        bestTariffName: "One Luz",
+        bestTariffCompany: "Endesa",
+        maxAnnualSavings: 0,
+        maxSavingsPercentage: 0,
+        currentAnnualExpense: 0,
+      },
+    })
+
+    const actual = input.tarifaActual.otrosConceptos
+    expect(actual.find((row) => row.concepto === "Alquiler equipo")?.total).toBe(1.5)
+    expect(actual.find((row) => row.concepto === "Bono social")?.total).toBe(0.4)
+    expect(actual.find((row) => row.concepto === "Excesos")?.total).toBe(2.2)
+    expect(actual.find((row) => row.concepto === "Costes adicionales")?.total).toBe(3.1)
+
+    const propuesta = input.tarifaPropuesta.otrosConceptos
+    expect(propuesta.find((row) => row.concepto === "Alquiler equipo")?.total).toBe(1.5)
+    expect(propuesta.find((row) => row.concepto === "Bono social")?.total).toBe(0.4)
+    expect(propuesta.find((row) => row.concepto === "Excesos")?.total).toBe(2.2)
+    expect(propuesta.find((row) => row.concepto === "Costes adicionales")).toBeUndefined()
+  })
 })

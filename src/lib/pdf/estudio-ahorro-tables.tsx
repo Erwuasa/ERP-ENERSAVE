@@ -248,7 +248,14 @@ export function MetricTable({
  */
 const OTROS_CONCEPTOS_CANONICOS = ["Bono social", "Alquiler equipo", "Costes adicionales", "Excesos", "IEE", "IVA"]
 const OTROS_CONCEPTOS_ALIASES: Record<string, string[]> = {
-  "Costes adicionales": ["Costes adicionales", "Compensación", "Compensacion"],
+  "Costes adicionales": [
+    "Costes adicionales",
+    "Otros costes",
+    "Compensación",
+    "Compensacion",
+  ],
+  "Alquiler equipo": ["Alquiler equipo", "Alquiler equipos", "Alquiler contador"],
+  Excesos: ["Excesos", "Energía reactiva", "Energia reactiva", "Reactiva"],
 }
 
 function findConcepto(rows: OtroConceptoRow[], label: string): OtroConceptoRow | undefined {

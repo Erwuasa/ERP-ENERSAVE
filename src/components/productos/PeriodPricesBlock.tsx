@@ -24,7 +24,7 @@ export function PeriodPricesBlock({
     return <span className="font-mono text-[10px] text-brand-subtext">{emptyLabel}</span>
   }
 
-  if (hasSingleDistinctPeriodPrice(chips) && kind === "energia") {
+  if (hasSingleDistinctPeriodPrice(chips)) {
     return (
       <span className="font-mono text-[11px] font-semibold text-brand-text tabular-nums">
         {formatPeriodPriceNumber(chips[0].value)}

@@ -296,7 +296,7 @@ export function MiDiaPage({
   }
 
   return (
-    <div className="space-y-3 animate-fade-in relative pb-20 max-w-6xl mx-auto px-1 sm:px-2">
+    <div className="relative mx-auto w-full max-w-7xl animate-fade-in space-y-4 px-1 pb-[max(5rem,env(safe-area-inset-bottom,0px)+4rem)] sm:px-0">
       <MiDiaCockpitHeader
         comercialName={actor.comercialName}
         pendientes={pendientes}
@@ -327,8 +327,7 @@ export function MiDiaPage({
 
           <MiDiaBriefCard dailyBrief={dailyBrief} weeklyBrief={weeklyBrief} />
 
-          {/* Pendientes (izq) + Objetivos (der) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+          <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-12">
             <div className="lg:col-span-5 min-h-0">
               <MiDiaHeroAction
                 actions={quickActions}
@@ -359,7 +358,7 @@ export function MiDiaPage({
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-2 xl:items-start">
             <MiDiaTaskQueue
               grupos={grupos}
               prospectosById={prospectosById}
@@ -382,27 +381,42 @@ export function MiDiaPage({
             />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <details className="lg:open group">
-              <summary className="lg:hidden cursor-pointer list-none text-xs font-semibold text-brand-subtext px-1 py-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <details className="group rounded-xl border border-brand-border bg-brand-panel open:border-cyan-500/30 lg:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold uppercase tracking-wide text-brand-text transition-colors duration-200 [&::-webkit-details-marker]:hidden">
                 Activación
+                <span className="text-[10px] font-normal normal-case text-brand-subtext group-open:hidden">
+                  Ver contratos
+                </span>
               </summary>
-              <div className="lg:block">
+              <div className="border-t border-brand-border px-3 pb-3 pt-2">
                 <MiDiaContratosActivacion rows={contratosActivacion} />
               </div>
             </details>
+            <div className="hidden lg:block">
+              <MiDiaContratosActivacion rows={contratosActivacion} />
+            </div>
 
-            <details className="lg:open group">
-              <summary className="lg:hidden cursor-pointer list-none text-xs font-semibold text-brand-subtext px-1 py-2">
+            <details className="group rounded-xl border border-brand-border bg-brand-panel open:border-cyan-500/30 lg:hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-semibold uppercase tracking-wide text-brand-text transition-colors duration-200 [&::-webkit-details-marker]:hidden">
                 Fidelización
+                <span className="text-[10px] font-normal normal-case text-brand-subtext group-open:hidden">
+                  Ver clientes
+                </span>
               </summary>
-              <div className="lg:block">
+              <div className="border-t border-brand-border px-3 pb-3 pt-2">
                 <MiDiaFidelizacionPanel
                   rows={fidelizacionRows}
                   onCadenciaChange={handleCadenciaChange}
                 />
               </div>
             </details>
+            <div className="hidden lg:block">
+              <MiDiaFidelizacionPanel
+                rows={fidelizacionRows}
+                onCadenciaChange={handleCadenciaChange}
+              />
+            </div>
           </div>
         </>
       )}
@@ -410,7 +424,7 @@ export function MiDiaPage({
       <button
         type="button"
         onClick={() => setNuevoModalOpen(true)}
-        className="fixed bottom-6 right-6 z-50 w-12 h-12 rounded-full bg-cyan-600 hover:bg-cyan-700 text-white shadow-lg shadow-cyan-500/30 flex items-center justify-center transition-colors min-h-[48px] min-w-[48px]"
+        className="fixed z-50 flex h-12 w-12 min-h-[48px] min-w-[48px] cursor-pointer items-center justify-center rounded-full bg-cyan-600 text-white shadow-lg shadow-cyan-500/30 transition-colors duration-200 hover:bg-cyan-700 bottom-[max(1.5rem,env(safe-area-inset-bottom,0px))] right-[max(1.5rem,env(safe-area-inset-right,0px))]"
         aria-label="Nuevo prospecto"
       >
         <Plus className="w-5 h-5" />

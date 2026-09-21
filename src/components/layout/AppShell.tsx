@@ -156,6 +156,9 @@ export function AppShell({
 
   const isFullBleedWorkspacePage = /^\/erp\/contratos(\/|$)/.test(location.pathname)
   const isComparadorPage = /^\/erp\/comparador(\/|$)/.test(location.pathname)
+  const isCalendarioPage = /^\/erp\/calendario(\/|$)/.test(location.pathname)
+  const isVentasWorkspace = location.pathname.startsWith("/ventas")
+  const isDenseWorkspacePage = isComparadorPage || isCalendarioPage || isVentasWorkspace
 
   const initials = activeUser.fullName
     .split(" ")
@@ -538,7 +541,7 @@ export function AppShell({
           className={`relative flex flex-1 min-h-0 min-w-0 h-full flex-col bg-brand-bg font-sans text-brand-text ${
             isFullBleedWorkspacePage
               ? "overflow-hidden p-0"
-              : isComparadorPage
+              : isDenseWorkspacePage
                 ? "overflow-hidden p-3 sm:p-4 md:p-5"
                 : "overflow-hidden p-4 sm:p-6 md:p-10"
           }`}
@@ -552,11 +555,13 @@ export function AppShell({
           <div className="relative z-[1] flex min-h-0 flex-1 flex-col">
             <div
               className={`flex min-h-0 flex-1 flex-col ${
-                isFullBleedWorkspacePage
-                  ? "overflow-hidden"
+                isFullBleedWorkspacePage || isCalendarioPage
+                  ? "overflow-hidden min-h-0"
                   : isComparadorPage
                     ? "overflow-x-hidden overflow-y-auto lg:overflow-hidden scrollbar-overlay min-h-0"
-                    : "space-y-8 overflow-x-hidden overflow-y-auto scrollbar-overlay"
+                    : isVentasWorkspace
+                      ? "overflow-x-hidden overflow-y-auto scrollbar-overlay min-h-0"
+                      : "space-y-8 overflow-x-hidden overflow-y-auto scrollbar-overlay"
               }`}
             >
               {children}

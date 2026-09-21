@@ -9,12 +9,14 @@ export function CalendarioPage() {
   const role = activeUser.role === "customer" ? "comercial" : (activeUser.role as StaffRole)
 
   return (
-    <CalendarioPanel
-      activeRole={role}
-      activeUserId={activeUser.id}
-      profiles={profiles}
-      eventos={calendarioEventos}
-      onEventosChange={(eventos) => setCalendarioEventos(eventos)}
-    />
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <CalendarioPanel
+        activeRole={role}
+        activeUserId={activeUser.id}
+        profiles={profiles}
+        eventos={calendarioEventos}
+        onEventosChange={(eventos) => setCalendarioEventos(eventos)}
+      />
+    </div>
   )
 }

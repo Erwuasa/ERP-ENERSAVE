@@ -86,10 +86,7 @@ export function ProductosPanel({
       <TariffWebSettingsModal
         open={vm.modalOpen}
         product={vm.modalProduct}
-        canEdit={vm.canManageTariffs}
-        saving={vm.saving}
         onClose={vm.closeModal}
-        onSave={vm.handleSaveWebSettings}
       />
     </div>
   )

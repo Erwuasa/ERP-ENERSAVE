@@ -153,22 +153,33 @@ function buildTerminoEnergia(
   })
 }
 
-function buildOtros(breakdown: ComparadorBillingBreakdown) {
-  const rows = []
-  if (breakdown.alquilerMensual > 0) {
-    rows.push({
-      concepto: "Alquiler equipo",
-      precio: breakdown.alquilerMensual,
-      total: breakdown.alquilerMensual,
-    })
+interface ComparadorOtrosConceptosInput {
+  alquilerContador: number
+  bonoSocial: number
+  energiaReactiva: number
+  otrosCostesSva: number
+}
+
+function pushOtroConceptoRow(
+  rows: TarifaEstudioAhorro["otrosConceptos"],
+  concepto: string,
+  importe: number
+) {
+  if (importe <= 0) return
+  rows.push({ concepto, precio: importe, total: importe })
+}
+
+function buildOtros(
+  extras: ComparadorOtrosConceptosInput,
+  options?: { includeOtrosCostes?: boolean }
+) {
+  const rows: TarifaEstudioAhorro["otrosConceptos"] = []
+  pushOtroConceptoRow(rows, "Bono social", extras.bonoSocial)
+  pushOtroConceptoRow(rows, "Alquiler equipo", extras.alquilerContador)
+  if (options?.includeOtrosCostes !== false) {
+    pushOtroConceptoRow(rows, "Costes adicionales", extras.otrosCostesSva)
   }
-  if (breakdown.extrasMensual > 0) {
-    rows.push({
-      concepto: "Otros conceptos",
-      precio: breakdown.extrasMensual,
-      total: breakdown.extrasMensual,
-    })
-  }
+  pushOtroConceptoRow(rows, "Excesos", extras.energiaReactiva)
   return rows
 }
 
@@ -176,14 +187,16 @@ function buildTarifaFromBreakdown(
   comercializadora: string,
   nombreTarifa: string,
   breakdown: ComparadorBillingBreakdown,
-  peaje: string
+  peaje: string,
+  extras: ComparadorOtrosConceptosInput,
+  options?: { includeOtrosCostes?: boolean }
 ): TarifaEstudioAhorro {
   return {
     comercializadora,
     nombreTarifa,
     terminoPotencia: buildTerminoPotencia(breakdown, peaje),
     terminoEnergia: buildTerminoEnergia(breakdown, peaje),
-    otrosConceptos: buildOtros(breakdown),
+    otrosConceptos: buildOtros(extras, options),
     ivaPct: IVA_PCT,
     totalFactura: breakdown.totalMensual,
   }
@@ -248,12 +261,21 @@ export function mapComparadorToEstudioAhorro(
     params.rentMeterMonthly
   )
 
+  const otrosInput: ComparadorOtrosConceptosInput = {
+    alquilerContador: extras.alquilerContador,
+    bonoSocial: extras.bonoSocial,
+    energiaReactiva: extras.energiaReactiva,
+    otrosCostesSva: extras.otrosCostesSva,
+  }
+
   const tarifaActual = actualBreakdown
     ? buildTarifaFromBreakdown(
         params.comercializadoraActual ?? "Comercializadora actual",
         params.tarifaActualNombre || "Tarifa actual",
         actualBreakdown,
-        peaje
+        peaje,
+        otrosInput,
+        { includeOtrosCostes: true }
       )
     : lumpSumActualTarifa(
         params.comercializadoraActual ?? "Comercializadora actual",
@@ -267,7 +289,9 @@ export function mapComparadorToEstudioAhorro(
     params.bestOption.companyName,
     params.bestOption.tariffName,
     proposedBreakdown,
-    peaje
+    peaje,
+    otrosInput,
+    { includeOtrosCostes: false }
   )
 
   const ahorroPorFacturaEur = tarifaActual.totalFactura - tarifaPropuesta.totalFactura
