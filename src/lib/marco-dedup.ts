@@ -121,8 +121,36 @@ export function isMarcoReferenciaPlaceholder(row: {
   return isMarcoGenericPlaceholderTariff(row)
 }
 
+export function marcoRowPriceScore(row: MarcoRetributivoRow): number {
+  let score = 0
+  const energyKeys = [
+    row.energia_p1,
+    row.energia_p2,
+    row.energia_p3,
+    row.energia_p4,
+    row.energia_p5,
+    row.energia_p6,
+  ] as const
+  const powerKeys = [
+    row.potencia_p1,
+    row.potencia_p2,
+    row.potencia_p3,
+    row.potencia_p4,
+    row.potencia_p5,
+    row.potencia_p6,
+  ] as const
+  for (const value of energyKeys) score += Number(value ?? 0)
+  for (const value of powerKeys) score += Number(value ?? 0)
+  return score
+}
+
+/** Conserva mayor precio (energía/potencia), luego mayor comisión, luego nombre más descriptivo. */
 export function pickMarcoRowToKeep(rows: MarcoRetributivoRow[]): MarcoRetributivoRow {
   return [...rows].sort((a, b) => {
+    const priceDiff = marcoRowPriceScore(b) - marcoRowPriceScore(a)
+    if (priceDiff !== 0) return priceDiff
+    const commDiff = Number(b.comision_base ?? 0) - Number(a.comision_base ?? 0)
+    if (commDiff !== 0) return commDiff
     const lenDiff = b.tarifa.length - a.tarifa.length
     if (lenDiff !== 0) return lenDiff
     const createdDiff = (a.created_at ?? "").localeCompare(b.created_at ?? "")

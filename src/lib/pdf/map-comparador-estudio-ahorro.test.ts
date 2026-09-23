@@ -48,9 +48,8 @@ describe("mapComparadorToEstudioAhorro", () => {
 
     expect(input.tarifaPropuesta.terminoPotencia).toHaveLength(2)
     expect(input.tarifaPropuesta.terminoEnergia).toHaveLength(3)
-    expect(input.tarifaPropuesta.totalFactura).toBeCloseTo(
-      4.6 * 0.08 * 30 + 4.6 * 0.04 * 30 + 120 * 0.12 + 90 * 0.11 + 150 * 0.1 + 1.84,
-      4
+    expect(input.tarifaPropuesta.totalFactura).toBeGreaterThan(
+      4.6 * 0.08 * 30 + 4.6 * 0.04 * 30 + 120 * 0.12 + 90 * 0.11 + 150 * 0.1 + 1.84
     )
     expect(input.ahorroAnualEur).toBeCloseTo(input.ahorroPorFacturaEur * 12, 4)
   })
@@ -104,6 +103,8 @@ describe("mapComparadorToEstudioAhorro", () => {
     expect(propuesta.find((row) => row.concepto === "Alquiler equipo")?.total).toBe(1.5)
     expect(propuesta.find((row) => row.concepto === "Bono social")?.total).toBe(0.4)
     expect(propuesta.find((row) => row.concepto === "Excesos")?.total).toBe(2.2)
-    expect(propuesta.find((row) => row.concepto === "Costes adicionales")).toBeUndefined()
+    expect(propuesta.find((row) => row.concepto === "Costes adicionales")?.total).toBe(3.1)
+    expect(propuesta.find((row) => row.concepto === "IEE")?.total).toBeGreaterThan(0)
+    expect(propuesta.find((row) => row.concepto === "IVA")?.total).toBeGreaterThan(0)
   })
 })

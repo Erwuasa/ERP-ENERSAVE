@@ -13,6 +13,7 @@ import {
   activePotenciaPeriodSlots,
 } from "@/lib/comparador-periods"
 import type { TariffPeriodKey, TariffPreciosPorPeriodo } from "@/lib/tarifa-cost-calculator"
+import { appendIeeIvaOtrosConceptos, COMPARADOR_IVA_PCT } from "../comparador-tax"
 import type {
   EstudioAhorroConjuntoInput,
   EstudioAhorroInput,
@@ -23,7 +24,6 @@ import type {
 } from "./estudio-ahorro-types"
 
 const PERIODOS: PeriodoTarifa[] = ["P1", "P2", "P3", "P4", "P5", "P6"]
-const IVA_PCT = 0
 
 export interface ComparadorPdfOption {
   companyName: string
@@ -63,6 +63,8 @@ export interface MapComparadorEstudioAhorroParams {
   bonoSocial?: number
   energiaReactiva?: number
   otrosCostesSva?: number
+  descuentoPotencia?: number
+  descuentoEnergia?: number
   currentBillMonthly: number
   bestOption: ComparadorPdfOption
   summary: ComparadorPdfSummary
@@ -189,17 +191,25 @@ function buildTarifaFromBreakdown(
   breakdown: ComparadorBillingBreakdown,
   peaje: string,
   extras: ComparadorOtrosConceptosInput,
-  options?: { includeOtrosCostes?: boolean }
+  options?: {
+    includeOtrosCostes?: boolean
+    descuentoPotencia?: number
+    descuentoEnergia?: number
+  }
 ): TarifaEstudioAhorro {
-  return {
+  const base: TarifaEstudioAhorro = {
     comercializadora,
     nombreTarifa,
     terminoPotencia: buildTerminoPotencia(breakdown, peaje),
     terminoEnergia: buildTerminoEnergia(breakdown, peaje),
     otrosConceptos: buildOtros(extras, options),
-    ivaPct: IVA_PCT,
+    descuentoPotencia: Math.max(0, options?.descuentoPotencia ?? 0) || undefined,
+    descuentoEnergia: Math.max(0, options?.descuentoEnergia ?? 0) || undefined,
+    ivaPct: COMPARADOR_IVA_PCT,
     totalFactura: breakdown.totalMensual,
   }
+
+  return appendIeeIvaOtrosConceptos(base).tarifa
 }
 
 function lumpSumActualTarifa(
@@ -216,7 +226,7 @@ function lumpSumActualTarifa(
       monthly > 0
         ? [{ concepto: "Factura actual", precio: monthly, total: monthly }]
         : [],
-    ivaPct: IVA_PCT,
+    ivaPct: COMPARADOR_IVA_PCT,
     totalFactura: monthly,
   }
 }
@@ -268,6 +278,11 @@ export function mapComparadorToEstudioAhorro(
     otrosCostesSva: extras.otrosCostesSva,
   }
 
+  const descuentos = {
+    descuentoPotencia: params.descuentoPotencia ?? 0,
+    descuentoEnergia: params.descuentoEnergia ?? 0,
+  }
+
   const tarifaActual = actualBreakdown
     ? buildTarifaFromBreakdown(
         params.comercializadoraActual ?? "Comercializadora actual",
@@ -275,7 +290,7 @@ export function mapComparadorToEstudioAhorro(
         actualBreakdown,
         peaje,
         otrosInput,
-        { includeOtrosCostes: true }
+        { includeOtrosCostes: true, ...descuentos }
       )
     : lumpSumActualTarifa(
         params.comercializadoraActual ?? "Comercializadora actual",
@@ -291,7 +306,7 @@ export function mapComparadorToEstudioAhorro(
     proposedBreakdown,
     peaje,
     otrosInput,
-    { includeOtrosCostes: false }
+    { includeOtrosCostes: true, ...descuentos }
   )
 
   const ahorroPorFacturaEur = tarifaActual.totalFactura - tarifaPropuesta.totalFactura

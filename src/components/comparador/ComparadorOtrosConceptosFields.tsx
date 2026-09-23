@@ -15,7 +15,6 @@ import {
   comparadorNumericInputClass,
 } from "@/lib/comparador-period-layout"
 import {
-  COMPARADOR_DIAS_FACTURACION_MAX,
   COMPARADOR_DIAS_FACTURACION_MIN,
 } from "@/lib/comparador-billing"
 
@@ -33,6 +32,10 @@ interface ComparadorOtrosConceptosFieldsProps {
   onOtrosCostesSvaChange: (value: number) => void
   onDiasFacturadosChange: (value: number) => void
   onFacturaMensualChange: (value: number) => void
+  descuentoPotencia?: number
+  descuentoEnergia?: number
+  onDescuentoPotenciaChange?: (value: number) => void
+  onDescuentoEnergiaChange?: (value: number) => void
 }
 
 function FieldLabelWithIcon({
@@ -66,6 +69,10 @@ export function ComparadorOtrosConceptosFields({
   onOtrosCostesSvaChange,
   onDiasFacturadosChange,
   onFacturaMensualChange,
+  descuentoPotencia = 0,
+  descuentoEnergia = 0,
+  onDescuentoPotenciaChange,
+  onDescuentoEnergiaChange,
 }: ComparadorOtrosConceptosFieldsProps) {
   const labelClass = comparadorFieldLabelClass(density)
   const inputClass = comparadorNumericInputClass(density)
@@ -128,7 +135,6 @@ export function ComparadorOtrosConceptosFields({
             type="number"
             inputMode="numeric"
             min={COMPARADOR_DIAS_FACTURACION_MIN}
-            max={COMPARADOR_DIAS_FACTURACION_MAX}
             step={1}
             value={diasFacturados}
             onChange={(e) => {
@@ -149,6 +155,31 @@ export function ComparadorOtrosConceptosFields({
             className={inputClass}
           />
         </div>
+
+        {onDescuentoPotenciaChange ? (
+          <div className={fieldClass}>
+            <FieldLabelWithIcon icon={CircleDollarSign} labelClass={labelClass}>
+              Descuento potencia
+            </FieldLabelWithIcon>
+            <DecimalComaInput
+              value={descuentoPotencia}
+              onChange={onDescuentoPotenciaChange}
+              className={inputClass}
+            />
+          </div>
+        ) : null}
+        {onDescuentoEnergiaChange ? (
+          <div className={fieldClass}>
+            <FieldLabelWithIcon icon={CircleDollarSign} labelClass={labelClass}>
+              Descuento energía
+            </FieldLabelWithIcon>
+            <DecimalComaInput
+              value={descuentoEnergia}
+              onChange={onDescuentoEnergiaChange}
+              className={inputClass}
+            />
+          </div>
+        ) : null}
       </div>
     </section>
   )

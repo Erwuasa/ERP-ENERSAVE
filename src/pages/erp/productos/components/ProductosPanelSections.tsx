@@ -1,4 +1,14 @@
-import { CalendarDays, Flame, Lightbulb, Loader2, Package, Phone, Search, X } from "lucide-react"
+import {
+  CalendarDays,
+  Flame,
+  Lightbulb,
+  Loader2,
+  Package,
+  Phone,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react"
 import type { ProductoSuministroTab, ProductoTarifa } from "@/lib/productos-catalog"
 import { SUPPLY_KIND_THEME, supplyTabClass } from "@/lib/enersave-ui-theme"
 import { CompaniaLogo } from "@/lib/erp/render-compania-logo"
@@ -7,6 +17,9 @@ import { ProductosTable } from "@/pages/erp/productos/components/ProductosTable"
 type Props = {
   title: string
   onOpenCalendario: () => void
+  onDedupTariffs?: () => void
+  dedupingTariffs?: boolean
+  canDedupTariffs?: boolean
   suministro: ProductoSuministroTab
   setSuministro: (tab: ProductoSuministroTab) => void
   compania: string
@@ -42,6 +55,9 @@ function suministroTabClass(tabId: ProductoSuministroTab, isActive: boolean): st
 export function ProductosPanelHeader({
   title,
   onOpenCalendario,
+  onDedupTariffs,
+  dedupingTariffs = false,
+  canDedupTariffs = false,
   suministro,
   setSuministro,
   compania,
@@ -55,6 +71,9 @@ export function ProductosPanelHeader({
   Props,
   | "title"
   | "onOpenCalendario"
+  | "onDedupTariffs"
+  | "dedupingTariffs"
+  | "canDedupTariffs"
   | "suministro"
   | "setSuministro"
   | "compania"
@@ -74,6 +93,21 @@ export function ProductosPanelHeader({
           </span>
           <h2 className="text-lg font-extrabold text-brand-text tracking-tight font-display">{title}</h2>
         </div>
+        {canDedupTariffs && onDedupTariffs ? (
+          <button
+            type="button"
+            onClick={onDedupTariffs}
+            disabled={dedupingTariffs}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-amber-500/35 bg-amber-500/10 text-[11px] font-bold text-amber-900 dark:text-amber-100 hover:bg-amber-500/15 transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+          >
+            {dedupingTariffs ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="h-3.5 w-3.5" />
+            )}
+            Quitar duplicados
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onOpenCalendario}

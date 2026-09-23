@@ -15,6 +15,8 @@ export interface ComparisonHistorySnapshot {
   bonoSocial: number
   energiaReactiva: number
   otrosCostesSva: number
+  descuentoPotencia?: number
+  descuentoEnergia?: number
   currentBillMonthly: number
   tarifaActualNombre?: string
   comercializadoraActual?: string

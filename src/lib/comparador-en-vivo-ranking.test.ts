@@ -6,6 +6,7 @@ import {
 } from "./comparador-en-vivo-ranking"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
+import { marcoRowsForCatalog } from "./comparador-test-marco"
 
 const baseForm: ComparadorEnVivoFormState = {
   segmento: "residencial",
@@ -85,9 +86,10 @@ function marcoRow(
 
 describe("buildComparadorEnVivoRanking", () => {
   it("excludes current company from ranking", () => {
+    const catalog = [makeTariff(), makeTariff({ tariffId: "t2", providerName: "Compañía B" })]
     const result = buildComparadorEnVivoRanking({
-      catalog: [makeTariff(), makeTariff({ tariffId: "t2", providerName: "Compañía B" })],
-      marcoRows: [],
+      catalog,
+      marcoRows: marcoRowsForCatalog(catalog),
       form: { ...baseForm, companiaActual: "Compañía A" },
     })
 
@@ -107,44 +109,47 @@ describe("buildComparadorEnVivoRanking", () => {
       makeTariff({ tariffId: "sva", svaPriceMonthly: 5 }),
     ]
 
+    const marco = marcoRowsForCatalog(catalog)
     const fijo = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: { ...baseForm, tipoPrecioFiltro: "fijo" },
     })
     expect(fijo.resultados.map((r) => r.tariffId).sort()).toEqual(["fijo", "sva"])
 
     const indexado = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: { ...baseForm, tipoPrecioFiltro: "indexado" },
     })
     expect(indexado.resultados.map((r) => r.tariffId).sort()).toEqual(["index", "variable"])
 
     const sinSva = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: { ...baseForm, sinSva: true },
     })
     expect(sinSva.resultados.map((r) => r.tariffId)).not.toContain("sva")
   })
 
-  it("joins marco for commission without excluding tariffs without marco", () => {
+  it("joins marco for commission and excludes tariffs without marco link", () => {
     const marco = marcoRow({ id: "m1", at_rate_id: "at1", tariff_id: "t1", potencia_boe: true })
     const index = buildMarcoRetributivoIndex([marco])
+    const catalog = [
+      makeTariff(),
+      makeTariff({ tariffId: "t2", atRateId: null, providerName: "Sin Marco" }),
+    ]
 
     const result = buildComparadorEnVivoRanking({
-      catalog: [makeTariff(), makeTariff({ tariffId: "t2", atRateId: null, providerName: "Sin Marco" })],
+      catalog,
       marcoRows: [marco],
       form: baseForm,
     })
 
     const withMarco = result.resultados.find((r) => r.tariffId === "t1")
-    const withoutMarco = result.resultados.find((r) => r.tariffId === "t2")
 
     expect(withMarco?.comisionEstimada).toBe(50)
-    expect(withoutMarco?.comisionEstimada).toBeNull()
-    expect(result.resultados).toHaveLength(2)
+    expect(result.resultados).toHaveLength(1)
     expect(index.byAtRateId.get("at1")).toBeDefined()
   })
 
@@ -172,7 +177,7 @@ describe("buildComparadorEnVivoRanking", () => {
 
     const result = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marcoRowsForCatalog(catalog),
       form: baseForm,
     })
 
@@ -215,20 +220,34 @@ describe("buildComparadorEnVivoRanking", () => {
   it("excludes IGNIS and segment mismatches in residencial ranking", () => {
     const catalog = [
       makeTariff({ tariffId: "ignis-res", providerName: "IGNIS", segment: "residencial" }),
-      makeTariff({ tariffId: "ignis-pyme", providerName: "IGNIS", segment: "pyme" }),
+      makeTariff({
+        tariffId: "ignis-pyme",
+        providerName: "IGNIS",
+        segment: "pyme",
+        accessTariff: "3.0TD",
+        precios: {
+          P1: { energyPriceKwh: 0.15, powerPriceKwDay: 0.08 },
+          P2: { energyPriceKwh: 0.12, powerPriceKwDay: 0.04 },
+          P3: { energyPriceKwh: 0.1, powerPriceKwDay: 0.03 },
+          P4: { energyPriceKwh: 0.09, powerPriceKwDay: 0.02 },
+          P5: { energyPriceKwh: 0.08, powerPriceKwDay: 0.02 },
+          P6: { energyPriceKwh: 0.07, powerPriceKwDay: 0.01 },
+        },
+      }),
       makeTariff({ tariffId: "ok-res", providerName: "Endesa", segment: "residencial" }),
     ]
 
+    const marco = marcoRowsForCatalog(catalog)
     const residencial = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: { ...baseForm, segmento: "residencial" },
     })
     expect(residencial.resultados.map((r) => r.tariffId)).toEqual(["ok-res"])
 
     const pyme = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: { ...baseForm, segmento: "pyme", peaje: "3.0TD" },
     })
     expect(pyme.resultados.map((r) => r.tariffId)).toContain("ignis-pyme")

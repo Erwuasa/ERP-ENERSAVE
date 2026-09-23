@@ -20,6 +20,10 @@ export interface ComparadorOfferOption {
   pricingType?: ComparadorTariffPricingType
   monthlyCost: number
   annualCost: number
+  /** Base imponible mensual (sin IEE/IVA), coherente con monthlyCost. */
+  monthlyBaseImponible?: number
+  monthlyIee?: number
+  monthlyIva?: number
   potenciaBreakdown: number
   consumoBreakdown: number
   savingsAnnual: number
@@ -243,6 +247,21 @@ export function ComparadorOfferCard({
             {formatEuro(option.monthlyCost)}
           </span>
         </div>
+        <p className="mt-1 text-[10px] font-mono text-brand-subtext text-right leading-snug">
+          IEE e IVA incluidos
+          {option.monthlyBaseImponible != null && option.monthlyBaseImponible > 0 ? (
+            <>
+              <br />
+              Base {formatEuro(option.monthlyBaseImponible)}
+              {option.monthlyIee != null && option.monthlyIee > 0
+                ? ` · IEE ${formatEuro(option.monthlyIee)}`
+                : ""}
+              {option.monthlyIva != null && option.monthlyIva > 0
+                ? ` · IVA ${formatEuro(option.monthlyIva)}`
+                : ""}
+            </>
+          ) : null}
+        </p>
         <p className={`mt-2 text-sm font-semibold ${savingsClass}`}>
           {tone === "positive"
             ? `Ahorra ${formatEuro(ahorroMonthly)}/mes (${savingsPct}%)`

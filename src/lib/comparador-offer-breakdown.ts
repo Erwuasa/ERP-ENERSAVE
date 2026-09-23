@@ -46,6 +46,12 @@ export interface BuildComparadorOfferBreakdownInput {
   otrosCostesSvaMensual?: number
   totalMensualOferta: number
   totalMensualActual: number | null
+  ieeMensualOferta?: number
+  ivaMensualOferta?: number
+  ieeMensualActual?: number
+  ivaMensualActual?: number
+  baseImponibleMensualOferta?: number
+  baseImponibleMensualActual?: number
   diasFacturacion?: number
 }
 
@@ -153,10 +159,51 @@ export function buildComparadorOfferBreakdown(
     })
   }
 
+  const baseOferta = input.baseImponibleMensualOferta ?? 0
+  if (baseOferta > 0) {
+    rows.push({
+      id: "base-imponible",
+      kind: "extras",
+      labelLeft: "Subtotal base imponible",
+      amountOffer: baseOferta,
+      amountCurrent: input.baseImponibleMensualActual ?? null,
+      savings:
+        input.baseImponibleMensualActual != null
+          ? input.baseImponibleMensualActual - baseOferta
+          : null,
+    })
+  }
+
+  const ieeOferta = input.ieeMensualOferta ?? 0
+  if (ieeOferta > 0) {
+    rows.push({
+      id: "iee-oferta",
+      kind: "extras",
+      labelLeft: "Impuesto eléctrico (IEE)",
+      amountOffer: ieeOferta,
+      amountCurrent: input.ieeMensualActual ?? null,
+      savings:
+        input.ieeMensualActual != null ? input.ieeMensualActual - ieeOferta : null,
+    })
+  }
+
+  const ivaOferta = input.ivaMensualOferta ?? 0
+  if (ivaOferta > 0) {
+    rows.push({
+      id: "iva-oferta",
+      kind: "extras",
+      labelLeft: "IVA",
+      amountOffer: ivaOferta,
+      amountCurrent: input.ivaMensualActual ?? null,
+      savings:
+        input.ivaMensualActual != null ? input.ivaMensualActual - ivaOferta : null,
+    })
+  }
+
   rows.push({
     id: "total",
     kind: "total",
-    labelLeft: "Total mensual estimado",
+    labelLeft: "Total mensual (IEE e IVA incl.)",
     amountOffer: input.totalMensualOferta,
     amountCurrent: input.totalMensualActual,
     savings:

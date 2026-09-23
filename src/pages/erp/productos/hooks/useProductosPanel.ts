@@ -11,6 +11,11 @@ import {
   type TariffCatalogRow,
   type TariffWebSettingsPatch,
 } from "@/lib/supabase/tariffs"
+import {
+  markCatalogDedupRan,
+  persistTariffCatalogDedup,
+  shouldRunCatalogDedup,
+} from "@/lib/catalog-dedup-persist"
 
 type Options = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
@@ -36,8 +41,10 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalProduct, setModalProduct] = useState<ProductoTarifa | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deduping, setDeduping] = useState(false)
 
   const canManageTariffs = canManageTariffSettings(activeRole, { superadminViewMode })
+  const canRunTariffDedup = activeRole === "superadmin" && canManageTariffs
   const canEditCalendario = activeRole === "superadmin"
   const providerFilterRef = useRef<Record<string, string>>({})
 
@@ -94,6 +101,45 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
   useEffect(() => {
     void fetchPage(0, false)
   }, [fetchPage])
+
+  const runTariffDedup = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!canRunTariffDedup || deduping) return 0
+      setDeduping(true)
+      try {
+        const result = await persistTariffCatalogDedup()
+        markCatalogDedupRan("tariffs")
+        if (result.tariffsDeactivated > 0) {
+          await fetchPage(0, false)
+          if (!options?.silent) {
+            toast.success(
+              `${result.tariffsDeactivated} tarifa(s) duplicada(s) desactivadas en ERP. Se conservó la de mayor precio.`
+            )
+          }
+        } else if (!options?.silent) {
+          toast.message("No hay tarifas duplicadas pendientes.")
+        }
+        return result.tariffsDeactivated
+      } catch (error) {
+        console.error(error)
+        if (!options?.silent) toast.error("No se pudo limpiar duplicados de tarifas.")
+        return 0
+      } finally {
+        setDeduping(false)
+      }
+    },
+    [canRunTariffDedup, deduping, fetchPage]
+  )
+
+  useEffect(() => {
+    if (!canRunTariffDedup || loading) return
+    if (!shouldRunCatalogDedup("tariffs")) return
+    void runTariffDedup({ silent: true }).then((count) => {
+      if (count > 0) {
+        toast.success(`${count} tarifa(s) duplicada(s) desactivadas automáticamente.`)
+      }
+    })
+  }, [canRunTariffDedup, loading, runTariffDedup])
 
   function openEditModal(product: ProductoTarifa) {
     setModalProduct(product)
@@ -251,5 +297,8 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
     handleSaveWebSettings,
     loadMore,
     reload: () => fetchPage(0, false),
+    deduping,
+    canRunTariffDedup,
+    runTariffDedup,
   }
 }

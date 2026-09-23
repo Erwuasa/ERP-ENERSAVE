@@ -17,7 +17,8 @@ import {
 export const COMPARADOR_DIAS_FACTURACION_MENSUAL = 30
 export const COMPARADOR_MESES_ANUAL = 12
 export const COMPARADOR_DIAS_FACTURACION_MIN = 1
-export const COMPARADOR_DIAS_FACTURACION_MAX = 31
+/** Sin tope práctico: facturas bimestrales, trimestrales o periodos AT largos. */
+export const COMPARADOR_DIAS_FACTURACION_MAX = 999
 
 export function normalizeComparadorDiasFacturacion(value: number | null | undefined): number {
   const num = Number(value ?? COMPARADOR_DIAS_FACTURACION_MENSUAL)

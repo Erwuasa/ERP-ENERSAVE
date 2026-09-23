@@ -316,6 +316,79 @@ export async function listMarcoRetributivo(): Promise<
   return { ok: true, data: allRows }
 }
 
+/** Todas las filas activas (incl. placeholders) para deduplicación persistente. */
+export async function listMarcoRetributivoForDedup(): Promise<
+  MarcoRetributivoResult<MarcoRetributivoRow[]>
+> {
+  const clientOrError = requireClient()
+  if (isMarcoClientError(clientOrError)) {
+    return { ok: true, data: [] }
+  }
+
+  const allRows: MarcoRetributivoRow[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await clientOrError
+      .from("marco_retributivo")
+      .select(MARCO_SELECT)
+      .eq("activo", true)
+      .order("compania")
+      .order("tarifa")
+      .range(from, from + MARCO_LIST_PAGE_SIZE - 1)
+
+    if (error) {
+      if (isMarcoTableMissingError(error)) {
+        return { ok: true, data: [] }
+      }
+      return mapError(error)
+    }
+
+    const batch = ((data ?? []) as MarcoRetributivoRow[]).map(mapRow)
+    allRows.push(...batch)
+
+    if (batch.length < MARCO_LIST_PAGE_SIZE) break
+    from += MARCO_LIST_PAGE_SIZE
+  }
+
+  return { ok: true, data: allRows }
+}
+
+const MARCO_DEACTIVATE_BATCH = 40
+
+export async function bulkDeactivateMarcoEntries(
+  ids: string[],
+  updatedBy?: string | null
+): Promise<MarcoRetributivoResult<number>> {
+  const unique = [...new Set(ids.filter(Boolean))]
+  if (unique.length === 0) return { ok: true, data: 0 }
+
+  const clientOrError = requireClient()
+  if (isMarcoClientError(clientOrError)) {
+    return clientOrError
+  }
+
+  let deactivated = 0
+  const stamp = new Date().toISOString()
+
+  for (let offset = 0; offset < unique.length; offset += MARCO_DEACTIVATE_BATCH) {
+    const batch = unique.slice(offset, offset + MARCO_DEACTIVATE_BATCH)
+    const { error } = await clientOrError
+      .from("marco_retributivo")
+      .update({
+        activo: false,
+        updated_at: stamp,
+        updated_by: updatedBy ?? null,
+      })
+      .in("id", batch)
+
+    if (error) return mapError(error)
+    deactivated += batch.length
+  }
+
+  return { ok: true, data: deactivated }
+}
+
 export async function createMarcoEntry(
   entry: NewMarcoEntryInput,
   updatedBy?: string | null

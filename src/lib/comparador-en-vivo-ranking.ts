@@ -5,6 +5,7 @@ import {
   mergeComparadorTariffPrecios,
 } from "./comparador-tariff-pricing"
 import type { ComparadorCostExtras, ComparadorPeriodInputs } from "./tarifa-cost-calculator"
+import { filterCatalogForComparador } from "./comparador-catalog-marco"
 import { estimateMarcoCommissionEur } from "./marco-commission"
 import { resolveMarcoTramoForConsumo } from "./marco-consumo-tramo"
 import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
@@ -140,6 +141,7 @@ export function buildComparadorEnVivoRanking(
   } = input
 
   const marcoIndex = buildMarcoRetributivoIndex(marcoRows)
+  const eligibleCatalog = filterCatalogForComparador(catalog, marcoRows)
   const currentCompany = form.companiaActual?.trim()
     ? normalizeCompanyName(form.companiaActual)
     : null
@@ -161,7 +163,7 @@ export function buildComparadorEnVivoRanking(
   let precision: "exacto" | "estimado" = "exacto"
   const resultados: RankingTarifa[] = []
 
-  for (const tariff of catalog) {
+  for (const tariff of eligibleCatalog) {
     if (currentCompany && normalizeCompanyName(tariff.providerName) === currentCompany) {
       continue
     }
@@ -173,6 +175,7 @@ export function buildComparadorEnVivoRanking(
     if (!matchesSinSvaFilter(tariff, form.sinSva)) continue
 
     const marco = resolveMarcoForTariff(tariff, marcoIndex)
+    if (!marco) continue
     if (!matchesPotenciaBoeFilter(marco, form.soloPotenciaBoe)) continue
 
     if (

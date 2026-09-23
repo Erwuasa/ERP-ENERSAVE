@@ -163,3 +163,71 @@ export async function listTariffsConPrecios(
 
   return { ok: true, data: rows }
 }
+
+const TARIFF_DEDUP_PAGE_SIZE = 250
+
+export async function listAllTariffsConPreciosForDedup(): Promise<
+  TariffsCatalogResult<TariffConPrecios[]>
+> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Supabase no configurado" }
+  }
+
+  const client = getSupabaseClient()
+  if (!client) return { ok: false, message: "Cliente Supabase no disponible" }
+
+  const all: TariffConPrecios[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await client
+      .from("tariffs")
+      .select(TARIFFS_WITH_PRICES_SELECT)
+      .eq("is_active", true)
+      .eq("erp_active", true)
+      .order("name")
+      .range(from, from + TARIFF_DEDUP_PAGE_SIZE - 1)
+
+    if (error) return mapError(error)
+
+    const batch = ((data ?? []) as TariffDbRow[])
+      .map(mapTariffRowToConPrecios)
+      .filter((row) => Object.keys(row.precios).length > 0)
+
+    all.push(...batch)
+    if ((data ?? []).length < TARIFF_DEDUP_PAGE_SIZE) break
+    from += TARIFF_DEDUP_PAGE_SIZE
+  }
+
+  return { ok: true, data: all }
+}
+
+const TARIFF_DEACTIVATE_BATCH = 50
+
+export async function bulkSetTariffsErpInactive(
+  tariffIds: string[]
+): Promise<TariffsCatalogResult<number>> {
+  const unique = [...new Set(tariffIds.filter(Boolean))]
+  if (unique.length === 0) return { ok: true, data: 0 }
+
+  if (!isSupabaseConfigured()) {
+    return { ok: false, message: "Supabase no configurado" }
+  }
+
+  const client = getSupabaseClient()
+  if (!client) return { ok: false, message: "Cliente Supabase no disponible" }
+
+  let count = 0
+  for (let offset = 0; offset < unique.length; offset += TARIFF_DEACTIVATE_BATCH) {
+    const batch = unique.slice(offset, offset + TARIFF_DEACTIVATE_BATCH)
+    const { error } = await client
+      .from("tariffs")
+      .update({ erp_active: false })
+      .in("id", batch)
+
+    if (error) return mapError(error)
+    count += batch.length
+  }
+
+  return { ok: true, data: count }
+}

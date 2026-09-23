@@ -46,6 +46,9 @@ export function ProductosPanel({
         <ProductosPanelHeader
           title={title}
           onOpenCalendario={() => setView("calendario")}
+          canDedupTariffs={vm.canRunTariffDedup}
+          dedupingTariffs={vm.deduping}
+          onDedupTariffs={() => void vm.runTariffDedup()}
           suministro={vm.suministro}
           setSuministro={vm.setSuministro}
           compania={vm.compania}

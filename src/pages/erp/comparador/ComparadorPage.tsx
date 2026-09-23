@@ -48,6 +48,10 @@ export function ComparadorPage() {
     setCompEnergiaReactiva,
     compOtrosCostesSva,
     setCompOtrosCostesSva,
+    compDescuentoPotencia,
+    setCompDescuentoPotencia,
+    compDescuentoEnergia,
+    setCompDescuentoEnergia,
     compCurrentBill,
     setCompCurrentBill,
     compCompaniaActual,
@@ -138,9 +142,13 @@ export function ComparadorPage() {
           bonoSocial: compBonoSocial,
           energiaReactiva: compEnergiaReactiva,
           otrosCostesSva: compOtrosCostesSva,
+          descuentoPotencia: compDescuentoPotencia,
+          descuentoEnergia: compDescuentoEnergia,
         },
         diasFacturacion: compDiasFacturados,
         sortMode: compSortMode,
+        descuentoPotencia: compDescuentoPotencia,
+        descuentoEnergia: compDescuentoEnergia,
       }),
     [
       resultados,
@@ -154,6 +162,8 @@ export function ComparadorPage() {
       compBonoSocial,
       compEnergiaReactiva,
       compOtrosCostesSva,
+      compDescuentoPotencia,
+      compDescuentoEnergia,
       compDiasFacturados,
       compSortMode,
     ]
@@ -290,6 +300,10 @@ export function ComparadorPage() {
                 setCompDiasFacturados(normalizeComparadorDiasFacturacion(value))
               }
               onFacturaMensualChange={setCompCurrentBill}
+              descuentoPotencia={compDescuentoPotencia}
+              descuentoEnergia={compDescuentoEnergia}
+              onDescuentoPotenciaChange={setCompDescuentoPotencia}
+              onDescuentoEnergiaChange={setCompDescuentoEnergia}
             />
           </motion.div>
         </motion.aside>

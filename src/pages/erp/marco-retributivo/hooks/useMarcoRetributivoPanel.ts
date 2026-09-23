@@ -22,6 +22,11 @@ import {
   expandMarcoRowsByTramos,
   resolveMarcoParentRowId,
 } from "@/pages/erp/marco-retributivo/lib/marco-table-rows"
+import {
+  markCatalogDedupRan,
+  persistMarcoCatalogDedup,
+  shouldRunCatalogDedup,
+} from "@/lib/catalog-dedup-persist"
 
 type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
 type MarcoSegmentoFilter = "todos" | "residencial" | "pyme"
@@ -48,6 +53,7 @@ export function useMarcoRetributivoPanel({
   const [isCreateMode, setIsCreateMode] = useState(false)
   const [pendingDeactivate, setPendingDeactivate] = useState<MarcoRetributivoRow | null>(null)
   const [deactivating, setDeactivating] = useState(false)
+  const [deduping, setDeduping] = useState(false)
 
   const canEdit = canEditMarcoRetributivo(activeRole, { superadminViewMode })
   const canEditComision = canEdit && activeRole === "superadmin"
@@ -67,6 +73,47 @@ export function useMarcoRetributivoPanel({
   useEffect(() => {
     void loadRows()
   }, [loadRows])
+
+  const runMarcoDedup = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!canEditComision || !supabaseConfigured || deduping) return 0
+      setDeduping(true)
+      try {
+        const result = await persistMarcoCatalogDedup(activeUserId)
+        markCatalogDedupRan("marco")
+        if (result.marcoDeactivated > 0) {
+          await loadRows()
+          if (!options?.silent) {
+            toast.success(
+              `${result.marcoDeactivated} duplicado(s) del marco desactivado(s). Se conservaron mayor precio y comisión.`
+            )
+          }
+        } else if (!options?.silent) {
+          toast.message("No hay duplicados pendientes en el marco retributivo.")
+        }
+        return result.marcoDeactivated
+      } catch (error) {
+        console.error(error)
+        if (!options?.silent) {
+          toast.error("No se pudo limpiar duplicados del marco.")
+        }
+        return 0
+      } finally {
+        setDeduping(false)
+      }
+    },
+    [activeUserId, canEditComision, deduping, loadRows, supabaseConfigured]
+  )
+
+  useEffect(() => {
+    if (!canEditComision || !supabaseConfigured || loading) return
+    if (!shouldRunCatalogDedup("marco")) return
+    void runMarcoDedup({ silent: true }).then((count) => {
+      if (count > 0) {
+        toast.success(`${count} duplicado(s) del marco eliminados automáticamente.`)
+      }
+    })
+  }, [canEditComision, supabaseConfigured, loading, runMarcoDedup])
 
   const scopedRows = useMemo(() => {
     return rows.filter((entry) => {
@@ -305,5 +352,7 @@ export function useMarcoRetributivoPanel({
     cancelDeactivate,
     pendingDeactivate,
     deactivating,
+    deduping,
+    runMarcoDedup,
   }
 }

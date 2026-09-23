@@ -18,6 +18,12 @@ import { toast } from "sonner"
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css"
 import { colorForCalendarioUsuario } from "../../lib/calendario-colors"
+import { CalendarioEventBlock } from "./CalendarioEventBlock"
+import { CalendarioToolbar } from "./CalendarioToolbar"
+import {
+  calendarioEventSurfaceStyle,
+  resolveCalendarioEventAccent,
+} from "./calendario-event-styles"
 import { calendarRangeToStoredDates, toCalendarDate } from "../../lib/calendario-dnd"
 import {
   createCalendarioEvento,
@@ -155,7 +161,7 @@ export function CalendarioPanel({
   eventos,
   onEventosChange,
 }: CalendarioPanelProps) {
-  const [view, setView] = useState<View>(Views.MONTH)
+  const [view, setView] = useState<View>(Views.WEEK)
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(() => new Set())
   const [formOpen, setFormOpen] = useState(false)
@@ -165,12 +171,15 @@ export function CalendarioPanel({
   const didDragRef = useRef(false)
   const calendarWrapRef = useRef<HTMLDivElement>(null)
 
+  const showUserFilter = activeRole === "superadmin" || activeRole === "jefe_comercial"
+
   useEffect(() => {
     const node = calendarWrapRef.current
     if (!node) return
 
     const updateHeight = () => {
-      const next = Math.max(420, Math.floor(node.clientHeight - 4))
+      const minWeekGrid = 16 * 60 + 120
+      const next = Math.max(minWeekGrid, Math.floor(node.clientHeight - 4))
       setCalendarHeight((current) => (current === next ? current : next))
     }
 
@@ -178,9 +187,7 @@ export function CalendarioPanel({
     const observer = new ResizeObserver(updateHeight)
     observer.observe(node)
     return () => observer.disconnect()
-  }, [showUserFilter])
-
-  const showUserFilter = activeRole === "superadmin" || activeRole === "jefe_comercial"
+  }, [showUserFilter, view])
 
   const filterUsers = useMemo(() => {
     if (activeRole === "superadmin") {
@@ -486,12 +493,20 @@ export function CalendarioPanel({
             onView={setView}
             date={currentDate}
             onNavigate={setCurrentDate}
-            views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
+            views={[Views.WEEK, Views.DAY, Views.MONTH, Views.AGENDA]}
             messages={CALENDAR_MESSAGES}
             culture="es"
             selectable
             resizable
-            popup
+            popup={false}
+            showMultiDayTimes
+            step={15}
+            timeslots={4}
+            scrollToTime={new Date(1970, 0, 1, 8, 0, 0)}
+            components={{
+              toolbar: CalendarioToolbar,
+              event: CalendarioEventBlock,
+            }}
             draggableAccessor={() => true}
             onEventDrop={handleEventInteraction}
             onEventResize={handleEventInteraction}
@@ -505,14 +520,18 @@ export function CalendarioPanel({
             }}
             eventPropGetter={(event) => {
               const resource = (event as CalendarUiEvent).resource
-              const color = colorForCalendarioUsuario(resource.usuarioId)
+              const accent = resolveCalendarioEventAccent(
+                resource.tipo,
+                resource.usuarioId,
+                showUserFilter
+              )
               return {
+                className: "calendario-rbc-event",
                 style: {
-                  backgroundColor: color,
-                  borderColor: color,
-                  color: "#fff",
+                  ...calendarioEventSurfaceStyle(accent),
+                  borderRadius: 8,
+                  padding: 0,
                   fontSize: "11px",
-                  borderRadius: "6px",
                 },
               }
             }}
@@ -523,6 +542,31 @@ export function CalendarioPanel({
             }}
             style={{ height: calendarHeight }}
           />
+          <div className="mt-3 flex flex-wrap gap-3 border-t border-brand-border pt-3 shrink-0">
+            {(showUserFilter
+              ? filterUsers.slice(0, 6).map((user) => ({
+                  key: user.id,
+                  label: user.fullName.split(/\s+/)[0] ?? user.fullName,
+                  color: colorForCalendarioUsuario(user.id),
+                }))
+              : TIPO_OPTIONS.map((option) => ({
+                  key: option.value,
+                  label: option.label,
+                  color: resolveCalendarioEventAccent(option.value, activeUserId, false),
+                }))
+            ).map((item) => (
+              <div
+                key={item.key}
+                className="inline-flex items-center gap-2 text-[10px] font-mono text-brand-subtext"
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-sm shrink-0 border border-brand-border"
+                  style={{ backgroundColor: `color-mix(in srgb, ${item.color} 35%, transparent)` }}
+                />
+                {item.label}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

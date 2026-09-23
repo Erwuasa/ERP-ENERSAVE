@@ -53,6 +53,6 @@ describe("comparador-current-bill", () => {
     })
 
     expect(result.precision).toBe("estimado")
-    expect(result.totalAnual).toBe(80 * 12 + 1.84 * 12 + 0.4 * 12 + 10 + 5)
+    expect(result.totalAnual).toBe(80 * 12 + 1.84 * 12 + 0.4 * 12 + 10 * 12 + 5 * 12)
   })
 })

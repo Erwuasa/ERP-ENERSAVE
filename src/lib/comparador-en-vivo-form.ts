@@ -1,6 +1,10 @@
 import type { CompProposalFilterId } from "./comparador-proposal-filters"
 import type { ComparadorEnVivoFormState } from "./comparador-en-vivo-ranking"
-import { resolveComparadorCurrentBillAnnual } from "./comparador-current-bill"
+import {
+  canCalcularCosteActualExacto,
+  resolveComparadorCurrentBillAnnual,
+} from "./comparador-current-bill"
+import { calcularCosteComparadorDesdePreciosActuales } from "./comparador-billing"
 import type { ComparadorPeriodValues } from "./erp/comparador-rates"
 import { normalizePeaje } from "./tarifa-cost-calculator"
 import type { ComparadorOfferOption } from "../components/ComparadorOfferCard"
@@ -14,6 +18,10 @@ import {
   COMPARADOR_MESES_ANUAL,
   normalizeComparadorDiasFacturacion,
 } from "./comparador-billing"
+import {
+  resolveComparadorCurrentTaxesFromBreakdown,
+  resolveComparadorOfferTaxes,
+} from "./comparador-offer-totals"
 import type { ComparadorSortMode } from "./comparador-sort"
 
 const CONSUMO_SPLIT_20TD = [0.3, 0.25, 0.45, 0, 0, 0]
@@ -140,14 +148,16 @@ export interface ComparadorBillExtrasInput {
   bonoSocial: number
   energiaReactiva: number
   otrosCostesSva: number
+  descuentoPotencia?: number
+  descuentoEnergia?: number
 }
 
 function sumBillExtrasAnnual(extras: ComparadorBillExtrasInput): number {
   return (
-    Math.max(0, extras.rentMeterMonthly) * 12 +
-    Math.max(0, extras.bonoSocial) * 12 +
-    Math.max(0, extras.energiaReactiva) +
-    Math.max(0, extras.otrosCostesSva)
+    Math.max(0, extras.rentMeterMonthly) * COMPARADOR_MESES_ANUAL +
+    Math.max(0, extras.bonoSocial) * COMPARADOR_MESES_ANUAL +
+    Math.max(0, extras.energiaReactiva) * COMPARADOR_MESES_ANUAL +
+    Math.max(0, extras.otrosCostesSva) * COMPARADOR_MESES_ANUAL
   )
 }
 
@@ -178,6 +188,8 @@ export interface MapRankingToOfferOptionsInput {
   billExtras: ComparadorBillExtrasInput
   diasFacturacion: number
   sortMode: ComparadorSortMode
+  descuentoPotencia?: number
+  descuentoEnergia?: number
 }
 
 export interface MapRankingToOfferOptionsResult {
@@ -199,6 +211,8 @@ export function mapRankingToOfferOptions(
     billExtras,
     diasFacturacion,
     sortMode,
+    descuentoPotencia = 0,
+    descuentoEnergia = 0,
   } = input
   const dias = normalizeComparadorDiasFacturacion(diasFacturacion)
   const stubOptions: ComparadorOfferOption[] = resultados.map((row) => ({
@@ -227,11 +241,52 @@ export function mapRankingToOfferOptions(
     diasFacturacion: dias,
     fallbackOptions: stubOptions,
   })
-  const currentAnnualExpense = currentBill.totalAnual
+  const descPotActual = Math.max(0, billExtras.descuentoPotencia ?? descuentoPotencia)
+  const descEnActual = Math.max(0, billExtras.descuentoEnergia ?? descuentoEnergia)
+  const canExactCurrent = canCalcularCosteActualExacto(
+    peaje,
+    potencias,
+    consumos,
+    preciosPotenciaActual,
+    preciosEnergiaActual
+  )
+  let currentTaxes: ReturnType<typeof resolveComparadorCurrentTaxesFromBreakdown> | null = null
+  let currentAnnualExpense = currentBill.totalAnual
+  if (currentBill.precision === "exacto" && canExactCurrent) {
+    const actualBreakdown = calcularCosteComparadorDesdePreciosActuales(
+      potencias,
+      consumos,
+      preciosPotenciaActual,
+      preciosEnergiaActual,
+      peaje,
+      billExtras.rentMeterMonthly,
+      {
+        alquilerContador: billExtras.rentMeterMonthly,
+        bonoSocial: billExtras.bonoSocial,
+        energiaReactiva: billExtras.energiaReactiva,
+        otrosCostesSva: billExtras.otrosCostesSva,
+        diasFacturacion: dias,
+      }
+    )
+    currentTaxes = resolveComparadorCurrentTaxesFromBreakdown(actualBreakdown, {
+      descuentoPotencia: descPotActual,
+      descuentoEnergia: descEnActual,
+    })
+    currentAnnualExpense = currentTaxes.totalAnual
+  }
 
   const withSavings = resultados.map((row) => {
-    const annualCost = Math.round(row.costeAnual)
-    const savingsAnnual = currentAnnualExpense - annualCost
+    const offerTaxes = resolveComparadorOfferTaxes({
+      costeAnual: row.costeAnual,
+      potenciaAnual: row.potenciaAnual,
+      energiaAnual: row.energiaAnual,
+      extrasAnual: row.extrasAnual,
+      alquilerAnual: row.alquilerAnual,
+      descuentoPotencia,
+      descuentoEnergia,
+    })
+    const savingsAnnual = currentAnnualExpense - offerTaxes.totalAnual
+
     const breakdownRows: ComparadorOfferBreakdownRow[] = buildComparadorOfferBreakdown({
       peaje,
       potencias,
@@ -243,8 +298,14 @@ export function mapRankingToOfferOptions(
       bonoSocialMensual: billExtras.bonoSocial,
       energiaReactivaMensual: billExtras.energiaReactiva,
       otrosCostesSvaMensual: billExtras.otrosCostesSva,
-      totalMensualOferta: Math.round(row.costeAnual / COMPARADOR_MESES_ANUAL),
+      baseImponibleMensualOferta: offerTaxes.baseImponibleMensual,
+      baseImponibleMensualActual: currentTaxes?.baseImponibleMensual,
+      totalMensualOferta: Math.round(offerTaxes.totalMensual),
       totalMensualActual: Math.round(currentAnnualExpense / COMPARADOR_MESES_ANUAL),
+      ieeMensualOferta: offerTaxes.ieeMensual,
+      ivaMensualOferta: offerTaxes.ivaMensual,
+      ieeMensualActual: currentTaxes?.ieeMensual,
+      ivaMensualActual: currentTaxes?.ivaMensual,
       diasFacturacion: dias,
     })
 
@@ -254,8 +315,11 @@ export function mapRankingToOfferOptions(
       tariffName: row.tariffName,
       pricingType: row.pricingType,
       companyLogoUrl: row.providerLogoUrl,
-      monthlyCost: Math.round(row.costeAnual / 12),
-      annualCost,
+      monthlyCost: Math.round(offerTaxes.totalMensual),
+      annualCost: offerTaxes.totalAnual,
+      monthlyBaseImponible: offerTaxes.baseImponibleMensual,
+      monthlyIee: offerTaxes.ieeMensual,
+      monthlyIva: offerTaxes.ivaMensual,
       potenciaBreakdown: Math.round(row.potenciaAnual ?? 0),
       consumoBreakdown: Math.round(row.energiaAnual ?? 0),
       precios: row.precios,

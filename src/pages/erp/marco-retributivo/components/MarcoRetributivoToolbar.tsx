@@ -1,4 +1,4 @@
-import { Coins, Filter, Plus } from "lucide-react"
+import { Coins, Filter, Loader2, Plus, Sparkles } from "lucide-react"
 
 type Props = {
   supabaseConfigured: boolean
@@ -8,6 +8,9 @@ type Props = {
   segmentoFilter: "todos" | "residencial" | "pyme"
   setSegmentoFilter: (segmento: "todos" | "residencial" | "pyme") => void
   onCreate: () => void
+  onDedupDuplicates?: () => void
+  deduping?: boolean
+  canDedup?: boolean
   companiaFilter: string
   setCompaniaFilter: (value: string) => void
   companyTabs: string[]
@@ -25,6 +28,9 @@ export function MarcoRetributivoToolbar({
   segmentoFilter,
   setSegmentoFilter,
   onCreate,
+  onDedupDuplicates,
+  deduping = false,
+  canDedup = false,
   companiaFilter,
   setCompaniaFilter,
   companyTabs,
@@ -53,6 +59,21 @@ export function MarcoRetributivoToolbar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {canDedup && onDedupDuplicates ? (
+            <button
+              type="button"
+              onClick={onDedupDuplicates}
+              disabled={deduping}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/15 cursor-pointer disabled:opacity-50"
+            >
+              {deduping ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              Quitar duplicados
+            </button>
+          ) : null}
           {canEdit && (
             <button
               type="button"

@@ -125,6 +125,8 @@ export function useErpComparador({
   const [compBonoSocial, setCompBonoSocial] = useState<number>(0);
   const [compEnergiaReactiva, setCompEnergiaReactiva] = useState<number>(0);
   const [compOtrosCostesSva, setCompOtrosCostesSva] = useState<number>(0);
+  const [compDescuentoPotencia, setCompDescuentoPotencia] = useState<number>(0);
+  const [compDescuentoEnergia, setCompDescuentoEnergia] = useState<number>(0);
   const [compCurrentBill, setCompCurrentBill] = useState<number>(85);
   const [compResults, setCompResults] = useState<ComparadorRateOption[] | null>(null);
   const [compSummary, setCompSummary] = useState<ComparadorRateSummary | null>(null);
@@ -312,6 +314,8 @@ export function useErpComparador({
       bonoSocial: compBonoSocial,
       energiaReactiva: compEnergiaReactiva,
       otrosCostesSva: compOtrosCostesSva,
+      descuentoPotencia: compDescuentoPotencia,
+      descuentoEnergia: compDescuentoEnergia,
       currentBillMonthly: compCurrentBill,
       bestOption: {
         companyName: option.companyName,
@@ -386,6 +390,8 @@ export function useErpComparador({
         bonoSocial: compBonoSocial,
         energiaReactiva: compEnergiaReactiva,
         otrosCostesSva: compOtrosCostesSva,
+        descuentoPotencia: compDescuentoPotencia,
+        descuentoEnergia: compDescuentoEnergia,
         currentBillMonthly: compCurrentBill,
         tarifaActualNombre: compTarifaActual,
         comercializadoraActual: compCompaniaActual,
@@ -416,6 +422,8 @@ export function useErpComparador({
             bonoSocial: item.snapshot.bonoSocial,
             energiaReactiva: item.snapshot.energiaReactiva,
             otrosCostesSva: item.snapshot.otrosCostesSva,
+            descuentoPotencia: item.snapshot.descuentoPotencia ?? 0,
+            descuentoEnergia: item.snapshot.descuentoEnergia ?? 0,
             currentBillMonthly: item.snapshot.currentBillMonthly,
             bestOption: {
               companyName: item.snapshot.companyName,
@@ -805,6 +813,10 @@ export function useErpComparador({
     setCompEnergiaReactiva,
     compOtrosCostesSva,
     setCompOtrosCostesSva,
+    compDescuentoPotencia,
+    setCompDescuentoPotencia,
+    compDescuentoEnergia,
+    setCompDescuentoEnergia,
     compCurrentBill,
     setCompCurrentBill,
     compResults,

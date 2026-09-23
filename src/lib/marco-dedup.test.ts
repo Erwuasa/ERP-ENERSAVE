@@ -95,4 +95,23 @@ describe("marco-dedup", () => {
     expect(deactivate).toHaveLength(1)
     expect(deactivate[0]?.tarifa).toBe("LIBRE + PERMANENCIA")
   })
+
+  it("conserva la fila con mayor precio en energía/potencia", () => {
+    const rows = [
+      sampleRow({
+        id: "low",
+        tarifa: "PLAN A",
+        energia_p1: 0.1,
+        comision_base: 50,
+      }),
+      sampleRow({
+        id: "high",
+        tarifa: "PLAN A",
+        energia_p1: 0.25,
+        comision_base: 50,
+      }),
+    ]
+    const deactivate = listMarcoRowsToDeactivate(rows)
+    expect(deactivate.map((row) => row.id)).toEqual(["low"])
+  })
 })

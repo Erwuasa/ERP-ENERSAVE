@@ -45,6 +45,9 @@ export function MarcoRetributivoPanel({
             segmentoFilter={vm.segmentoFilter}
             setSegmentoFilter={vm.setSegmentoFilter}
             onCreate={vm.openCreateModal}
+            canDedup={vm.canEditComision && vm.supabaseConfigured}
+            deduping={vm.deduping}
+            onDedupDuplicates={() => void vm.runMarcoDedup()}
             companiaFilter={vm.companiaFilter}
             setCompaniaFilter={vm.setCompaniaFilter}
             companyTabs={vm.companyTabs}

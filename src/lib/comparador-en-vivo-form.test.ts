@@ -18,7 +18,7 @@ describe("resolveComparadorCurrentAnnualExpense", () => {
       }
     )
 
-    expect(total).toBe(80 * 12 + 1.84 * 12 + 0.5 * 12 + 50 + 30)
+    expect(total).toBe(80 * 12 + 1.84 * 12 + 0.5 * 12 + 50 * 12 + 30 * 12)
   })
 
   it("uses exact current bill prices in ranking savings when provided", () => {

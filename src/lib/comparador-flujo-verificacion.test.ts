@@ -13,6 +13,7 @@ import {
 } from "../pages/erp/comparador/hooks/usePotenciaP1Autofill"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
 import type { ComparadorPeriodValues } from "./erp/comparador-rates"
+import { marcoRowsForCatalog } from "./comparador-test-marco"
 
 function makeTariff(overrides: Partial<TariffConPrecios> = {}): TariffConPrecios {
   return {
@@ -126,7 +127,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
 
     const ranking = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marcoRowsForCatalog(catalog),
       form: buildForm({ segmento: "pyme", peaje: "3.0TD" }),
     })
 
@@ -185,7 +186,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
 
     const ranking = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marcoRowsForCatalog(catalog),
       form: buildForm({ sinSva: true }),
     })
 
@@ -214,7 +215,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
 
     const ranking = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marcoRowsForCatalog(catalog),
       form: enVivoForm,
     })
 
@@ -282,9 +283,10 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       proposalFilters: [],
     })
 
+    const marco = marcoRowsForCatalog(catalog)
     const partialRanking = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: partialForm,
     })
     expect(partialRanking.precision).toBe("exacto")
@@ -305,7 +307,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
 
     const fullRanking = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: fullForm,
     })
 
@@ -329,7 +331,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
 
     const reorderedRanking = buildComparadorEnVivoRanking({
       catalog,
-      marcoRows: [],
+      marcoRows: marco,
       form: reorderedForm,
     })
 

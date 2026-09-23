@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell"
 import { Outlet } from "react-router-dom"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/erp-workspace-context"
 import { StaffFeedsProvider } from "@/pages/erp/providers/StaffFeedsProvider"
+import { canToggleAtOutboundApi } from "@/lib/at-api-toggle"
 import { AtApiSettingsProvider } from "@/providers/AtApiSettingsProvider"
 import { ErpWorkspaceModals } from "@/pages/erp/workspace/ErpWorkspaceModals"
 import { VentasFichaOverlay } from "@/pages/ventas/overlays/VentasFichaOverlay"
@@ -25,7 +26,9 @@ export function ErpWorkspaceShell() {
   } = ws
 
   return (
-    <AtApiSettingsProvider canToggle={activeRole === "superadmin"}>
+    <AtApiSettingsProvider
+      canToggle={canToggleAtOutboundApi(activeRole, activeUser.email)}
+    >
       <StaffFeedsProvider>
         <AppShell
           activeModule={activeModule}
