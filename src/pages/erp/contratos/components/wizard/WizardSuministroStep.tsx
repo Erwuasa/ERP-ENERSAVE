@@ -48,6 +48,7 @@ type Props = {
   setPeajeSegment: (segment: ContractPeajeSegment) => void
   setTipo: (tipo: "luz" | "gas") => void
   handlePotenciaP1Change: (value: string) => void
+  consumoAnualRequired?: boolean
 }
 
 export function WizardSuministroStep({
@@ -69,6 +70,7 @@ export function WizardSuministroStep({
   setPeajeSegment,
   setTipo,
   handlePotenciaP1Change,
+  consumoAnualRequired = true,
 }: Props) {
   const visiblePeriods = getVisiblePotenciaPeriods(
     peajeSegmentToTariffPeajeType(form.peajeSegment)
@@ -223,7 +225,12 @@ export function WizardSuministroStep({
         </div>
 
         <div className="col-span-6 sm:col-span-4">
-          <label className={WIZARD_LABEL_CLASS}>Consumo anual (kWh)</label>
+          <label className={WIZARD_LABEL_CLASS}>
+            Consumo anual (kWh)
+            {!consumoAnualRequired ? (
+              <span className="normal-case font-normal text-brand-subtext ml-1">(opcional)</span>
+            ) : null}
+          </label>
           <input
             type="number"
             min={0}

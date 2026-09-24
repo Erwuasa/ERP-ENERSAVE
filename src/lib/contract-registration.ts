@@ -37,6 +37,8 @@ export interface ContratoDocumentoArchivo {
 
 export type DocumentosPorTipo = Record<string, ContratoDocumentoArchivo[]>
 
+export type ContractTipoOperacion = "alta_nueva" | "cambio_comercializadora"
+
 export interface NewContractFormState {
   clientName: string
   clientNombre: string
@@ -63,6 +65,11 @@ export interface NewContractFormState {
   wizardSegment: "residencial" | "pyme"
   /** Fase comercializadora = 1; tabs = cliente | suministro | documentos */
   wizardStep: WizardStep
+  /** Alta nueva vs cambio de comercializadora (paso cliente, todos los roles). */
+  tipoOperacion: ContractTipoOperacion
+  esCambioTitular: boolean
+  titularActualNombre: string
+  titularActualDni: string
   tipoCliente: TipoClienteContrato
   direccionFiscal: string
   codigoPostal: string
@@ -105,7 +112,11 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   peajeSegment: "2.0",
   wizardSegment: "residencial",
   wizardStep: 1,
-  tipoCliente: "residencial",
+  tipoOperacion: "cambio_comercializadora",
+  esCambioTitular: false,
+  titularActualNombre: "",
+  titularActualDni: "",
+  tipoCliente: "autonomo",
   direccionFiscal: "",
   codigoPostal: "",
   poblacion: "",
@@ -275,6 +286,10 @@ export function contractToNewContractForm(
     peajeSegment: inferPeajeSegmentFromContract(contract),
     wizardSegment: inferWizardSegmentFromContract(contract),
     wizardStep: "cliente",
+    tipoOperacion: contract.isNewSupply ? "alta_nueva" : "cambio_comercializadora",
+    esCambioTitular: contract.isOwnershipChange === true,
+    titularActualNombre: contract.titularActualNombre ?? "",
+    titularActualDni: contract.titularActualDni ?? "",
     tipoCliente,
     direccionFiscal: contract.direccionFiscal ?? contract.direccionCompleta ?? "",
     codigoPostal: contract.codigoPostal ?? "",
@@ -380,11 +395,21 @@ function isFilled(value: string | number | null | undefined): boolean {
   return String(value).trim().length > 0
 }
 
+/** Consumo anual obligatorio salvo alta nueva o segmento/particular residencial. */
+export function isConsumoAnualRequired(
+  form: Pick<NewContractFormState, "tipoOperacion" | "wizardSegment">
+): boolean {
+  if (form.tipoOperacion === "alta_nueva") return false
+  if (form.wizardSegment === "residencial") return false
+  return true
+}
+
 export function validateContractRegistration(
   input: ContractRegistrationInput,
-  options?: { requireDireccionCompleta?: boolean }
+  options?: { requireDireccionCompleta?: boolean; requireConsumoAnual?: boolean }
 ): { valid: boolean; missingLabels: string[] } {
   const missing: string[] = []
+  const requireConsumo = options?.requireConsumoAnual !== false
 
   const checks: Array<[boolean, string]> = [
     [isFilled(input.clientName), "Nombre del cliente"],
@@ -393,7 +418,7 @@ export function validateContractRegistration(
     [isFilled(input.compania), "Comercializadora"],
     [isFilled(input.tarifa), "Tarifa"],
     [input.tipoPrecio === "fijo" || input.tipoPrecio === "mercado", "Tipo de precio (fijo o mercado)"],
-    [isFilled(input.consumoAnual), "Consumo anual estimado (kWh)"],
+    [!requireConsumo || isFilled(input.consumoAnual), "Consumo anual estimado (kWh)"],
     [isFilled(input.nif), "NIF / NIE / CIF"],
     [isFilled(input.telefono), "Teléfono"],
     [isFilled(input.email), "Email"],
@@ -472,7 +497,14 @@ export function buildContractPatchFromForm(form: NewContractFormState): Partial<
     tipoCliente: form.tipoCliente,
     formaPago: form.formaPago,
     nombreComercial: form.nombreComercial || undefined,
-    jefeEquipo: form.jefeEquipo || undefined,
+    isNewSupply: form.tipoOperacion === "alta_nueva",
+    isOwnershipChange: form.esCambioTitular,
+    titularActualNombre: form.esCambioTitular
+      ? form.titularActualNombre.trim() || undefined
+      : undefined,
+    titularActualDni: form.esCambioTitular
+      ? form.titularActualDni.trim().toUpperCase() || undefined
+      : undefined,
     marcoEntryId: form.marcoEntryId || undefined,
     atr: peajeSegmentToAccessTariff(form.peajeSegment),
     comentariosInternos: form.comentariosInternos,

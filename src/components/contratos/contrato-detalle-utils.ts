@@ -102,13 +102,34 @@ export function formatPotenciasInline(contract: Contract): string | undefined {
   return periods.map((row) => `p${row.periodo}: ${row.kw}`).join(" · ")
 }
 
-export function formatSuministroAccion(contract: Contract): string | undefined {
-  if (contract.isNewSupply) return "Alta nueva"
-  if (contract.isOwnershipChange) return "Cambio de titularidad"
-  if (contract.isNewSupply === false && contract.isOwnershipChange === false) {
-    return "Cambio tarifa"
-  }
+/** Alta nueva vs cambio de comercializadora (wizard / metadata). */
+export function formatTipoOperacionContrato(contract: Contract): string | undefined {
+  if (contract.isNewSupply === true) return "Alta nueva"
+  if (contract.isNewSupply === false) return "Cambio de comercializadora"
   return undefined
+}
+
+export function formatCambioTitularLabel(contract: Contract): string | undefined {
+  if (contract.isOwnershipChange === true) return "Sí"
+  if (contract.isOwnershipChange === false && contract.isNewSupply === false) return "No"
+  if (contract.isOwnershipChange === false && contract.isNewSupply === true) return "No"
+  return undefined
+}
+
+export function formatSuministroAccion(contract: Contract): string | undefined {
+  const operacion = formatTipoOperacionContrato(contract)
+  if (operacion) return operacion
+  if (contract.isOwnershipChange) return "Cambio de titularidad"
+  return undefined
+}
+
+/** Etiqueta corta para la tabla de contratos. */
+export function formatContratoOperacionTableHint(contract: Contract): string | undefined {
+  const parts: string[] = []
+  const operacion = formatTipoOperacionContrato(contract)
+  if (operacion) parts.push(operacion)
+  if (contract.isOwnershipChange) parts.push("Cambio titular")
+  return parts.length > 0 ? parts.join(" · ") : undefined
 }
 
 function isPlaceholderComercialName(name?: string | null): boolean {

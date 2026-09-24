@@ -64,6 +64,8 @@ export interface Contract {
   pisoPuerta?: string
   isNewSupply?: boolean
   isOwnershipChange?: boolean
+  titularActualNombre?: string
+  titularActualDni?: string
   nombreComercial?: string
   jefeEquipo?: string
   comentariosInternos?: Array<{

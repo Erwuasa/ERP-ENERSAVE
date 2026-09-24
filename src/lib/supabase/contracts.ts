@@ -120,6 +120,14 @@ export function buildTeamContractRow(
       potencia_p5: form.potenciaP5,
       potencia_p6: form.potenciaP6,
       peaje_segment: form.peajeSegment,
+      is_new_supply: form.tipoOperacion === "alta_nueva",
+      is_ownership_change: form.esCambioTitular,
+      ...(form.esCambioTitular && form.titularActualNombre.trim()
+        ? { titular_actual_nombre: form.titularActualNombre.trim() }
+        : {}),
+      ...(form.esCambioTitular && form.titularActualDni.trim()
+        ? { titular_actual_dni: form.titularActualDni.trim().toUpperCase() }
+        : {}),
     },
     referencia: contract.referencia ?? null,
   }
@@ -422,6 +430,11 @@ export function mapRowToContract(
     isOwnershipChange: bool(
       metadata.is_ownership_change ?? payload.is_ownership_change ?? electricity.is_ownership_change
     ),
+    titularActualNombre:
+      metadataString(metadata, "titular_actual_nombre") ??
+      str(payload.titular_actual_nombre),
+    titularActualDni:
+      metadataString(metadata, "titular_actual_dni") ?? str(payload.titular_actual_dni),
     potenciaContratada:
       num(row.potencia_contratada_kw) ??
       str(row.potencia_contratada) ??
@@ -498,7 +511,6 @@ const PATCH_COLUMNS: Partial<Record<keyof Contract, string>> = {
   tipoCliente: "tipo_cliente",
   formaPago: "forma_pago",
   nombreComercial: "nombre_comercial",
-  jefeEquipo: "jefe_equipo",
   marcoEntryId: "marco_entry_id",
   documentos: "documentos",
   comentariosInternos: "comentarios_internos",
@@ -565,8 +577,42 @@ export async function updateTeamContract(
   if (resolved.ok === false) return resolved
 
   const row = buildTeamContractPatch(patch)
-  if (Object.keys(row).length === 0) {
+  const metadataFlags =
+    patch.isNewSupply !== undefined ||
+    patch.isOwnershipChange !== undefined ||
+    patch.titularActualNombre !== undefined ||
+    patch.titularActualDni !== undefined
+  if (Object.keys(row).length === 0 && !metadataFlags) {
     return { ok: false, reason: "error", message: "No hay cambios que persistir." }
+  }
+
+  if (metadataFlags) {
+    const { data: currentMetaRow } = await resolved.client
+      .from(TABLE)
+      .select("metadata")
+      .eq("id", id)
+      .maybeSingle()
+    const prevMeta =
+      currentMetaRow?.metadata && typeof currentMetaRow.metadata === "object"
+        ? (currentMetaRow.metadata as Record<string, unknown>)
+        : {}
+    row.metadata = {
+      ...prevMeta,
+      ...(patch.isNewSupply !== undefined ? { is_new_supply: patch.isNewSupply } : {}),
+      ...(patch.isOwnershipChange !== undefined
+        ? { is_ownership_change: patch.isOwnershipChange }
+        : {}),
+      ...(patch.titularActualNombre !== undefined
+        ? {
+            titular_actual_nombre: patch.titularActualNombre?.trim() || null,
+          }
+        : {}),
+      ...(patch.titularActualDni !== undefined
+        ? {
+            titular_actual_dni: patch.titularActualDni?.trim().toUpperCase() || null,
+          }
+        : {}),
+    }
   }
 
   const overrideColumns = Object.entries(patch)

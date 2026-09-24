@@ -1,17 +1,19 @@
-import { Download, Search, Upload, X } from "lucide-react"
+import { Download, Search, Upload, Users, X } from "lucide-react"
 import type { ReactNode } from "react"
 import { DateRangePicker } from "@/components/ui/DateRangePicker"
 import { EstadoFilterDropdown } from "@/components/contratos/EstadoFilterDropdown"
 import { CompaniaFilterDropdown } from "@/components/contratos/CompaniaFilterDropdown"
-import { UserFilterDropdown } from "@/components/contratos/UserFilterDropdown"
 import { SelectFilterDropdown } from "@/components/ui/SelectFilterDropdown"
 import type { ContractEstadoUiFilter } from "@/lib/contract-estado-kpis"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { DateRangePickerValue } from "@/lib/date-range"
 import type { ContractsTeamScope } from "@/lib/contract-visibility"
-import { profileRoleLabel, type ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
+import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { SEARCH_INPUT } from "@/lib/enersave-ui-theme"
 import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
+
+const FILTER_SLOT_CLASS = "w-[11.5rem] shrink-0"
+const TEAM_FILTER_SLOT_CLASS = "w-[11.5rem] shrink-0"
 
 type Props = {
   contractsSearchQuery: string
@@ -24,6 +26,8 @@ type Props = {
   onUserFilterChange?: (userId: string) => void
   showTeamMemberSelector?: boolean
   teamMemberFilterOptions?: { id: string; label: string }[]
+  reserveTeamMemberFilterSlot?: boolean
+  staffUserFilterOptions?: { id: string; label: string }[]
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
@@ -44,6 +48,16 @@ type Props = {
   onOpenWizard: () => void
 }
 
+function FilterSlot({
+  className,
+  children,
+}: {
+  className: string
+  children: ReactNode
+}) {
+  return <div className={className}>{children}</div>
+}
+
 export function ContratosPanelToolbar({
   contractsSearchQuery,
   setContractsSearchQuery,
@@ -55,10 +69,12 @@ export function ContratosPanelToolbar({
   onUserFilterChange,
   showTeamMemberSelector = false,
   teamMemberFilterOptions = [],
+  reserveTeamMemberFilterSlot = false,
+  staffUserFilterOptions = [],
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
-  profiles,
+  profiles: _profiles,
   estadoFilterUI,
   setEstadoFilterUI,
   estadoCounts,
@@ -100,39 +116,54 @@ export function ContratosPanelToolbar({
           </div>
 
           {showTeamScopeFilter && onTeamScopeChange ? (
+            <FilterSlot className={FILTER_SLOT_CLASS}>
+              <SelectFilterDropdown
+                label="Vista"
+                value={teamScope}
+                defaultValue="own"
+                options={[
+                  { id: "own", label: "Míos" },
+                  { id: "team", label: "EQUIPO" },
+                ]}
+                onChange={(next) => onTeamScopeChange(next as ContractsTeamScope)}
+                minWidthClass="min-w-0 w-full"
+              />
+            </FilterSlot>
+          ) : null}
+
+          {reserveTeamMemberFilterSlot ? (
+            <FilterSlot className={TEAM_FILTER_SLOT_CLASS}>
+              {showTeamMemberSelector && onUserFilterChange ? (
+                <SelectFilterDropdown
+                  label="Equipo"
+                  value={userFilterId}
+                  defaultValue="all"
+                  options={[{ id: "all", label: "Todos" }, ...teamMemberFilterOptions]}
+                  onChange={onUserFilterChange}
+                  minWidthClass="min-w-0 w-full"
+                />
+              ) : (
+                <div
+                  className="h-10 w-full rounded-xl border border-transparent"
+                  aria-hidden
+                />
+              )}
+            </FilterSlot>
+          ) : null}
+
+          <FilterSlot className={FILTER_SLOT_CLASS}>
             <SelectFilterDropdown
               label="Vista"
-              value={teamScope}
-              defaultValue="own"
-              options={[
-                { id: "own", label: "Míos" },
-                { id: "team", label: "EQUIPO" },
-              ]}
-              onChange={(next) => onTeamScopeChange(next as ContractsTeamScope)}
-              minWidthClass="min-w-[120px]"
-            />
-          ) : null}
-          {showTeamMemberSelector && onUserFilterChange ? (
-            <SelectFilterDropdown
-              label="Equipo"
-              value={userFilterId}
+              value={contractsListFilter}
               defaultValue="all"
-              options={[
-                { id: "all", label: "Todos" },
-                ...teamMemberFilterOptions,
-              ]}
-              onChange={onUserFilterChange}
-              minWidthClass="min-w-[140px]"
+              options={buildContractsListFilterOptions({
+                showTarifaRecommendations,
+                current: contractsListFilter,
+              })}
+              onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
+              minWidthClass="min-w-0 w-full"
             />
-          ) : null}
-          <SelectFilterDropdown
-            label="Vista"
-            value={contractsListFilter}
-            defaultValue="all"
-            options={buildContractsListFilterOptions({ showTarifaRecommendations, current: contractsListFilter })}
-            onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
-            minWidthClass="min-w-[132px]"
-          />
+          </FilterSlot>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 shrink-0 lg:justify-end">
@@ -164,14 +195,22 @@ export function ContratosPanelToolbar({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-h-10 flex-wrap items-center gap-2">
         {showUserFilter && onUserFilterChange ? (
-          <UserFilterDropdown
-            value={userFilterId}
-            onChange={onUserFilterChange}
-            users={profiles}
-            roleLabel={profileRoleLabel}
-          />
+          <FilterSlot className={FILTER_SLOT_CLASS}>
+            <SelectFilterDropdown
+              label="Usuario"
+              value={userFilterId}
+              defaultValue="all"
+              icon={<Users className="w-4 h-4 text-brand-subtext shrink-0" />}
+              options={[
+                { id: "all", label: "Todos los usuarios" },
+                ...staffUserFilterOptions,
+              ]}
+              onChange={onUserFilterChange}
+              minWidthClass="min-w-0 w-full"
+            />
+          </FilterSlot>
         ) : null}
         <EstadoFilterDropdown
           value={estadoFilterUI}

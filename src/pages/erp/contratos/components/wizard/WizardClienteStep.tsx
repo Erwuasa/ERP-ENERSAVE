@@ -10,6 +10,7 @@ import {
 } from "@/lib/client-portfolio-search"
 import {
   TIPO_CLIENTE_OPTIONS,
+  TIPO_OPERACION_OPTIONS,
   WIZARD_INPUT_CLASS,
   WIZARD_LABEL_CLASS,
 } from "@/pages/erp/contratos/components/wizard/wizard-ui"
@@ -74,6 +75,7 @@ export function WizardClienteStep({
           activeRole={activeRole}
           teamMemberIds={teamMemberIds}
           onSelectClient={onChange}
+          showHeading={false}
         />
       </div>
 
@@ -228,6 +230,98 @@ export function WizardClienteStep({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="col-span-12 rounded-xl border border-brand-border bg-brand-surface/40 p-3 space-y-3">
+          <div>
+            <p className={WIZARD_LABEL_CLASS}>Tipo de operación</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {TIPO_OPERACION_OPTIONS.map((option) => {
+                const selected = form.tipoOperacion === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => onChange({ tipoOperacion: option.value })}
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors duration-200 cursor-pointer ${
+                      selected
+                        ? "border-cyan-500 bg-cyan-500/10 text-brand-text"
+                        : "border-brand-border bg-brand-panel text-brand-subtext hover:border-slate-300/80 dark:hover:border-slate-500/50"
+                    }`}
+                  >
+                    <span className="block text-xs font-bold text-brand-text">{option.label}</span>
+                    <span className="block text-[10px] text-brand-subtext mt-0.5 leading-snug">
+                      {option.description}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className={WIZARD_LABEL_CLASS}>¿Es un cambio de titular?</p>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { value: false, label: "No" },
+                  { value: true, label: "Sí" },
+                ] as const
+              ).map((option) => {
+                const selected = form.esCambioTitular === option.value
+                return (
+                  <button
+                    key={String(option.value)}
+                    type="button"
+                    onClick={() =>
+                      onChange(
+                        option.value
+                          ? { esCambioTitular: true }
+                          : {
+                              esCambioTitular: false,
+                              titularActualNombre: "",
+                              titularActualDni: "",
+                            }
+                      )
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold border transition-colors duration-200 cursor-pointer ${
+                      selected
+                        ? "border-cyan-500 bg-cyan-500/10 text-cyan-800 dark:text-cyan-200"
+                        : "border-brand-border bg-brand-panel text-brand-subtext hover:text-brand-text"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+            {form.esCambioTitular ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label className={WIZARD_LABEL_CLASS}>Nombre titular actual</label>
+                  <input
+                    type="text"
+                    value={form.titularActualNombre}
+                    onChange={(e) => onChange({ titularActualNombre: e.target.value })}
+                    className={`${WIZARD_INPUT_CLASS} py-1.5`}
+                    placeholder="Nombre y apellidos"
+                  />
+                </div>
+                <div>
+                  <label className={WIZARD_LABEL_CLASS}>DNI titular actual</label>
+                  <input
+                    type="text"
+                    value={form.titularActualDni}
+                    onChange={(e) =>
+                      onChange({ titularActualDni: e.target.value.toUpperCase() })
+                    }
+                    className={`${WIZARD_INPUT_CLASS} font-mono uppercase py-1.5`}
+                    placeholder="12345678A"
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

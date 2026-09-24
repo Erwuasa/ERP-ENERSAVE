@@ -8,8 +8,10 @@ import {
 } from "@/components/contratos/contrato-detalle-ui"
 import {
   contractHasOpenIncidencia,
+  formatCambioTitularLabel,
   formatContratoCanal,
   formatIncidenciaAbiertaHace,
+  formatTipoOperacionContrato,
   resolveContratoComercialDisplayName,
 } from "@/components/contratos/contrato-detalle-utils"
 import {
@@ -28,6 +30,8 @@ export function ContratoDetalleTabContrato({
 }: ContratoDetalleTabContratoProps) {
   const estado = normalizeContractEstado(contract.estado)
   const hasOpenIncidencia = contractHasOpenIncidencia(contract)
+  const tipoOperacion = formatTipoOperacionContrato(contract)
+  const cambioTitular = formatCambioTitularLabel(contract)
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -67,6 +71,12 @@ export function ContratoDetalleTabContrato({
               </span>
             }
           />
+          {tipoOperacion ? (
+            <ContratoDetalleField label="Operación" value={tipoOperacion} />
+          ) : null}
+          {cambioTitular ? (
+            <ContratoDetalleField label="Cambio de titular" value={cambioTitular} />
+          ) : null}
         </ContratoDetalleFieldGrid>
       </ContratoDetalleSection>
 

@@ -59,6 +59,10 @@ export interface ContratosPanelProps {
   onUserFilterChange?: (userId: string) => void
   showTeamMemberSelector?: boolean
   teamMemberFilterOptions?: { id: string; label: string }[]
+  reserveTeamMemberFilterSlot?: boolean
+  staffUserFilterOptions?: { id: string; label: string }[]
+  stableComercialColumn?: boolean
+  isFilterPending?: boolean
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
@@ -105,6 +109,10 @@ export function ContratosPanel({
   onUserFilterChange,
   showTeamMemberSelector = false,
   teamMemberFilterOptions = [],
+  reserveTeamMemberFilterSlot = false,
+  staffUserFilterOptions = [],
+  stableComercialColumn = false,
+  isFilterPending = false,
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
@@ -160,6 +168,8 @@ export function ContratosPanel({
           onUserFilterChange={onUserFilterChange}
           showTeamMemberSelector={showTeamMemberSelector}
           teamMemberFilterOptions={teamMemberFilterOptions}
+          reserveTeamMemberFilterSlot={reserveTeamMemberFilterSlot}
+          staffUserFilterOptions={staffUserFilterOptions}
           showTeamScopeFilter={showTeamScopeFilter}
           teamScope={teamScope}
           onTeamScopeChange={onTeamScopeChange}
@@ -191,6 +201,8 @@ export function ContratosPanel({
             rows={vm.visibleRows}
             filtered={vm.filtered}
             loading={erpDataLoading}
+            isFilterPending={isFilterPending}
+            stableComercialColumn={stableComercialColumn}
             contractsListFilter={contractsListFilter}
             highlightContractId={highlightContractId}
             rowRefs={vm.rowRefs}

@@ -18,6 +18,8 @@ interface ClientPortfolioSearchProps {
   activeRole?: string
   teamMemberIds?: string[]
   onSelectClient: (patch: Partial<NewContractFormState>) => void
+  /** Oculta la etiqueta superior (p. ej. wizard de contrato). */
+  showHeading?: boolean
 }
 
 export function ClientSuggestList({
@@ -68,6 +70,7 @@ export function ClientPortfolioSearch({
   activeRole = "comercial",
   teamMemberIds = [],
   onSelectClient,
+  showHeading = true,
 }: ClientPortfolioSearchProps) {
   const listId = useId()
   const [query, setQuery] = useState("")
@@ -136,10 +139,12 @@ export function ClientPortfolioSearch({
 
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-1.5 text-[10px] font-mono text-brand-subtext uppercase">
-        <Sparkles className="w-3 h-3 text-cyan-500" />
-        Buscador de clientes
-      </label>
+      {showHeading ? (
+        <label className="flex items-center gap-1.5 text-[10px] font-mono text-brand-subtext uppercase">
+          <Sparkles className="w-3 h-3 text-cyan-500" />
+          Buscador de clientes
+        </label>
+      ) : null}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-subtext pointer-events-none" />
         <input

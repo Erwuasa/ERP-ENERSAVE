@@ -16,10 +16,26 @@ export const FORMA_PAGO_LABELS: Record<NewContractFormState["formaPago"], string
 }
 
 export const TIPO_CLIENTE_OPTIONS: { value: TipoClienteContrato; label: string }[] = [
-  { value: "residencial", label: "Residencial" },
   { value: "pyme", label: "PYME" },
   { value: "autonomo", label: "Autónomo" },
   { value: "comunidad_vecinos", label: "Comunidad de vecinos" },
+]
+
+export const TIPO_OPERACION_OPTIONS: {
+  value: NewContractFormState["tipoOperacion"]
+  label: string
+  description: string
+}[] = [
+  {
+    value: "alta_nueva",
+    label: "Alta nueva",
+    description: "Nuevo suministro sin comercializadora previa",
+  },
+  {
+    value: "cambio_comercializadora",
+    label: "Cambio de comercializadora",
+    description: "El punto de suministro ya existe con otra compañía",
+  },
 ]
 
 export const WIZARD_TABS: { id: Exclude<WizardStep, 1>; label: string }[] = [

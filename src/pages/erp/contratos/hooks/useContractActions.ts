@@ -141,7 +141,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
             }
           : {}),
         nombreComercial: user.fullName,
-        jefeEquipo: jefe?.fullName ?? "",
+        jefeEquipo: jefe?.id ?? user.managerId ?? "",
       })
       setContractWizardProspectoId(null)
       setContractWizardOpen(true)
@@ -158,7 +158,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         fechaInicio: new Date().toISOString().split("T")[0],
         ...buildNewContractFormFromProspecto(prospecto, {
           nombreComercial: user.fullName,
-          jefeEquipo: jefe?.fullName ?? "",
+          jefeEquipo: jefe?.id ?? user.managerId ?? "",
         }),
       })
       setContractWizardProspectoId(prospecto.id)
@@ -193,7 +193,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         tipoPrecio: inferTipoPrecioFromTarifa(recommendation.tarifaRecomendadaNombre),
         wizardStep: "cliente",
         nombreComercial: user.fullName,
-        jefeEquipo: jefe?.fullName ?? "",
+        jefeEquipo: jefe?.id ?? user.managerId ?? "",
       })
       setContractWizardProspectoId(null)
       setContractWizardOpen(true)
@@ -239,7 +239,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
             }
           : {}),
         nombreComercial: user.fullName,
-        jefeEquipo: jefe?.fullName ?? "",
+        jefeEquipo: jefe?.id ?? user.managerId ?? "",
       })
       setEditingContractId(null)
       setContractWizardProspectoId(null)
@@ -261,7 +261,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       patchNewContractForm({
         ...contractToNewContractForm(contract, {
           nombreComercial: user.fullName,
-          jefeEquipo: jefe?.fullName ?? "",
+          jefeEquipo: jefe?.id ?? user.managerId ?? "",
         }),
         fechaInicio: contract.fechaActivacion ?? new Date().toISOString().split("T")[0],
         wizardStep: "cliente",

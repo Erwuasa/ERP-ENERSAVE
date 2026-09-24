@@ -6,6 +6,7 @@ import {
 import {
   contractRegistrationErrorMessage,
   newContractFormToRegistrationInput,
+  isConsumoAnualRequired,
   validateContractRegistration,
   type NewContractFormState,
 } from "@/lib/contract-registration"
@@ -78,7 +79,9 @@ export async function createContractFromForm(params: {
   } = params
 
   const input = newContractFormToRegistrationInput(form)
-  const validation = validateContractRegistration(input)
+  const validation = validateContractRegistration(input, {
+    requireConsumoAnual: isConsumoAnualRequired(form),
+  })
   const isIncomplete = options?.incomplete === true || !validation.valid
 
   if (!isIncomplete && !validation.valid) {
@@ -230,7 +233,12 @@ export async function createContractFromForm(params: {
     poblacion: form.poblacion || undefined,
     provincia: form.provincia || undefined,
     nombreComercial: form.nombreComercial || userAsSeller.fullName,
-    jefeEquipo: form.jefeEquipo || undefined,
+    isNewSupply: form.tipoOperacion === "alta_nueva",
+    isOwnershipChange: form.esCambioTitular,
+    titularActualNombre: form.esCambioTitular ? form.titularActualNombre.trim() || undefined : undefined,
+    titularActualDni: form.esCambioTitular
+      ? form.titularActualDni.trim().toUpperCase() || undefined
+      : undefined,
     comentariosInternos:
       form.comentariosInternos.length > 0 ? form.comentariosInternos : undefined,
     marcoEntryId: form.marcoEntryId || marcoEntry?.id || undefined,

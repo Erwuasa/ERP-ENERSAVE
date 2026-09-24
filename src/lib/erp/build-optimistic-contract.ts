@@ -34,6 +34,15 @@ export function buildOptimisticContractFromForm(
     telefono: form.telefono || undefined,
     email: form.email || undefined,
     nombreComercial: form.nombreComercial || undefined,
+    isNewSupply: form.tipoOperacion === "alta_nueva",
+    isOwnershipChange: form.esCambioTitular,
+    titularActualNombre: form.esCambioTitular
+      ? form.titularActualNombre.trim() || undefined
+      : undefined,
+    titularActualDni: form.esCambioTitular
+      ? form.titularActualDni.trim().toUpperCase() || undefined
+      : undefined,
+    tipoCliente: form.tipoCliente,
     createdAt: now,
     updatedAt: now,
   }

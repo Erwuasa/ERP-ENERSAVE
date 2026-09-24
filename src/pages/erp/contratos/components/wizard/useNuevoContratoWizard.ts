@@ -23,6 +23,7 @@ import {
   buildClientNameFromForm,
   inferTipoPrecioFromTarifa,
   newContractFormToRegistrationInput,
+  isConsumoAnualRequired,
   validateContractRegistration,
 } from "@/lib/contract-registration"
 import type { ContractPeajeSegment } from "@/lib/contract-peaje-segment"
@@ -353,7 +354,7 @@ export function useNuevoContratoWizard({
     const manager = user.managerId ? profiles.find((p) => p.id === user.managerId) : undefined
     onChange({
       nombreComercial: user.fullName,
-      jefeEquipo: manager?.fullName ?? "",
+      jefeEquipo: manager?.id ?? user.managerId ?? "",
     })
   }, [open, activeUserId, profiles])
 
@@ -399,9 +400,13 @@ export function useNuevoContratoWizard({
     })
   }
 
+  const consumoAnualRequired = isConsumoAnualRequired(form)
+
   function handleFormSubmit(e: FormEvent) {
     e.preventDefault()
-    const validation = validateContractRegistration(newContractFormToRegistrationInput(form))
+    const validation = validateContractRegistration(newContractFormToRegistrationInput(form), {
+      requireConsumoAnual: consumoAnualRequired,
+    })
     const docValidation = validateRequiredDocumentos(form, documentosObligatorios)
     const missing = [...validation.missingLabels, ...docValidation.missingLabels]
 
@@ -433,6 +438,7 @@ export function useNuevoContratoWizard({
       compania,
       wizardSegment: segment,
       wizardStep: "cliente",
+      tipoCliente: segment === "pyme" ? "pyme" : "autonomo",
       ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
     })
   }
@@ -552,5 +558,6 @@ export function useNuevoContratoWizard({
     addDocumentosForTipo,
     removeDocumentoForTipo,
     postComment,
+    consumoAnualRequired,
   }
 }

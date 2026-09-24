@@ -47,6 +47,9 @@ export function ContratoDetalleTabSuministro({ contract }: ContratoDetalleTabSum
               {accion}
             </ContratoDetalleMetaBadge>
           ) : null}
+          {contract.isOwnershipChange ? (
+            <ContratoDetalleMetaBadge tone="action">Cambio titular</ContratoDetalleMetaBadge>
+          ) : null}
         </div>
         {peaje ? <ContratoDetalleMetaBadge tone="peaje">{peaje}</ContratoDetalleMetaBadge> : null}
       </div>

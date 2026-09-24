@@ -31,30 +31,90 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
 
   const vm = useNuevoContratoWizard(props)
 
+  const headerSubtitle = vm.isCompanyStep
+    ? "Selecciona comercializadora"
+    : `${formatCompaniaLabel(form.compania)} · ${vm.segment} · ${form.tipo} · ${form.peajeSegment}`
+
   return (
     <>
       <AppFullScreenModal open={open} onClose={vm.handleClose} zIndex={100}>
         <div className={WIZARD_PANEL_CLASS}>
-          <div className="flex items-center justify-between px-6 py-4 border-b border-brand-border shrink-0">
-            <div>
-              <h2 className="text-sm font-extrabold text-brand-text uppercase tracking-wide">
+          <div className="flex items-center gap-3 px-6 py-3 border-b border-brand-border shrink-0 min-h-[4.25rem]">
+            {!vm.isCompanyStep ? (
+              <button
+                type="button"
+                onClick={() => onChange({ wizardStep: 1 })}
+                className="p-2 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
+                aria-label="Cambiar comercializadora"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            ) : (
+              <div className="w-9 shrink-0" aria-hidden />
+            )}
+
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-extrabold text-brand-text uppercase tracking-wide truncate">
                 {editingContractId ? "Completar borrador" : "Crear contrato"}
               </h2>
-              <p className="text-[10px] text-brand-subtext font-mono mt-0.5">
-                {vm.isCompanyStep
-                  ? "Selecciona comercializadora"
-                  : `${formatCompaniaLabel(form.compania)} · ${vm.segment} · ${form.tipo} · ${form.peajeSegment}`}
+              <p className="text-[10px] text-brand-subtext font-mono mt-0.5 truncate">
+                {headerSubtitle}
               </p>
             </div>
+
+            {!vm.isCompanyStep ? (
+              <nav
+                className="hidden md:flex items-center gap-1 shrink-0 max-w-[52%] overflow-x-auto"
+                aria-label="Pestañas del contrato"
+              >
+                {WIZARD_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => vm.goToTab(tab.id)}
+                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-colors duration-200 cursor-pointer ${
+                      vm.activeTab === tab.id
+                        ? "bg-cyan-600 text-white"
+                        : "bg-brand-surface text-brand-subtext hover:text-brand-text border border-brand-border"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+            ) : null}
+
             <button
               type="button"
               onClick={vm.handleClose}
-              className="p-2 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+              className="p-2 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer shrink-0"
               aria-label="Cerrar"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {!vm.isCompanyStep ? (
+            <nav
+              className="flex md:hidden items-center gap-1 px-6 py-2 border-b border-brand-border shrink-0 overflow-x-auto"
+              aria-label="Pestañas del contrato"
+            >
+              {WIZARD_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => vm.goToTab(tab.id)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold whitespace-nowrap transition-colors duration-200 cursor-pointer ${
+                    vm.activeTab === tab.id
+                      ? "bg-cyan-600 text-white"
+                      : "bg-brand-surface text-brand-subtext border border-brand-border"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          ) : null}
 
           {vm.isCompanyStep ? (
             <WizardCompanyStep
@@ -70,36 +130,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
             />
           ) : (
             <form onSubmit={vm.handleFormSubmit} className="flex flex-col flex-1 min-h-0">
-              <div className="px-6 py-3 border-b border-brand-border flex items-center gap-3 shrink-0 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => onChange({ wizardStep: 1 })}
-                  className="inline-flex items-center gap-1 text-[10px] font-mono text-brand-subtext hover:text-brand-text cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Cambiar comercializadora
-                </button>
-                <nav
-                  className="flex items-center gap-1 ml-auto flex-wrap"
-                  aria-label="Pestañas del contrato"
-                >
-                  {WIZARD_TABS.map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => vm.goToTab(tab.id)}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer ${
-                        vm.activeTab === tab.id
-                          ? "bg-cyan-600 text-white"
-                          : "bg-brand-surface text-brand-subtext hover:text-brand-text border border-brand-border"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-
               <div className="px-6 py-4 flex-1 min-h-0 overflow-hidden">
                 {vm.activeTab === "cliente" && (
                   <WizardClienteStep
@@ -142,6 +172,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     setPeajeSegment={vm.setPeajeSegment}
                     setTipo={vm.setTipo}
                     handlePotenciaP1Change={vm.handlePotenciaP1Change}
+                    consumoAnualRequired={vm.consumoAnualRequired}
                   />
                 )}
 
@@ -200,7 +231,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
         onClose={() => vm.setIncompleteConfirmOpen(false)}
         onConfirmIncomplete={vm.confirmIncompleteSave}
       />
-
     </>
   )
 }

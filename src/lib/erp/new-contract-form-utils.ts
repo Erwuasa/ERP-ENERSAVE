@@ -15,7 +15,7 @@ export function buildResetNewContractForm(
     fechaInicio: new Date().toISOString().split("T")[0],
     wizardStep: 1,
     nombreComercial: user.fullName,
-    jefeEquipo: profiles.find((p) => p.id === user.managerId)?.fullName ?? "",
+    jefeEquipo: user.managerId ?? "",
   }
 }
 

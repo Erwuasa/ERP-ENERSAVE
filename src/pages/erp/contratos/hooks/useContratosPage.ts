@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useMemo, useState, useTransition } from "react"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
@@ -62,6 +62,7 @@ export function useContratosPage({
 
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
   const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
+  const [isFilterPending, startFilterTransition] = useTransition()
 
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
@@ -93,8 +94,16 @@ export function useContratosPage({
   )
 
   function handleTeamScopeChange(next: ContractsTeamScope) {
-    setTeamScope(next)
-    setContractsUserFilterId("all")
+    startFilterTransition(() => {
+      setTeamScope(next)
+      setContractsUserFilterId("all")
+    })
+  }
+
+  function handleContractsUserFilterChange(userId: string) {
+    startFilterTransition(() => {
+      setContractsUserFilterId(userId)
+    })
   }
 
   const showTeamScopeFilter =
@@ -153,6 +162,21 @@ export function useContratosPage({
 
   const canExportContracts = canExportDatabase(activeRole, activeUser.permissions)
 
+  const stableComercialColumn =
+    activeRole === "tramitacion" ||
+    activeRole === "jefe_comercial" ||
+    activeRole === "superadmin"
+
+  const reserveTeamMemberFilterSlot = showTeamScopeFilter
+
+  const staffUserFilterOptions = useMemo(
+    () =>
+      profiles
+        .map((p) => ({ id: p.id, label: p.fullName }))
+        .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" })),
+    [profiles]
+  )
+
   return {
     panelProps: {
       activeRole,
@@ -164,19 +188,17 @@ export function useContratosPage({
       erpDataLoading,
       showUserFilter: showContractsUserFilter,
       userFilterId: contractsUserFilterId,
-      onUserFilterChange: setContractsUserFilterId,
+      onUserFilterChange: handleContractsUserFilterChange,
       showTeamMemberSelector,
       teamMemberFilterOptions,
+      reserveTeamMemberFilterSlot,
+      staffUserFilterOptions,
       showTeamScopeFilter,
       teamScope,
       onTeamScopeChange: handleTeamScopeChange,
-      showComercialColumn:
-        activeRole === "tramitacion" ||
-        (activeRole === "superadmin" && superadminViewMode === "tramitacion") ||
-        (activeRole === "jefe_comercial" && teamScope === "team") ||
-        (activeRole === "superadmin" &&
-          superadminViewMode === "comercial" &&
-          teamScope === "team"),
+      stableComercialColumn,
+      isFilterPending,
+      showComercialColumn: stableComercialColumn,
       clients,
       setClients,
       setContracts,
