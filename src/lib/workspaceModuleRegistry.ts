@@ -1,5 +1,11 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react"
 import type { AppModule } from "@/constants/navigation"
+import { menuTabToSegment } from "@/constants/navigation"
+import {
+  wrapWorkspaceRouteLoader,
+  type RouteModuleLoader,
+} from "@/lib/lazy-route-loader"
+import { SUPERADMIN_COMERCIAL_ERP_TAB_NAMES } from "@/lib/navigation/sidebar-items"
 
 const erpRouteLoaders = import.meta.glob<{ default: ComponentType }>(
   "../pages/erp/routes/**/*.tsx"
@@ -63,7 +69,22 @@ export function getWorkspaceRouteComponent(
   const loader = getWorkspaceRouteLoader(module, segment)
   if (!loader) return undefined
 
-  const component = lazy(loader)
+  const wrapped = wrapWorkspaceRouteLoader(loader as RouteModuleLoader, cacheKey)
+  const component = lazy(wrapped)
   lazyComponentCache.set(cacheKey, component)
   return component
+}
+
+export function prefetchWorkspaceRoute(module: AppModule, segment: string): void {
+  const loader = getWorkspaceRouteLoader(module, segment)
+  if (!loader) return
+  const cacheKey = `${module}/${segment}`
+  void wrapWorkspaceRouteLoader(loader as RouteModuleLoader, cacheKey)().catch(() => {})
+}
+
+/** Precarga rutas ERP de la vista comercial del superadmin (evita fallos al cambiar de panel). */
+export function prefetchSuperadminComercialErpRoutes(): void {
+  for (const tab of SUPERADMIN_COMERCIAL_ERP_TAB_NAMES) {
+    prefetchWorkspaceRoute("erp", menuTabToSegment("erp", tab))
+  }
 }

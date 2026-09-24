@@ -11,6 +11,7 @@ import { buildProspectoImportSources } from '@/lib/ventas/prospecto-import-sourc
 import type { IncidenciaTicket } from '@/lib/incidencias';
 import type { DashboardNavigateTarget } from '@/components/dashboard/SuperadminDashboard';
 import { resolveDashboardNavigation } from '@/lib/dashboard-navigation';
+import { prefetchSuperadminComercialErpRoutes } from '@/lib/workspaceModuleRegistry';
 import { useErpVentasBridge } from './workspace/useErpVentasBridge';
 import { useErpLiquidacionesDemo } from './workspace/useErpLiquidacionesDemo';
 import { useIncidenciasContext } from '@/pages/erp/incidencias/IncidenciasProvider';
@@ -129,9 +130,15 @@ export function useErpWorkspace() {
     }
   }, [activeRole, superadminViewMode, currentMenuTab, navigateToTab, activeUser.permissions, activeModule]);
 
+  useEffect(() => {
+    if (activeRole !== 'superadmin' || superadminViewMode !== 'comercial') return;
+    prefetchSuperadminComercialErpRoutes();
+  }, [activeRole, superadminViewMode]);
+
   const handleToggleSuperadminMode = () => {
     const nextMode = superadminViewMode === 'tramitacion' ? 'comercial' : 'tramitacion';
     setSuperadminViewMode(nextMode);
+    if (nextMode === 'comercial') prefetchSuperadminComercialErpRoutes();
     navigateToTab('erp', nextMode === 'comercial' ? 'Mis Clientes' : 'Dashboard');
     toast.success(
       `Cambiando a Panel de ${nextMode === 'comercial' ? 'Mis Clientes (Agente)' : 'Tramitación (Operativo)'}`

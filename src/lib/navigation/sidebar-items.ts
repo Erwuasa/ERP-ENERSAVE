@@ -69,6 +69,24 @@ export const VENTAS_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Reporting", icon: BarChart3, allowedRoles: ["jefe_comercial", "superadmin"] },
 ]
 
+/** Tabs ERP visibles cuando el superadmin usa vista comercial (agente). */
+export const SUPERADMIN_COMERCIAL_ERP_TAB_NAMES = [
+  "Dashboard",
+  "Liquidaciones internas",
+  "Usuarios",
+  "Contratos",
+  "Mis Clientes",
+  "Comparador",
+  "Historial de Comparativas",
+  "Tarifas",
+  "Marco Retributivo",
+  "Incidencias",
+  "Calendario",
+  "Base de Datos",
+  "FTP",
+  "Comunicaciones",
+] as const
+
 export interface SidebarVisibilityOptions {
   activeModule: AppModule
   activeRole: UserRole
@@ -134,23 +152,7 @@ export function getVisibleSidebarItems({
 
     if (activeRole === "superadmin") {
       if (superadminViewMode === "comercial") {
-        const comercialTabs = [
-          "Dashboard",
-          "Liquidaciones internas",
-          "Usuarios",
-          "Contratos",
-          "Mis Clientes",
-          "Comparador",
-          "Historial de Comparativas",
-          "Tarifas",
-          "Marco Retributivo",
-          "Incidencias",
-          "Calendario",
-          "Base de Datos",
-          "FTP",
-          "Comunicaciones",
-        ]
-        return comercialTabs.includes(item.name)
+        return (SUPERADMIN_COMERCIAL_ERP_TAB_NAMES as readonly string[]).includes(item.name)
       }
       const superadminTramitacionTabs = [
         "Dashboard",

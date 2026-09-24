@@ -45,3 +45,6 @@ verify_jwt = false
 
 [functions.push-contract-at]
 verify_jwt = false
+
+[functions.notify-contract-estado-change]
+verify_jwt = false

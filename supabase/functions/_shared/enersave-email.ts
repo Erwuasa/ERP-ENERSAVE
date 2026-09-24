@@ -1,16 +1,29 @@
+/** Paleta alineada con src/index.css y login (EnersaveMarkLogin). */
 export const ENERSAVE_EMAIL = {
   navy: "#002B5C",
   navyDark: "#001A38",
+  blue: "#1E4785",
+  green: "#3FB950",
   cyan: "#0891B2",
   cyanLight: "#22D3EE",
   orange: "#FF8C00",
-  green: "#22C55E",
-  bg: "#EEF2F6",
-  panel: "#F8F4EE",
+  bg: "#F8FAFC",
+  panel: "#FFFFFF",
+  surface: "#F1F5F9",
+  border: "#E2E8F0",
   white: "#FFFFFF",
-  text: "#002B5C",
+  text: "#0F172A",
+  subtext: "#475569",
   muted: "#475569",
   footer: "#94A3B8",
+  accent: "#0891B2",
+  accentSoft: "#ECFEFF",
+  accentBorder: "#A5F3FC",
+  fontSans:
+    '"SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  fontDisplay:
+    '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  fontMono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   from: "asesoria.enersave@gmail.com",
   fromName: "EnerSave ERP",
 } as const

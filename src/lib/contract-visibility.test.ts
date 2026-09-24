@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 import type { Contract } from "../types/contract"
-import { canUserMutateContract, resolveVisibleContracts } from "./contract-visibility"
+import {
+  canUserMutateContract,
+  resolveDirectTeamMemberIds,
+  resolveVisibleContracts,
+} from "./contract-visibility"
 
 const own: Contract = {
   id: "c-own",
@@ -33,6 +37,21 @@ const other: Contract = {
   comercialId: "com-9",
   comercialName: "Otro",
 }
+
+describe("resolveDirectTeamMemberIds", () => {
+  it("solo incluye comerciales con manager_id del director", () => {
+    const ids = resolveDirectTeamMemberIds(
+      [
+        { id: "dir", role: "jefe_comercial", managerId: null },
+        { id: "pablo", role: "comercial", managerId: "dir" },
+        { id: "other", role: "comercial", managerId: "other-dir" },
+        { id: "dir2", role: "jefe_comercial", managerId: "dir" },
+      ],
+      "dir"
+    )
+    expect(ids).toEqual(["pablo"])
+  })
+})
 
 describe("canUserMutateContract", () => {
   it("lets superadmin and tramitación mutate any contract", () => {
@@ -80,7 +99,6 @@ describe("resolveVisibleContracts", () => {
       "c-own",
     ])
     expect(resolveVisibleContracts({ ...base, teamScope: "team" }).map((c) => c.id)).toEqual([
-      "c-own",
       "c-team",
     ])
   })

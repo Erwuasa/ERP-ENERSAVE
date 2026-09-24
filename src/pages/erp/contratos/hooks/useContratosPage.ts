@@ -9,6 +9,7 @@ import type { ContratosPanelProps } from "@/pages/erp/contratos/components/Contr
 import { useContratosTramitacionNotifications } from "@/pages/erp/contratos/hooks/useContratosTramitacionNotifications"
 import { useContratosRecommendations } from "@/pages/erp/contratos/hooks/useContratosRecommendations"
 import {
+  resolveDirectTeamMemberIds,
   resolveVisibleContracts,
   type ContractsTeamScope,
 } from "@/lib/contract-visibility"
@@ -65,8 +66,10 @@ export function useContratosPage({
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
     (activeRole === "superadmin" && superadminViewMode === "tramitacion") ||
-    (activeRole === "jefe_comercial" && teamScope === "team") ||
     (activeRole === "superadmin" && superadminViewMode === "comercial" && teamScope === "team")
+
+  const showTeamMemberSelector =
+    activeRole === "jefe_comercial" && teamScope === "team"
 
   const tramitacion = useContratosTramitacionNotifications(showContractsUserFilter)
 
@@ -76,9 +79,23 @@ export function useContratosPage({
     (activeRole === "superadmin" && superadminViewMode === "comercial")
 
   const teamMemberIds = useMemo(
-    () => profiles.filter((p) => p.managerId === activeUserId).map((p) => p.id),
+    () => resolveDirectTeamMemberIds(profiles, activeUserId),
     [profiles, activeUserId]
   )
+
+  const teamMemberFilterOptions = useMemo(
+    () =>
+      profiles
+        .filter((p) => teamMemberIds.includes(p.id))
+        .map((p) => ({ id: p.id, label: p.fullName }))
+        .sort((a, b) => a.label.localeCompare(b.label, "es", { sensitivity: "base" })),
+    [profiles, teamMemberIds]
+  )
+
+  function handleTeamScopeChange(next: ContractsTeamScope) {
+    setTeamScope(next)
+    setContractsUserFilterId("all")
+  }
 
   const showTeamScopeFilter =
     activeRole === "jefe_comercial" ||
@@ -148,9 +165,11 @@ export function useContratosPage({
       showUserFilter: showContractsUserFilter,
       userFilterId: contractsUserFilterId,
       onUserFilterChange: setContractsUserFilterId,
+      showTeamMemberSelector,
+      teamMemberFilterOptions,
       showTeamScopeFilter,
       teamScope,
-      onTeamScopeChange: setTeamScope,
+      onTeamScopeChange: handleTeamScopeChange,
       showComercialColumn:
         activeRole === "tramitacion" ||
         (activeRole === "superadmin" && superadminViewMode === "tramitacion") ||

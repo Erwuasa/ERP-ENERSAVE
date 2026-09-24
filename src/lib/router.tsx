@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import { WorkspaceIndexRedirect } from "@/components/auth/WorkspaceIndexRedirect"
 import { WorkspaceModuleIndexRedirect } from "@/components/auth/WorkspaceModuleIndexRedirect"
 import { DynamicWorkspacePage } from "@/components/workspace/DynamicWorkspacePage"
+import { WorkspaceRouteErrorPage } from "@/components/workspace/WorkspaceRouteErrorPage"
 import { AuthProvider, useAuth } from "@/hooks/useAuth"
 import { ErpDataProvider } from "@/providers/ErpDataProvider"
 import { ContractActionsProvider } from "@/providers/ContractActionsProvider"
@@ -87,6 +88,7 @@ export const router = createBrowserRouter([
       {
         path: "/erp",
         element: <ProtectedWorkspaceLayout />,
+        errorElement: <WorkspaceRouteErrorPage />,
         children: [
           { index: true, element: <WorkspaceModuleIndexRedirect module="erp" /> },
           { path: "*", element: <DynamicWorkspacePage /> },
@@ -95,6 +97,7 @@ export const router = createBrowserRouter([
       {
         path: "/ventas",
         element: <ProtectedWorkspaceLayout />,
+        errorElement: <WorkspaceRouteErrorPage />,
         children: [
           { index: true, element: <WorkspaceModuleIndexRedirect module="ventas" /> },
           { path: "*", element: <DynamicWorkspacePage /> },

@@ -1,9 +1,17 @@
 import { ENERSAVE_EMAIL } from "./enersave-email.ts"
 
+export interface InlineEmailAttachment {
+  cid: string
+  filename: string
+  content: Uint8Array
+  contentType: string
+}
+
 export interface SendHtmlEmailInput {
   to: string
   subject: string
   html: string
+  inlineAttachments?: InlineEmailAttachment[]
 }
 
 export async function sendHtmlEmailViaGmail(input: SendHtmlEmailInput): Promise<void> {
@@ -27,12 +35,21 @@ export async function sendHtmlEmailViaGmail(input: SendHtmlEmailInput): Promise<
     },
   })
 
+  const attachments = (input.inlineAttachments ?? []).map((file) => ({
+    filename: file.filename,
+    content: file.content,
+    contentType: file.contentType,
+    disposition: "inline" as const,
+    contentId: file.cid.includes("@") ? file.cid : `${file.cid}@enersave`,
+  }))
+
   try {
     await client.send({
       from: `${ENERSAVE_EMAIL.fromName} <${user}>`,
       to: input.to,
       subject: input.subject,
       html: input.html,
+      ...(attachments.length > 0 ? { attachments } : {}),
     })
   } finally {
     await client.close()

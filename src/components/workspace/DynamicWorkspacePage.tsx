@@ -2,6 +2,7 @@ import { Suspense, useMemo } from "react"
 import { Navigate, useLocation, useParams } from "react-router-dom"
 import { getDefaultAppPath, pathToMenuTab } from "@/constants/navigation"
 import type { AppModule } from "@/constants/navigation"
+import { WorkspaceLazyErrorBoundary } from "@/components/workspace/WorkspaceLazyErrorBoundary"
 import { getWorkspaceRouteComponent } from "@/lib/workspaceModuleRegistry"
 import { canAccessWorkspaceSegment } from "@/lib/workspaceAccess"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
@@ -63,8 +64,10 @@ export function DynamicWorkspacePage() {
   }
 
   return (
-    <Suspense fallback={<WorkspaceTabFallback />}>
-      <LazyPage key={pathname} />
-    </Suspense>
+    <WorkspaceLazyErrorBoundary onGoHome={() => ws.navigateToTab(module, "Dashboard")}>
+      <Suspense fallback={<WorkspaceTabFallback />}>
+        <LazyPage />
+      </Suspense>
+    </WorkspaceLazyErrorBoundary>
   )
 }

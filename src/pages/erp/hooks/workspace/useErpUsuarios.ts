@@ -15,6 +15,7 @@ import { sendStaffInvitationEmail } from '@/lib/supabase/staff-invitation';
 import { normalizeStaffEmail } from '@/lib/erp-comercial-id';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { sanitizeStaffPermissionsForRole } from '@/lib/staff-permissions';
+import { subscribeUserProfileCommissionChanges } from '@/lib/staff-commission-realtime';
 
 function profilesFromComerciales(rows: ErpComercialRow[]): Profile[] {
   return rows.map((row) =>
@@ -123,6 +124,25 @@ export function useErpUsuarios({
       cancelled = true;
     };
   }, [currentMenuTab, activeRole, isSuperadmin, setProfiles]);
+
+  useEffect(() => {
+    if (currentMenuTab !== 'Usuarios' || !isSuperadmin) return;
+
+    const unsubscribe = subscribeUserProfileCommissionChanges(
+      ({ userId, commissionPercentage }) => {
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === userId ? { ...p, commissionPercentage } : p))
+        );
+        setActiveUserForSheet((prev) =>
+          prev && prev.id === userId ? { ...prev, commissionPercentage } : prev
+        );
+      }
+    );
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [currentMenuTab, isSuperadmin, setProfiles]);
 
   const handleAddNewUser = async (e: FormEvent) => {
     e.preventDefault();

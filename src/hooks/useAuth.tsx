@@ -25,6 +25,7 @@ import {
   startTotpEnrollment,
   verifyTotpCode,
 } from "@/lib/supabase/auth-mfa"
+import { subscribeUserProfileCommissionChanges } from "@/lib/staff-commission-realtime"
 import {
   refreshLoggedInStaffCommission,
   resolveWorkspaceAfterAuth,
@@ -442,10 +443,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener("focus", syncCommissionFromSupabase)
     document.addEventListener("visibilitychange", onVisibility)
 
+    const unsubscribeRealtime = subscribeUserProfileCommissionChanges(
+      ({ userId, commissionPercentage }) => {
+        if (cancelled || userId !== activeUserId) return
+        setProfiles((prev) =>
+          prev.map((p) => (p.id === userId ? { ...p, commissionPercentage } : p))
+        )
+      },
+      { filterUserId: activeUserId }
+    )
+
     return () => {
       cancelled = true
       window.removeEventListener("focus", syncCommissionFromSupabase)
       document.removeEventListener("visibilitychange", onVisibility)
+      unsubscribeRealtime?.()
     }
   }, [isLoggedIn, activeUserId, activeUser.role])
 

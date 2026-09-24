@@ -33,6 +33,7 @@ export interface TarifaEstudioAhorro {
   totalFactura: number
 }
 
+/** PDF orientado al cliente final: sin comisión comercial ni datos internos del marco. */
 export interface EstudioAhorroInput {
   cliente: { nombre: string; cups: string; direccion?: string }
   fechaGeneracion: string

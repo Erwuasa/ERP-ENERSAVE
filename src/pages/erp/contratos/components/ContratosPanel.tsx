@@ -57,6 +57,8 @@ export interface ContratosPanelProps {
   showUserFilter?: boolean
   userFilterId?: string
   onUserFilterChange?: (userId: string) => void
+  showTeamMemberSelector?: boolean
+  teamMemberFilterOptions?: { id: string; label: string }[]
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
@@ -101,6 +103,8 @@ export function ContratosPanel({
   showUserFilter = false,
   userFilterId = "all",
   onUserFilterChange,
+  showTeamMemberSelector = false,
+  teamMemberFilterOptions = [],
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
@@ -154,6 +158,8 @@ export function ContratosPanel({
           showUserFilter={showUserFilter}
           userFilterId={userFilterId}
           onUserFilterChange={onUserFilterChange}
+          showTeamMemberSelector={showTeamMemberSelector}
+          teamMemberFilterOptions={teamMemberFilterOptions}
           showTeamScopeFilter={showTeamScopeFilter}
           teamScope={teamScope}
           onTeamScopeChange={onTeamScopeChange}

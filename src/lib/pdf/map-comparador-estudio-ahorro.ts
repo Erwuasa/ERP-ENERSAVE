@@ -231,6 +231,7 @@ function lumpSumActualTarifa(
   }
 }
 
+/** Estudio de ahorro para el cliente: nunca incluir comisión del comercial. */
 export function mapComparadorToEstudioAhorro(
   params: MapComparadorEstudioAhorroParams
 ): EstudioAhorroInput {

@@ -22,6 +22,8 @@ type Props = {
   showUserFilter: boolean
   userFilterId: string
   onUserFilterChange?: (userId: string) => void
+  showTeamMemberSelector?: boolean
+  teamMemberFilterOptions?: { id: string; label: string }[]
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
@@ -51,6 +53,8 @@ export function ContratosPanelToolbar({
   showUserFilter,
   userFilterId,
   onUserFilterChange,
+  showTeamMemberSelector = false,
+  teamMemberFilterOptions = [],
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
@@ -106,6 +110,19 @@ export function ContratosPanelToolbar({
               ]}
               onChange={(next) => onTeamScopeChange(next as ContractsTeamScope)}
               minWidthClass="min-w-[120px]"
+            />
+          ) : null}
+          {showTeamMemberSelector && onUserFilterChange ? (
+            <SelectFilterDropdown
+              label="Equipo"
+              value={userFilterId}
+              defaultValue="all"
+              options={[
+                { id: "all", label: "Todos" },
+                ...teamMemberFilterOptions,
+              ]}
+              onChange={onUserFilterChange}
+              minWidthClass="min-w-[140px]"
             />
           ) : null}
           <SelectFilterDropdown

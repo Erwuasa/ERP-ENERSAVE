@@ -2,6 +2,27 @@ import type { Contract } from "../types/contract"
 
 export type ContractsTeamScope = "own" | "team"
 
+export interface ContractTeamProfileRef {
+  id: string
+  managerId?: string | null
+  role: string
+}
+
+/** Comerciales asignados directamente bajo un director (p. ej. Pablo bajo Ricardo). */
+export function resolveDirectTeamMemberIds(
+  profiles: ContractTeamProfileRef[],
+  directorUserId: string
+): string[] {
+  return profiles
+    .filter(
+      (profile) =>
+        profile.managerId === directorUserId &&
+        profile.id !== directorUserId &&
+        profile.role === "comercial"
+    )
+    .map((profile) => profile.id)
+}
+
 export type ContractAccessRole =
   | "superadmin"
   | "jefe_comercial"
@@ -29,10 +50,8 @@ export function resolveVisibleContracts(input: {
   teamScope: ContractsTeamScope
 }): Contract[] {
   const own = input.contracts.filter((contract) => contract.comercialId === input.activeUserId)
-  const team = input.contracts.filter(
-    (contract) =>
-      contract.comercialId === input.activeUserId ||
-      input.teamMemberIds.includes(contract.comercialId)
+  const team = input.contracts.filter((contract) =>
+    input.teamMemberIds.includes(contract.comercialId)
   )
 
   if (input.currentMenuTab === "Mis Contratos" || input.activeRole === "comercial") {

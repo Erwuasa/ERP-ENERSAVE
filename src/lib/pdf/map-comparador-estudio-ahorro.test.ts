@@ -107,4 +107,41 @@ describe("mapComparadorToEstudioAhorro", () => {
     expect(propuesta.find((row) => row.concepto === "IEE")?.total).toBeGreaterThan(0)
     expect(propuesta.find((row) => row.concepto === "IVA")?.total).toBeGreaterThan(0)
   })
+
+  it("no incluye comisión comercial en el payload del PDF", () => {
+    const input = mapComparadorToEstudioAhorro({
+      clienteNombre: "Cliente",
+      cups: "ES0000000000000000AA",
+      accessTariff: "2.0TD",
+      potencias: { p1: 4.6, p2: 4.6, p3: 0, p4: 0, p5: 0, p6: 0 },
+      consumos: { p1: 100, p2: 80, p3: 120, p4: 0, p5: 0, p6: 0 },
+      diasFacturacion: 30,
+      rentMeterMonthly: 0,
+      currentBillMonthly: 80,
+      bestOption: {
+        companyName: "Endesa",
+        tariffName: "One Luz",
+        annualCost: 900,
+        potenciaBreakdown: 120,
+        consumoBreakdown: 600,
+        rentCostAnnual: 0,
+        savingsAnnual: 120,
+        savingsPercentage: 10,
+        precios: {
+          P1: { energyPriceKwh: 0.12, powerPriceKwDay: 0.08 },
+        },
+      },
+      summary: {
+        bestTariffName: "One Luz",
+        bestTariffCompany: "Endesa",
+        maxAnnualSavings: 120,
+        maxSavingsPercentage: 10,
+        currentAnnualExpense: 1020,
+      },
+    })
+
+    const serialized = JSON.stringify(input).toLowerCase()
+    expect(serialized).not.toMatch(/comisi/)
+    expect(serialized).not.toMatch(/commission/)
+  })
 })
