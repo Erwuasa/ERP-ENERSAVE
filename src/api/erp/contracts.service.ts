@@ -8,5 +8,9 @@ export {
 } from "@/lib/supabase/contracts"
 
 export const contractsService = {
-  save: saveTeamContractToSupabase,
+  save: (
+    contract: Parameters<typeof saveTeamContractToSupabase>[0],
+    form: Parameters<typeof saveTeamContractToSupabase>[1],
+    sellerProfile?: Parameters<typeof saveTeamContractToSupabase>[2]
+  ) => saveTeamContractToSupabase(contract, form, sellerProfile),
 }

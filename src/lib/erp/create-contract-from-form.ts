@@ -237,7 +237,7 @@ export async function createContractFromForm(params: {
     atr: marcoEntry?.peaje,
   }
 
-  const supabaseResult = await contractsService.save(newContractObj, form)
+  const supabaseResult = await contractsService.save(newContractObj, form, userAsSeller)
 
   if (supabaseResult.ok) {
     newContractObj.id = supabaseResult.id

@@ -524,6 +524,8 @@ export async function runContractSync(ctx?: AtSyncContext) {
       for (const row of persisted ?? []) syncedIds.push(String(row.id))
     }
 
+    await supabase.rpc('inherit_contratos_comercial_from_cliente')
+
     const settlementStats = await ensureMarcoSettlements(supabase, [
       ...new Set([...syncedIds, ...deactivatedIds]),
     ])

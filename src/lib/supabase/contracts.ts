@@ -7,6 +7,7 @@ import {
   parseManualOverrides,
 } from "../manual-overrides"
 import { insertContratoHistorialCambioEstado } from "./contrato-historial"
+import { resolveContractComercialDbFields } from "../contract-comercial-assign"
 import type { NewContractFormState } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import { pushContractToAt } from "./push-contract-at"
@@ -58,12 +59,21 @@ export interface TeamContractInsert {
   documentos: unknown
   metadata: Record<string, unknown>
   referencia?: string | null
+  cliente_id?: string | null
 }
 
 export function buildTeamContractRow(
   contract: Contract,
-  form: NewContractFormState
+  form: NewContractFormState,
+  sellerProfile?: { managerId?: string | null; fullName?: string } | null
 ): TeamContractInsert {
+  const comercial = resolveContractComercialDbFields({
+    comercialId: contract.comercialId,
+    comercialName: contract.comercialName,
+    nombreComercial: form.nombreComercial || contract.nombreComercial,
+    sellerProfile,
+  })
+
   return {
     client_name: contract.clientName,
     cups: contract.cups,
@@ -73,8 +83,8 @@ export function buildTeamContractRow(
     tipo_precio: contract.tipoPrecio ?? null,
     consumo_anual: contract.consumoAnual,
     estado: contract.estado,
-    comercial_id: contract.comercialId,
-    comercial_name: contract.comercialName,
+    comercial_id: comercial.comercial_id,
+    comercial_name: comercial.comercial_name,
     nif: contract.nif ?? null,
     telefono: contract.telefono ?? null,
     email: contract.email ?? null,
@@ -92,8 +102,8 @@ export function buildTeamContractRow(
     cliente_id: contract.clientId ?? null,
     tipo_cliente: form.tipoCliente,
     forma_pago: form.formaPago,
-    nombre_comercial: form.nombreComercial || contract.comercialName,
-    jefe_equipo: form.jefeEquipo || null,
+    nombre_comercial: comercial.nombre_comercial,
+    jefe_equipo: comercial.jefe_equipo,
     wizard_segment: form.wizardSegment,
     marco_entry_id: form.marcoEntryId || contract.marcoEntryId || null,
     monto_interno: contract.montoInterno,
@@ -618,6 +628,14 @@ export async function deleteTeamContract(id: string): Promise<TeamContractResult
 
 export function buildTeamContractRowFromImport(contract: Contract): Row {
   const row = buildTeamContractPatch(contract)
+  const comercial = resolveContractComercialDbFields({
+    comercialId: contract.comercialId,
+    comercialName: contract.comercialName,
+    nombreComercial: contract.nombreComercial,
+  })
+  row.comercial_id = comercial.comercial_id
+  row.comercial_name = comercial.comercial_name
+  row.nombre_comercial = comercial.nombre_comercial
   row.cliente_id = contract.clientId ?? null
   row.referencia = contract.referencia ?? null
   row.source = "manual"
@@ -660,7 +678,8 @@ export async function insertTeamContractFromImport(
 
 export async function saveTeamContractToSupabase(
   contract: Contract,
-  form: NewContractFormState
+  form: NewContractFormState,
+  sellerProfile?: { managerId?: string | null; fullName?: string } | null
 ): Promise<SaveTeamContractResult> {
   if (!isSupabaseConfigured()) {
     return {
@@ -680,7 +699,7 @@ export async function saveTeamContractToSupabase(
     }
   }
 
-  const row = buildTeamContractRow(contract, form)
+  const row = buildTeamContractRow(contract, form, sellerProfile)
 
   const { data, error } = await supabase
     .from("contratos_equipo")
