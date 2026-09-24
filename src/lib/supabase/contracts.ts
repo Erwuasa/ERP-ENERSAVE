@@ -1,6 +1,5 @@
 import type { Contract } from "../../types/contract"
 import { normalizeContractEstado } from "../contract-estado"
-import { flattenDocumentosPorTipo } from "../contrato-documentos"
 import {
   CONTRACT_FIELD_TO_OVERRIDE_COLUMN,
   mergeManualOverrides,
@@ -109,7 +108,7 @@ export function buildTeamContractRow(
     monto_interno: contract.montoInterno,
     monto_externo: contract.montoExterno,
     comentarios_internos: form.comentariosInternos,
-    documentos: flattenDocumentosPorTipo(form.documentosPorTipo),
+    documentos: [],
     metadata: {
       client_id: contract.clientId,
       atr: contract.atr,

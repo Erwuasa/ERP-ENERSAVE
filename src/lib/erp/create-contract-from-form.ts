@@ -1,4 +1,4 @@
-import { flattenDocumentosPorTipo } from "@/lib/contrato-documentos"
+import { syncWizardDocumentosToSupabase } from "@/lib/supabase/contrato-documentos-storage"
 import {
   CONTRACT_ESTADO_INCOMPLETO,
   CONTRACT_ESTADO_INICIAL,
@@ -222,10 +222,7 @@ export async function createContractFromForm(params: {
     precioFijoConsumo: Number.isFinite(precioFijo) ? precioFijo : undefined,
     tipoPrecio:
       tipoPrecio === "fijo" || tipoPrecio === "mercado" ? tipoPrecio : undefined,
-    documentos: (() => {
-      const flat = flattenDocumentosPorTipo(form.documentosPorTipo)
-      return flat.length > 0 ? flat : undefined
-    })(),
+    documentos: undefined,
     tipoCliente: form.tipoCliente,
     formaPago: form.formaPago,
     direccionFiscal: form.direccionFiscal || undefined,
@@ -249,6 +246,20 @@ export async function createContractFromForm(params: {
 
   if (supabaseResult.ok) {
     newContractObj.id = supabaseResult.id
+
+    const docSync = await syncWizardDocumentosToSupabase({
+      contract: newContractObj,
+      documentosPorTipo: form.documentosPorTipo,
+      autorId: activeUserId,
+      autorNombre: activeUserName,
+    })
+    if (docSync.ok) {
+      newContractObj.documentos = docSync.data.documentos
+      for (const w of docSync.warnings) warnings.push(w)
+    } else {
+      warnings.push(docSync.message ?? "No se pudieron subir todos los documentos del expediente.")
+      for (const w of docSync.warnings) warnings.push(w)
+    }
 
     if (options?.prospectoId) {
       const linkResult = await updateProspecto(options.prospectoId, {

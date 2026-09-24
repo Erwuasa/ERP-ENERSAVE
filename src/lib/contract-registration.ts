@@ -33,6 +33,8 @@ export interface ContratoDocumentoArchivo {
   size: string
   dataUrl?: string
   uploadedAt: string
+  /** Archivo local pendiente de subir a Storage (no se persiste en JSON). */
+  pendingFile?: File
 }
 
 export type DocumentosPorTipo = Record<string, ContratoDocumentoArchivo[]>

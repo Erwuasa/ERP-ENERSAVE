@@ -1,8 +1,10 @@
 import type { Contract } from "@/types/contract"
+import type { DocumentosPorTipo } from "@/lib/contract-registration"
 import type { ContratoDocumentoRecord, ContratoDocumentoTipoId } from "@/lib/contrato-documentos"
 import {
   formatDocumentoSize,
   getDocumentoTipoLabel,
+  normalizeDocumentoTipoId,
 } from "@/lib/contrato-documentos"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { updateTeamContract, type TeamContractResult } from "@/lib/supabase/contracts"
@@ -62,6 +64,64 @@ async function insertHistorialDocumentoAdjuntado(input: {
   }
 
   return null
+}
+
+export function listPendingWizardDocumentoUploads(
+  documentosPorTipo: DocumentosPorTipo
+): { tipoId: ContratoDocumentoTipoId; file: File }[] {
+  const pending: { tipoId: ContratoDocumentoTipoId; file: File }[] = []
+  for (const [tipo, files] of Object.entries(documentosPorTipo)) {
+    const tipoId = normalizeDocumentoTipoId(tipo)
+    if (!tipoId) continue
+    for (const entry of files) {
+      if (entry.pendingFile) pending.push({ tipoId, file: entry.pendingFile })
+    }
+  }
+  return pending
+}
+
+export async function syncWizardDocumentosToSupabase(input: {
+  contract: Contract
+  documentosPorTipo: DocumentosPorTipo
+  autorId: string
+  autorNombre: string
+}): Promise<UploadContratoDocumentoResult & { warnings: string[] }> {
+  const uploads = listPendingWizardDocumentoUploads(input.documentosPorTipo)
+  if (uploads.length === 0) {
+    return { ok: true, data: input.contract, warnings: [] }
+  }
+
+  let latestContract = input.contract
+  const warnings: string[] = []
+
+  for (const { tipoId, file } of uploads) {
+    const result = await uploadContratoDocumento({
+      contract: latestContract,
+      tipoId,
+      file,
+      autorId: input.autorId,
+      autorNombre: input.autorNombre,
+    })
+
+    if (result.ok === false) {
+      warnings.push(`${file.name}: ${result.message}`)
+      continue
+    }
+
+    latestContract = result.data
+  }
+
+  if (warnings.length === uploads.length) {
+    return {
+      ok: false,
+      reason: "error",
+      message: warnings[0] ?? "No se pudieron subir los documentos del wizard.",
+      table: CONTRATO_DOCUMENTOS_BUCKET,
+      warnings,
+    }
+  }
+
+  return { ok: true, data: latestContract, warnings }
 }
 
 export async function uploadContratoDocumento(

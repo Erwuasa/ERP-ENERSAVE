@@ -137,9 +137,10 @@ export async function filesToContratoArchivos(files: File[]): Promise<ContratoDo
     }
     results.push({
       name: file.name,
-      size: `${(file.size / 1024).toFixed(1)} KB`,
+      size: formatDocumentoSize(file.size),
       dataUrl,
       uploadedAt: new Date().toISOString(),
+      pendingFile: file,
     })
   }
   return results

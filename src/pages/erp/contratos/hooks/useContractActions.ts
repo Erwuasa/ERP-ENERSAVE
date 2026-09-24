@@ -33,6 +33,7 @@ import {
   buildResetNewContractForm,
 } from "@/lib/erp/new-contract-form-utils"
 import { deleteTeamContract, updateTeamContract } from "@/lib/supabase/contracts"
+import { syncWizardDocumentosToSupabase } from "@/lib/supabase/contrato-documentos-storage"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   canUserDeleteContract,
@@ -300,8 +301,23 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
                 toast.error(result.message)
                 return
               }
+              let savedContract = result.data
+              const docSync = await syncWizardDocumentosToSupabase({
+                contract: savedContract,
+                documentosPorTipo: newContractForm.documentosPorTipo,
+                autorId: activeUserId,
+                autorNombre: activeUser.fullName,
+              })
+              if (docSync.ok) {
+                savedContract = docSync.data
+                for (const w of docSync.warnings) toast.warning(w)
+              } else {
+                toast.warning(
+                  docSync.message ?? "El borrador se guardó pero falló la subida de documentos."
+                )
+              }
               setContracts((prev) =>
-                prev.map((item) => (item.id === contractId ? result.data : item))
+                prev.map((item) => (item.id === contractId ? savedContract : item))
               )
             } else {
               setContracts((prev) =>
