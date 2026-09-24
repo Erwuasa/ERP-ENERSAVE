@@ -60,7 +60,7 @@ export function userInitials(fullName: string): string {
     .toUpperCase()
 }
 
-export function profileFromAppUser(user: AppUser): Profile {
+export function profileFromAppUser(user: AppUser, commissionPercentage?: number): Profile {
   return {
     id: user.id,
     fullName: user.fullName,
@@ -68,7 +68,8 @@ export function profileFromAppUser(user: AppUser): Profile {
     managerId: user.managerId,
     email: user.email,
     status: user.source === "invitation" || !user.hasAuth ? "pendiente" : "activo",
-    commissionPercentage: defaultCommissionForRole(user.role),
+    commissionPercentage:
+      commissionPercentage ?? defaultCommissionForRole(user.role),
     permissions: defaultPermissionsForRole(user.role),
   }
 }

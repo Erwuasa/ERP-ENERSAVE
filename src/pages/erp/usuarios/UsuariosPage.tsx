@@ -4,6 +4,7 @@ import type { AppUser } from "@/lib/supabase/app-users"
 import { UsuariosKpiStrip } from "@/pages/erp/usuarios/UsuariosKpiStrip"
 import { UsuariosTable } from "@/pages/erp/usuarios/UsuariosTable"
 import { UsuariosToolbar } from "@/pages/erp/usuarios/UsuariosToolbar"
+import { getErpComercialCommissionPercentage } from "@/lib/supabase/erp-comerciales"
 import {
   matchesUserFilters,
   profileFromAppUser,
@@ -52,6 +53,7 @@ export function UsuariosPage() {
     setIsCreateOpen,
     isSyncingErpUsers,
     setActiveUserForSheet,
+    setProfiles,
     navigateToTab,
     mfaEnrolledIds,
   } = useErpWorkspaceContext()
@@ -80,11 +82,24 @@ export function UsuariosPage() {
           : null
 
   function openStaffSheet(user: AppUser) {
-    const profile =
+    const fromDirectory =
       profiles.find((p) => p.id === user.id) ??
-      profiles.find((p) => p.email.toLowerCase() === user.email.toLowerCase()) ??
-      profileFromAppUser(user)
+      profiles.find((p) => p.email.toLowerCase() === user.email.toLowerCase())
+    const profile = fromDirectory ?? profileFromAppUser(user)
     setActiveUserForSheet(profile)
+
+    if (user.role !== "comercial" && user.role !== "jefe_comercial") return
+
+    void getErpComercialCommissionPercentage(profile.id).then((result) => {
+      if (result.ok === false) return
+      const commissionPercentage = result.data
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profile.id ? { ...p, commissionPercentage } : p))
+      )
+      setActiveUserForSheet((prev) =>
+        prev && prev.id === profile.id ? { ...prev, commissionPercentage } : prev
+      )
+    })
   }
 
   return (

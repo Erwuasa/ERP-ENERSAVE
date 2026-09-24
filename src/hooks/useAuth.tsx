@@ -25,7 +25,10 @@ import {
   startTotpEnrollment,
   verifyTotpCode,
 } from "@/lib/supabase/auth-mfa"
-import { resolveWorkspaceAfterAuth } from "@/lib/supabase/user-profiles"
+import {
+  refreshLoggedInStaffCommission,
+  resolveWorkspaceAfterAuth,
+} from "@/lib/supabase/user-profiles"
 import { isStaffLoginAllowed } from "@/lib/supabase/erp-comerciales"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { ROUTES, getDefaultAppPath } from "@/constants/navigation"
@@ -415,6 +418,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!isLoggedIn || !activeUserId || !isStaffRole(activeUser.role)) return
+    if (!isSupabaseConfigured()) return
+
+    let cancelled = false
+
+    async function syncCommissionFromSupabase() {
+      const refreshed = await refreshLoggedInStaffCommission()
+      if (cancelled || refreshed.ok === false || !refreshed.data) return
+      const { id, commissionPercentage } = refreshed.data
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, commissionPercentage } : p))
+      )
+    }
+
+    void syncCommissionFromSupabase()
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void syncCommissionFromSupabase()
+    }
+    window.addEventListener("focus", syncCommissionFromSupabase)
+    document.addEventListener("visibilitychange", onVisibility)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener("focus", syncCommissionFromSupabase)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }, [isLoggedIn, activeUserId, activeUser.role])
 
   const value = useMemo(
     (): AuthContextValue => ({

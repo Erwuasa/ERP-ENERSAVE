@@ -39,7 +39,6 @@ from contratos_equipo c
 where c.cliente_id = cl.id
   and upper(replace(c.cups, ' ', '')) in (
     'ES0031102226051017YF',
-    'ES0021000004721610ZY',
     'ES0031101342932001AP0F',
     'ES0031105480073002JR',
     'ES0031104072156009VV0F',
@@ -57,7 +56,6 @@ set
   updated_at = now()
 where upper(replace(c.cups, ' ', '')) in (
   'ES0031102226051017YF',
-  'ES0021000004721610ZY',
   'ES0031101342932001AP0F',
   'ES0031105480073002JR',
   'ES0031104072156009VV0F',

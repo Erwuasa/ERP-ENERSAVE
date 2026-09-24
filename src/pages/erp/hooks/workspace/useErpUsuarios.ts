@@ -2,7 +2,6 @@ import { useState, useEffect, type FormEvent, type Dispatch, type SetStateAction
 import { toast } from 'sonner';
 import {
   defaultPermissionsForRole,
-  defaultCommissionForRole,
   profileFromDirectoryRow,
   type Profile,
   type StaffRole,
@@ -37,6 +36,16 @@ function profilesFromComerciales(rows: ErpComercialRow[]): Profile[] {
       integrity_guard_bypass: row.integrity_guard_bypass,
     })
   );
+}
+
+function mergeStaffProfilesFromSupabase(
+  prev: Profile[],
+  rows: ErpComercialRow[]
+): Profile[] {
+  const synced = profilesFromComerciales(rows);
+  const syncedIds = new Set(synced.map((p) => p.id));
+  const preserved = prev.filter((p) => !syncedIds.has(p.id));
+  return [...synced, ...preserved];
 }
 
 interface UseErpUsuariosParams {
@@ -99,7 +108,7 @@ export function useErpUsuarios({
           console.warn('[Usuarios] Supabase sync:', comerciales.message);
           return;
         }
-        setProfiles(profilesFromComerciales(comerciales.data));
+        setProfiles((prev) => mergeStaffProfilesFromSupabase(prev, comerciales.data));
       });
 
       void fetchAdminMfaSummary().then((mfaSummary) => {
@@ -167,7 +176,7 @@ export function useErpUsuarios({
       toast.success(`${fullName} ahora es ${newUserRole}.`);
       const [comerciales, refreshed] = await Promise.all([listErpComerciales(), listAppUsers()]);
       if (comerciales.ok) {
-        setProfiles(profilesFromComerciales(comerciales.data));
+        setProfiles((prev) => mergeStaffProfilesFromSupabase(prev, comerciales.data));
       }
       if (refreshed.ok) setAppUsers(refreshed.data);
       return;
@@ -228,7 +237,7 @@ export function useErpUsuarios({
     }
 
     const permissions = defaultPermissionsForRole(role);
-    const commissionPercentage = defaultCommissionForRole(role);
+    const commissionPercentage = result.data.commission_percentage;
     const patch = { role, managerId, permissions, commissionPercentage };
 
     setProfiles((prev) => {

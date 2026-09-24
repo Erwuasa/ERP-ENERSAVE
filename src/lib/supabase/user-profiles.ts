@@ -167,3 +167,20 @@ export async function resolveWorkspaceAfterAuth(
 
   return { ok: true, data: { profile: self, directory } }
 }
+
+/** Refresca comisión visible (y rol básico) del usuario logueado tras cambios del superadmin. */
+export async function refreshLoggedInStaffCommission(): Promise<
+  UserProfileResult<{ id: string; commissionPercentage: number } | null>
+> {
+  const row = await fetchOwnUserProfile()
+  if (row.ok === false) return row
+  if (!row.data) return { ok: true, data: null }
+  const pct = Number(row.data.commission_percentage)
+  return {
+    ok: true,
+    data: {
+      id: row.data.id,
+      commissionPercentage: Number.isFinite(pct) ? pct : 0,
+    },
+  }
+}
