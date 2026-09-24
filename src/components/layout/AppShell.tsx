@@ -149,9 +149,19 @@ export function AppShell({
           incidencias,
           settlements,
           activeUserId: activeUser.id,
+          activeRole,
+          superadminViewMode,
         }
       ),
-    [menuOptions, contracts, incidencias, settlements, activeUser.id]
+    [
+      menuOptions,
+      contracts,
+      incidencias,
+      settlements,
+      activeUser.id,
+      activeRole,
+      superadminViewMode,
+    ]
   )
 
   const isFullBleedWorkspacePage = /^\/erp\/contratos(\/|$)/.test(location.pathname)

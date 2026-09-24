@@ -1,5 +1,5 @@
 import { normalizeContractEstado } from "./contract-estado"
-import { contractRequiresUserAction } from "./contract-action-attention"
+import type { ContractAccessRole } from "./contract-visibility"
 import {
   isIncidenciaAbierta,
   isIncidenciaKanbanVisible,
@@ -24,21 +24,42 @@ export function sidebarBadgeToneClass(tone: SidebarBadgeTone): string {
   }
 }
 
-function contratosBadge(contracts: { estado: string }[]): SidebarActionBadge | undefined {
-  const incidenciaLike = contracts.filter((c) => {
-    const e = normalizeContractEstado(c.estado)
-    return e === "INCIDENCIA ADMINISTRATIVA" || e === "FIRMA CADUCADA"
-  })
-  if (incidenciaLike.length > 0) {
-    return { count: incidenciaLike.length, tone: "attention" }
-  }
+function contractEstadoIsIncidencia(estado: string): boolean {
+  const e = normalizeContractEstado(estado)
+  return e === "INCIDENCIA ADMINISTRATIVA" || e === "FIRMA CADUCADA"
+}
 
-  const otherAction = contracts.filter((c) => contractRequiresUserAction(c.estado))
-  if (otherAction.length > 0) {
-    return { count: otherAction.length, tone: "info" }
-  }
+function scopeContractsForContratosBadge(
+  contracts: { estado: string; comercialId?: string }[],
+  activeUserId: string,
+  activeRole: ContractAccessRole,
+  superadminViewMode: "tramitacion" | "comercial"
+): { estado: string }[] {
+  const seeAllTeam =
+    activeRole === "tramitacion" ||
+    (activeRole === "superadmin" && superadminViewMode === "tramitacion")
 
-  return undefined
+  const scoped = seeAllTeam
+    ? contracts
+    : contracts.filter((c) => c.comercialId === activeUserId)
+
+  return scoped.filter((c) => contractEstadoIsIncidencia(c.estado))
+}
+
+function contratosBadge(
+  contracts: { estado: string; comercialId?: string }[],
+  activeUserId: string,
+  activeRole: ContractAccessRole,
+  superadminViewMode: "tramitacion" | "comercial"
+): SidebarActionBadge | undefined {
+  const incidenciaLike = scopeContractsForContratosBadge(
+    contracts,
+    activeUserId,
+    activeRole,
+    superadminViewMode
+  )
+  if (incidenciaLike.length === 0) return undefined
+  return { count: incidenciaLike.length, tone: "attention" }
 }
 
 function incidenciasBadge(incidencias: IncidenciaTicket[]): SidebarActionBadge | undefined {
@@ -72,17 +93,24 @@ function liquidacionesPendientesBadge(
 
 export interface SidebarBadgeInput {
   menuName: string
-  contracts: { estado: string }[]
+  contracts: { estado: string; comercialId?: string }[]
   incidencias: IncidenciaTicket[]
   settlements: { estado: string; comercialId: string; montoExterno: number }[]
   activeUserId: string
+  activeRole: ContractAccessRole
+  superadminViewMode: "tramitacion" | "comercial"
 }
 
 export function getSidebarActionBadge(input: SidebarBadgeInput): SidebarActionBadge | undefined {
   switch (input.menuName) {
     case "Contratos":
     case "Mis Contratos":
-      return contratosBadge(input.contracts)
+      return contratosBadge(
+        input.contracts,
+        input.activeUserId,
+        input.activeRole,
+        input.superadminViewMode
+      )
     case "Incidencias":
       return incidenciasBadge(input.incidencias)
     case "Liquidaciones internas":

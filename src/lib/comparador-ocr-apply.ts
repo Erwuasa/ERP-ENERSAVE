@@ -26,6 +26,7 @@ export interface ComparadorOcrApplyTarget {
     p6: number
   }) => void
   setCompCurrentBill: (value: number) => void
+  setCompConsumoAnualKwh?: (value: number) => void
   setCompProposalFilters: (value: CompProposalFilterId[]) => void
 }
 
@@ -99,6 +100,7 @@ export function applyComparadorOcrResult(
   }
 
   if (ocr.consumoAnualKwh && ocr.consumoAnualKwh > 0) {
+    target.setCompConsumoAnualKwh?.(ocr.consumoAnualKwh)
     target.setCompConsumos(distributeConsumoAnual(ocr.consumoAnualKwh, accessTariff))
     applied++
   }

@@ -1,4 +1,4 @@
-import { COMPARADOR_MESES_ANUAL } from "./comparador-billing"
+import { COMPARADOR_MESES_ANUAL, roundComparadorMoney } from "./comparador-billing"
 import type { ComparadorBillingBreakdown } from "./comparador-billing"
 import { comparadorIeeIvaFromBase } from "./comparador-tax"
 
@@ -19,10 +19,6 @@ export interface ComparadorOfferTaxesResult {
   ivaMensual: number
   totalMensual: number
   totalAnual: number
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100
 }
 
 /**
@@ -52,12 +48,14 @@ export function resolveComparadorOfferTaxes(
   const taxes = comparadorIeeIvaFromBase(baseImponibleMensual, energiaNetaMensual)
 
   return {
-    baseImponibleMensual: roundMoney(baseImponibleMensual),
-    energiaNetaMensual: roundMoney(energiaNetaMensual),
-    ieeMensual: roundMoney(taxes.iee),
-    ivaMensual: roundMoney(taxes.iva),
-    totalMensual: roundMoney(taxes.total),
-    totalAnual: Math.round(taxes.total * COMPARADOR_MESES_ANUAL),
+    baseImponibleMensual: roundComparadorMoney(baseImponibleMensual),
+    energiaNetaMensual: roundComparadorMoney(energiaNetaMensual),
+    ieeMensual: roundComparadorMoney(taxes.iee),
+    ivaMensual: roundComparadorMoney(taxes.iva),
+    totalMensual: roundComparadorMoney(taxes.total),
+    totalAnual: roundComparadorMoney(
+      roundComparadorMoney(taxes.total) * COMPARADOR_MESES_ANUAL
+    ),
   }
 }
 
@@ -81,11 +79,13 @@ export function resolveComparadorCurrentTaxesFromBreakdown(
   const taxes = comparadorIeeIvaFromBase(baseImponibleMensual, energiaNetaMensual)
 
   return {
-    baseImponibleMensual: roundMoney(baseImponibleMensual),
-    energiaNetaMensual: roundMoney(energiaNetaMensual),
-    ieeMensual: roundMoney(taxes.iee),
-    ivaMensual: roundMoney(taxes.iva),
-    totalMensual: roundMoney(taxes.total),
-    totalAnual: Math.round(taxes.total * COMPARADOR_MESES_ANUAL),
+    baseImponibleMensual: roundComparadorMoney(baseImponibleMensual),
+    energiaNetaMensual: roundComparadorMoney(energiaNetaMensual),
+    ieeMensual: roundComparadorMoney(taxes.iee),
+    ivaMensual: roundComparadorMoney(taxes.iva),
+    totalMensual: roundComparadorMoney(taxes.total),
+    totalAnual: roundComparadorMoney(
+      roundComparadorMoney(taxes.total) * COMPARADOR_MESES_ANUAL
+    ),
   }
 }

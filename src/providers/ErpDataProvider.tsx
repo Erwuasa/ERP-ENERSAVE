@@ -145,11 +145,23 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
     if (!isSupabaseConfigured()) return
     let cancelled = false
 
+    async function loadWithRetry<T>(
+      loader: () => Promise<SupabaseResult<T[]>>,
+      attempts = 3
+    ): Promise<SupabaseResult<T[]>> {
+      let last = await loader()
+      for (let i = 1; i < attempts && last.ok === false; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * i))
+        last = await loader()
+      }
+      return last
+    }
+
     void (async () => {
       const [contractsResult, clientsResult, settlementsResult] = await Promise.all([
-        listTeamContracts(),
-        listClientes(),
-        listSettlements(),
+        loadWithRetry(() => listTeamContracts()),
+        loadWithRetry(() => listClientes()),
+        loadWithRetry(() => listSettlements()),
       ])
       if (cancelled) return
 
@@ -180,9 +192,6 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       } else if (loadedContracts) {
         setClients(buildClientsFromContracts(loadedContracts))
         setContracts(linkContractsToClients(loadedContracts, buildClientsFromContracts(loadedContracts)))
-      } else if (isSupabaseConfigured()) {
-        setClients([])
-        setContracts([])
       }
       if (loadedSettlements) setSettlements(loadedSettlements)
 

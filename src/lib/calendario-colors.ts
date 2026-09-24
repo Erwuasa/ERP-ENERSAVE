@@ -1,13 +1,14 @@
+/** Paleta EnerSave (cyan/teal/ámbar/violeta — sin grises apagados). */
 const USER_CALENDAR_COLORS = [
-  "#2563eb",
-  "#059669",
-  "#d97706",
-  "#dc2626",
-  "#7c3aed",
   "#0891b2",
-  "#be185d",
-  "#4f46e5",
+  "#06b6d4",
   "#0d9488",
+  "#f59e0b",
+  "#8b5cf6",
+  "#0284c7",
+  "#14b8a6",
+  "#d97706",
+  "#6366f1",
   "#ea580c",
 ] as const
 

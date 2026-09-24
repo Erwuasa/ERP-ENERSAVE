@@ -22,6 +22,7 @@ const baseForm: ComparadorEnVivoFormState = {
   tipoPrecioFiltro: null,
   sinSva: false,
   soloPotenciaBoe: false,
+  consumoAnualKwh: null,
 }
 
 function makeTariff(overrides: Partial<TariffConPrecios> = {}): TariffConPrecios {
@@ -85,6 +86,21 @@ function marcoRow(
 }
 
 describe("buildComparadorEnVivoRanking", () => {
+  it("no devuelve ofertas sin potencia ni consumo introducidos", () => {
+    const catalog = [makeTariff()]
+    const marcoRows = marcoRowsForCatalog(catalog)
+    const { resultados } = buildComparadorEnVivoRanking({
+      catalog,
+      marcoRows,
+      form: {
+        ...baseForm,
+        potencias: { p1: null, p2: null, p3: null, p4: null, p5: null, p6: null },
+        consumos: { p1: null, p2: null, p3: null, p4: null, p5: null, p6: null },
+      },
+    })
+    expect(resultados).toHaveLength(0)
+  })
+
   it("excludes current company from ranking", () => {
     const catalog = [makeTariff(), makeTariff({ tariffId: "t2", providerName: "Compañía B" })]
     const result = buildComparadorEnVivoRanking({

@@ -100,7 +100,7 @@ describe("resolveVisibleContracts", () => {
     ).toEqual(["c-own", "c-team", "c-other"])
   })
 
-  it("shows only own contracts to superadmin in vista comercial", () => {
+  it("shows only own contracts to superadmin in vista comercial by default", () => {
     expect(
       resolveVisibleContracts({
         contracts,
@@ -108,6 +108,36 @@ describe("resolveVisibleContracts", () => {
         activeUserId: "jefe-1",
         teamMemberIds: [],
         currentMenuTab: "Contratos",
+        showOpsUserFilter: false,
+        userFilterId: "all",
+        teamScope: "own",
+      }).map((c) => c.id)
+    ).toEqual(["c-own"])
+  })
+
+  it("shows all contracts when superadmin comercial elige vista EQUIPO", () => {
+    expect(
+      resolveVisibleContracts({
+        contracts,
+        activeRole: "superadmin",
+        activeUserId: "jefe-1",
+        teamMemberIds: [],
+        currentMenuTab: "Contratos",
+        showOpsUserFilter: false,
+        userFilterId: "all",
+        teamScope: "team",
+      }).map((c) => c.id)
+    ).toEqual(["c-own", "c-team", "c-other"])
+  })
+
+  it("shows only own contracts to superadmin on Mis Contratos", () => {
+    expect(
+      resolveVisibleContracts({
+        contracts,
+        activeRole: "superadmin",
+        activeUserId: "jefe-1",
+        teamMemberIds: [],
+        currentMenuTab: "Mis Contratos",
         showOpsUserFilter: false,
         userFilterId: "all",
         teamScope: "own",

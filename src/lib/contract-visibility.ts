@@ -40,15 +40,33 @@ export function resolveVisibleContracts(input: {
   }
 
   if (input.activeRole === "jefe_comercial") {
-    return input.teamScope === "team" ? team : own
+    const pool = input.teamScope === "team" ? team : own
+    if (input.userFilterId !== "all") {
+      return pool.filter((contract) => contract.comercialId === input.userFilterId)
+    }
+    return pool
   }
 
-  if (input.activeRole === "superadmin" && !input.showOpsUserFilter) {
-    return own
+  if (input.activeRole === "superadmin") {
+    if (input.showOpsUserFilter) {
+      if (input.userFilterId !== "all") {
+        return input.contracts.filter((contract) => contract.comercialId === input.userFilterId)
+      }
+      return input.contracts
+    }
+
+    const pool = input.teamScope === "team" ? input.contracts : own
+    if (input.userFilterId !== "all") {
+      return pool.filter((contract) => contract.comercialId === input.userFilterId)
+    }
+    return pool
   }
 
-  if (input.showOpsUserFilter && input.userFilterId !== "all") {
-    return input.contracts.filter((contract) => contract.comercialId === input.userFilterId)
+  if (input.activeRole === "tramitacion") {
+    if (input.userFilterId !== "all") {
+      return input.contracts.filter((contract) => contract.comercialId === input.userFilterId)
+    }
+    return input.contracts
   }
 
   return input.contracts

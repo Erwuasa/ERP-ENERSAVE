@@ -6,13 +6,13 @@ import {
 } from "./comparador-tariff-pricing"
 import type { ComparadorCostExtras, ComparadorPeriodInputs } from "./tarifa-cost-calculator"
 import { filterCatalogForComparador } from "./comparador-catalog-marco"
-import { estimateMarcoCommissionEur } from "./marco-commission"
-import { resolveMarcoTramoForConsumo } from "./marco-consumo-tramo"
-import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
+import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
 import {
-  marcoRowToCatalogEntry,
-  type MarcoRetributivoRow,
-} from "./supabase/marco-retributivo"
+  resolveComparadorConsumoAnualKwh,
+  resolveComparadorOfferCommission,
+} from "./comparador-marco-commission"
+import type { MarcoTramoPrecision } from "./marco-consumo-tramo"
+import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
 import type { TariffPreciosPorPeriodo } from "./tarifa-cost-calculator"
 import {
@@ -34,6 +34,8 @@ export interface ComparadorEnVivoFormState {
   tipoPrecioFiltro: "fijo" | "indexado" | null
   sinSva: boolean
   soloPotenciaBoe: boolean
+  /** kWh/año para tramos de comisión en marco retributivo (prioritario sobre suma de periodos). */
+  consumoAnualKwh: number | null
 }
 
 export interface RankingTarifa {
@@ -44,6 +46,8 @@ export interface RankingTarifa {
   potenciaAnual: number
   energiaAnual: number
   comisionEstimada: number | null
+  comisionPrecision: MarcoTramoPrecision | "sin_consumo"
+  comisionTramoLabel: string | null
   atRateId: string | null
   isIndexed: boolean
   pricingType: ComparadorTariffPricingType
@@ -76,19 +80,6 @@ function normalizeCompanyName(name: string): string {
   return name.trim().toLowerCase()
 }
 
-function resolveMarcoForTariff(
-  tariff: TariffConPrecios,
-  index: MarcoRetributivoIndex
-): MarcoRetributivoRow | null {
-  if (tariff.atRateId && index.byAtRateId.has(tariff.atRateId)) {
-    return index.byAtRateId.get(tariff.atRateId) ?? null
-  }
-  if (index.byTariffId.has(tariff.tariffId)) {
-    return index.byTariffId.get(tariff.tariffId) ?? null
-  }
-  return null
-}
-
 function matchesTipoPrecioFiltro(tariff: TariffConPrecios, filtro: "fijo" | "indexado" | null): boolean {
   if (!filtro) return true
   return resolveComparadorTariffPricingType(tariff) === filtro
@@ -108,12 +99,10 @@ function matchesPotenciaBoeFilter(
   return Boolean(marco.potencia_boe)
 }
 
-function sumConsumoAnual(form: ComparadorEnVivoFormState): number {
-  const consumoMensual = Object.values(form.consumos).reduce(
-    (sum, value) => sum + (value != null && value > 0 ? Number(value) : 0),
-    0
-  )
-  return consumoMensual * 12
+export function hasComparadorEnVivoUsage(form: ComparadorEnVivoFormState): boolean {
+  const potencia = Object.values(form.potencias).some((value) => value != null && value > 0)
+  const consumo = Object.values(form.consumos).some((value) => value != null && value > 0)
+  return potencia || consumo
 }
 
 export interface BuildComparadorRankingInput {
@@ -140,8 +129,12 @@ export function buildComparadorEnVivoRanking(
     formatCurrency = (value) => `${value.toFixed(2)} €`,
   } = input
 
+  if (!hasComparadorEnVivoUsage(form)) {
+    return { resultados: [], precision: "exacto" }
+  }
+
   const marcoIndex = buildMarcoRetributivoIndex(marcoRows)
-  const eligibleCatalog = filterCatalogForComparador(catalog, marcoRows)
+  const eligibleCatalog = filterCatalogForComparador(catalog, marcoRows, form.peaje)
   const currentCompany = form.companiaActual?.trim()
     ? normalizeCompanyName(form.companiaActual)
     : null
@@ -159,7 +152,10 @@ export function buildComparadorEnVivoRanking(
     diasFacturacion: form.diasFacturacion,
   }
 
-  const consumoAnual = sumConsumoAnual(form)
+  const consumoAnual = resolveComparadorConsumoAnualKwh({
+    consumoAnualKwh: form.consumoAnualKwh,
+    consumosMensuales: form.consumos,
+  })
   let precision: "exacto" | "estimado" = "exacto"
   const resultados: RankingTarifa[] = []
 
@@ -174,7 +170,7 @@ export function buildComparadorEnVivoRanking(
     if (!matchesTipoPrecioFiltro(tariff, form.tipoPrecioFiltro)) continue
     if (!matchesSinSvaFilter(tariff, form.sinSva)) continue
 
-    const marco = resolveMarcoForTariff(tariff, marcoIndex)
+    const marco = resolveMarcoForComparadorTariff(tariff, marcoIndex, marcoRows, form.peaje)
     if (!marco) continue
     if (!matchesPotenciaBoeFilter(marco, form.soloPotenciaBoe)) continue
 
@@ -200,40 +196,19 @@ export function buildComparadorEnVivoRanking(
 
     if (rowPrecision === "estimado") precision = "estimado"
 
-    let comisionEstimada: number | null = null
-    if (marco) {
-      const candidates = marcoRows
-        .filter(
-          (row) =>
-            row.compania === marco.compania &&
-            row.tarifa === marco.tarifa &&
-            row.tipo === marco.tipo
-        )
-        .map(marcoRowToCatalogEntry)
-      const resolution = resolveMarcoTramoForConsumo(
-        candidates.length > 0 ? candidates : [marcoRowToCatalogEntry(marco)],
-        consumoAnual > 0 ? consumoAnual : null
-      )
-      const entry: MarcoRetributivoEntry | null = resolution.entry ?? marcoRowToCatalogEntry(marco)
-      if (entry) {
-        if (resolution.precision === "exacto" && consumoAnual > 0) {
-          comisionEstimada = estimateMarcoCommissionEur(
-            entry,
-            commissionPercentage,
-            consumoAnual,
-            formatCurrency
-          ).amountEur
-        } else if (
-          resolution.comisionMin != null &&
-          resolution.comisionMax != null &&
-          entry.comisionTipo === "fija"
-        ) {
-          const rate = commissionPercentage / 100
-          comisionEstimada =
-            Math.round(((resolution.comisionMin + resolution.comisionMax) / 2) * rate * 100) / 100
+    const commission = marco
+      ? resolveComparadorOfferCommission({
+          marco,
+          marcoRows,
+          consumoAnualKwh: consumoAnual,
+          commissionPercentage,
+          formatCurrency,
+        })
+      : {
+          comisionPercibidaEur: null,
+          precision: "sin_consumo" as const,
+          tramoLabel: null,
         }
-      }
-    }
 
     resultados.push({
       tariffId: tariff.tariffId,
@@ -242,7 +217,9 @@ export function buildComparadorEnVivoRanking(
       costeAnual: breakdown.totalAnual,
       potenciaAnual: breakdown.potenciaAnual,
       energiaAnual: breakdown.energiaAnual,
-      comisionEstimada,
+      comisionEstimada: commission.comisionPercibidaEur,
+      comisionPrecision: commission.precision,
+      comisionTramoLabel: commission.tramoLabel,
       atRateId: tariff.atRateId,
       isIndexed: tariff.isIndexed,
       pricingType: resolveComparadorTariffPricingType(tariff),

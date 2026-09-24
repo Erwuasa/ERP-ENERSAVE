@@ -18,6 +18,13 @@ import { toast } from "sonner"
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css"
 import { colorForCalendarioUsuario } from "../../lib/calendario-colors"
+import {
+  calendarioSubtitleForRole,
+  resolveCalendarioFilterUsers,
+  resolveCalendarioScopeUserIds,
+  showCalendarioUserFilter,
+  type CalendarioAccessRole,
+} from "../../lib/calendario-visibility"
 import { CalendarioEventBlock } from "./CalendarioEventBlock"
 import { CalendarioToolbar } from "./CalendarioToolbar"
 import {
@@ -77,7 +84,7 @@ interface ProfileOption {
 }
 
 interface CalendarioPanelProps {
-  activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+  activeRole: CalendarioAccessRole
   activeUserId: string
   profiles: ProfileOption[]
   eventos: CalendarioEvento[]
@@ -171,7 +178,12 @@ export function CalendarioPanel({
   const didDragRef = useRef(false)
   const calendarWrapRef = useRef<HTMLDivElement>(null)
 
-  const showUserFilter = activeRole === "superadmin" || activeRole === "jefe_comercial"
+  const showUserFilter = showCalendarioUserFilter(activeRole)
+
+  const scopeUserIds = useMemo(
+    () => resolveCalendarioScopeUserIds(activeRole, activeUserId, profiles),
+    [activeRole, activeUserId, profiles]
+  )
 
   useEffect(() => {
     const node = calendarWrapRef.current
@@ -189,30 +201,27 @@ export function CalendarioPanel({
     return () => observer.disconnect()
   }, [showUserFilter, view])
 
-  const filterUsers = useMemo(() => {
-    if (activeRole === "superadmin") {
-      return profiles.filter((profile) =>
-        ["superadmin", "jefe_comercial", "comercial", "tramitacion"].includes(profile.role)
-      )
-    }
-    if (activeRole === "jefe_comercial") {
-      const team = profiles.filter(
-        (profile) => profile.managerId === activeUserId || profile.id === activeUserId
-      )
-      return team
-    }
-    return profiles.filter((profile) => profile.id === activeUserId)
-  }, [activeRole, activeUserId, profiles])
+  const filterUsers = useMemo(
+    () => resolveCalendarioFilterUsers(activeRole, activeUserId, profiles),
+    [activeRole, activeUserId, profiles]
+  )
+
+  const showEventOwnerInTitle =
+    activeRole === "superadmin" || activeRole === "jefe_comercial"
 
   const effectiveSelectedIds = useMemo(() => {
-    if (!showUserFilter) return new Set([activeUserId])
+    if (!showUserFilter) return scopeUserIds
     if (selectedUserIds.size === 0) return new Set(filterUsers.map((user) => user.id))
     return selectedUserIds
-  }, [showUserFilter, selectedUserIds, filterUsers, activeUserId])
+  }, [showUserFilter, selectedUserIds, filterUsers, scopeUserIds])
 
   const visibleEventos = useMemo(
-    () => eventos.filter((evento) => effectiveSelectedIds.has(evento.usuarioId)),
-    [eventos, effectiveSelectedIds]
+    () =>
+      eventos.filter(
+        (evento) =>
+          scopeUserIds.has(evento.usuarioId) && effectiveSelectedIds.has(evento.usuarioId)
+      ),
+    [eventos, effectiveSelectedIds, scopeUserIds]
   )
 
   const uiEvents = useMemo(() => visibleEventos.map(mapToUiEvent), [visibleEventos])
@@ -420,20 +429,20 @@ export function CalendarioPanel({
     <div className="flex h-full min-h-0 flex-col gap-3 animate-fade-in">
       <div className="flex flex-wrap items-start justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <CalendarDays className="w-5 h-5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+          <CalendarDays className="w-5 h-5 text-brand-accent shrink-0" />
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-brand-text uppercase tracking-tight">
               Calendario
             </h2>
-            <p className="text-[10px] font-mono text-brand-subtext">
-              Eventos, vacaciones y reuniones del equipo
+            <p className="text-[10px] font-mono text-brand-accent">
+              {calendarioSubtitleForRole(activeRole)}
             </p>
           </div>
         </div>
         <button
           type="button"
           onClick={() => openCreate()}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-xs font-bold cursor-pointer hover:bg-cyan-500/15 transition-colors duration-200"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand-accent/35 bg-brand-accent/10 text-brand-accent text-xs font-bold cursor-pointer hover:bg-brand-accent/20 transition-colors duration-200 shadow-sm"
         >
           <PlusCircle className="w-4 h-4" />
           Nuevo evento
@@ -474,8 +483,8 @@ export function CalendarioPanel({
 
       <div className="flex flex-1 min-h-0 flex-col xl:flex-row gap-3">
         {showUserFilter ? (
-          <aside className="hidden xl:flex xl:w-56 shrink-0 flex-col rounded-2xl border border-brand-border bg-brand-panel p-4 space-y-3">
-            <h3 className="text-[10px] font-mono font-bold uppercase text-brand-subtext">
+          <aside className="hidden xl:flex xl:w-56 shrink-0 flex-col rounded-2xl border border-brand-accent/25 bg-gradient-to-b from-brand-accent/[0.07] to-brand-panel p-4 space-y-3 shadow-sm">
+            <h3 className="text-[10px] font-mono font-bold uppercase text-brand-accent">
               Filtrar usuarios
             </h3>
             {userFilterList}
@@ -484,7 +493,7 @@ export function CalendarioPanel({
 
         <div
           ref={calendarWrapRef}
-          className="flex flex-1 min-h-[420px] min-w-0 flex-col rounded-2xl border border-brand-border bg-brand-panel p-2 sm:p-4 calendario-rbc-theme overflow-hidden"
+          className="flex flex-1 min-h-[420px] min-w-0 flex-col rounded-2xl border border-brand-accent/20 bg-brand-panel p-2 sm:p-4 calendario-rbc-theme overflow-hidden shadow-sm"
         >
           <DnDCalendar
             localizer={localizer}
@@ -523,7 +532,7 @@ export function CalendarioPanel({
               const accent = resolveCalendarioEventAccent(
                 resource.tipo,
                 resource.usuarioId,
-                showUserFilter
+                showEventOwnerInTitle
               )
               return {
                 className: "calendario-rbc-event",
@@ -537,14 +546,14 @@ export function CalendarioPanel({
             }}
             titleAccessor={(event) => {
               const resource = (event as CalendarUiEvent).resource
-              if (!showUserFilter) return resource.titulo
+              if (!showEventOwnerInTitle) return resource.titulo
               return `${resource.titulo} · ${resolveUserName(resource.usuarioId)}`
             }}
             style={{ height: calendarHeight }}
           />
           <div className="mt-3 flex flex-wrap gap-3 border-t border-brand-border pt-3 shrink-0">
-            {(showUserFilter
-              ? filterUsers.slice(0, 6).map((user) => ({
+            {(showEventOwnerInTitle
+              ? filterUsers.slice(0, 8).map((user) => ({
                   key: user.id,
                   label: user.fullName.split(/\s+/)[0] ?? user.fullName,
                   color: colorForCalendarioUsuario(user.id),
@@ -636,7 +645,7 @@ export function CalendarioPanel({
                   </select>
                 </label>
 
-                {(activeRole === "superadmin" || activeRole === "tramitacion") && (
+                {activeRole === "superadmin" && (
                   <label className="block space-y-1">
                     <span className="text-[10px] font-mono font-bold uppercase text-brand-subtext">
                       Usuario

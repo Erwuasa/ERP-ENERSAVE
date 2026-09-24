@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from "react"
-import { Euro, Loader2, Pencil, Trash2 } from "lucide-react"
+import { Loader2, Pencil, Trash2 } from "lucide-react"
 import {
   formatMarcoComisionFijaUsuario,
   formatMarcoComisionUsuario,
@@ -103,14 +103,19 @@ export function MarcoRetributivoTable({
                   </td>
                   <td className={MARCO_TD}>
                     <span className="font-semibold text-brand-text block truncate">{row.tarifa}</span>
-                    <span
-                      className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${
-                        row.tipo === "luz"
-                          ? "bg-blue-500/10 text-blue-600"
-                          : "bg-amber-500/10 text-amber-600"
-                      }`}
-                    >
-                      {row.tipo}
+                    <span className="flex flex-wrap gap-1 mt-1">
+                      <span
+                        className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${
+                          row.tipo === "luz"
+                            ? "bg-blue-500/10 text-blue-600"
+                            : "bg-amber-500/10 text-amber-600"
+                        }`}
+                      >
+                        {row.tipo}
+                      </span>
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-slate-500/10 text-brand-subtext">
+                        {row.segmento}
+                      </span>
                     </span>
                   </td>
                   <td className={`${MARCO_TD} font-mono text-[10px] text-brand-subtext`}>
@@ -124,15 +129,12 @@ export function MarcoRetributivoTable({
                   </td>
                   <td className={`${MARCO_TD} text-right font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-500`}>
                     {entry.comisionTipo === "fija" ? (
-                      <span className="inline-flex items-center justify-end gap-1">
-                        <Euro className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                        <span>
-                          {formatMarcoComisionFijaUsuario(
-                            entry,
-                            commissionPercentage,
-                            formatCurrency
-                          )}
-                        </span>
+                      <span>
+                        {formatMarcoComisionFijaUsuario(
+                          entry,
+                          commissionPercentage,
+                          formatCurrency
+                        )}
                       </span>
                     ) : (
                       formatMarcoComisionUsuario(entry, commissionPercentage, formatCurrency)

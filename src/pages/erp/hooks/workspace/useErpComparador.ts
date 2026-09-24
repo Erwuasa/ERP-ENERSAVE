@@ -25,7 +25,8 @@ import { applyComparadorOcrResult } from '@/lib/comparador-ocr-apply';
 import { extractContractDataFromDocument } from '@/lib/contract-ocr';
 import { listAtComparisons } from '@/lib/supabase/at-comparisons';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
-import { listMarcoRetributivo, type MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
+import type { MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
+import { loadMarcoRetributivoStaleWhileRevalidate } from '@/lib/supabase/marco-retributivo-cache';
 import {
   mapComparadorHistoryListToEstudioAhorroConjunto,
   mapComparadorHistoryToEstudioAhorro,
@@ -51,6 +52,7 @@ import {
 } from '@/lib/comparador-history-storage';
 import { COMPARADOR_MESES_ANUAL } from '@/lib/comparador-billing';
 import type { AppModule } from '@/constants/navigation';
+import { emptyComparadorPeriodValues } from '@/lib/comparador-periods';
 
 export type { ComparisonHistoryEntry };
 
@@ -86,22 +88,12 @@ export function useErpComparador({
   const [compCompaniaActual, setCompCompaniaActual] = useState('');
   const [compSegment, setCompSegment] = useState<'residencial' | 'pyme'>('residencial');
   const [compAccessTariff, setCompAccessTariff] = useState<ComparadorAccessTariff>('2.0TD');
-  const [compPotencias, setCompPotencias] = useState<ComparadorPeriodValues>({
-    p1: 4.6,
-    p2: 4.6,
-    p3: 0,
-    p4: 0,
-    p5: 0,
-    p6: 0,
-  });
-  const [compConsumos, setCompConsumos] = useState<ComparadorPeriodValues>({
-    p1: 1200,
-    p2: 900,
-    p3: 1500,
-    p4: 0,
-    p5: 0,
-    p6: 0,
-  });
+  const [compPotencias, setCompPotencias] = useState<ComparadorPeriodValues>(
+    emptyComparadorPeriodValues()
+  );
+  const [compConsumos, setCompConsumos] = useState<ComparadorPeriodValues>(
+    emptyComparadorPeriodValues()
+  );
   const [compPreciosPotenciaActual, setCompPreciosPotenciaActual] =
     useState<ComparadorPeriodValues>({
       p1: 0,
@@ -120,14 +112,15 @@ export function useErpComparador({
       p5: 0,
       p6: 0,
     });
+  const [compConsumoAnualKwh, setCompConsumoAnualKwh] = useState<number>(0);
   const [compDiasFacturados, setCompDiasFacturados] = useState<number>(30);
-  const [compRentMeter, setCompRentMeter] = useState<number>(1.84);
+  const [compRentMeter, setCompRentMeter] = useState<number>(0);
   const [compBonoSocial, setCompBonoSocial] = useState<number>(0);
   const [compEnergiaReactiva, setCompEnergiaReactiva] = useState<number>(0);
   const [compOtrosCostesSva, setCompOtrosCostesSva] = useState<number>(0);
   const [compDescuentoPotencia, setCompDescuentoPotencia] = useState<number>(0);
   const [compDescuentoEnergia, setCompDescuentoEnergia] = useState<number>(0);
-  const [compCurrentBill, setCompCurrentBill] = useState<number>(85);
+  const [compCurrentBill, setCompCurrentBill] = useState<number>(0);
   const [compResults, setCompResults] = useState<ComparadorRateOption[] | null>(null);
   const [compSummary, setCompSummary] = useState<ComparadorRateSummary | null>(null);
   const [compLoading] = useState<boolean>(false);
@@ -242,24 +235,10 @@ export function useErpComparador({
     ) {
       return;
     }
-    void listMarcoRetributivo().then((result) => {
-      if (result.ok) setMarcoRowsForComparador(result.data);
-    });
+    void loadMarcoRetributivoStaleWhileRevalidate({
+      onRevalidated: (fresh) => setMarcoRowsForComparador(fresh),
+    }).then((rows) => setMarcoRowsForComparador(rows));
   }, [currentMenuTab]);
-
-  useEffect(() => {
-    handleCompareRates();
-  }, [handleCompareRates]);
-
-  useEffect(() => {
-    if (
-      (currentMenuTab === 'Comparador' || currentMenuTab === 'Comparador de Facturas') &&
-      !compResults &&
-      !compLoading
-    ) {
-      handleCompareRates();
-    }
-  }, [currentMenuTab, compResults, compLoading, handleCompareRates]);
 
   async function handleComparadorInvoiceOcr(file: File) {
     setCompOcrLoading(true);
@@ -274,6 +253,7 @@ export function useErpComparador({
         setCompAccessTariff,
         setCompPotencias,
         setCompConsumos,
+        setCompConsumoAnualKwh,
         setCompCurrentBill,
         setCompProposalFilters,
       });
@@ -803,6 +783,8 @@ export function useErpComparador({
     setCompPreciosPotenciaActual,
     compPreciosEnergiaActual,
     setCompPreciosEnergiaActual,
+    compConsumoAnualKwh,
+    setCompConsumoAnualKwh,
     compDiasFacturados,
     setCompDiasFacturados,
     compRentMeter,

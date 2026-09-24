@@ -3,10 +3,10 @@ import type { CalendarioEventoTipo } from "../../types/calendario"
 import { colorForCalendarioUsuario } from "../../lib/calendario-colors"
 
 const TIPO_COLORS: Record<CalendarioEventoTipo, string> = {
-  evento: "#06b6d4",
-  reunion: "#a855f7",
+  evento: "#0891b2",
+  reunion: "#8b5cf6",
   vacaciones: "#f59e0b",
-  ausencia: "#64748b",
+  ausencia: "#0d9488",
 }
 
 export function resolveCalendarioEventAccent(

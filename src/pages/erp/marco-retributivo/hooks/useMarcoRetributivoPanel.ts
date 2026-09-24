@@ -22,11 +22,19 @@ import {
   expandMarcoRowsByTramos,
   resolveMarcoParentRowId,
 } from "@/pages/erp/marco-retributivo/lib/marco-table-rows"
+import { filterMarcoRowsForDisplay } from "@/lib/marco-dedup"
 import {
   markCatalogDedupRan,
   persistMarcoCatalogDedup,
   shouldRunCatalogDedup,
 } from "@/lib/catalog-dedup-persist"
+import {
+  invalidateMarcoRetributivoCache,
+  loadMarcoRetributivoStaleWhileRevalidate,
+  patchMarcoRetributivoCacheRow,
+  prependMarcoRetributivoCacheRow,
+  removeMarcoRetributivoCacheRow,
+} from "@/lib/supabase/marco-retributivo-cache"
 
 type MarcoRole = "superadmin" | "tramitacion" | "jefe_comercial" | "comercial"
 type MarcoSegmentoFilter = "todos" | "residencial" | "pyme"
@@ -61,11 +69,16 @@ export function useMarcoRetributivoPanel({
 
   const loadRows = useCallback(async () => {
     setLoading(true)
-    const result = await listMarcoRetributivo()
-    if (result.ok) {
-      setRows(result.data)
-    } else if (result.ok === false) {
-      toast.error(result.message)
+    try {
+      const data = await loadMarcoRetributivoStaleWhileRevalidate({
+        onRevalidated: (fresh) => setRows(fresh),
+      })
+      setRows(data)
+    } catch (err) {
+      const result = await listMarcoRetributivo()
+      if (result.ok) setRows(result.data)
+      else if (result.ok === false) toast.error(result.message)
+      else toast.error(err instanceof Error ? err.message : "Error al cargar marco")
     }
     setLoading(false)
   }, [])
@@ -149,7 +162,8 @@ export function useMarcoRetributivoPanel({
         matchGenericToSpecific: companiaFilter !== "Todos",
       })
     )
-    const expanded = expandMarcoRowsByTramos(byPeaje)
+    const deduped = filterMarcoRowsForDisplay(byPeaje)
+    const expanded = expandMarcoRowsByTramos(deduped)
     return filterMarcoRowsForTable(expanded, companiaFilter)
   }, [scopedRows, peajeFilter, companiaFilter])
 
@@ -218,12 +232,30 @@ export function useMarcoRetributivoPanel({
       )
       return true
     }
+    const previous = rows.find((r) => r.id === id)
+    if (!previous) return false
+
+    const optimistic: MarcoRetributivoRow = {
+      ...previous,
+      ...patch,
+      condicion_1: patch.condicion_1 ?? previous.condicion_1,
+      condicion_2: patch.condicion_2 ?? previous.condicion_2,
+      condiciones: patch.condiciones ?? previous.condiciones,
+      updated_at: new Date().toISOString(),
+      updated_by: activeUserId,
+    }
+    setRows((prev) => prev.map((r) => (r.id === id ? optimistic : r)))
+    patchMarcoRetributivoCacheRow(id, optimistic)
+
     const result = await updateMarcoEntry(id, patch, activeUserId)
     if (result.ok === false) {
+      setRows((prev) => prev.map((r) => (r.id === id ? previous : r)))
+      patchMarcoRetributivoCacheRow(id, previous)
       toast.error(result.message)
       return false
     }
     setRows((prev) => prev.map((r) => (r.id === id ? result.data : r)))
+    patchMarcoRetributivoCacheRow(id, result.data)
     toast.success("Entrada actualizada.")
     return true
   }
@@ -257,12 +289,43 @@ export function useMarcoRetributivoPanel({
       setRows((prev) => [local, ...prev])
       return true
     }
+    const tempId = `optimistic-marco-${crypto.randomUUID()}`
+    const optimistic: MarcoRetributivoRow = {
+      id: tempId,
+      ...input,
+      condicion_1: input.condicion_1 ?? null,
+      condicion_2: input.condicion_2 ?? null,
+      condiciones: input.condiciones ?? null,
+      activo: input.activo ?? true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      updated_by: activeUserId,
+      energia_p1: null,
+      energia_p2: null,
+      energia_p3: null,
+      energia_p4: null,
+      energia_p5: null,
+      energia_p6: null,
+      potencia_p1: null,
+      potencia_p2: null,
+      potencia_p3: null,
+      potencia_p4: null,
+      potencia_p5: null,
+      potencia_p6: null,
+    }
+    setRows((prev) => [optimistic, ...prev])
+    prependMarcoRetributivoCacheRow(optimistic)
+
     const result = await createMarcoEntry(input, activeUserId)
     if (result.ok === false) {
+      setRows((prev) => prev.filter((r) => r.id !== tempId))
+      removeMarcoRetributivoCacheRow(tempId)
       toast.error(result.message)
       return false
     }
-    setRows((prev) => [result.data, ...prev])
+    setRows((prev) => [result.data, ...prev.filter((r) => r.id !== tempId)])
+    removeMarcoRetributivoCacheRow(tempId)
+    prependMarcoRetributivoCacheRow(result.data)
     toast.success("Entrada creada.")
     return true
   }
@@ -294,13 +357,19 @@ export function useMarcoRetributivoPanel({
       return
     }
 
+    const snapshot = rows
+    setRows((prev) => prev.filter((r) => r.id !== id))
+    removeMarcoRetributivoCacheRow(id)
+
     const result = await deleteMarcoEntry(id, activeUserId)
     if (result.ok === false) {
+      setRows(snapshot)
+      invalidateMarcoRetributivoCache()
+      void loadRows()
       toast.error(result.message)
       setDeactivating(false)
       return
     }
-    setRows((prev) => prev.filter((r) => r.id !== id))
     toast.success("Entrada desactivada.")
     setPendingDeactivate(null)
     setDeactivating(false)

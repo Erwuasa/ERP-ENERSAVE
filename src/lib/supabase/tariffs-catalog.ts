@@ -159,7 +159,6 @@ export async function listTariffsConPrecios(
   const rows = ((data ?? []) as TariffDbRow[])
     .filter((row) => tariffMatchesComparadorAccessTariff(row.access_tariff, accessTariff))
     .map(mapTariffRowToConPrecios)
-    .filter((row) => Object.keys(row.precios).length > 0)
 
   return { ok: true, data: rows }
 }

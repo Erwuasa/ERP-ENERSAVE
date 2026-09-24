@@ -209,6 +209,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       bonoSocial: 0,
       energiaReactiva: 0,
       otrosCostesSva: 0,
+      consumoAnualKwh: 0,
       companiaActual: null,
       proposalFilters: [],
     })
@@ -279,6 +280,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       bonoSocial: 0,
       energiaReactiva: 0,
       otrosCostesSva: 0,
+      consumoAnualKwh: 0,
       companiaActual: null,
       proposalFilters: [],
     })
@@ -301,6 +303,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       bonoSocial: 0,
       energiaReactiva: 0,
       otrosCostesSva: 0,
+      consumoAnualKwh: 0,
       companiaActual: null,
       proposalFilters: [],
     })
@@ -325,6 +328,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       bonoSocial: 0,
       energiaReactiva: 0,
       otrosCostesSva: 0,
+      consumoAnualKwh: 0,
       companiaActual: null,
       proposalFilters: [],
     })

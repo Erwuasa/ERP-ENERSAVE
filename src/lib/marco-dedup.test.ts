@@ -96,7 +96,26 @@ describe("marco-dedup", () => {
     expect(deactivate[0]?.tarifa).toBe("LIBRE + PERMANENCIA")
   })
 
-  it("conserva la fila con mayor precio en energía/potencia", () => {
+  it("conserva la fila con mayor comisión en nombres iguales", () => {
+    const rows = [
+      sampleRow({
+        id: "low",
+        tarifa: "PLAN FIJO LUZ SUPRA",
+        comision_base: 40,
+        energia_p1: 0.25,
+      }),
+      sampleRow({
+        id: "high",
+        tarifa: "PLAN FIJO LUZ SUPRA",
+        comision_base: 90,
+        energia_p1: 0.1,
+      }),
+    ]
+    const deactivate = listMarcoRowsToDeactivate(rows)
+    expect(deactivate.map((row) => row.id)).toEqual(["low"])
+  })
+
+  it("con misma comisión conserva la fila con mayor precio", () => {
     const rows = [
       sampleRow({
         id: "low",

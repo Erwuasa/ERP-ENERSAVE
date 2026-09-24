@@ -60,10 +60,13 @@ export function useContratosPage({
   } = useContractActionsContext()
 
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
+  const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
 
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
-    (activeRole === "superadmin" && superadminViewMode === "tramitacion")
+    (activeRole === "superadmin" && superadminViewMode === "tramitacion") ||
+    (activeRole === "jefe_comercial" && teamScope === "team") ||
+    (activeRole === "superadmin" && superadminViewMode === "comercial" && teamScope === "team")
 
   const tramitacion = useContratosTramitacionNotifications(showContractsUserFilter)
 
@@ -77,8 +80,9 @@ export function useContratosPage({
     [profiles, activeUserId]
   )
 
-  const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
-  const showTeamScopeFilter = activeRole === "jefe_comercial"
+  const showTeamScopeFilter =
+    activeRole === "jefe_comercial" ||
+    (activeRole === "superadmin" && superadminViewMode === "comercial")
 
   const visibleContracts = useMemo(
     () =>
@@ -148,7 +152,12 @@ export function useContratosPage({
       teamScope,
       onTeamScopeChange: setTeamScope,
       showComercialColumn:
-        activeRole === "superadmin" || (activeRole === "jefe_comercial" && teamScope === "team"),
+        activeRole === "tramitacion" ||
+        (activeRole === "superadmin" && superadminViewMode === "tramitacion") ||
+        (activeRole === "jefe_comercial" && teamScope === "team") ||
+        (activeRole === "superadmin" &&
+          superadminViewMode === "comercial" &&
+          teamScope === "team"),
       clients,
       setClients,
       setContracts,

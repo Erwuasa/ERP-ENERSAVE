@@ -445,11 +445,11 @@
 }
 
 .calendario-rbc-theme .rbc-off-range-bg {
-  background: color-mix(in srgb, var(--brand-surface) 60%, transparent);
+  background: color-mix(in srgb, var(--brand-accent) 4%, var(--brand-panel));
 }
 
 .calendario-rbc-theme .rbc-today {
-  background: color-mix(in srgb, var(--color-primary-500) 8%, transparent);
+  background: color-mix(in srgb, var(--brand-accent) 12%, var(--brand-panel));
 }
 
 .calendario-rbc-theme .rbc-event,
@@ -495,19 +495,20 @@
 
 .calendario-rbc-theme .rbc-time-header-gutter,
 .calendario-rbc-theme .rbc-time-header-content {
-  background: var(--brand-surface);
+  background: color-mix(in srgb, var(--brand-accent) 6%, var(--brand-panel));
 }
 
 .calendario-rbc-theme .rbc-header {
   padding: 10px 4px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--brand-subtext);
-  background: var(--brand-surface);
+  color: var(--brand-text);
+  background: color-mix(in srgb, var(--brand-accent) 8%, var(--brand-panel));
 }
 
 .calendario-rbc-theme .rbc-header.rbc-today {
-  color: var(--brand-text);
+  color: var(--brand-accent);
+  font-weight: 700;
 }
 
 .calendario-rbc-theme .rbc-header button.rbc-button-link {
@@ -515,11 +516,11 @@
 }
 
 .calendario-rbc-theme .rbc-allday-cell {
-  background: color-mix(in srgb, var(--brand-surface) 80%, transparent);
+  background: color-mix(in srgb, var(--brand-accent) 5%, var(--brand-panel));
 }
 
 .calendario-rbc-theme .rbc-current-time-indicator {
-  background-color: #ef4444;
+  background-color: #f59e0b;
   height: 2px;
   pointer-events: none;
 }
@@ -532,7 +533,7 @@
   width: 10px;
   height: 10px;
   border-radius: 9999px;
-  background-color: #ef4444;
+  background-color: #f59e0b;
 }
 
 /* Eventos simultáneos en columnas (sin solapamiento visual) */
@@ -559,7 +560,7 @@
 
 .calendario-rbc-theme .rbc-time-view,
 .calendario-rbc-theme .rbc-time-content {
-  background: color-mix(in srgb, var(--brand-panel) 92%, #000);
+  background: var(--brand-panel);
 }
 
 .calendario-rbc-theme .rbc-month-view,

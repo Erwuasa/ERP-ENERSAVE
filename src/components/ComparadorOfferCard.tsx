@@ -11,6 +11,7 @@ import {
   type ComparadorOfferBreakdownRow,
 } from "../lib/comparador-offer-breakdown"
 import type { TariffPreciosPorPeriodo } from "../lib/tarifa-cost-calculator"
+import { roundComparadorMoney } from "../lib/comparador-billing"
 
 export interface ComparadorOfferOption {
   id: string
@@ -29,6 +30,9 @@ export interface ComparadorOfferOption {
   savingsAnnual: number
   savingsPercentage?: number
   commissionEur?: number
+  commissionPrecision?: "exacto" | "estimado" | "sin_datos" | "sin_consumo"
+  commissionTramoLabel?: string
+  showCommission?: boolean
   isBestOption?: boolean
   breakdownRows?: ComparadorOfferBreakdownRow[]
   precios?: TariffPreciosPorPeriodo
@@ -111,9 +115,9 @@ export function ComparadorOfferCard({
 }: ComparadorOfferCardProps) {
   const [desgloseOpen, setDesgloseOpen] = useState(false)
   const bestLabel = sortMode === "comision" ? "Top comisión" : "Top ahorro"
-  const potenciaMonthly = option.potenciaBreakdown / 12
-  const energiaMonthly = option.consumoBreakdown / 12
-  const ahorroMonthly = option.savingsAnnual / 12
+  const potenciaMonthly = roundComparadorMoney(option.potenciaBreakdown / 12)
+  const energiaMonthly = roundComparadorMoney(option.consumoBreakdown / 12)
+  const ahorroMonthly = roundComparadorMoney(option.savingsAnnual / 12)
   const pricingLabel =
     option.pricingType ??
     resolveComparadorTariffPricingType({
@@ -236,6 +240,22 @@ export function ComparadorOfferCard({
             {formatEuro(energiaMonthly)}
           </span>
         </div>
+        {option.showCommission !== false && option.commissionEur != null && option.commissionEur > 0 ? (
+          <div className="pt-1.5 mt-1.5 border-t border-dashed border-brand-border/60">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-brand-subtext">Comisión percibida</span>
+              <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                {formatEuro(option.commissionEur)}
+              </span>
+            </div>
+            {option.commissionTramoLabel ? (
+              <p className="mt-1 text-[10px] leading-snug text-brand-subtext line-clamp-2">
+                {option.commissionPrecision === "estimado" ? "Estimado · " : ""}
+                {option.commissionTramoLabel}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-4 pt-3 border-t border-brand-border">

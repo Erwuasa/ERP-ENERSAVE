@@ -7,6 +7,7 @@ import {
   HeartHandshake,
   Layers,
   Receipt,
+  Zap,
 } from "lucide-react"
 import { DecimalComaInput } from "./DecimalComaInput"
 import type { ComparadorFormDensity } from "@/lib/comparador-period-layout"
@@ -25,12 +26,14 @@ interface ComparadorOtrosConceptosFieldsProps {
   energiaReactiva: number
   otrosCostesSva: number
   diasFacturados: number
+  consumoAnualKwh: number
   facturaMensual: number
   onAlquilerChange: (value: number) => void
   onBonoSocialChange: (value: number) => void
   onEnergiaReactivaChange: (value: number) => void
   onOtrosCostesSvaChange: (value: number) => void
   onDiasFacturadosChange: (value: number) => void
+  onConsumoAnualKwhChange: (value: number) => void
   onFacturaMensualChange: (value: number) => void
   descuentoPotencia?: number
   descuentoEnergia?: number
@@ -62,12 +65,14 @@ export function ComparadorOtrosConceptosFields({
   energiaReactiva,
   otrosCostesSva,
   diasFacturados,
+  consumoAnualKwh,
   facturaMensual,
   onAlquilerChange,
   onBonoSocialChange,
   onEnergiaReactivaChange,
   onOtrosCostesSvaChange,
   onDiasFacturadosChange,
+  onConsumoAnualKwhChange,
   onFacturaMensualChange,
   descuentoPotencia = 0,
   descuentoEnergia = 0,
@@ -93,7 +98,12 @@ export function ComparadorOtrosConceptosFields({
           <FieldLabelWithIcon icon={Gauge} labelClass={labelClass}>
             Alquiler contador
           </FieldLabelWithIcon>
-          <DecimalComaInput value={alquiler} onChange={onAlquilerChange} className={inputClass} />
+          <DecimalComaInput
+            value={alquiler}
+            onChange={onAlquilerChange}
+            showZeroAsEmpty
+            className={inputClass}
+          />
         </div>
         <div className={fieldClass}>
           <FieldLabelWithIcon icon={HeartHandshake} labelClass={labelClass}>
@@ -102,6 +112,7 @@ export function ComparadorOtrosConceptosFields({
           <DecimalComaInput
             value={bonoSocial}
             onChange={onBonoSocialChange}
+            showZeroAsEmpty
             className={inputClass}
           />
         </div>
@@ -113,6 +124,7 @@ export function ComparadorOtrosConceptosFields({
           <DecimalComaInput
             value={energiaReactiva}
             onChange={onEnergiaReactivaChange}
+            showZeroAsEmpty
             className={inputClass}
           />
         </div>
@@ -123,7 +135,28 @@ export function ComparadorOtrosConceptosFields({
           <DecimalComaInput
             value={otrosCostesSva}
             onChange={onOtrosCostesSvaChange}
+            showZeroAsEmpty
             className={inputClass}
+          />
+        </div>
+
+        <div className={`${fieldClass} col-span-2`}>
+          <FieldLabelWithIcon icon={Zap} labelClass={labelClass}>
+            Consumo anual (kWh) · tramos comisión
+          </FieldLabelWithIcon>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1}
+            value={consumoAnualKwh > 0 ? consumoAnualKwh : ""}
+            placeholder="Ej. 78500"
+            onChange={(e) => {
+              const parsed = Number.parseInt(e.target.value, 10)
+              onConsumoAnualKwhChange(Number.isFinite(parsed) ? parsed : 0)
+            }}
+            className={inputClass}
+            aria-label="Consumo anual en kWh para calcular comisión por tramos del marco retributivo"
           />
         </div>
 
@@ -152,6 +185,7 @@ export function ComparadorOtrosConceptosFields({
           <DecimalComaInput
             value={facturaMensual}
             onChange={onFacturaMensualChange}
+            showZeroAsEmpty
             className={inputClass}
           />
         </div>
@@ -164,6 +198,7 @@ export function ComparadorOtrosConceptosFields({
             <DecimalComaInput
               value={descuentoPotencia}
               onChange={onDescuentoPotenciaChange}
+              showZeroAsEmpty
               className={inputClass}
             />
           </div>
@@ -176,6 +211,7 @@ export function ComparadorOtrosConceptosFields({
             <DecimalComaInput
               value={descuentoEnergia}
               onChange={onDescuentoEnergiaChange}
+              showZeroAsEmpty
               className={inputClass}
             />
           </div>

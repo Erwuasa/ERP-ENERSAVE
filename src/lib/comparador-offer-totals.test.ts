@@ -17,7 +17,7 @@ describe("resolveComparadorOfferTaxes", () => {
     const iva = (base + iee) * (COMPARADOR_IVA_PCT / 100)
     expect(result.baseImponibleMensual).toBeCloseTo(base, 2)
     expect(result.totalMensual).toBeCloseTo(base + iee + iva, 1)
-    expect(result.totalAnual).toBe(Math.round(result.totalMensual * 12))
+    expect(result.totalAnual).toBeCloseTo(result.totalMensual * 12, 2)
   })
 
   it("aplica descuentos antes de calcular impuestos", () => {

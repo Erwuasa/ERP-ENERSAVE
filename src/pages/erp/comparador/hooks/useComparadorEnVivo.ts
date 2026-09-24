@@ -4,11 +4,10 @@ import {
   type ComparadorEnVivoFormState,
   type RankingTarifa,
 } from "@/lib/comparador-en-vivo-ranking"
-import { listMarcoRetributivo, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
-import {
-  listTariffsConPrecios,
-  type TariffConPrecios,
-} from "@/lib/supabase/tariffs-catalog"
+import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
+import { loadTariffsCatalogStaleWhileRevalidate } from "@/lib/supabase/tariffs-catalog-cache"
+import type { TariffConPrecios } from "@/lib/supabase/tariffs-catalog"
 
 export type { ComparadorEnVivoFormState, RankingTarifa }
 
@@ -40,18 +39,19 @@ export function useComparadorEnVivo(
 
   useEffect(() => {
     let cancelled = false
-    setCatalog([])
     setCatalogLoading(true)
     setCatalogError(null)
 
-    void listTariffsConPrecios(form.segmento, form.peaje).then((result) => {
+    void loadTariffsCatalogStaleWhileRevalidate(form.segmento, form.peaje, {
+      onRevalidated: (fresh) => {
+        if (cancelled) return
+        setCatalog(fresh)
+        setCatalogLoading(false)
+      },
+    }).then(({ data, error }) => {
       if (cancelled) return
-      if (result.ok === false) {
-        setCatalog([])
-        setCatalogError(result.message)
-      } else {
-        setCatalog(result.data)
-      }
+      setCatalog(data)
+      setCatalogError(error)
       setCatalogLoading(false)
     })
 
@@ -64,9 +64,15 @@ export function useComparadorEnVivo(
     let cancelled = false
     setMarcoLoading(true)
 
-    void listMarcoRetributivo().then((result) => {
+    void loadMarcoRetributivoStaleWhileRevalidate({
+      onRevalidated: (fresh) => {
+        if (cancelled) return
+        setMarcoRows(fresh)
+        setMarcoLoading(false)
+      },
+    }).then((rows) => {
       if (cancelled) return
-      setMarcoRows(result.ok ? result.data : [])
+      setMarcoRows(rows)
       setMarcoLoading(false)
     })
 
@@ -88,10 +94,12 @@ export function useComparadorEnVivo(
         otrosCostesSva: form.otrosCostesSva,
         companiaActual: form.companiaActual,
         peaje: form.peaje,
+        consumoAnualKwh: form.consumoAnualKwh,
       }),
       [
         form.potencias,
         form.consumos,
+        form.consumoAnualKwh,
         form.diasFacturacion,
         form.alquilerContador,
         form.bonoSocial,
@@ -101,7 +109,7 @@ export function useComparadorEnVivo(
         form.peaje,
       ]
     ),
-    300
+    120
   )
 
   /** Filtros de toolbar: aplicación instantánea (sin debounce). */
@@ -141,7 +149,8 @@ export function useComparadorEnVivo(
   return {
     resultados: ranking.resultados,
     precision: ranking.precision,
-    calculando: catalogLoading || marcoLoading,
+    calculando:
+      (catalogLoading && catalog.length === 0) || (marcoLoading && marcoRows.length === 0),
     catalogError,
     catalogCount: catalog.length,
   }

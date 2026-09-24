@@ -144,13 +144,13 @@ export function marcoRowPriceScore(row: MarcoRetributivoRow): number {
   return score
 }
 
-/** Conserva mayor precio (energía/potencia), luego mayor comisión, luego nombre más descriptivo. */
+/** Conserva mayor comisión; empate → mayor precio; luego nombre más descriptivo. */
 export function pickMarcoRowToKeep(rows: MarcoRetributivoRow[]): MarcoRetributivoRow {
   return [...rows].sort((a, b) => {
-    const priceDiff = marcoRowPriceScore(b) - marcoRowPriceScore(a)
-    if (priceDiff !== 0) return priceDiff
     const commDiff = Number(b.comision_base ?? 0) - Number(a.comision_base ?? 0)
     if (commDiff !== 0) return commDiff
+    const priceDiff = marcoRowPriceScore(b) - marcoRowPriceScore(a)
+    if (priceDiff !== 0) return priceDiff
     const lenDiff = b.tarifa.length - a.tarifa.length
     if (lenDiff !== 0) return lenDiff
     const createdDiff = (a.created_at ?? "").localeCompare(b.created_at ?? "")
@@ -159,22 +159,26 @@ export function pickMarcoRowToKeep(rows: MarcoRetributivoRow[]): MarcoRetributiv
   })[0]!
 }
 
+function buildMarcoDedupScopeKey(row: MarcoRetributivoRow): string {
+  return [row.compania, row.peaje, row.segmento, row.tipo].join("|")
+}
+
 export function findMarcoSimilarDuplicateGroups(
   rows: MarcoRetributivoRow[]
 ): MarcoRetributivoRow[][] {
   const active = rows.filter((row) => row.activo)
-  const byBusinessKey = new Map<string, MarcoRetributivoRow[]>()
+  const byScope = new Map<string, MarcoRetributivoRow[]>()
 
   for (const row of active) {
-    const key = buildMarcoDedupBusinessKey(row)
-    const list = byBusinessKey.get(key) ?? []
+    const key = buildMarcoDedupScopeKey(row)
+    const list = byScope.get(key) ?? []
     list.push(row)
-    byBusinessKey.set(key, list)
+    byScope.set(key, list)
   }
 
   const groups: MarcoRetributivoRow[][] = []
 
-  for (const candidates of byBusinessKey.values()) {
+  for (const candidates of byScope.values()) {
     if (candidates.length < 2) continue
 
     const used = new Set<string>()
@@ -186,9 +190,10 @@ export function findMarcoSimilarDuplicateGroups(
       for (let j = i + 1; j < candidates.length; j++) {
         const other = candidates[j]!
         if (used.has(other.id)) continue
-        if (areMarcoTarifaNamesSimilar(anchor.tarifa, other.tarifa)) {
-          cluster.push(other)
-        }
+        const similarToCluster = cluster.some((member) =>
+          areMarcoTarifaNamesSimilar(member.tarifa, other.tarifa)
+        )
+        if (similarToCluster) cluster.push(other)
       }
 
       if (cluster.length > 1) {
@@ -199,6 +204,34 @@ export function findMarcoSimilarDuplicateGroups(
   }
 
   return groups
+}
+
+function marcoDisplayIdentityKey(row: MarcoRetributivoRow): string {
+  return [
+    normalizeMarcoTarifaName(row.compania),
+    normalizeMarcoTarifaName(row.tarifa),
+    String(row.peaje ?? "").trim().toLowerCase(),
+    normalizeMarcoTarifaName(row.segmento),
+    String(row.comision_base ?? ""),
+    String(row.condicion_2 ?? "").trim().toLowerCase(),
+  ].join("|")
+}
+
+/** Oculta duplicados de nombre/comisión en UI sin desactivar en BD. */
+export function filterMarcoRowsForDisplay(rows: MarcoRetributivoRow[]): MarcoRetributivoRow[] {
+  const deactivateIds = new Set(listMarcoRowsToDeactivate(rows).map((row) => row.id))
+  const seen = new Set<string>()
+  const out: MarcoRetributivoRow[] = []
+
+  for (const row of rows) {
+    if (deactivateIds.has(row.id)) continue
+    const identity = marcoDisplayIdentityKey(row)
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    out.push(row)
+  }
+
+  return out
 }
 
 export function listMarcoRowsToDeactivate(rows: MarcoRetributivoRow[]): MarcoRetributivoRow[] {

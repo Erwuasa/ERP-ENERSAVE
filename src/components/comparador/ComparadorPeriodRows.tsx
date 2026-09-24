@@ -53,6 +53,7 @@ export function ComparadorPeriodRows({
             <DecimalComaInput
               value={values[slot] || 0}
               onChange={(value) => onValueChange(slot, value)}
+              showZeroAsEmpty
               className={layout.inputClass}
             />
           </div>
@@ -75,6 +76,7 @@ export function ComparadorPeriodRows({
                   <DecimalComaInput
                     value={priceValues[slot] || 0}
                     onChange={(value) => onPriceChange(slot, value)}
+                    showZeroAsEmpty
                     className={layout.priceInputClass}
                   />
                 </div>

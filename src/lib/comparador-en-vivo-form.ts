@@ -17,6 +17,7 @@ import {
   COMPARADOR_DIAS_FACTURACION_MENSUAL,
   COMPARADOR_MESES_ANUAL,
   normalizeComparadorDiasFacturacion,
+  roundComparadorMoney,
 } from "./comparador-billing"
 import {
   resolveComparadorCurrentTaxesFromBreakdown,
@@ -113,6 +114,7 @@ export interface BuildComparadorEnVivoFormInput {
   bonoSocial: number
   energiaReactiva: number
   otrosCostesSva: number
+  consumoAnualKwh: number
   companiaActual: string | null
   proposalFilters: CompProposalFilterId[]
 }
@@ -138,6 +140,7 @@ export function buildComparadorEnVivoFormState(
     bonoSocial: input.bonoSocial > 0 ? input.bonoSocial : null,
     energiaReactiva: input.energiaReactiva > 0 ? input.energiaReactiva : null,
     otrosCostesSva: input.otrosCostesSva > 0 ? input.otrosCostesSva : null,
+    consumoAnualKwh: input.consumoAnualKwh > 0 ? input.consumoAnualKwh : null,
     companiaActual: input.companiaActual,
     ...filterFields,
   }
@@ -220,13 +223,15 @@ export function mapRankingToOfferOptions(
     companyName: row.providerName,
     tariffName: row.tariffName,
     companyLogoUrl: row.providerLogoUrl,
-    monthlyCost: Math.round(row.costeAnual / 12),
-    annualCost: Math.round(row.costeAnual),
-    potenciaBreakdown: Math.round(row.potenciaAnual ?? 0),
-    consumoBreakdown: Math.round(row.energiaAnual ?? 0),
+    monthlyCost: roundComparadorMoney(row.costeAnual / COMPARADOR_MESES_ANUAL),
+    annualCost: roundComparadorMoney(row.costeAnual),
+    potenciaBreakdown: roundComparadorMoney(row.potenciaAnual ?? 0),
+    consumoBreakdown: roundComparadorMoney(row.energiaAnual ?? 0),
     savingsAnnual: 0,
     savingsPercentage: 0,
     commissionEur: row.comisionEstimada ?? undefined,
+    commissionPrecision: row.comisionPrecision,
+    commissionTramoLabel: row.comisionTramoLabel ?? undefined,
     breakdownRows: [],
   }))
 
@@ -294,14 +299,14 @@ export function mapRankingToOfferOptions(
       preciosPotenciaActual,
       preciosEnergiaActual,
       preciosOferta: row.precios ?? {},
-      alquilerMensual: Math.round((row.alquilerAnual ?? 0) / COMPARADOR_MESES_ANUAL),
+      alquilerMensual: roundComparadorMoney((row.alquilerAnual ?? 0) / COMPARADOR_MESES_ANUAL),
       bonoSocialMensual: billExtras.bonoSocial,
       energiaReactivaMensual: billExtras.energiaReactiva,
       otrosCostesSvaMensual: billExtras.otrosCostesSva,
       baseImponibleMensualOferta: offerTaxes.baseImponibleMensual,
       baseImponibleMensualActual: currentTaxes?.baseImponibleMensual,
-      totalMensualOferta: Math.round(offerTaxes.totalMensual),
-      totalMensualActual: Math.round(currentAnnualExpense / COMPARADOR_MESES_ANUAL),
+      totalMensualOferta: roundComparadorMoney(offerTaxes.totalMensual),
+      totalMensualActual: roundComparadorMoney(currentAnnualExpense / COMPARADOR_MESES_ANUAL),
       ieeMensualOferta: offerTaxes.ieeMensual,
       ivaMensualOferta: offerTaxes.ivaMensual,
       ieeMensualActual: currentTaxes?.ieeMensual,
@@ -315,20 +320,22 @@ export function mapRankingToOfferOptions(
       tariffName: row.tariffName,
       pricingType: row.pricingType,
       companyLogoUrl: row.providerLogoUrl,
-      monthlyCost: Math.round(offerTaxes.totalMensual),
-      annualCost: offerTaxes.totalAnual,
-      monthlyBaseImponible: offerTaxes.baseImponibleMensual,
-      monthlyIee: offerTaxes.ieeMensual,
-      monthlyIva: offerTaxes.ivaMensual,
-      potenciaBreakdown: Math.round(row.potenciaAnual ?? 0),
-      consumoBreakdown: Math.round(row.energiaAnual ?? 0),
+      monthlyCost: roundComparadorMoney(offerTaxes.totalMensual),
+      annualCost: roundComparadorMoney(offerTaxes.totalAnual),
+      monthlyBaseImponible: roundComparadorMoney(offerTaxes.baseImponibleMensual),
+      monthlyIee: roundComparadorMoney(offerTaxes.ieeMensual),
+      monthlyIva: roundComparadorMoney(offerTaxes.ivaMensual),
+      potenciaBreakdown: roundComparadorMoney(row.potenciaAnual ?? 0),
+      consumoBreakdown: roundComparadorMoney(row.energiaAnual ?? 0),
       precios: row.precios,
-      savingsAnnual: Math.round(savingsAnnual),
+      savingsAnnual: roundComparadorMoney(savingsAnnual),
       savingsPercentage:
         currentAnnualExpense > 0
-          ? Math.round((savingsAnnual / currentAnnualExpense) * 100)
+          ? roundComparadorMoney((savingsAnnual / currentAnnualExpense) * 100)
           : 0,
       commissionEur: row.comisionEstimada ?? undefined,
+      commissionPrecision: row.comisionPrecision,
+      commissionTramoLabel: row.comisionTramoLabel ?? undefined,
       breakdownRows,
     }
   })

@@ -20,12 +20,15 @@ import {
   mapRankingToOfferOptions,
 } from "@/lib/comparador-en-vivo-form"
 import { useComparadorEnVivo } from "@/pages/erp/comparador/hooks/useComparadorEnVivo"
+import { resolveComparadorConsumoAnualKwh } from "@/lib/comparador-marco-commission"
 import { usePotenciaP1Autofill } from "@/pages/erp/comparador/hooks/usePotenciaP1Autofill"
 
 export function ComparadorPage() {
   const ws = useErpWorkspaceContext()
   const {
     activeUser,
+    activeRole,
+    superadminViewMode,
     compSegment,
     setCompSegment,
     compAccessTariff,
@@ -38,6 +41,8 @@ export function ComparadorPage() {
     setCompPreciosPotenciaActual,
     compPreciosEnergiaActual,
     setCompPreciosEnergiaActual,
+    compConsumoAnualKwh,
+    setCompConsumoAnualKwh,
     compDiasFacturados,
     setCompDiasFacturados,
     compRentMeter,
@@ -89,6 +94,10 @@ export function ComparadorPage() {
   const { handlePotenciaP1Change, handlePotenciaManualChange } =
     usePotenciaP1Autofill(setCompPotencias)
 
+  const showCommissionOnOffers =
+    activeRole !== "tramitacion" &&
+    !(activeRole === "superadmin" && superadminViewMode === "tramitacion")
+
   const enVivoForm = useMemo(
     () =>
       buildComparadorEnVivoFormState({
@@ -101,6 +110,7 @@ export function ComparadorPage() {
         bonoSocial: compBonoSocial,
         energiaReactiva: compEnergiaReactiva,
         otrosCostesSva: compOtrosCostesSva,
+        consumoAnualKwh: compConsumoAnualKwh,
         companiaActual: compCompaniaActual.trim() || null,
         proposalFilters: compProposalFilters,
       }),
@@ -114,12 +124,13 @@ export function ComparadorPage() {
       compBonoSocial,
       compEnergiaReactiva,
       compOtrosCostesSva,
+      compConsumoAnualKwh,
       compCompaniaActual,
       compProposalFilters,
     ]
   )
 
-  const { resultados, calculando, catalogError } = useComparadorEnVivo(
+  const { resultados, calculando, catalogError, catalogCount } = useComparadorEnVivo(
     enVivoForm,
     {
       commissionPercentage: activeUser.commissionPercentage,
@@ -291,6 +302,7 @@ export function ComparadorPage() {
               energiaReactiva={compEnergiaReactiva}
               otrosCostesSva={compOtrosCostesSva}
               diasFacturados={compDiasFacturados}
+              consumoAnualKwh={compConsumoAnualKwh}
               facturaMensual={compCurrentBill}
               onAlquilerChange={setCompRentMeter}
               onBonoSocialChange={setCompBonoSocial}
@@ -299,6 +311,7 @@ export function ComparadorPage() {
               onDiasFacturadosChange={(value) =>
                 setCompDiasFacturados(normalizeComparadorDiasFacturacion(value))
               }
+              onConsumoAnualKwhChange={setCompConsumoAnualKwh}
               onFacturaMensualChange={setCompCurrentBill}
               descuentoPotencia={compDescuentoPotencia}
               descuentoEnergia={compDescuentoEnergia}
@@ -340,7 +353,9 @@ export function ComparadorPage() {
                       ? catalogError
                       : compProposalFilters.length > 0
                         ? "Prueba quitando algún filtro o cambia la tarifa de acceso."
-                        : "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."}
+                        : catalogCount === 0
+                          ? "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."
+                          : "Hay tarifas en catálogo pero ninguna encaja con marco retributivo y los datos introducidos. Revisa precios por periodo o quita filtros."}
                   </p>
                 </div>
               </div>
@@ -356,7 +371,7 @@ export function ComparadorPage() {
                   return (
                   <ComparadorOfferCard
                     key={opt.id}
-                    option={opt}
+                    option={{ ...opt, showCommission: showCommissionOnOffers }}
                     segment={compSegment}
                     sortMode={compSortMode}
                     savedToHistory={savedToHistory}
@@ -374,14 +389,10 @@ export function ComparadorPage() {
                         clientName: compClient,
                         cups: compCups,
                         potenciaP1: compPotencias.p1 || undefined,
-                        consumoAnual:
-                          (compConsumos.p1 +
-                            compConsumos.p2 +
-                            compConsumos.p3 +
-                            compConsumos.p4 +
-                            compConsumos.p5 +
-                            compConsumos.p6) *
-                          12,
+                        consumoAnual: resolveComparadorConsumoAnualKwh({
+                          consumoAnualKwh: compConsumoAnualKwh,
+                          consumosMensuales: compConsumos,
+                        }),
                       })
                     }
                     onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}

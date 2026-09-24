@@ -29,18 +29,33 @@ describe("contract-action-attention", () => {
 })
 
 describe("sidebar-action-badges", () => {
-  it("shows orange badge for contratos with incidencia", () => {
+  it("shows orange badge only for incidencias del usuario activo", () => {
     const badges = buildSidebarActionBadges(["Contratos"], {
       contracts: [
-        { estado: "INCIDENCIA ADMINISTRATIVA" },
-        { estado: "INCIDENCIA ADMINISTRATIVA" },
-        { estado: "ACTIVADO" },
+        { estado: "INCIDENCIA ADMINISTRATIVA", comercialId: "usr-3" },
+        { estado: "INCIDENCIA ADMINISTRATIVA", comercialId: "usr-9" },
+        { estado: "PTE DE FIRMA", comercialId: "usr-3" },
+        { estado: "ACTIVADO", comercialId: "usr-3" },
       ],
       incidencias: [],
       settlements: [],
       activeUserId: "usr-3",
+      activeRole: "comercial",
+      superadminViewMode: "comercial",
     })
-    expect(badges.Contratos).toEqual({ count: 2, tone: "attention" })
+    expect(badges.Contratos).toEqual({ count: 1, tone: "attention" })
+  })
+
+  it("no muestra badge por PTE FIRMA u otros estados", () => {
+    const badges = buildSidebarActionBadges(["Contratos"], {
+      contracts: [{ estado: "PTE DE FIRMA", comercialId: "usr-3" }],
+      incidencias: [],
+      settlements: [],
+      activeUserId: "usr-3",
+      activeRole: "comercial",
+      superadminViewMode: "comercial",
+    })
+    expect(badges.Contratos).toBeUndefined()
   })
 
   it("shows red badge for critical incidencias", () => {
@@ -63,6 +78,8 @@ describe("sidebar-action-badges", () => {
       ],
       settlements: [],
       activeUserId: "usr-3",
+      activeRole: "comercial",
+      superadminViewMode: "comercial",
     })
     expect(badges.Incidencias).toEqual({ count: 1, tone: "urgent" })
   })

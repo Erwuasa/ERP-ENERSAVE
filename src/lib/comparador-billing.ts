@@ -15,6 +15,12 @@ import {
 } from "./tarifa-cost-calculator"
 
 export const COMPARADOR_DIAS_FACTURACION_MENSUAL = 30
+
+/** Redondeo monetario a céntimos (evita Math.round entero en totales). */
+export function roundComparadorMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.round(value * 100) / 100
+}
 export const COMPARADOR_MESES_ANUAL = 12
 export const COMPARADOR_DIAS_FACTURACION_MIN = 1
 /** Sin tope práctico: facturas bimestrales, trimestrales o periodos AT largos. */

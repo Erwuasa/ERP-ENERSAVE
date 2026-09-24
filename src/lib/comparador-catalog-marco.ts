@@ -1,21 +1,9 @@
 import { areMarcoTarifaNamesSimilar, normalizeMarcoTarifaName } from "./marco-dedup"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
-import { buildMarcoRetributivoIndex, type MarcoRetributivoIndex } from "./comparador-en-vivo-ranking"
+import { buildMarcoRetributivoIndex } from "./comparador-en-vivo-ranking"
+import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
 import { tariffPriceScore } from "./tariff-catalog-dedup"
-
-function resolveMarcoForTariff(
-  tariff: TariffConPrecios,
-  index: MarcoRetributivoIndex
-): MarcoRetributivoRow | null {
-  if (tariff.atRateId && index.byAtRateId.has(tariff.atRateId)) {
-    return index.byAtRateId.get(tariff.atRateId) ?? null
-  }
-  if (index.byTariffId.has(tariff.tariffId)) {
-    return index.byTariffId.get(tariff.tariffId) ?? null
-  }
-  return null
-}
 
 function marcoCommissionScore(row: MarcoRetributivoRow): number {
   return Number(row.comision_base ?? 0)
@@ -34,10 +22,13 @@ function dedupeKey(tariff: TariffConPrecios): string {
  */
 export function filterCatalogForComparador(
   catalog: TariffConPrecios[],
-  marcoRows: MarcoRetributivoRow[]
+  marcoRows: MarcoRetributivoRow[],
+  peaje: string
 ): TariffConPrecios[] {
   const index = buildMarcoRetributivoIndex(marcoRows)
-  const linked = catalog.filter((tariff) => resolveMarcoForTariff(tariff, index) != null)
+  const linked = catalog.filter(
+    (tariff) => resolveMarcoForComparadorTariff(tariff, index, marcoRows, peaje) != null
+  )
 
   const groups = new Map<string, TariffConPrecios[]>()
   for (const tariff of linked) {
@@ -56,7 +47,7 @@ export function filterCatalogForComparador(
     }
 
     const scored = candidates.map((tariff) => {
-      const marco = resolveMarcoForTariff(tariff, index)
+      const marco = resolveMarcoForComparadorTariff(tariff, index, marcoRows, peaje)
       return {
         tariff,
         priceScore: tariffPriceScore(tariff.precios),
