@@ -5,11 +5,9 @@ import {
 } from "./comparador-periods"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import {
-  activePeriodCount,
   preciosMapToRateArrays,
   slotToIndex,
   type ComparadorPeriodInputs,
-  type TariffPeriodKey,
   type TariffPreciosPorPeriodo,
 } from "./tarifa-cost-calculator"
 
@@ -19,43 +17,13 @@ export interface ComparadorTariffPricingCoverage {
   missingEnergiaPeriods: ComparadorPeriodSlot[]
 }
 
-function marcoPeriodValue(
-  marco: MarcoRetributivoRow,
-  kind: "energia" | "potencia",
-  periodIndex: number
-): number {
-  const key = `${kind}_p${periodIndex + 1}` as keyof MarcoRetributivoRow
-  const value = marco[key]
-  const num = Number(value ?? 0)
-  return Number.isFinite(num) && num > 0 ? num : 0
-}
-
-/** Combina precios del tarifario (tariff_prices) con columnas P1-P6 del marco retributivo. */
+/** Precios del comparador: solo `tariff_prices`. El marco no aporta energía ni potencia. */
 export function mergeComparadorTariffPrecios(
   catalogPrecios: TariffPreciosPorPeriodo,
-  marco: MarcoRetributivoRow | null,
-  peaje: string
+  _marco: MarcoRetributivoRow | null,
+  _peaje: string
 ): TariffPreciosPorPeriodo {
-  const count = activePeriodCount(peaje)
-  const merged: TariffPreciosPorPeriodo = { ...catalogPrecios }
-
-  for (let i = 0; i < count; i++) {
-    const key = `P${i + 1}` as TariffPeriodKey
-    const catalog = merged[key]
-    const marcoEnergy = marco ? marcoPeriodValue(marco, "energia", i) : 0
-    const marcoPower = marco ? marcoPeriodValue(marco, "potencia", i) : 0
-
-    const energyPriceKwh =
-      (catalog?.energyPriceKwh ?? 0) > 0 ? catalog!.energyPriceKwh : marcoEnergy
-    const powerPriceKwDay =
-      (catalog?.powerPriceKwDay ?? 0) > 0 ? catalog!.powerPriceKwDay : marcoPower
-
-    if (energyPriceKwh > 0 || powerPriceKwDay > 0) {
-      merged[key] = { energyPriceKwh, powerPriceKwDay }
-    }
-  }
-
-  return merged
+  return { ...catalogPrecios }
 }
 
 /**

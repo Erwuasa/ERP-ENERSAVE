@@ -3,22 +3,23 @@ import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
 import { buildMarcoRetributivoIndex } from "./comparador-en-vivo-ranking"
 import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
-import { tariffPriceScore } from "./tariff-catalog-dedup"
 
-function marcoCommissionScore(row: MarcoRetributivoRow): number {
-  return Number(row.comision_base ?? 0)
+function preferCatalogTariff(current: TariffConPrecios, incoming: TariffConPrecios): TariffConPrecios {
+  const currentAt = Boolean(current.atRateId)
+  const incomingAt = Boolean(incoming.atRateId)
+  if (currentAt !== incomingAt) return incomingAt ? incoming : current
+  return current
 }
 
 function dedupeKey(tariff: TariffConPrecios): string {
   const company = normalizeMarcoTarifaName(tariff.providerName)
   const name = normalizeMarcoTarifaName(tariff.name)
-  return `${company}|${name}`
+  return `${company}|${name}|${tariff.segment}|${tariff.accessTariff}|${tariff.supplyType}`
 }
 
 /**
  * Catálogo del comparador: solo tarifas activas en ERP ligadas al marco retributivo.
- * Ante duplicados de nombre, conserva la fila con precios más altos (catálogo AT/ERP completo)
- * y, en empate, la de mayor comisión en marco.
+ * Ante duplicados de nombre, conserva la fila AT (`at_rate_id`). La comisión sale del marco enlazado.
  */
 export function filterCatalogForComparador(
   catalog: TariffConPrecios[],
@@ -46,22 +47,7 @@ export function filterCatalogForComparador(
       continue
     }
 
-    const scored = candidates.map((tariff) => {
-      const marco = resolveMarcoForComparadorTariff(tariff, index, marcoRows, peaje)
-      return {
-        tariff,
-        priceScore: tariffPriceScore(tariff.precios),
-        commissionScore: marco ? marcoCommissionScore(marco) : 0,
-      }
-    })
-
-    scored.sort((a, b) => {
-      if (b.priceScore !== a.priceScore) return b.priceScore - a.priceScore
-      if (b.commissionScore !== a.commissionScore) return b.commissionScore - a.commissionScore
-      return a.tariff.name.localeCompare(b.tariff.name, "es")
-    })
-
-    out.push(scored[0]!.tariff)
+    out.push(candidates.reduce((current, incoming) => preferCatalogTariff(current, incoming)))
   }
 
   // Fusionar nombres similares (variantes AT) en un solo representante
@@ -71,6 +57,9 @@ export function filterCatalogForComparador(
       (existing) =>
         normalizeMarcoTarifaName(existing.providerName) ===
           normalizeMarcoTarifaName(tariff.providerName) &&
+        existing.segment === tariff.segment &&
+        existing.accessTariff === tariff.accessTariff &&
+        existing.supplyType === tariff.supplyType &&
         areMarcoTarifaNamesSimilar(existing.name, tariff.name)
     )
     if (similarIdx < 0) {
@@ -78,10 +67,7 @@ export function filterCatalogForComparador(
       continue
     }
 
-    const existing = merged[similarIdx]!
-    const keep =
-      tariffPriceScore(tariff.precios) >= tariffPriceScore(existing.precios) ? tariff : existing
-    merged[similarIdx] = keep
+    merged[similarIdx] = preferCatalogTariff(merged[similarIdx]!, tariff)
   }
 
   return merged

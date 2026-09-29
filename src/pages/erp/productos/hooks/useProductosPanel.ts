@@ -113,7 +113,7 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
           await fetchPage(0, false)
           if (!options?.silent) {
             toast.success(
-              `${result.tariffsDeactivated} tarifa(s) duplicada(s) desactivadas en ERP. Se conservó la de mayor precio.`
+              `${result.tariffsDeactivated} tarifa(s) manual(es) duplicada(s) desactivadas. Se conservó la fila de AT.`
             )
           }
         } else if (!options?.silent) {

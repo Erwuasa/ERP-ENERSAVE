@@ -14,7 +14,6 @@ import { releaseAtSyncLock, tryAcquireAtSyncLock } from './at-sync-lock.ts'
 const LOCK = 'marcos-at'
 
 const UPSERT_BATCH = 50
-const COMMISSION_BATCH = 20
 
 const NESTED_KEYS = ['marcos', 'items', 'commissions', 'rates', 'children', 'tramos', 'bands']
 
@@ -202,44 +201,7 @@ export async function fetchAllMarcosFromAt(): Promise<{
   const allRows = dedupeMarcoRows([...forContract.rows, ...listed.rows])
   const pagesFetched = forContract.pagesFetched + listed.pagesFetched
 
-  const rateIds = [
-    ...new Set(
-      allRows
-        .map((row) => asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id))
-        .filter((id): id is string => Boolean(id))
-    ),
-  ]
-
-  let commissionsEnriched = 0
-  const byRate = new Map<string, JsonRecord>()
-
-  for (let offset = 0; offset < rateIds.length; offset += COMMISSION_BATCH) {
-    const batch = rateIds.slice(offset, offset + COMMISSION_BATCH)
-    try {
-      const params = new URLSearchParams({ rate_ids: batch.join(',') })
-      const payload = await fetchFromAt('/marcos/commissions', params)
-      const { rows } = normalizeListPayload(payload)
-      for (const row of flattenMarcoRows(rows)) {
-        const rateId = asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id)
-        if (!rateId) continue
-        byRate.set(rateId, row)
-        commissionsEnriched += 1
-      }
-    } catch (error) {
-      console.warn('[sync-marcos-at] commissions enrich skipped', error)
-      break
-    }
-  }
-
-  if (byRate.size > 0) {
-    for (const row of allRows) {
-      const rateId = asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id)
-      const extra = rateId ? byRate.get(rateId) : undefined
-      if (extra) Object.assign(row, extra)
-    }
-  }
-
-  return { rows: allRows, pagesFetched, commissionsEnriched }
+  return { rows: allRows, pagesFetched, commissionsEnriched: 0 }
 }
 
 async function loadLinkedTariffs(
@@ -391,6 +353,34 @@ async function mapAtRowToDb(
   }
 }
 
+async function loadExistingAtMarcoIds(
+  supabase: ReturnType<typeof getSupabaseAdmin>
+): Promise<Set<string>> {
+  const ids = new Set<string>()
+  const pageSize = 1000
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('marco_retributivo')
+      .select('at_marco_id')
+      .eq('source', 'at')
+      .not('at_marco_id', 'is', null)
+      .range(from, from + pageSize - 1)
+
+    if (error) throw new Error(`marco_retributivo lookup failed: ${error.message}`)
+    const rows = data ?? []
+    for (const row of rows) {
+      const id = asString(row.at_marco_id)
+      if (id) ids.add(id)
+    }
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return ids
+}
+
 export async function syncMarcosToDatabase(
   rows: JsonRecord[],
   options: { deactivateMissing?: boolean } = {}
@@ -429,15 +419,28 @@ export async function syncMarcosToDatabase(
 
   stats.rows_mapped = mapped.length
 
-  for (let offset = 0; offset < mapped.length; offset += UPSERT_BATCH) {
-    const batch = mapped.slice(offset, offset + UPSERT_BATCH)
-    const { data, error } = await supabase
-      .from('marco_retributivo')
-      .upsert(batch, { onConflict: 'at_marco_id' })
-      .select('id')
+  const existingAtMarcoIds = await loadExistingAtMarcoIds(supabase)
+  const links = mapped.filter((row) => existingAtMarcoIds.has(row.at_marco_id))
+  stats.rows_skipped += mapped.length - links.length
 
-    if (error) throw new Error(`marco_retributivo upsert failed: ${error.message}`)
-    stats.rows_upserted += data?.length ?? batch.length
+  for (let offset = 0; offset < links.length; offset += UPSERT_BATCH) {
+    const batch = links.slice(offset, offset + UPSERT_BATCH)
+    await Promise.all(
+      batch.map(async (row) => {
+        const { error } = await supabase
+          .from('marco_retributivo')
+          .update({
+            tariff_id: row.tariff_id,
+            at_rate_id: row.at_rate_id,
+            at_synced_at: row.at_synced_at,
+          })
+          .eq('at_marco_id', row.at_marco_id)
+          .eq('source', 'at')
+
+        if (error) throw new Error(`marco_retributivo link update failed: ${error.message}`)
+      })
+    )
+    stats.rows_upserted += batch.length
   }
 
   if (options.deactivateMissing !== false && seen.size > 0) {
@@ -472,23 +475,8 @@ export async function upsertMarcosFromAtIds(ids: string[]): Promise<{ fetched: n
     }
   }
 
-  for (let offset = 0; offset < asRates.length; offset += COMMISSION_BATCH) {
-    const batch = asRates.slice(offset, offset + COMMISSION_BATCH)
-    try {
-      const payload = await fetchFromAt(
-        '/marcos/commissions',
-        new URLSearchParams({ rate_ids: batch.join(',') })
-      )
-      const { rows: commissionRows } = normalizeListPayload(payload)
-      for (const row of flattenMarcoRows(commissionRows)) {
-        if (!asUuid(row.rate_id ?? row.rates_id ?? row.tariff_id) && batch.length === 1) {
-          row.rate_id = batch[0]
-        }
-        rows.push(row)
-      }
-    } catch (error) {
-      console.warn('[upsertMarcosFromAtIds] commissions failed', batch.length, error)
-    }
+  if (asRates.length > 0) {
+    console.warn('[upsertMarcosFromAtIds] skipped commission import', asRates.length)
   }
 
   if (rows.length === 0) return { fetched: 0, upserted: 0 }

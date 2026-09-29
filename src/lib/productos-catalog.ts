@@ -98,46 +98,6 @@ function readPrecio(row: MarcoRetributivoRow, prefix: "energia" | "potencia", n:
   return Number.isFinite(num) ? num : null
 }
 
-function syntheticPrecios(row: MarcoRetributivoRow): ProductoTarifaPrecios {
-  const isGas = row.tipo === "gas"
-  const is30 = row.peaje.includes("3.0") || row.peaje.includes("6.0")
-  const base = 0.1 + (row.comision_base % 20) / 1000
-
-  if (isGas) {
-    return {
-      energia: { p1: round4(base + 0.02), p2: round4(base + 0.015) },
-      potencia: { p1: round4(0.035), p2: round4(0.03) },
-    }
-  }
-
-  if (is30) {
-    return {
-      energia: {
-        p1: round4(base + 0.012),
-        p2: round4(base + 0.008),
-        p3: round4(base + 0.006),
-        p4: round4(base + 0.004),
-        p5: round4(base + 0.003),
-        p6: round4(base + 0.002),
-      },
-      potencia: {
-        p1: round4(0.058),
-        p2: round4(0.051),
-        p3: round4(0.044),
-      },
-    }
-  }
-
-  return {
-    energia: { p1: round4(base + 0.018), p2: round4(base + 0.012), p3: round4(base + 0.009) },
-    potencia: { p1: round4(0.043), p2: round4(0.036) },
-  }
-}
-
-function round4(n: number): number {
-  return Math.round(n * 10000) / 10000
-}
-
 function extractPrecios(row: MarcoRetributivoRow): ProductoTarifaPrecios {
   const energia: ProductoTarifaPrecios["energia"] = {}
   const potencia: ProductoTarifaPrecios["potencia"] = {}
@@ -149,9 +109,6 @@ function extractPrecios(row: MarcoRetributivoRow): ProductoTarifaPrecios {
     if (p != null) potencia[`p${i}` as keyof typeof potencia] = p
   }
 
-  if (Object.keys(energia).length === 0 && Object.keys(potencia).length === 0) {
-    return syntheticPrecios(row)
-  }
   return { energia, potencia }
 }
 

@@ -28,12 +28,19 @@ function makeTariff(
 }
 
 describe("listTariffIdsToDeactivate", () => {
-  it("desactiva la tarifa con menor precio cuando el nombre es equivalente", () => {
+  it("desactiva la copia manual cuando existe la tarifa AT equivalente", () => {
+    const manual = { ...makeTariff("manual", "LIBRE + PERMANENCIA", 0.2), atRateId: null }
+    const at = makeTariff("at", "LIBRE CON PERMANENCIA", 0.1)
+    const ids = listTariffIdsToDeactivate([manual, at])
+    expect(ids).toEqual(["manual"])
+  })
+
+  it("no desactiva dos tarifas AT por diferencia de precio", () => {
     const ids = listTariffIdsToDeactivate([
       makeTariff("cheap", "LIBRE + PERMANENCIA", 0.1),
       makeTariff("rich", "LIBRE CON PERMANENCIA", 0.2),
     ])
-    expect(ids).toEqual(["cheap"])
+    expect(ids).toEqual([])
   })
 
   it("no desactiva tarifas únicas", () => {

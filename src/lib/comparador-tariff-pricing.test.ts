@@ -45,7 +45,7 @@ function marcoRow(
 }
 
 describe("comparador-tariff-pricing", () => {
-  it("merges marco prices when catalog lacks them", () => {
+  it("keeps catalog prices and ignores marco energy and power", () => {
     const merged = mergeComparadorTariffPrecios(
       {
         P1: { energyPriceKwh: 0.06, powerPriceKwDay: 0 },
@@ -56,8 +56,8 @@ describe("comparador-tariff-pricing", () => {
       "2.0TD"
     )
 
-    expect(merged.P1?.powerPriceKwDay).toBe(0.08)
-    expect(merged.P2?.powerPriceKwDay).toBe(0.04)
+    expect(merged.P1?.powerPriceKwDay).toBe(0)
+    expect(merged.P2?.powerPriceKwDay).toBe(0)
     expect(merged.P1?.energyPriceKwh).toBe(0.06)
   })
 
@@ -80,7 +80,7 @@ describe("comparador-tariff-pricing", () => {
 
     expect(incomplete).toBe(false)
 
-    const complete = isComparadorTariffPricingComplete(
+    const stillIncomplete = isComparadorTariffPricingComplete(
       inputs,
       "2.0TD",
       {
@@ -91,7 +91,7 @@ describe("comparador-tariff-pricing", () => {
       marcoRow({ potencia_p1: 0.08, potencia_p2: 0.04 })
     )
 
-    expect(complete).toBe(true)
+    expect(stillIncomplete).toBe(false)
   })
 
   it("rejects tariffs missing energia prices for filled consumo periods", () => {
