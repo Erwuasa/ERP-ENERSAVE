@@ -8,11 +8,14 @@ export const CONTRACTS_TH_SUB =
 export const CONTRACTS_TH_SUB_SPACER =
   "mt-0.5 block text-[9px] font-normal normal-case invisible leading-tight select-none pointer-events-none"
 
+/** Altura fija de fila en la tabla de contratos (todas las celdas deben respetarla). */
+export const CONTRACT_TABLE_ROW_HEIGHT_CLASS = "h-[4.5rem] max-h-[4.5rem]"
+
 export const CONTRACTS_TD =
-  "px-2.5 py-1.5 align-middle border-b border-brand-border/70 text-center"
+  "px-2.5 py-0 align-middle border-b border-brand-border/70 text-center overflow-hidden"
 
 export const CONTRACTS_TD_LEFT =
-  "px-2.5 py-1.5 align-middle border-b border-brand-border/70 text-left"
+  "px-2.5 py-0 align-middle border-b border-brand-border/70 text-left overflow-hidden"
 
 export const CONTRACTS_TD_MIDDLE = CONTRACTS_TD
 

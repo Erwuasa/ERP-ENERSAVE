@@ -1,0 +1,42 @@
+import type { Profile } from "@/types/profile"
+
+/** CUPS del CRM colaborador → comercial asignado (IDs en Supabase). */
+export const IMPORT_CUPS_COMERCIAL_ID: Record<string, string> = {
+  ES0031105723137003LW: "cf1a0302-39e2-4ccd-a043-10cc0b386dd4", // Berni
+  ES0031105723137004LA: "cf1a0302-39e2-4ccd-a043-10cc0b386dd4",
+  ES0218030025299880SW: "83cabea3-8cbb-4c57-b300-9ecc38410882", // Ricardo Monsalve
+  ES0031102446453001GY: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0218030078051828HR: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0031104754149003BR: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0031102589150001VS: "d9148f58-1c60-4806-84d5-029d94276d1a", // Pablo Gutierrez
+  ES0031102263903009AW: "d9148f58-1c60-4806-84d5-029d94276d1a",
+  ES0031102255384003AN: "d9148f58-1c60-4806-84d5-029d94276d1a",
+  ES0031102230155002YX: "d9148f58-1c60-4806-84d5-029d94276d1a",
+  ES0031102338075005LB: "d9148f58-1c60-4806-84d5-029d94276d1a",
+  ES0031102790769001WA: "21654e95-70fd-48fd-b7ea-e17bbf44af7b", // Alejandro Rueda
+  ES0339001000080109ZB: "21654e95-70fd-48fd-b7ea-e17bbf44af7b",
+  ES0031102771320032NH: "21654e95-70fd-48fd-b7ea-e17bbf44af7b",
+}
+
+export function normalizeImportCups(cups: string): string {
+  return cups.replace(/\s/g, "").toUpperCase()
+}
+
+export function resolveImportComercialForCups(
+  cups: string,
+  profiles: Profile[],
+  fallback: { id: string; fullName: string }
+): { comercialId: string; comercialName: string; jefeEquipo: string | null } {
+  const key = normalizeImportCups(cups)
+  const assignedId = IMPORT_CUPS_COMERCIAL_ID[key]
+  const profile =
+    (assignedId ? profiles.find((p) => p.id === assignedId) : undefined) ??
+    profiles.find((p) => p.id === fallback.id)
+
+  const comercialId = profile?.id ?? fallback.id
+  const comercialName = profile?.fullName ?? fallback.fullName
+  const managerId = profile?.managerId?.trim()
+  const jefeEquipo = managerId || null
+
+  return { comercialId, comercialName, jefeEquipo }
+}

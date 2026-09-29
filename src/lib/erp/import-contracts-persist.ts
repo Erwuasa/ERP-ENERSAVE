@@ -62,6 +62,9 @@ export async function persistImportedContractList(
       telefono: draft.telefono,
       email: draft.email,
       direccion: draft.direccionSuministro,
+      codigoPostal: draft.codigoPostal,
+      ciudad: draft.poblacion,
+      provincia: draft.provincia,
       tipoCliente: sourceRow
         ? inferTipoClienteFromRow(sourceRow)
         : draft.tipoCliente?.includes("pyme")

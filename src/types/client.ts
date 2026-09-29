@@ -9,6 +9,9 @@ export interface ClienteArchivo {
   /** Base64 data URL para descarga local */
   dataUrl: string
   uploadedAt: string
+  /** Referencia a Storage (p. ej. documento de identidad vinculado desde un contrato). */
+  storagePath?: string
+  storageBucket?: string
 }
 
 export interface Client {

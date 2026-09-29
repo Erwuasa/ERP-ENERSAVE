@@ -2,12 +2,15 @@ import type { Contract } from "@/types/contract"
 import type { DocumentosPorTipo } from "@/lib/contract-registration"
 import type { ContratoDocumentoRecord, ContratoDocumentoTipoId } from "@/lib/contrato-documentos"
 import {
+  documentoAlreadyOnContract,
   formatDocumentoSize,
   getDocumentoTipoLabel,
   normalizeDocumentoTipoId,
 } from "@/lib/contrato-documentos"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
 import { updateTeamContract, type TeamContractResult } from "@/lib/supabase/contracts"
+import { updateCliente } from "@/lib/supabase/clientes"
+import type { ClienteArchivo } from "@/types/client"
 import {
   resolveSupabaseClient,
   type SupabaseFailure,
@@ -35,6 +38,42 @@ function createDocumentId(): string {
     return crypto.randomUUID()
   }
   return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+async function attachIdentityDocumentToCliente(
+  contract: Contract,
+  doc: ContratoDocumentoRecord,
+  fileSizeBytes: number
+): Promise<void> {
+  if (!contract.clientId) return
+  const tipo = normalizeDocumentoTipoId(String(doc.tipo))
+  if (tipo !== "dni_nie_titular" && tipo !== "cif_empresa") return
+  if (!doc.storagePath) return
+
+  const entry: ClienteArchivo = {
+    id: doc.id,
+    name: doc.name,
+    mimeType: doc.mimeType ?? "application/octet-stream",
+    size: fileSizeBytes,
+    dataUrl: "",
+    uploadedAt: doc.uploadedAt,
+    storagePath: doc.storagePath,
+    storageBucket: CONTRATO_DOCUMENTOS_BUCKET,
+  }
+
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return
+
+  const { data: row } = await resolved.client
+    .from("clientes")
+    .select("archivos")
+    .eq("id", contract.clientId)
+    .maybeSingle()
+
+  const prev = Array.isArray(row?.archivos) ? (row.archivos as ClienteArchivo[]) : []
+  if (prev.some((item) => item.storagePath === entry.storagePath || item.id === entry.id)) return
+
+  await updateCliente(contract.clientId, { archivos: [...prev, entry] })
 }
 
 async function insertHistorialDocumentoAdjuntado(input: {
@@ -67,14 +106,22 @@ async function insertHistorialDocumentoAdjuntado(input: {
 }
 
 export function listPendingWizardDocumentoUploads(
-  documentosPorTipo: DocumentosPorTipo
+  documentosPorTipo: DocumentosPorTipo,
+  contract?: Contract
 ): { tipoId: ContratoDocumentoTipoId; file: File }[] {
   const pending: { tipoId: ContratoDocumentoTipoId; file: File }[] = []
   for (const [tipo, files] of Object.entries(documentosPorTipo)) {
     const tipoId = normalizeDocumentoTipoId(tipo)
     if (!tipoId) continue
     for (const entry of files) {
-      if (entry.pendingFile) pending.push({ tipoId, file: entry.pendingFile })
+      if (!entry.pendingFile) continue
+      if (
+        contract &&
+        documentoAlreadyOnContract(contract, tipoId, entry.name)
+      ) {
+        continue
+      }
+      pending.push({ tipoId, file: entry.pendingFile })
     }
   }
   return pending
@@ -86,7 +133,10 @@ export async function syncWizardDocumentosToSupabase(input: {
   autorId: string
   autorNombre: string
 }): Promise<UploadContratoDocumentoResult & { warnings: string[] }> {
-  const uploads = listPendingWizardDocumentoUploads(input.documentosPorTipo)
+  const uploads = listPendingWizardDocumentoUploads(
+    input.documentosPorTipo,
+    input.contract
+  )
   if (uploads.length === 0) {
     return { ok: true, data: input.contract, warnings: [] }
   }
@@ -197,6 +247,8 @@ export async function uploadContratoDocumento(
     console.warn("[contrato-documentos] historial no registrado:", historialError.message)
   }
 
+  await attachIdentityDocumentToCliente(input.contract, nuevoDocumento, input.file.size)
+
   return { ok: true, data: updated.data }
 }
 
@@ -221,6 +273,23 @@ export async function getContratoDocumentoDownloadUrl(
   }
 
   return { ok: true, data: data.signedUrl }
+}
+
+export async function deleteContratoDocumentosFromStorage(
+  documentos: Contract["documentos"]
+): Promise<void> {
+  const paths = (documentos ?? [])
+    .map((doc) => doc.storagePath)
+    .filter((path): path is string => Boolean(path))
+  if (paths.length === 0) return
+
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return
+
+  const { error } = await resolved.client.storage.from(CONTRATO_DOCUMENTOS_BUCKET).remove(paths)
+  if (error) {
+    console.warn("[contrato-documentos] no se pudieron borrar archivos:", error.message)
+  }
 }
 
 export async function downloadContratoDocumentoBlob(

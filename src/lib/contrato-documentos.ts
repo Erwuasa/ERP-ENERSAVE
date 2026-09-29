@@ -101,6 +101,43 @@ export function formatDocumentoSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+type ContractDocumentoLike = {
+  name: string
+  storagePath?: string
+  tipo?: string
+}
+
+export function documentoAlreadyOnContract(
+  contract: { documentos?: ContractDocumentoLike[] },
+  tipoId: ContratoDocumentoTipoId,
+  fileName: string
+): boolean {
+  return (contract.documentos ?? []).some((doc) => {
+    if (!doc.storagePath) return false
+    const docTipo = normalizeDocumentoTipoId(String(doc.tipo)) ?? String(doc.tipo)
+    return docTipo === tipoId && doc.name === fileName
+  })
+}
+
+export function stripUploadedPendingFilesFromForm(
+  documentosPorTipo: DocumentosPorTipo,
+  contract: { documentos?: ContractDocumentoLike[] }
+): DocumentosPorTipo {
+  const next: DocumentosPorTipo = {}
+  for (const [tipo, files] of Object.entries(documentosPorTipo)) {
+    const tipoId = normalizeDocumentoTipoId(tipo)
+    next[tipo] = files.map((file) => {
+      if (!file.pendingFile || !tipoId) return file
+      if (documentoAlreadyOnContract(contract, tipoId, file.name)) {
+        const { pendingFile: _removed, ...rest } = file
+        return rest
+      }
+      return file
+    })
+  }
+  return next
+}
+
 export function countDocumentosPorTipo(documentosPorTipo: DocumentosPorTipo): number {
   return Object.values(documentosPorTipo).reduce((sum, arr) => sum + arr.length, 0)
 }

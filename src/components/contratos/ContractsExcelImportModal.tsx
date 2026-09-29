@@ -9,6 +9,7 @@ import {
   parseContractsFromExcel,
 } from "../../lib/excel-import"
 import type { Contract } from "../../types/contract"
+import type { Profile } from "../../types/profile"
 import { toast } from "sonner"
 
 interface ContractsExcelImportModalProps {
@@ -18,6 +19,7 @@ interface ContractsExcelImportModalProps {
   comercialId: string
   comercialName: string
   existingContractCount: number
+  profiles?: Profile[]
 }
 
 export function ContractsExcelImportModal({
@@ -27,14 +29,20 @@ export function ContractsExcelImportModal({
   comercialId,
   comercialName,
   existingContractCount,
+  profiles = [],
 }: ContractsExcelImportModalProps) {
   const [loading, setLoading] = useState(false)
 
   async function handleFiles(files: File[]) {
     const file = files[0]
     if (!file) return
-    if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
-      toast.error("Sube un archivo Excel (.xlsx o .xls)")
+    const lower = file.name.toLowerCase()
+    const allowed =
+      lower.endsWith(".xlsx") ||
+      lower.endsWith(".xls") ||
+      lower.endsWith(".csv")
+    if (!allowed) {
+      toast.error("Sube un archivo Excel (.xlsx, .xls) o CSV")
       return
     }
 
@@ -50,6 +58,7 @@ export function ContractsExcelImportModal({
         comercialId,
         comercialName,
         existingCount: existingContractCount,
+        profiles,
       })
       await onImport(imported)
       toast.success(`Importados ${imported.length} contratos. Los clientes nuevos se han creado en tu cartera.`)
@@ -93,7 +102,7 @@ export function ContractsExcelImportModal({
           ) : (
             <>
               <FileDropZone
-                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                 multiple={false}
                 onFiles={handleFiles}
                 className="min-h-[120px]"
