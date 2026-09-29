@@ -1,4 +1,5 @@
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
+import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
@@ -63,6 +64,13 @@ export function useContratosPage({
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
   const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
   const [isFilterPending, startFilterTransition] = useTransition()
+  const [, setMarcoCatalogRevision] = useState(0)
+
+  useEffect(() => {
+    void loadMarcoRetributivoStaleWhileRevalidate({
+      onRevalidated: () => setMarcoCatalogRevision((revision) => revision + 1),
+    })
+  }, [])
 
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
@@ -222,7 +230,8 @@ export function useContratosPage({
       profiles: profileOptions,
       commissionPercentage: activeUser.commissionPercentage,
       formatCurrency,
-      renderCompaniaLogo,
+      renderCompaniaLogo: (brandName: string) =>
+        renderCompaniaLogo(brandName, null, "md"),
       reviewedContractIds: tramitacion.reviewedContractIds,
       showTarifaRecommendations: canViewTarifaRecommendations,
       tarifaRecommendations: recommendations.tarifaRecommendations,

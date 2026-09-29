@@ -218,12 +218,14 @@ export function ContratosPanel({
             onDismissRenewalAlert={onDismissRenewalAlert}
             onOpenDetalle={setContratoSeleccionado}
             onEditDraft={onEditDraft}
+            renderCompaniaLogo={renderCompaniaLogo}
             showComercialColumn={showComercialColumn}
           />
         </div>
 
       <ConfirmDeleteContractModal
         open={contractPendingDelete != null}
+        contract={contractPendingDelete}
         loading={isDeletingContract}
         onCancel={() => {
           if (isDeletingContract) return
@@ -246,6 +248,7 @@ export function ContratosPanel({
         comercialId={activeUserId}
         comercialName={activeUserName}
         existingContractCount={visibleContracts.length}
+        profiles={profiles}
       />
 
       <ContratosOcrModal

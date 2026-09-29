@@ -228,7 +228,7 @@ export function useContratosPanel({
           if (!canEditEstado) return
           setEditingEstadoId(c.id)
         }}
-        className={`box-border inline-flex w-full max-w-full items-center justify-center rounded-lg border px-2 py-1.5 text-[9px] font-mono font-bold uppercase leading-tight tracking-wide ${
+        className={`box-border inline-flex w-fit max-w-full mx-auto items-center justify-center text-center rounded-lg border px-2.5 py-1.5 text-[9px] font-mono font-bold uppercase leading-tight tracking-wide ${
           canEditEstado ? "cursor-pointer hover:opacity-90" : "cursor-default"
         } ${getContractEstadoBadgeClass(estado)}`}
         title={

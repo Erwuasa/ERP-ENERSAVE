@@ -6,6 +6,7 @@ import type { Contract } from "@/types/contract"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 import {
   buildContractPatchFromForm,
+  buildContractWizardMetadata,
   contractToNewContractForm,
   EMPTY_NEW_CONTRACT_FORM,
   inferTipoPrecioFromTarifa,
@@ -33,14 +34,20 @@ import {
   buildResetNewContractForm,
 } from "@/lib/erp/new-contract-form-utils"
 import { deleteTeamContract, updateTeamContract } from "@/lib/supabase/contracts"
-import { syncWizardDocumentosToSupabase } from "@/lib/supabase/contrato-documentos-storage"
+import { deleteContratoDocumentosFromStorage } from "@/lib/supabase/contrato-documentos-storage"
+import {
+  listPendingWizardDocumentoUploads,
+  syncWizardDocumentosToSupabase,
+} from "@/lib/supabase/contrato-documentos-storage"
+import { stripUploadedPendingFilesFromForm } from "@/lib/contrato-documentos"
+import { buildNewContractFormPatchFromClient } from "@/lib/client-to-contract-form"
+import type { Client } from "@/types/client"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   canUserDeleteContract,
   contractDeletionBlockedMessage,
   type ContractDeleteRole,
 } from "@/lib/contract-deletion"
-import { isContractDeletable } from "@/lib/contract-registration"
 
 export interface ComparadorContractWizardInput {
   companyName: string
@@ -145,6 +152,26 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         jefeEquipo: jefe?.id ?? user.managerId ?? "",
       })
       setContractWizardProspectoId(null)
+      setContractWizardOpen(true)
+    },
+    [profiles, activeUserId, resetNewContractForm, patchNewContractForm]
+  )
+
+  const openContractWizardForClient = useCallback(
+    (client: Client) => {
+      const user = profiles.find((p) => p.id === activeUserId) || profiles[0]
+      const jefe = user.managerId ? profiles.find((p) => p.id === user.managerId) : undefined
+      resetNewContractForm()
+      patchNewContractForm({
+        ...EMPTY_NEW_CONTRACT_FORM,
+        fechaInicio: new Date().toISOString().split("T")[0],
+        ...buildNewContractFormPatchFromClient(client, {
+          nombreComercial: user.fullName,
+          jefeEquipo: jefe?.id ?? user.managerId ?? "",
+        }),
+      })
+      setContractWizardProspectoId(null)
+      setEditingContractId(null)
       setContractWizardOpen(true)
     },
     [profiles, activeUserId, resetNewContractForm, patchNewContractForm]
@@ -296,7 +323,13 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
 
           try {
             if (isSupabaseConfigured()) {
-              const result = await updateTeamContract(contractId, patch)
+              const existing = contracts.find((item) => item.id === contractId)
+              const result = await updateTeamContract(contractId, patch, {
+                mergeWizardMetadata: buildContractWizardMetadata(newContractForm, {
+                  clientId: existing?.clientId,
+                  atr: patch.atr,
+                }),
+              })
               if (result.ok === false) {
                 toast.error(result.message)
                 return
@@ -319,18 +352,48 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
               setContracts((prev) =>
                 prev.map((item) => (item.id === contractId ? savedContract : item))
               )
+
+              const stillPending = listPendingWizardDocumentoUploads(
+                newContractForm.documentosPorTipo,
+                savedContract
+              ).length
+              if (stillPending > 0) {
+                patchNewContractForm({
+                  documentosPorTipo: stripUploadedPendingFilesFromForm(
+                    newContractForm.documentosPorTipo,
+                    savedContract
+                  ),
+                })
+                toast.message(
+                  "Quedan archivos por subir. Vuelve a guardar el borrador o adjúntalos en el detalle del contrato."
+                )
+              } else {
+                resetNewContractForm()
+                setEditingContractId(null)
+                onSuccess?.()
+              }
             } else {
+              const pending = listPendingWizardDocumentoUploads(
+                newContractForm.documentosPorTipo
+              )
+              if (pending.length > 0) {
+                toast.warning(
+                  "Borrador guardado en local. Los archivos se subirán cuando Supabase esté disponible."
+                )
+              }
               setContracts((prev) =>
                 prev.map((item) =>
                   item.id === contractId ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item
                 )
               )
+              resetNewContractForm()
+              setEditingContractId(null)
+              onSuccess?.()
             }
 
-            resetNewContractForm()
-            setEditingContractId(null)
-            onSuccess?.()
-            toast.success("Borrador actualizado.")
+            if (isSupabaseConfigured()) {
+              toast.success("Borrador actualizado.")
+            }
           } catch (err) {
             const msg = err instanceof Error ? err.message : "Error al guardar el borrador"
             toast.error(msg)
@@ -416,6 +479,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       setContracts,
       setSettlements,
       resetNewContractForm,
+      patchNewContractForm,
       editingContractId,
     ]
   )
@@ -614,12 +678,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       }
 
       const role = activeRole as ContractDeleteRole
-      if (
-        !isContractDeletable(contract, {
-          documentosPorTipo: newContractForm.documentosPorTipo,
-        }) ||
-        !canUserDeleteContract(contract, role, activeUserId, newContractForm)
-      ) {
+      if (!canUserDeleteContract(contract, role, activeUserId, newContractForm)) {
         toast.error(contractDeletionBlockedMessage())
         return
       }
@@ -634,6 +693,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         // without a matching setContracts call, React reverts it on its own.
         addOptimisticContract({ type: "remove", id: contractId })
 
+        await deleteContratoDocumentosFromStorage(contract.documentos)
         const supabaseResult = await deleteTeamContract(contractId)
         if (supabaseResult.ok === false) {
           if (supabaseResult.reason === "rls_denied") {
@@ -676,6 +736,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     closeContractWizard,
     openContractWizardBlank,
     openContractWizardFromProducto,
+    openContractWizardForClient,
     openContractWizardForProspecto,
     openContractWizardFromRecommendation,
     openContractWizardFromComparador,

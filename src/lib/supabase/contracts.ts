@@ -1,5 +1,6 @@
 import type { Contract } from "../../types/contract"
 import { normalizeContractEstado } from "../contract-estado"
+import { resolveContractCompaniaForDisplay } from "../resolve-contract-compania"
 import {
   CONTRACT_FIELD_TO_OVERRIDE_COLUMN,
   mergeManualOverrides,
@@ -7,7 +8,10 @@ import {
 } from "../manual-overrides"
 import { insertContratoHistorialCambioEstado } from "./contrato-historial"
 import { resolveContractComercialDbFields } from "../contract-comercial-assign"
-import type { NewContractFormState } from "../contract-registration"
+import {
+  buildContractWizardMetadata,
+  type NewContractFormState,
+} from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import { pushContractToAt } from "./push-contract-at"
 import {
@@ -109,25 +113,10 @@ export function buildTeamContractRow(
     monto_externo: contract.montoExterno,
     comentarios_internos: form.comentariosInternos,
     documentos: [],
-    metadata: {
-      client_id: contract.clientId,
+    metadata: buildContractWizardMetadata(form, {
+      clientId: contract.clientId,
       atr: contract.atr,
-      potencia_p1: form.potenciaP1,
-      potencia_p2: form.potenciaP2,
-      potencia_p3: form.potenciaP3,
-      potencia_p4: form.potenciaP4,
-      potencia_p5: form.potenciaP5,
-      potencia_p6: form.potenciaP6,
-      peaje_segment: form.peajeSegment,
-      is_new_supply: form.tipoOperacion === "alta_nueva",
-      is_ownership_change: form.esCambioTitular,
-      ...(form.esCambioTitular && form.titularActualNombre.trim()
-        ? { titular_actual_nombre: form.titularActualNombre.trim() }
-        : {}),
-      ...(form.esCambioTitular && form.titularActualDni.trim()
-        ? { titular_actual_dni: form.titularActualDni.trim().toUpperCase() }
-        : {}),
-    },
+    }),
     referencia: contract.referencia ?? null,
   }
 }
@@ -387,7 +376,10 @@ export function mapRowToContract(
     clientName: str(row.client_name) ?? "",
     cups: str(row.cups) ?? "",
     tipo: row.tipo === "gas" ? "gas" : "luz",
-    compania: resolveContractCompania(row, providerByAtCompanyId),
+    compania: resolveContractCompaniaForDisplay({
+      compania: resolveContractCompania(row, providerByAtCompanyId),
+      tarifa: resolveContractTarifa(row),
+    }),
     tarifa: resolveContractTarifa(row),
     consumoAnual,
     montoInterno: num(row.monto_interno) ?? 0,
@@ -570,6 +562,7 @@ export async function updateTeamContract(
       autorNombre: string
       estadoAnterior?: string
     }
+    mergeWizardMetadata?: Record<string, unknown>
   }
 ): Promise<TeamContractResult<Contract>> {
   const resolved = resolveClient()
@@ -581,11 +574,15 @@ export async function updateTeamContract(
     patch.isOwnershipChange !== undefined ||
     patch.titularActualNombre !== undefined ||
     patch.titularActualDni !== undefined
-  if (Object.keys(row).length === 0 && !metadataFlags) {
+  if (
+    Object.keys(row).length === 0 &&
+    !metadataFlags &&
+    !options?.mergeWizardMetadata
+  ) {
     return { ok: false, reason: "error", message: "No hay cambios que persistir." }
   }
 
-  if (metadataFlags) {
+  if (metadataFlags || options?.mergeWizardMetadata) {
     const { data: currentMetaRow } = await resolved.client
       .from(TABLE)
       .select("metadata")
@@ -597,6 +594,7 @@ export async function updateTeamContract(
         : {}
     row.metadata = {
       ...prevMeta,
+      ...(options?.mergeWizardMetadata ?? {}),
       ...(patch.isNewSupply !== undefined ? { is_new_supply: patch.isNewSupply } : {}),
       ...(patch.isOwnershipChange !== undefined
         ? { is_ownership_change: patch.isOwnershipChange }
@@ -677,12 +675,20 @@ export function buildTeamContractRowFromImport(contract: Contract): Row {
     comercialId: contract.comercialId,
     comercialName: contract.comercialName,
     nombreComercial: contract.nombreComercial,
+    sellerProfile: contract.jefeEquipo
+      ? { managerId: contract.jefeEquipo, fullName: contract.comercialName }
+      : null,
   })
   row.comercial_id = comercial.comercial_id
   row.comercial_name = comercial.comercial_name
   row.nombre_comercial = comercial.nombre_comercial
+  row.jefe_equipo = contract.jefeEquipo ?? comercial.jefe_equipo
   row.cliente_id = contract.clientId ?? null
   row.referencia = contract.referencia ?? null
+  row.fecha_inicio = contract.createdAt ?? null
+  row.codigo_postal = contract.codigoPostal ?? null
+  row.poblacion = contract.poblacion ?? null
+  row.provincia = contract.provincia ?? null
   row.source = "manual"
   row.documentos = contract.documentos ?? []
   row.comentarios_internos = contract.comentariosInternos ?? []
@@ -690,6 +696,7 @@ export function buildTeamContractRowFromImport(contract: Contract): Row {
     client_id: contract.clientId,
     atr: contract.atr,
     import_source: "excel",
+    oferta: contract.tarifa,
   }
   return row
 }

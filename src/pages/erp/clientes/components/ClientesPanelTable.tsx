@@ -1,4 +1,4 @@
-import { FilePenLine, FolderOpen } from "lucide-react"
+import { FilePenLine, FolderOpen, Plus } from "lucide-react"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
 import { clientDisplayName, getContractsForClient } from "@/lib/clients"
@@ -24,6 +24,7 @@ type Props = {
   onSort: (field: ClienteSortField) => void
   onOpenFolder: (clientId: string) => void
   onOpenContracts: (clientId: string) => void
+  onCreateContract?: (client: Client) => void
 }
 
 export function ClientesPanelTable({
@@ -35,6 +36,7 @@ export function ClientesPanelTable({
   onSort,
   onOpenFolder,
   onOpenContracts,
+  onCreateContract,
 }: Props) {
   if (loading && clients.length === 0) {
     return <ClientesTableSkeleton />
@@ -161,6 +163,16 @@ export function ClientesPanelTable({
                     >
                       <FilePenLine className="w-3.5 h-3.5" />
                     </button>
+                    {onCreateContract ? (
+                      <button
+                        type="button"
+                        onClick={() => onCreateContract(client)}
+                        className={ENERSAVE_ACTION.iconEmerald}
+                        title="Nuevo contrato para este cliente"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

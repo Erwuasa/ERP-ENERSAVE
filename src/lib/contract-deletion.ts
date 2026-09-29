@@ -14,20 +14,11 @@ export type ContractDeleteRole =
 export function canUserDeleteContract(
   contract: Contract,
   activeRole: ContractDeleteRole,
-  activeUserId: string,
-  form?: NewContractFormState
+  _activeUserId: string,
+  _form?: NewContractFormState
 ): boolean {
-  if (
-    !isContractDeletable(contract, {
-      documentosPorTipo: form?.documentosPorTipo,
-    })
-  ) {
-    return false
-  }
-
-  if (activeRole === "superadmin" || activeRole === "tramitacion") return true
-
-  return contract.comercialId === activeUserId
+  if (activeRole === "tramitacion" || activeRole === "superadmin") return true
+  return false
 }
 
 /** @deprecated Usa isContractDeletable + canUserDeleteContract */
@@ -39,7 +30,7 @@ export function canDeleteContract(
 }
 
 export function contractDeletionBlockedMessage(): string {
-  return "No se puede eliminar: solo contratos en borrador (Pendiente de info. o PTE DE TRAMITACIÓN) sin documentos adjuntos."
+  return "No tienes permiso para eliminar contratos. Solo tramitación y superadmin pueden hacerlo."
 }
 
 export function contractDocumentosPorTipo(contract: Contract): DocumentosPorTipo {

@@ -34,6 +34,7 @@ export function useErpWorkspace() {
     setHighlightContractId,
   } = useErpData();
   const {
+    openContractWizardForClient,
     openContractWizardForProspecto,
     openContractWizardFromProducto,
     openContractWizardFromComparador,
@@ -257,6 +258,7 @@ export function useErpWorkspace() {
     setContractsSearchQuery,
     setContractsListFilter,
     setHighlightContractId,
+    openContractWizardForClient,
     openContractWizardForProspecto,
     openContractWizardFromProducto,
     openContractWizardFromComparador,

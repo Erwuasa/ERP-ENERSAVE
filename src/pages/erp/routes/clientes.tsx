@@ -7,6 +7,7 @@ export default function ErpClientesRoute() {
     setClientesSearchQuery,
     navigateToContract,
     handleDashboardNavigate,
+    openContractWizardForClient,
   } = useErpWorkspaceContext()
   return (
     <ClientesPage
@@ -14,6 +15,7 @@ export default function ErpClientesRoute() {
       setClientesSearchQuery={setClientesSearchQuery}
       onNavigateToContract={navigateToContract}
       onNavigateToContratosActivos={() => handleDashboardNavigate("contratos_activos")}
+      onCreateContractForClient={openContractWizardForClient}
     />
   )
 }

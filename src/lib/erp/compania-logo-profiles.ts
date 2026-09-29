@@ -70,10 +70,10 @@ export const COMPANIA_LOGO_PROFILES: Record<CompaniaLogoKey, CompaniaLogoDisplay
     objectPosition: "center",
   },
   niba: {
-    crop: { top: 0.08, right: 0.04, bottom: 0.08, left: 0.04 },
-    boost: 1.08,
-    fillScale: 1.02,
-    maxFill: 1.08,
+    crop: { top: 0.04, right: 0.01, bottom: 0.04, left: 0.01 },
+    boost: 1.42,
+    fillScale: 1.48,
+    maxFill: 1.48,
     objectPosition: "center",
   },
   octopus: {

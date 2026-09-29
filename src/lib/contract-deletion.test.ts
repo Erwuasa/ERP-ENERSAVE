@@ -65,20 +65,13 @@ describe("isContractDeletable", () => {
 })
 
 describe("canUserDeleteContract", () => {
-  it("allows owner comercial", () => {
-    expect(canUserDeleteContract(baseContract, "comercial", "usr-1")).toBe(true)
+  it("denies comercial roles", () => {
+    expect(canUserDeleteContract(baseContract, "comercial", "usr-1")).toBe(false)
+    expect(canUserDeleteContract(baseContract, "jefe_comercial", "usr-1")).toBe(false)
   })
 
-  it("denies other comercial", () => {
-    expect(canUserDeleteContract(baseContract, "comercial", "usr-2")).toBe(false)
-  })
-
-  it("allows tramitacion any owner", () => {
+  it("allows tramitacion and superadmin", () => {
     expect(canUserDeleteContract(baseContract, "tramitacion", "usr-3")).toBe(true)
-  })
-
-  it("allows jefe_comercial only on own contracts", () => {
-    expect(canUserDeleteContract(baseContract, "jefe_comercial", "usr-1")).toBe(true)
-    expect(canUserDeleteContract(baseContract, "jefe_comercial", "usr-2")).toBe(false)
+    expect(canUserDeleteContract(baseContract, "superadmin", "usr-3")).toBe(true)
   })
 })
