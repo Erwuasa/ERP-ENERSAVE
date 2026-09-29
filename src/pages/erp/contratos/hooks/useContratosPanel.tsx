@@ -53,6 +53,7 @@ import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
 import { persistImportedContractList } from "@/lib/erp/import-contracts-persist"
 import type { Client } from "@/types/client"
+import type { Profile } from "@/types/profile"
 
 type Options = {
   canEditContractEstado: boolean
@@ -75,6 +76,7 @@ type Options = {
   reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
   canExportDatabase?: boolean
+  authProfiles?: Profile[]
 }
 
 export function useContratosPanel({
@@ -98,6 +100,7 @@ export function useContratosPanel({
   reviewedContractIds,
   tarifaRecommendations,
   canExportDatabase = false,
+  authProfiles = [],
 }: Options) {
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const [ocrLoading, setOcrLoading] = useState(false)
@@ -405,7 +408,13 @@ export function useContratosPanel({
   }
 
   async function handleExcelImport(imported: Contract[]) {
-    const result = await persistImportedContractList(imported, clients, visibleContracts)
+    const result = await persistImportedContractList(
+      imported,
+      clients,
+      visibleContracts,
+      undefined,
+      authProfiles
+    )
 
     setClients(result.clients)
     setContracts(result.contracts)

@@ -12,8 +12,8 @@ import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-p
 import { SEARCH_INPUT } from "@/lib/enersave-ui-theme"
 import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
 
-const FILTER_SLOT_CLASS = "w-[11.5rem] shrink-0"
-const TEAM_FILTER_SLOT_CLASS = "w-[11.5rem] shrink-0"
+const FILTER_SLOT_CLASS = "w-[11.5rem] min-w-[11.5rem] max-w-[11.5rem] shrink-0 overflow-hidden"
+const TEAM_FILTER_SLOT_CLASS = FILTER_SLOT_CLASS
 
 type Props = {
   contractsSearchQuery: string
@@ -31,6 +31,7 @@ type Props = {
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
+  teamScopeUnseenCount?: number
   profiles: ProfileOption[]
   estadoFilterUI: ContractEstadoUiFilter
   setEstadoFilterUI: (value: ContractEstadoUiFilter) => void
@@ -74,6 +75,7 @@ export function ContratosPanelToolbar({
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
+  teamScopeUnseenCount = 0,
   profiles: _profiles,
   estadoFilterUI,
   setEstadoFilterUI,
@@ -126,7 +128,14 @@ export function ContratosPanelToolbar({
                   { id: "team", label: "EQUIPO" },
                 ]}
                 onChange={(next) => onTeamScopeChange(next as ContractsTeamScope)}
-                minWidthClass="min-w-0 w-full"
+                minWidthClass="min-w-0"
+                trailingBadge={
+                  teamScopeUnseenCount > 0 ? (
+                    <span className="inline-flex min-w-[1.15rem] items-center justify-center rounded-full bg-cyan-600 px-1.5 py-0.5 text-[9px] font-mono font-bold text-white">
+                      {teamScopeUnseenCount > 99 ? "99+" : teamScopeUnseenCount}
+                    </span>
+                  ) : undefined
+                }
               />
             </FilterSlot>
           ) : null}
@@ -195,7 +204,7 @@ export function ContratosPanelToolbar({
         </div>
       </div>
 
-      <div className="flex min-h-10 flex-wrap items-center gap-2">
+      <div className="flex min-h-10 flex-nowrap items-center gap-2 overflow-x-auto pb-0.5">
         {showUserFilter && onUserFilterChange ? (
           <FilterSlot className={FILTER_SLOT_CLASS}>
             <SelectFilterDropdown
@@ -208,15 +217,17 @@ export function ContratosPanelToolbar({
                 ...staffUserFilterOptions,
               ]}
               onChange={onUserFilterChange}
-              minWidthClass="min-w-0 w-full"
+              minWidthClass="min-w-0"
             />
           </FilterSlot>
         ) : null}
+        <FilterSlot className={FILTER_SLOT_CLASS}>
         <EstadoFilterDropdown
           value={estadoFilterUI}
           onChange={setEstadoFilterUI}
           counts={estadoCounts}
         />
+        </FilterSlot>
         <CompaniaFilterDropdown
           value={companiaFilterUI}
           onChange={setCompaniaFilterUI}

@@ -1,3 +1,4 @@
+import type { Contract } from "@/types/contract"
 import type { Profile } from "@/types/profile"
 
 /** CUPS del CRM colaborador → comercial asignado (IDs en Supabase). */
@@ -39,4 +40,58 @@ export function resolveImportComercialForCups(
   const jefeEquipo = managerId || null
 
   return { comercialId, comercialName, jefeEquipo }
+}
+
+/** Jefe de equipo conocido cuando no hay perfil en memoria (import / filas legacy). */
+export const IMPORT_COMERCIAL_JEFE_ID: Record<string, string> = {
+  "cf1a0302-39e2-4ccd-a043-10cc0b386dd4": "21654e95-70fd-48fd-b7ea-e17bbf44af7b", // Berni → Alejandro
+  "d9148f58-1c60-4806-84d5-029d94276d1a": "83cabea3-8cbb-4c57-b300-9ecc38410882", // Pablo → Ricardo
+}
+
+export const IMPORT_COMERCIAL_DISPLAY_NAME: Record<string, string> = {
+  "cf1a0302-39e2-4ccd-a043-10cc0b386dd4": "Berni",
+  "83cabea3-8cbb-4c57-b300-9ecc38410882": "Ricardo Monsalve Gonzalez",
+  "d9148f58-1c60-4806-84d5-029d94276d1a": "Pablo Gutierrez",
+  "21654e95-70fd-48fd-b7ea-e17bbf44af7b": "Alejandro Rueda",
+}
+
+export function resolveImportComercialIdForCups(cups: string): string | null {
+  return IMPORT_CUPS_COMERCIAL_ID[normalizeImportCups(cups)] ?? null
+}
+
+export function applyCupsComercialAssignmentToContract(
+  contract: Contract,
+  profiles: Profile[] = []
+): Contract {
+  const key = normalizeImportCups(contract.cups)
+  const mappedId = IMPORT_CUPS_COMERCIAL_ID[key]
+  if (!mappedId && contract.comercialId?.trim()) return contract
+
+  const assigned = resolveImportComercialForCups(contract.cups, profiles, {
+    id: mappedId ?? contract.comercialId?.trim() ?? "",
+    fullName:
+      contract.comercialName?.trim() ||
+      IMPORT_COMERCIAL_DISPLAY_NAME[mappedId ?? ""] ||
+      "",
+  })
+
+  const jefeEquipo =
+    assigned.jefeEquipo ??
+    IMPORT_COMERCIAL_JEFE_ID[assigned.comercialId] ??
+    contract.jefeEquipo ??
+    null
+
+  return {
+    ...contract,
+    comercialId: assigned.comercialId,
+    comercialName:
+      assigned.comercialName ||
+      IMPORT_COMERCIAL_DISPLAY_NAME[assigned.comercialId] ||
+      contract.comercialName,
+    nombreComercial:
+      assigned.comercialName ||
+      IMPORT_COMERCIAL_DISPLAY_NAME[assigned.comercialId] ||
+      contract.nombreComercial,
+    jefeEquipo: jefeEquipo ?? undefined,
+  }
 }

@@ -50,9 +50,12 @@ export function resolveVisibleContracts(input: {
   teamScope: ContractsTeamScope
 }): Contract[] {
   const own = input.contracts.filter((contract) => contract.comercialId === input.activeUserId)
-  const team = input.contracts.filter((contract) =>
-    input.teamMemberIds.includes(contract.comercialId)
-  )
+  const team = input.contracts.filter((contract) => {
+    if (input.teamMemberIds.includes(contract.comercialId)) return true
+    if (contract.jefeEquipo !== input.activeUserId) return false
+    if (!contract.comercialId?.trim()) return true
+    return input.teamMemberIds.includes(contract.comercialId)
+  })
 
   if (input.currentMenuTab === "Mis Contratos" || input.activeRole === "comercial") {
     return own

@@ -1,5 +1,5 @@
 import { useState, type MutableRefObject, ReactNode } from "react"
-import { Flame, Lightbulb, Pencil, Trash2 } from "lucide-react"
+import { Flame, Lightbulb, SquarePen, Trash2 } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import {
   calcularPenalizacion,
@@ -323,7 +323,7 @@ export function ContratosPanelTable({
                         ariaLabel={`Completar borrador ${c.clientName}`}
                         onClick={() => onEditDraft(c)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <SquarePen aria-hidden />
                       </ContractQuickActionButton>
                     ) : null}
                     {showTarifaRecommendations && tarifaRecommendations?.has(c.id) ? (
@@ -559,7 +559,7 @@ export function ContratosPanelTable({
                           ariaLabel={`Eliminar contrato ${c.clientName}`}
                           onClick={() => onRequestDelete?.(c)}
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 aria-hidden />
                         </ContractQuickActionButton>
                       ) : (
                         <TableEmptyDash />

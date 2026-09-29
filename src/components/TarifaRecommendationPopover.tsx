@@ -22,26 +22,10 @@ function TarifaSavingsBadge({ pct }: { pct: number }) {
 
   return (
     <span
-      className="relative inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-amber-500/50 bg-gradient-to-br from-amber-400/25 to-amber-600/15 text-amber-800 shadow-sm dark:text-amber-200"
+      className="inline-flex h-7 min-w-[2rem] shrink-0 items-center justify-center rounded-lg bg-amber-500/10 px-1.5 text-[9px] font-semibold tabular-nums tracking-tight text-amber-800 dark:bg-amber-500/15 dark:text-amber-200"
       aria-hidden="true"
     >
-      <svg viewBox="0 0 28 28" className="absolute inset-0 h-full w-full" fill="none">
-        <path
-          d="M14 4.5c.6 0 1.1.5 1.1 1.1v1.1c1.1.2 2 .8 2.6 1.6l.8-.8a1.1 1.1 0 1 1 1.5 1.5l-.8.8c.5.9.8 2 .8 3.1s-.3 2.2-.8 3.1l.8.8a1.1 1.1 0 1 1-1.5 1.5l-.8-.8c-.6.8-1.5 1.4-2.6 1.6v1.1a1.1 1.1 0 1 1-2.2 0v-1.1a4.4 4.4 0 0 1-2.6-1.6l-.8.8a1.1 1.1 0 1 1-1.5-1.5l.8-.8a4.5 4.5 0 0 1-.8-3.1c0-1.1.3-2.2.8-3.1l-.8-.8a1.1 1.1 0 1 1 1.5-1.5l.8.8c.6-.8 1.5-1.4 2.6-1.6V5.6c0-.6.5-1.1 1.1-1.1Z"
-          fill="currentColor"
-          opacity="0.16"
-        />
-        <path
-          d="M14 8.5a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z"
-          fill="currentColor"
-          opacity="0.28"
-        />
-        <path d="M14 18.5v3.2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        <path d="M11.5 20.8h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-      <span className="relative z-[1] text-[6.5px] font-black leading-none tracking-tight tabular-nums">
-        {label}
-      </span>
+      {label}
     </span>
   )
 }
@@ -74,7 +58,7 @@ export function TarifaRecommendationPopover({
           onClick={onToggle}
           title={`Mejor tarifa: ${recommendation.companiaRecomendada} · Ahorro ${savingsLabel}`}
           aria-label={`Oportunidad tarifaria ${savingsLabel}`}
-          className="cursor-pointer rounded-lg transition-transform hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500/70"
+          className="cursor-pointer rounded-lg transition-colors duration-200 hover:bg-amber-500/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:ring-offset-1 focus-visible:ring-offset-brand-panel"
         >
           <TarifaSavingsBadge pct={recommendation.ahorroPct} />
         </button>
