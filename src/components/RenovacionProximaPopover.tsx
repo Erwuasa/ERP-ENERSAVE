@@ -38,7 +38,7 @@ export function RenovacionProximaPopover({
           ariaLabel={`Renovación próxima de ${contract.clientName}`}
           onClick={onToggle}
         >
-          <Clock className="w-3.5 h-3.5" />
+          <Clock aria-hidden />
         </ContractQuickActionButton>
       </div>
 

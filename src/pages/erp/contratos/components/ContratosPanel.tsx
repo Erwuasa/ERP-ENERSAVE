@@ -10,6 +10,7 @@ import { ContratosPanelTable } from "@/pages/erp/contratos/components/ContratosP
 import { ContratosPanelToolbar } from "@/pages/erp/contratos/components/ContratosPanelToolbar"
 import { ContratoDetallePanel } from "@/components/contratos/ContratoDetallePanel"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
+import type { Profile } from "@/types/profile"
 import { PANEL_TOOLBAR } from "@/lib/enersave-ui-theme"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
@@ -66,6 +67,8 @@ export interface ContratosPanelProps {
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
+  teamScopeUnseenCount?: number
+  authProfiles?: Profile[]
   showComercialColumn?: boolean
   showTarifaRecommendations?: boolean
   reviewedContractIds?: ReadonlySet<string>
@@ -116,6 +119,8 @@ export function ContratosPanel({
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
+  teamScopeUnseenCount = 0,
+  authProfiles = [],
   showComercialColumn,
   showTarifaRecommendations = false,
   reviewedContractIds,
@@ -152,6 +157,7 @@ export function ContratosPanel({
     reviewedContractIds,
     tarifaRecommendations,
     canExportDatabase,
+    authProfiles,
   })
 
   return (
@@ -173,6 +179,7 @@ export function ContratosPanel({
           showTeamScopeFilter={showTeamScopeFilter}
           teamScope={teamScope}
           onTeamScopeChange={onTeamScopeChange}
+          teamScopeUnseenCount={teamScopeUnseenCount}
           profiles={profiles}
           estadoFilterUI={vm.estadoFilterUI}
           setEstadoFilterUI={vm.setEstadoFilterUI}
@@ -248,7 +255,7 @@ export function ContratosPanel({
         comercialId={activeUserId}
         comercialName={activeUserName}
         existingContractCount={visibleContracts.length}
-        profiles={profiles}
+        profiles={authProfiles.length > 0 ? authProfiles : profiles}
       />
 
       <ContratosOcrModal

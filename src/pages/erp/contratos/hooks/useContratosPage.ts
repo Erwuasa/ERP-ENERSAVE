@@ -15,6 +15,7 @@ import {
   type ContractsTeamScope,
 } from "@/lib/contract-visibility"
 import { canExportDatabase } from "@/lib/staff-permissions"
+import { useJefeTeamContractAlerts } from "@/pages/erp/contratos/hooks/useJefeTeamContractAlerts"
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
@@ -185,6 +186,14 @@ export function useContratosPage({
     [profiles]
   )
 
+  const { unseenTeamCount } = useJefeTeamContractAlerts({
+    activeRole,
+    activeUserId: activeUser.id,
+    teamMemberIds,
+    contracts,
+    teamScope,
+  })
+
   return {
     panelProps: {
       activeRole,
@@ -204,6 +213,8 @@ export function useContratosPage({
       showTeamScopeFilter,
       teamScope,
       onTeamScopeChange: handleTeamScopeChange,
+      teamScopeUnseenCount: unseenTeamCount,
+      authProfiles: profiles,
       stableComercialColumn,
       isFilterPending,
       showComercialColumn: stableComercialColumn,

@@ -4,9 +4,11 @@ import {
   importedRowsToContracts,
   type ImportedContractRow,
 } from "@/lib/excel-import"
+import { applyCupsComercialAssignmentToContract } from "@/lib/contract-import-cups-assign"
 import { insertTeamContractFromImport } from "@/lib/supabase/contracts"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
+import type { Profile } from "@/types/profile"
 
 type ImportDefaults = {
   comercialId: string
@@ -44,7 +46,8 @@ export async function persistImportedContractList(
   draftContracts: Contract[],
   clients: Client[],
   existingContracts: Contract[],
-  sourceRows?: ImportedContractRow[]
+  sourceRows?: ImportedContractRow[],
+  profiles: Profile[] = []
 ): Promise<ImportContractsPersistResult> {
   let nextClients = clients
   const persisted: Contract[] = []
@@ -52,7 +55,7 @@ export async function persistImportedContractList(
   const seenSupply = new Set(existingContracts.map((contract) => contractSupplyKey(contract)))
 
   for (let i = 0; i < draftContracts.length; i++) {
-    const draft = draftContracts[i]
+    const draft = applyCupsComercialAssignmentToContract(draftContracts[i], profiles)
     const sourceRow = sourceRows?.[i]
 
     const { clients: withClient, client } = await ensureClientForContract(nextClients, {

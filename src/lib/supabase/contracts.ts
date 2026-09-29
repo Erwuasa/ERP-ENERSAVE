@@ -7,6 +7,7 @@ import {
   parseManualOverrides,
 } from "../manual-overrides"
 import { insertContratoHistorialCambioEstado } from "./contrato-historial"
+import { applyCupsComercialAssignmentToContract } from "../contract-import-cups-assign"
 import { resolveContractComercialDbFields } from "../contract-comercial-assign"
 import {
   buildContractWizardMetadata,
@@ -369,7 +370,7 @@ export function mapRowToContract(
   const consumoAnual = num(row.consumo_anual) ?? 0
   const tipoPrecio = str(row.tipo_precio)
 
-  return {
+  const contract: Contract = {
     id: String(row.id ?? ""),
     referencia: str(row.referencia),
     clientId: str(row.cliente_id) ?? str(metadata.client_id),
@@ -465,6 +466,8 @@ export function mapRowToContract(
       ? (row.comentarios_internos as Contract["comentariosInternos"])
       : undefined,
   }
+
+  return applyCupsComercialAssignmentToContract(contract)
 }
 
 const PATCH_COLUMNS: Partial<Record<keyof Contract, string>> = {
@@ -670,13 +673,14 @@ export async function deleteTeamContract(id: string): Promise<TeamContractResult
 }
 
 export function buildTeamContractRowFromImport(contract: Contract): Row {
-  const row = buildTeamContractPatch(contract)
+  const normalized = applyCupsComercialAssignmentToContract(contract)
+  const row = buildTeamContractPatch(normalized)
   const comercial = resolveContractComercialDbFields({
-    comercialId: contract.comercialId,
-    comercialName: contract.comercialName,
-    nombreComercial: contract.nombreComercial,
-    sellerProfile: contract.jefeEquipo
-      ? { managerId: contract.jefeEquipo, fullName: contract.comercialName }
+    comercialId: normalized.comercialId,
+    comercialName: normalized.comercialName,
+    nombreComercial: normalized.nombreComercial,
+    sellerProfile: normalized.jefeEquipo
+      ? { managerId: normalized.jefeEquipo, fullName: normalized.comercialName }
       : null,
   })
   row.comercial_id = comercial.comercial_id
