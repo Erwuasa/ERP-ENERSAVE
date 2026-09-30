@@ -261,6 +261,18 @@ function toDbPatch(
   if (patch.comision_tipo !== undefined) row.comision_tipo = patch.comision_tipo
   if (patch.comision_base !== undefined) row.comision_base = patch.comision_base
   if (patch.comision_unidad !== undefined) row.comision_unidad = patch.comision_unidad
+  if (
+    patch.comision_base !== undefined ||
+    patch.comision_tipo !== undefined ||
+    patch.comision_unidad !== undefined ||
+    patch.condiciones !== undefined ||
+    patch.condicion_1 !== undefined ||
+    patch.condicion_2 !== undefined ||
+    patch.vigencia_meses !== undefined
+  ) {
+    row.source = "manual"
+    row.at_marco_id = null
+  }
   if (patch.vigencia_meses !== undefined) row.vigencia_meses = patch.vigencia_meses
   if (patch.fecha_inicio !== undefined) row.fecha_inicio = patch.fecha_inicio
   if (patch.activo !== undefined) row.activo = patch.activo
@@ -415,6 +427,8 @@ export async function createMarcoEntry(
       vigencia_meses: entry.vigencia_meses,
       fecha_inicio: entry.fecha_inicio,
       activo: entry.activo ?? true,
+      source: "manual",
+      at_marco_id: null,
       updated_by: updatedBy ?? null,
     })
     .select(MARCO_SELECT)

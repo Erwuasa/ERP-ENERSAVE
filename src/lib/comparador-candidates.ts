@@ -23,59 +23,19 @@ export interface ComparadorCandidateInput {
   marcoRows?: MarcoRetributivoRow[]
 }
 
-type FallbackRatesKey = "2.0TD" | "3.0TD" | "6.0TD"
-
-const DEFAULT_RATES: Record<FallbackRatesKey, { potRates: number[]; conRates: number[] }> = {
-  "2.0TD": {
-    potRates: [0.071, 0.022],
-    conRates: [0.145, 0.125, 0.101],
-  },
-  "3.0TD": {
-    potRates: [0.102, 0.085, 0.045, 0.038, 0.022, 0.015],
-    conRates: [0.129, 0.118, 0.105, 0.098, 0.091, 0.082],
-  },
-  "6.0TD": {
-    potRates: [0.095, 0.078, 0.042, 0.034, 0.019, 0.012],
-    conRates: [0.111, 0.099, 0.092, 0.085, 0.078, 0.069],
-  },
-}
-
-function resolveFallbackRatesKey(accessTariff: ComparadorAccessTariff): FallbackRatesKey {
-  if (accessTariff === "2.0TD") return "2.0TD"
-  if (accessTariff === "3.0TD") return "3.0TD"
-  return "6.0TD"
-}
-
-function isTwoPeriodTariff(accessTariff: ComparadorAccessTariff): boolean {
-  return accessTariff === "2.0TD"
+function periodCount(accessTariff: ComparadorAccessTariff): { pot: number; con: number } {
+  if (accessTariff === "2.0TD") return { pot: 2, con: 3 }
+  return { pot: 6, con: 6 }
 }
 
 function buildRatesFromMarcoRow(
-  row: MarcoRetributivoRow,
+  _row: MarcoRetributivoRow,
   accessTariff: ComparadorAccessTariff
 ): { potRates: number[]; conRates: number[] } {
-  const fallback = DEFAULT_RATES[resolveFallbackRatesKey(accessTariff)]
-  const potRates = [
-    row.potencia_p1,
-    row.potencia_p2,
-    row.potencia_p3,
-    row.potencia_p4,
-    row.potencia_p5,
-    row.potencia_p6,
-  ].map((value, index) => value ?? fallback.potRates[index] ?? 0)
-
-  const conRates = [
-    row.energia_p1,
-    row.energia_p2,
-    row.energia_p3,
-    row.energia_p4,
-    row.energia_p5,
-    row.energia_p6,
-  ].map((value, index) => value ?? fallback.conRates[index] ?? 0)
-
+  const count = periodCount(accessTariff)
   return {
-    potRates: isTwoPeriodTariff(accessTariff) ? potRates.slice(0, 2) : potRates,
-    conRates: isTwoPeriodTariff(accessTariff) ? conRates.slice(0, 3) : conRates,
+    potRates: Array.from({ length: count.pot }, () => 0),
+    conRates: Array.from({ length: count.con }, () => 0),
   }
 }
 

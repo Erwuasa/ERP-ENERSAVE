@@ -115,22 +115,24 @@ describe("marco-dedup", () => {
     expect(deactivate.map((row) => row.id)).toEqual(["low"])
   })
 
-  it("con misma comisión conserva la fila con mayor precio", () => {
+  it("con misma comisión conserva la fila manual frente a la de AT", () => {
     const rows = [
       sampleRow({
-        id: "low",
-        tarifa: "PLAN A",
-        energia_p1: 0.1,
-        comision_base: 50,
-      }),
-      sampleRow({
-        id: "high",
+        id: "at",
         tarifa: "PLAN A",
         energia_p1: 0.25,
         comision_base: 50,
+        source: "at",
+      }),
+      sampleRow({
+        id: "manual",
+        tarifa: "PLAN A",
+        energia_p1: 0.1,
+        comision_base: 50,
+        source: "manual",
       }),
     ]
     const deactivate = listMarcoRowsToDeactivate(rows)
-    expect(deactivate.map((row) => row.id)).toEqual(["low"])
+    expect(deactivate.map((row) => row.id)).toEqual(["at"])
   })
 })

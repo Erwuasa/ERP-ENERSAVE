@@ -200,7 +200,7 @@ describe("buildComparadorEnVivoRanking", () => {
     expect(result.resultados.map((r) => r.tariffId)).toEqual(["completa"])
   })
 
-  it("includes tariff when marco fills missing potencia prices", () => {
+  it("excludes tariff when only the marco has potencia prices", () => {
     const marco = marcoRow({
       id: "m-niba",
       at_rate_id: "at1",
@@ -229,8 +229,7 @@ describe("buildComparadorEnVivoRanking", () => {
       form: baseForm,
     })
 
-    expect(result.resultados).toHaveLength(1)
-    expect(result.resultados[0]?.precios.P1?.powerPriceKwDay).toBe(0.08)
+    expect(result.resultados).toHaveLength(0)
   })
 
   it("excludes IGNIS and segment mismatches in residencial ranking", () => {

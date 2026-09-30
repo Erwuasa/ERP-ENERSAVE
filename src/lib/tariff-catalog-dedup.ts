@@ -1,13 +1,11 @@
 import { areMarcoTarifaNamesSimilar, normalizeMarcoTarifaName } from "./marco-dedup"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
-import type { TariffPreciosPorPeriodo } from "./tarifa-cost-calculator"
 
-export function tariffPriceScore(precios: TariffPreciosPorPeriodo): number {
-  let score = 0
-  for (const period of Object.values(precios)) {
-    score += Number(period.energyPriceKwh ?? 0) + Number(period.powerPriceKwDay ?? 0)
-  }
-  return score
+function preferAtTariff(current: TariffConPrecios, incoming: TariffConPrecios): TariffConPrecios {
+  const currentAt = Boolean(current.atRateId)
+  const incomingAt = Boolean(incoming.atRateId)
+  if (currentAt !== incomingAt) return incomingAt ? incoming : current
+  return current
 }
 
 function dedupeKey(tariff: TariffConPrecios): string {
@@ -33,12 +31,8 @@ function pickTariffWinners(catalog: TariffConPrecios[]): TariffConPrecios[] {
       continue
     }
 
-    const sorted = [...candidates].sort((a, b) => {
-      const priceDiff = tariffPriceScore(b.precios) - tariffPriceScore(a.precios)
-      if (priceDiff !== 0) return priceDiff
-      return a.name.localeCompare(b.name, "es")
-    })
-    out.push(sorted[0]!)
+    const winner = candidates.reduce((current, incoming) => preferAtTariff(current, incoming))
+    out.push(winner)
   }
 
   const merged: TariffConPrecios[] = []
@@ -58,16 +52,17 @@ function pickTariffWinners(catalog: TariffConPrecios[]): TariffConPrecios[] {
     }
 
     const existing = merged[similarIdx]!
-    merged[similarIdx] =
-      tariffPriceScore(tariff.precios) >= tariffPriceScore(existing.precios) ? tariff : existing
+    merged[similarIdx] = preferAtTariff(existing, tariff)
   }
 
   return merged
 }
 
-/** Tarifas ERP activas a desactivar (duplicados de nombre con peores precios). */
+/** Desactiva la copia manual cuando ya existe la tarifa AT del mismo producto. */
 export function listTariffIdsToDeactivate(catalog: TariffConPrecios[]): string[] {
   const eligible = catalog.filter((row) => Object.keys(row.precios).length > 0)
   const winners = new Set(pickTariffWinners(eligible).map((row) => row.tariffId))
-  return eligible.filter((row) => !winners.has(row.tariffId)).map((row) => row.tariffId)
+  return eligible
+    .filter((row) => !winners.has(row.tariffId) && !row.atRateId)
+    .map((row) => row.tariffId)
 }
