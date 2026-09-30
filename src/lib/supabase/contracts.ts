@@ -153,6 +153,17 @@ async function loadProviderByAtCompanyId(
       .filter((row) => row.at_company_id && row.name)
       .map((row) => [String(row.at_company_id), String(row.name)])
   )
+
+  const ganaName = (data ?? []).find((row) =>
+    String(row.name ?? "")
+      .toLowerCase()
+      .includes("gana")
+  )?.name
+  const ganaAtAlt = "537a9c3a-f741-43a6-8fee-c0b0d653ec7a"
+  if (ganaName && !providerByAtCompanyIdCache.has(ganaAtAlt)) {
+    providerByAtCompanyIdCache.set(ganaAtAlt, String(ganaName))
+  }
+
   return providerByAtCompanyIdCache
 }
 
@@ -216,23 +227,52 @@ export function resolveContractCompania(
   const fromProvider = providerAtId ? providerByAtCompanyId.get(providerAtId) : undefined
   if (fromProvider?.trim()) return fromProvider.trim()
 
+  const marcoLogical = str(payload.marco_logical_id)
+  if (marcoLogical && /^M-GAN/i.test(marcoLogical)) return "Gana Energía"
+
+  const searchTokens = str(payload.search_tokens)?.toLowerCase() ?? ""
+  if (searchTokens.includes("gana energ") || searchTokens.includes("gana energia")) {
+    return "Gana Energía"
+  }
+
   return "—"
+}
+
+function isGanaAtContract(payload: Record<string, unknown>): boolean {
+  const marcoLogical = str(payload.marco_logical_id)
+  if (marcoLogical && /^M-GAN/i.test(marcoLogical)) return true
+  const tokens = str(payload.search_tokens)?.toLowerCase() ?? ""
+  return tokens.includes("gana energ") || tokens.includes("gana energia")
 }
 
 export function resolveContractTarifa(row: Row): string {
   const stored = str(row.tarifa)?.trim() ?? ""
-  if (stored && stored.toUpperCase() !== "TARIFA AT") return stored
-
   const payload = payloadRecord(row)
   const electricity = nestedPayload(payload, "electricity_data")
   const gas = nestedPayload(payload, "gas_data")
-  return (
+  const fromAt =
     str(electricity.rate_name) ??
     str(electricity.tariff_name) ??
     str(gas.rate_name) ??
-    str(gas.tariff_name) ??
-    stored
-  )
+    str(gas.tariff_name)
+
+  const raw = fromAt ?? (stored && stored.toUpperCase() !== "TARIFA AT" ? stored : "")
+  const normalized = raw.trim()
+  if (!normalized) return stored || "—"
+
+  const rateKey = normalized
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+
+  if (rateKey === "indexado" && isGanaAtContract(payload)) {
+    const tokens = str(payload.search_tokens)?.toLowerCase() ?? ""
+    if (tokens.includes("precio de mercado")) return "Precio de Mercado"
+    return "Precio de Mercado"
+  }
+
+  if (stored && stored.toUpperCase() !== "TARIFA AT" && !fromAt) return stored
+  return normalized
 }
 
 function mapObjectRows(raw: unknown): Record<string, unknown>[] {

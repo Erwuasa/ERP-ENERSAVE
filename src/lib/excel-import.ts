@@ -286,20 +286,38 @@ function inferTipoSuministro(row: Record<string, unknown>): "luz" | "gas" | unde
 }
 
 function findCrmHeaderRowIndex(rows: unknown[][]): number {
-  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+  for (let i = 0; i < Math.min(rows.length, 25); i++) {
     const cells = (rows[i] ?? []).map((c) => normalizeHeader(String(c ?? "")))
-    if (cells.includes("cups") && (cells.includes("cliente") || cells.includes("estado"))) {
-      return i
-    }
+    const hasCups = cells.some((cell) => cell === "cups" || cell.includes("cups"))
+    const hasCliente = cells.some((cell) => cell === "cliente" || cell.includes("cliente"))
+    if (hasCups && hasCliente) return i
   }
   return 0
+}
+
+/** Evita CUPS corruptos por notación científica de Excel. */
+export function formatExcelCellAsString(value: unknown): string {
+  if (value == null || value === "") return ""
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (Math.abs(value) >= 1e15) return value.toFixed(0)
+    if (Number.isInteger(value)) return String(value)
+    return String(value).replace(".", ",")
+  }
+  return String(value).replace(/\s+/g, " ").trim()
+}
+
+function normalizeImportedCups(raw: string): string {
+  const text = formatExcelCellAsString(raw).replace(/\s/g, "").toUpperCase()
+  if (!text) return ""
+  if (/^\d+(?:,\d+)?E\+?\d+$/i.test(text)) return ""
+  return text
 }
 
 function sheetToRowObjects(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     defval: "",
-    raw: false,
+    raw: true,
   }) as unknown[][]
 
   const headerIdx = findCrmHeaderRowIndex(matrix)
@@ -312,7 +330,7 @@ function sheetToRowObjects(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
     const row: Record<string, unknown> = {}
     headers.forEach((header, col) => {
       if (!header) return
-      row[header] = line[col] ?? ""
+      row[header] = formatExcelCellAsString(line[col] ?? "")
     })
     objects.push(row)
   }
@@ -320,8 +338,8 @@ function sheetToRowObjects(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
 }
 
 function mapRowToImported(row: Record<string, unknown>): ImportedContractRow | null {
-  const clientName = pickColumn(row, "Cliente")
-  const cups = pickColumn(row, "CUPS")
+  const clientName = pickColumn(row, "Cliente").replace(/\s+/g, " ").trim()
+  const cups = normalizeImportedCups(pickColumn(row, "CUPS"))
   const compania = pickColumn(row, "Compañía")
   const estadoRaw = pickColumn(row, "Estado")
   const nif = pickColumn(row, "DNI CIF") || undefined
@@ -372,15 +390,58 @@ function mapRowToImported(row: Record<string, unknown>): ImportedContractRow | n
   }
 }
 
-export function parseContractsFromExcel(buffer: ArrayBuffer): ImportedContractRow[] {
+export type ExcelImportParseResult = {
+  rows: ImportedContractRow[]
+  skipped: { line: number; reason: string; preview: string }[]
+  warnings: { line: number; reason: string; preview: string }[]
+  headerRowIndex: number
+}
+
+export function parseContractsFromExcelWithReport(buffer: ArrayBuffer): ExcelImportParseResult {
   const workbook = XLSX.read(buffer, { type: "array" })
   const sheetName = workbook.SheetNames[0]
-  if (!sheetName) return []
+  if (!sheetName) return { rows: [], skipped: [], warnings: [], headerRowIndex: 0 }
 
   const sheet = workbook.Sheets[sheetName]
-  const json = sheetToRowObjects(sheet)
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: true,
+  }) as unknown[][]
+  const headerRowIndex = findCrmHeaderRowIndex(matrix)
+  const objects = sheetToRowObjects(sheet)
+  const rows: ImportedContractRow[] = []
+  const skipped: ExcelImportParseResult["skipped"] = []
+  const warnings: ExcelImportParseResult["warnings"] = []
 
-  return json.map(mapRowToImported).filter(Boolean) as ImportedContractRow[]
+  objects.forEach((row, index) => {
+    const mapped = mapRowToImported(row)
+    const preview =
+      pickColumn(row, "Cliente") || pickColumn(row, "CUPS") || `Fila ${headerRowIndex + index + 2}`
+    if (!mapped) {
+      skipped.push({
+        line: headerRowIndex + index + 2,
+        reason: "Sin Cliente ni CUPS válido",
+        preview,
+      })
+      return
+    }
+    const cupsRaw = normalizeImportedCups(pickColumn(row, "CUPS"))
+    if (mapped.cups === "PENDIENTE" && !cupsRaw) {
+      warnings.push({
+        line: headerRowIndex + index + 2,
+        reason: "CUPS vacío o ilegible (formato texto en Excel)",
+        preview: mapped.clientName,
+      })
+    }
+    rows.push(mapped)
+  })
+
+  return { rows, skipped, warnings, headerRowIndex }
+}
+
+export function parseContractsFromExcel(buffer: ArrayBuffer): ImportedContractRow[] {
+  return parseContractsFromExcelWithReport(buffer).rows
 }
 
 export function importedRowsToContracts(

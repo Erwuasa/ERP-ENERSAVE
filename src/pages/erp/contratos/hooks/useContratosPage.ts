@@ -145,8 +145,7 @@ export function useContratosPage({
 
   const canEditContractEstado =
     activeModule === "erp" &&
-    isErpOpsAdmin &&
-    (activeRole === "tramitacion" || superadminViewMode === "tramitacion")
+    (activeRole === "tramitacion" || activeRole === "superadmin")
 
   const profileOptions = useMemo(
     () =>

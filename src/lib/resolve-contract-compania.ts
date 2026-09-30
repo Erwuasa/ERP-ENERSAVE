@@ -62,6 +62,13 @@ export function inferCompaniaFromTarifaOffer(
   if (blob.includes("naturgy")) return COMPANIA_LABELS.naturgy
   if (blob.includes("repsol")) return COMPANIA_LABELS.repsol
   if (blob.includes("gana")) return COMPANIA_LABELS.ganaenergia
+  if (
+    blob.includes("precio de mercado") ||
+    blob.includes("residencial precio de mercado") ||
+    (blob.includes("residencial") && blob.includes("mercado") && !blob.includes("naturgy"))
+  ) {
+    return COMPANIA_LABELS.ganaenergia
+  }
   if (blob.includes("octopus")) return COMPANIA_LABELS.octopus
   if (blob.includes("iberdrola")) return COMPANIA_LABELS.iberdrola
   if (blob.includes("endesa")) return COMPANIA_LABELS.endesa
@@ -110,13 +117,23 @@ export function resolveContractCompaniaForDisplay(input: {
   oferta?: string | null
   marcoRows?: readonly MarcoRetributivoRow[] | null
 }): string {
-  const fromTarifa = resolveFromTarifaCatalog(input)
-  if (fromTarifa) return fromTarifa
+  const inferred = inferCompaniaFromTarifaOffer(input.tarifa, input.oferta)
+  if (inferred) return inferred
 
   const raw = input.compania?.trim()
+  const storedKey = raw ? resolveCompaniaLogoKey(raw) : null
+  if (storedKey && raw && !isPlaceholderCompania(raw)) {
+    return COMPANIA_LABELS[storedKey]
+  }
+
+  const fromMarco = resolveFromTarifaCatalog({
+    ...input,
+    compania: null,
+  })
+  if (fromMarco) return fromMarco
+
   if (raw && !isPlaceholderCompania(raw)) {
-    const key = resolveCompaniaLogoKey(raw)
-    if (key) return COMPANIA_LABELS[key]
+    if (storedKey) return COMPANIA_LABELS[storedKey]
     return formatCompaniaLabel(raw)
   }
 

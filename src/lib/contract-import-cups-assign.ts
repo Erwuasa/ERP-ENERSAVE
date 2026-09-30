@@ -17,6 +17,15 @@ export const IMPORT_CUPS_COMERCIAL_ID: Record<string, string> = {
   ES0031102790769001WA: "21654e95-70fd-48fd-b7ea-e17bbf44af7b", // Alejandro Rueda
   ES0339001000080109ZB: "21654e95-70fd-48fd-b7ea-e17bbf44af7b",
   ES0031102771320032NH: "21654e95-70fd-48fd-b7ea-e17bbf44af7b",
+  ES0031102244131011ET: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0218030008622117SE: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0031102226267008JM: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0031104545484070HS: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0021000010971508AE: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0031104706434001EV: "83cabea3-8cbb-4c57-b300-9ecc38410882",
+  ES0031102227555006PA: "d9148f58-1c60-4806-84d5-029d94276d1a",
+  ES0031102225587020AN: "d9148f58-1c60-4806-84d5-029d94276d1a",
+  ES0031102234093010NG: "d9148f58-1c60-4806-84d5-029d94276d1a",
 }
 
 export function normalizeImportCups(cups: string): string {
@@ -34,10 +43,14 @@ export function resolveImportComercialForCups(
     (assignedId ? profiles.find((p) => p.id === assignedId) : undefined) ??
     profiles.find((p) => p.id === fallback.id)
 
-  const comercialId = profile?.id ?? fallback.id
-  const comercialName = profile?.fullName ?? fallback.fullName
+  const comercialId = profile?.id ?? assignedId ?? fallback.id
+  const comercialName =
+    profile?.fullName ??
+    IMPORT_COMERCIAL_DISPLAY_NAME[assignedId ?? ""] ??
+    IMPORT_COMERCIAL_DISPLAY_NAME[comercialId] ??
+    fallback.fullName
   const managerId = profile?.managerId?.trim()
-  const jefeEquipo = managerId || null
+  const jefeEquipo = managerId || IMPORT_COMERCIAL_JEFE_ID[comercialId] || null
 
   return { comercialId, comercialName, jefeEquipo }
 }

@@ -6,7 +6,7 @@ import {
   CONTRACT_EXCEL_COLUMNS,
   generateContractsImportTemplate,
   importedRowsToContracts,
-  parseContractsFromExcel,
+  parseContractsFromExcelWithReport,
 } from "../../lib/excel-import"
 import type { Contract } from "../../types/contract"
 import type { Profile } from "../../types/profile"
@@ -49,9 +49,13 @@ export function ContractsExcelImportModal({
     setLoading(true)
     try {
       const buffer = await file.arrayBuffer()
-      const rows = parseContractsFromExcel(buffer)
+      const { rows, skipped, warnings, headerRowIndex } = parseContractsFromExcelWithReport(buffer)
       if (rows.length === 0) {
-        toast.error("No se encontraron filas válidas. Hace falta Cliente o CUPS en cada fila.")
+        const detail =
+          skipped.length > 0
+            ? ` ${skipped.length} fila(s) omitida(s). Cabecera detectada en fila ${headerRowIndex + 1}.`
+            : ""
+        toast.error(`No se encontraron filas válidas (Cliente o CUPS).${detail}`)
         return
       }
       const imported = importedRowsToContracts(rows, {
@@ -61,6 +65,16 @@ export function ContractsExcelImportModal({
         profiles,
       })
       await onImport(imported)
+      if (skipped.length > 0) {
+        toast.warning(
+          `${skipped.length} fila(s) no importadas. Ej.: fila ${skipped[0]?.line} — ${skipped[0]?.reason}`
+        )
+      }
+      if (warnings.length > 0) {
+        toast.warning(
+          `${warnings.length} contrato(s) con CUPS pendiente o ilegible. Revisa formato texto en Excel.`
+        )
+      }
       toast.success(`Importados ${imported.length} contratos. Los clientes nuevos se han creado en tu cartera.`)
       onClose()
     } catch (err) {

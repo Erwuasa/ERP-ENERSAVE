@@ -29,6 +29,11 @@ const LEGACY_ESTADO_MAP: Record<string, ContractEstado> = {
   borrador: "Borrador",
   "pendiente de info.": "Borrador",
   "pendiente de información": "Borrador",
+  "pendiente de carga": "PTE DE TRAMITACIÓN",
+  "en tramite": "TRAMITANDO",
+  "en trámite": "TRAMITANDO",
+  "pte firma": "PTE DE FIRMA",
+  "pte rgpd": "PTE DE TRAMITACIÓN",
 }
 
 export function normalizeContractEstado(value: string): ContractEstado {

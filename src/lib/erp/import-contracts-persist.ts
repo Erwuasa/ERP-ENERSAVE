@@ -55,32 +55,32 @@ export async function persistImportedContractList(
   const seenSupply = new Set(existingContracts.map((contract) => contractSupplyKey(contract)))
 
   for (let i = 0; i < draftContracts.length; i++) {
-    const draft = applyCupsComercialAssignmentToContract(draftContracts[i], profiles)
+    const assignedDraft = applyCupsComercialAssignmentToContract(draftContracts[i], profiles)
     const sourceRow = sourceRows?.[i]
 
     const { clients: withClient, client } = await ensureClientForContract(nextClients, {
-      nombre: draft.clientName,
-      comercialId: draft.comercialId,
-      documento: draft.nif,
-      telefono: draft.telefono,
-      email: draft.email,
-      direccion: draft.direccionSuministro,
-      codigoPostal: draft.codigoPostal,
-      ciudad: draft.poblacion,
-      provincia: draft.provincia,
+      nombre: assignedDraft.clientName,
+      comercialId: assignedDraft.comercialId,
+      documento: assignedDraft.nif,
+      telefono: assignedDraft.telefono,
+      email: assignedDraft.email,
+      direccion: assignedDraft.direccionSuministro,
+      codigoPostal: assignedDraft.codigoPostal,
+      ciudad: assignedDraft.poblacion,
+      provincia: assignedDraft.provincia,
       tipoCliente: sourceRow
         ? inferTipoClienteFromRow(sourceRow)
-        : draft.tipoCliente?.includes("pyme")
+        : assignedDraft.tipoCliente?.includes("pyme")
           ? "empresa"
           : "particular",
     })
     nextClients = withClient
 
-    const withClientId: Contract = { ...draft, clientId: client.id }
+    const withClientId: Contract = { ...assignedDraft, clientId: client.id }
     const supplyKey = contractSupplyKey(withClientId)
     if (seenSupply.has(supplyKey)) {
       warnings.push(
-        `${draft.clientName} (${draft.cups}): ya existía el mismo CUPS, tipo y estado. No se duplicó.`
+        `${assignedDraft.clientName} (${assignedDraft.cups}): ya existía el mismo CUPS, tipo y estado. No se duplicó.`
       )
       continue
     }
@@ -92,7 +92,7 @@ export async function persistImportedContractList(
       persisted.push({ ...withClientId, id: saveResult.id })
     } else {
       warnings.push(
-        `${draft.clientName} (${draft.cups}): ${saveResult.message ?? "No se pudo guardar en Supabase"}`
+        `${assignedDraft.clientName} (${assignedDraft.cups}): ${saveResult.message ?? "No se pudo guardar en Supabase"}`
       )
       persisted.push(withClientId)
     }

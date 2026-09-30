@@ -204,11 +204,13 @@ export function useContratosPanel({
         <select
           value={estado}
           autoFocus
+          onClick={(event) => event.stopPropagation()}
           onChange={(e) => {
             void persistEstadoChange(c, e.target.value as ContractEstado)
           }}
           onBlur={() => setEditingEstadoId(null)}
           className="mx-auto block w-full max-w-full rounded-md border border-cyan-500 bg-brand-panel p-1.5 text-[10px] font-mono text-brand-text outline-none"
+          data-no-row-open
         >
           {CONTRACT_ESTADOS.map((opt) => (
             <option key={opt} value={opt}>
@@ -223,22 +225,25 @@ export function useContratosPanel({
       <span
         role="button"
         tabIndex={0}
-        onClick={() => {
+        onClick={(event) => {
+          event.stopPropagation()
+          if (canEditEstado) {
+            setEditingEstadoId(c.id)
+            return
+          }
           navigator.clipboard.writeText(estado)
           toast.success(`Copiado: "${estado}"`)
         }}
-        onDoubleClick={() => {
-          if (!canEditEstado) return
-          setEditingEstadoId(c.id)
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return
+          event.preventDefault()
+          event.stopPropagation()
+          if (canEditEstado) setEditingEstadoId(c.id)
         }}
         className={`box-border inline-flex w-fit max-w-full mx-auto items-center justify-center text-center rounded-lg border px-2.5 py-1.5 text-[9px] font-mono font-bold uppercase leading-tight tracking-wide ${
           canEditEstado ? "cursor-pointer hover:opacity-90" : "cursor-default"
         } ${getContractEstadoBadgeClass(estado)}`}
-        title={
-          canEditEstado
-            ? `${estado} · 1 clic copiar · doble clic cambiar`
-            : `${estado} · 1 clic copiar`
-        }
+        title={canEditEstado ? `${estado} · Clic para cambiar estado` : `${estado} · Clic para copiar`}
       >
         {formatContractEstadoTableLabel(estado)}
       </span>

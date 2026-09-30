@@ -13,6 +13,13 @@ describe("inferCompaniaFromTarifaOffer", () => {
     expect(inferCompaniaFromTarifaOffer("PRECIO FIJO CDR RESIDENCIAL", null)).toBe("Repsol")
   })
 
+  it("mapea Precio de Mercado / residencial mercado a Gana Energía", () => {
+    expect(inferCompaniaFromTarifaOffer("Precio de Mercado", null)).toBe("Gana Energía")
+    expect(inferCompaniaFromTarifaOffer("RESIDENCIAL PRECIO DE MERCADO", null)).toBe(
+      "Gana Energía"
+    )
+  })
+
   it("mapea presenciales SBC / L8 a Repsol", () => {
     expect(
       inferCompaniaFromTarifaOffer("PRECIO FIJO PRESENCIALES SBC REPOS2 12M L8", null)
@@ -47,6 +54,29 @@ describe("resolveContractCompaniaForDisplay", () => {
         tarifa: "<=15 KW  USO",
       })
     ).toBe("Naturgy")
+  })
+
+  it("no empareja Precio de Mercado con Nordy del marco si compania es Gana", () => {
+    expect(
+      resolveContractCompaniaForDisplay({
+        compania: "Gana Energía",
+        tarifa: "Precio de Mercado",
+        marcoRows: [
+          {
+            id: "nordy",
+            compania: "Nordy",
+            tarifa: "Tarifa Mercado",
+            tipo: "luz",
+            peaje: "2.0TD",
+            condiciones: "",
+            comisionTipo: "fija",
+            comisionBase: 1,
+            comisionUnidad: "eur_cups",
+            vigenciaMeses: 12,
+          },
+        ],
+      })
+    ).toBe("Gana Energía")
   })
 
   it("prioriza CDR/V29 como Repsol aunque el marco empareje mal", () => {
