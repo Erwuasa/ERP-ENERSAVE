@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 import type { ProductoSuministroTab, ProductoTarifa } from "@/lib/productos-catalog"
 import { SUPPLY_KIND_THEME, supplyTabClass } from "@/lib/enersave-ui-theme"
-import { CompaniaLogo } from "@/lib/erp/render-compania-logo"
+import { ProductosCompaniaSelect } from "@/pages/erp/productos/components/ProductosCompaniaSelect"
 import { ProductosTable } from "@/pages/erp/productos/components/ProductosTable"
 
 type Props = {
@@ -53,7 +53,6 @@ function suministroTabClass(tabId: ProductoSuministroTab, isActive: boolean): st
 }
 
 export function ProductosPanelHeader({
-  title,
   onOpenCalendario,
   onDedupTariffs,
   dedupingTariffs = false,
@@ -64,12 +63,9 @@ export function ProductosPanelHeader({
   setCompania,
   companias,
   countsByCompania,
-  totalActivas,
-  webPublishedCount,
   supplyTabCounts,
 }: Pick<
   Props,
-  | "title"
   | "onOpenCalendario"
   | "onDedupTariffs"
   | "dedupingTariffs"
@@ -80,19 +76,23 @@ export function ProductosPanelHeader({
   | "setCompania"
   | "companias"
   | "countsByCompania"
-  | "totalActivas"
-  | "webPublishedCount"
   | "supplyTabCounts"
 >) {
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
-            <Package className="h-4 w-4" />
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 shrink-0">
+            <Package className="h-4 w-4" aria-hidden />
           </span>
-          <h2 className="text-lg font-extrabold text-brand-text tracking-tight font-display">{title}</h2>
+          <ProductosCompaniaSelect
+            value={compania}
+            onChange={setCompania}
+            companias={companias}
+            countsByCompania={countsByCompania}
+          />
         </div>
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
         {canDedupTariffs && onDedupTariffs ? (
           <button
             type="button"
@@ -116,9 +116,10 @@ export function ProductosPanelHeader({
           <CalendarDays className="h-4 w-4" />
           Calendario Económico
         </button>
+        </div>
       </div>
 
-      <div className="bg-brand-panel border border-brand-border rounded-xl p-3 space-y-2.5 shadow-sm dark:shadow-none">
+      <div className="bg-brand-panel border border-brand-border rounded-xl p-3 shadow-sm dark:shadow-none">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider shrink-0">
             Tipo de producto
@@ -146,53 +147,6 @@ export function ProductosPanelHeader({
                 </button>
               )
             })}
-          </div>
-          <p className="text-[10px] font-mono text-brand-subtext shrink-0 ml-auto">
-            <span className="font-bold text-brand-text">{totalActivas}</span> tarifa
-            {totalActivas !== 1 ? "s" : ""} activa{totalActivas !== 1 ? "s" : ""}
-            <span className="mx-1.5 text-brand-border">·</span>
-            <span className="font-bold text-emerald-600 dark:text-emerald-400">{webPublishedCount}</span> en web
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-start gap-x-3 gap-y-2 border-t border-brand-border/70 pt-2.5">
-          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider shrink-0 pt-1">
-            Comercializadora
-          </p>
-          <div className="flex flex-wrap gap-1 flex-1 min-w-0">
-            <button
-              type="button"
-              onClick={() => setCompania("Todas")}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors ${
-                compania === "Todas"
-                  ? "border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "border-brand-border text-brand-subtext hover:border-emerald-500/30"
-              }`}
-            >
-              Todas
-              <span className="inline-flex min-w-[1.1rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
-                {countsByCompania.Todas ?? 0}
-              </span>
-            </button>
-            {companias.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCompania(c)}
-                title={c}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-mono font-bold border cursor-pointer transition-colors duration-200 ${
-                  compania === c
-                    ? "border-emerald-600 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                    : "border-brand-border text-brand-subtext hover:border-emerald-500/30"
-                }`}
-              >
-                <CompaniaLogo name={c} size="sm" />
-                <span className="hidden sm:inline max-w-[7rem] truncate">{c}</span>
-                <span className="inline-flex min-w-[1.1rem] justify-center px-1 py-0.5 rounded-full bg-slate-200/80 dark:bg-brand-surface text-[9px] tabular-nums">
-                  {countsByCompania[c] ?? 0}
-                </span>
-              </button>
-            ))}
           </div>
         </div>
       </div>

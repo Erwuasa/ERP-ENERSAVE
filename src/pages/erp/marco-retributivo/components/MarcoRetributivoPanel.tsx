@@ -109,6 +109,7 @@ export function MarcoRetributivoPanel({
         canEditComision={vm.canEditComision}
         isCreateMode={vm.isCreateMode}
         allEntries={vm.rows}
+        marcoCompaniaLabels={vm.marcoCompaniaLabels}
         commissionPercentage={commissionPercentage}
         formatCurrency={formatCurrency}
         onClose={vm.closeModal}

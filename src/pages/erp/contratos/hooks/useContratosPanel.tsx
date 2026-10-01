@@ -54,6 +54,8 @@ import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-act
 import { persistImportedContractList } from "@/lib/erp/import-contracts-persist"
 import type { Client } from "@/types/client"
 import type { Profile } from "@/types/profile"
+import type { Settlement } from "@/types/settlement"
+import { syncSettlementOwnerForContract } from "@/lib/erp/sync-contract-commission-settlement"
 
 type Options = {
   canEditContractEstado: boolean
@@ -61,6 +63,8 @@ type Options = {
   clients: Client[]
   setClients: Dispatch<SetStateAction<Client[]>>
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  settlements?: Settlement[]
+  setSettlements?: Dispatch<SetStateAction<Settlement[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   contractsListFilter: ContractsListFilter
@@ -85,6 +89,8 @@ export function useContratosPanel({
   clients,
   setClients,
   setContracts,
+  settlements = [],
+  setSettlements,
   addOptimisticContract,
   contractsSearchQuery,
   contractsListFilter,
@@ -143,6 +149,25 @@ export function useContratosPanel({
         return
       }
       setContracts((prev) => prev.map((item) => (item.id === id ? result.data : item)))
+
+      if (
+        setSettlements &&
+        (field === "comercialId" ||
+          field === "comercialName" ||
+          field === "montoExterno" ||
+          field === "montoInterno")
+      ) {
+        const sync = await syncSettlementOwnerForContract(result.data, settlements)
+        if (sync.settlement) {
+          setSettlements((prev) => {
+            const idx = prev.findIndex((s) => s.id === sync.settlement!.id)
+            if (idx >= 0) {
+              return prev.map((s, i) => (i === idx ? sync.settlement! : s))
+            }
+            return [sync.settlement!, ...prev]
+          })
+        }
+      }
     })
   }
 
@@ -423,6 +448,13 @@ export function useContratosPanel({
 
     setClients(result.clients)
     setContracts(result.contracts)
+    if (setSettlements && result.settlements.length > 0) {
+      setSettlements((prev) => {
+        const byId = new Set(prev.map((s) => s.id))
+        const merged = [...result.settlements.filter((s) => !byId.has(s.id)), ...prev]
+        return merged
+      })
+    }
 
     if (result.warnings.length > 0) {
       toast.warning(

@@ -11,6 +11,12 @@ import {
 } from '@/lib/contract-registration';
 import { companiesTariffsCatalog } from '@/data/tarifas-catalog';
 import {
+  buildTariffsByCompanyFromCatalogRows,
+  mergeTariffsByCompany,
+  type TariffsByCompany,
+} from '@/lib/comparador-tariffs-picker';
+import { loadTariffsCatalogStaleWhileRevalidate } from '@/lib/supabase/tariffs-catalog-cache';
+import {
   type ComparadorAccessTariff,
   type ComparadorPeriodValues,
   type ComparadorRateOption,
@@ -22,7 +28,8 @@ import { formatCurrency } from '@/lib/erp/format-currency';
 import type { CompProposalFilterId } from '@/lib/comparador-proposal-filters';
 import type { ComparadorSortMode } from '@/lib/comparador-sort';
 import { applyComparadorOcrResult } from '@/lib/comparador-ocr-apply';
-import { extractContractDataFromDocument } from '@/lib/contract-ocr';
+import { extractComparadorInvoiceFromFiles } from '@/lib/comparador-invoice-extract';
+import { isInvoiceAiConfigured } from '@/lib/comparador/invoice-ai-client';
 import { listAtComparisons } from '@/lib/supabase/at-comparisons';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import type { MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
@@ -129,6 +136,8 @@ export function useErpComparador({
   const [compOcrLoading, setCompOcrLoading] = useState(false);
   const [compOcrProgress, setCompOcrProgress] = useState<string | null>(null);
   const [marcoRowsForComparador, setMarcoRowsForComparador] = useState<MarcoRetributivoRow[]>([]);
+  const [contractModalTariffsByCompany, setContractModalTariffsByCompany] =
+    useState<TariffsByCompany>({});
   const [emailPropuestaOpen, setEmailPropuestaOpen] = useState(false);
   const [emailPropuestaLoading, setEmailPropuestaLoading] = useState(false);
   const [emailPropuestaGeneratingId, setEmailPropuestaGeneratingId] = useState<string | null>(null);
@@ -240,28 +249,41 @@ export function useErpComparador({
     }).then((rows) => setMarcoRowsForComparador(rows));
   }, [currentMenuTab]);
 
-  async function handleComparadorInvoiceOcr(file: File) {
+  async function handleComparadorInvoiceOcr(files: File | File[]) {
+    const list = Array.isArray(files) ? files : [files];
     setCompOcrLoading(true);
-    setCompOcrProgress('Leyendo factura…');
+    setCompOcrProgress(
+      isInvoiceAiConfigured() ? 'Analizando factura con IA…' : 'Leyendo factura…'
+    );
     try {
-      const ocr = await extractContractDataFromDocument(file, setCompOcrProgress);
+      const ocr = await extractComparadorInvoiceFromFiles(list, setCompOcrProgress);
       const applied = applyComparadorOcrResult(ocr, {
         setCompCups,
         setCompTipo,
         setCompCompaniaActual,
         setCompTarifaActual,
         setCompAccessTariff,
+        setCompSegment,
         setCompPotencias,
         setCompConsumos,
+        setCompPreciosPotenciaActual,
+        setCompPreciosEnergiaActual,
         setCompConsumoAnualKwh,
+        setCompDiasFacturados,
+        setCompRentMeter,
+        setCompBonoSocial,
+        setCompOtrosCostesSva,
         setCompCurrentBill,
         setCompProposalFilters,
       });
+      if (ocr.consumptionFromProfile) {
+        toast.message('Consumos estimados por perfil: revisa P1–P3 en la factura.');
+      }
       if (applied > 0) {
         toast.success(
           applied === 1
-            ? 'Dato de la factura aplicado al comparador.'
-            : `${applied} datos de la factura aplicados al comparador.`
+            ? `Dato aplicado (${ocr.source === 'invoice-ai' ? 'IA' : 'OCR local'}).`
+            : `${applied} datos aplicados (${ocr.source === 'invoice-ai' ? 'IA' : 'OCR local'}).`
         );
       } else {
         toast.message('Factura leída. Completa manualmente los campos que falten.');
@@ -598,31 +620,59 @@ export function useErpComparador({
   };
 
   useEffect(() => {
+    if (!isContractModalOpen) return;
+    let cancelled = false;
+
+    void loadTariffsCatalogStaleWhileRevalidate(modalSegment, modalAccessTariff, {
+      onRevalidated: (fresh) => {
+        if (cancelled) return;
+        const fromSupabase = buildTariffsByCompanyFromCatalogRows(fresh);
+        const peajeKey = resolveComparadorCatalogPeajeKey(modalAccessTariff);
+        const fallback =
+          companiesTariffsCatalog[peajeKey as keyof typeof companiesTariffsCatalog] ?? {};
+        setContractModalTariffsByCompany(mergeTariffsByCompany(fromSupabase, fallback));
+      },
+    }).then(({ data }) => {
+      if (cancelled) return;
+      const fromSupabase = buildTariffsByCompanyFromCatalogRows(data);
+      const peajeKey = resolveComparadorCatalogPeajeKey(modalAccessTariff);
+      const fallback =
+        companiesTariffsCatalog[peajeKey as keyof typeof companiesTariffsCatalog] ?? {};
+      setContractModalTariffsByCompany(mergeTariffsByCompany(fromSupabase, fallback));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isContractModalOpen, modalSegment, modalAccessTariff]);
+
+  useEffect(() => {
     if (isContractModalOpen) {
-      const companiesForTariff = Object.keys(
-        companiesTariffsCatalog[resolveComparadorCatalogPeajeKey(modalAccessTariff)] || {}
-      );
+      const companiesForTariff = Object.keys(contractModalTariffsByCompany);
       if (companiesForTariff.length > 0) {
         if (!companiesForTariff.includes(modalCompany)) {
           setModalCompany(companiesForTariff[0]);
         }
       }
     }
-  }, [modalAccessTariff, isContractModalOpen]);
+  }, [modalAccessTariff, isContractModalOpen, contractModalTariffsByCompany, modalCompany]);
 
   useEffect(() => {
     if (isContractModalOpen && modalCompany) {
-      const tariffsForCompany =
-        (companiesTariffsCatalog[resolveComparadorCatalogPeajeKey(modalAccessTariff)] || {})[
-          modalCompany
-        ] || [];
+      const tariffsForCompany = contractModalTariffsByCompany[modalCompany] || [];
       if (tariffsForCompany.length > 0) {
         if (!tariffsForCompany.includes(modalTariff)) {
           setModalTariff(tariffsForCompany[0]);
         }
       }
     }
-  }, [modalCompany, modalAccessTariff, isContractModalOpen]);
+  }, [
+    modalCompany,
+    modalAccessTariff,
+    isContractModalOpen,
+    contractModalTariffsByCompany,
+    modalTariff,
+  ]);
 
   function appendModalFiles(files: File[]) {
     if (files.length === 0) return;
@@ -858,6 +908,7 @@ export function useErpComparador({
     setModalCompany,
     modalTariff,
     setModalTariff,
+    contractModalTariffsByCompany,
     modalSegment,
     modalAccessTariff,
     modalFiles,

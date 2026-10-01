@@ -4,6 +4,7 @@ import { AppUpdateBanner } from "@/components/AppUpdateBanner"
 import { AvisosModal } from "@/components/AvisosModal"
 import { RuntimeIntegrityBlockModal } from "@/components/RuntimeIntegrityBlockModal"
 import { useAppVersionCheck } from "@/hooks/use-app-version-check"
+import { useSupabaseCatalogCacheRefreshOnFocus } from "@/hooks/use-supabase-catalog-cache-refresh"
 import { useRuntimeIntegrityGuard } from "@/hooks/use-runtime-integrity-guard"
 import { useAuth } from "@/hooks/useAuth"
 import { createIncidencia } from "@/lib/supabase/incidencias"
@@ -23,6 +24,7 @@ export function WorkspaceChrome() {
   const { incidencias, setIncidencias, addOptimisticIncidencia } = useIncidenciasContext()
   const { unviewedAvisos, markAvisosVistos } = useStaffFeeds()
   const { remoteVersion, dismiss } = useAppVersionCheck()
+  useSupabaseCatalogCacheRefreshOnFocus()
   const [avisosModalOpen, setAvisosModalOpen] = useState(false)
   const [reportedFingerprint, setReportedFingerprint] = useState<string | null>(null)
 

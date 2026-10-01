@@ -32,6 +32,7 @@ import {
   collectExistingReferencias,
 } from "@/lib/contract-referencia"
 import { formatCurrency } from "@/lib/erp/format-currency"
+import { persistEstimatedCommissionSettlement } from "@/lib/erp/sync-contract-commission-settlement"
 
 export interface CreateContractOptions {
   incomplete?: boolean
@@ -308,6 +309,15 @@ export async function createContractFromForm(params: {
       descripcion: `Comisión generada para contrato nuevo: ${form.clientName || "Sin nombre"}`,
       createdAt: new Date().toISOString().split("T")[0],
       contractId: newContractObj.id,
+    }
+
+    if (supabaseResult.ok) {
+      const persisted = await persistEstimatedCommissionSettlement(newContractObj)
+      if (persisted.settlement) {
+        settlement = persisted.settlement
+      } else if (persisted.warning && !persisted.warning.includes("Ya existía")) {
+        warnings.push(`Liquidación estimada: ${persisted.warning}`)
+      }
     }
   }
 

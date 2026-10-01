@@ -22,6 +22,7 @@ import {
   expandMarcoRowsByTramos,
   resolveMarcoParentRowId,
 } from "@/pages/erp/marco-retributivo/lib/marco-table-rows"
+import { buildCanonicalCompaniaCounts } from "@/lib/erp/compania-logos"
 import { filterMarcoRowsForDisplay } from "@/lib/marco-dedup"
 import {
   markCatalogDedupRan,
@@ -67,7 +68,8 @@ export function useMarcoRetributivoPanel({
   const canEditComision = canEdit && activeRole === "superadmin"
   const supabaseConfigured = isSupabaseConfigured()
 
-  const loadRows = useCallback(async () => {
+  const loadRows = useCallback(async (options?: { bustCache?: boolean }) => {
+    if (options?.bustCache) invalidateMarcoRetributivoCache()
     setLoading(true)
     try {
       const data = await loadMarcoRetributivoStaleWhileRevalidate({
@@ -84,7 +86,7 @@ export function useMarcoRetributivoPanel({
   }, [])
 
   useEffect(() => {
-    void loadRows()
+    void loadRows({ bustCache: true })
   }, [loadRows])
 
   const runMarcoDedup = useCallback(
@@ -167,7 +169,7 @@ export function useMarcoRetributivoPanel({
     return filterMarcoRowsForTable(expanded, companiaFilter)
   }, [scopedRows, peajeFilter, companiaFilter])
 
-  const countsByCompania = useMemo(() => {
+  const marcoCompaniaAggregation = useMemo(() => {
     const scoped = rows.filter((e) => {
       if (tipoFilter !== "todos" && e.tipo !== tipoFilter) return false
       if (
@@ -178,20 +180,19 @@ export function useMarcoRetributivoPanel({
       }
       return true
     })
-    const counts: Record<string, number> = { Todos: scoped.length }
-    for (const row of scoped) {
-      counts[row.compania] = (counts[row.compania] ?? 0) + 1
-    }
-    return counts
+    return { scoped, ...buildCanonicalCompaniaCounts(scoped) }
   }, [rows, tipoFilter, segmentoFilter])
 
+  const countsByCompania = useMemo(() => {
+    const { scoped, countsByLabel } = marcoCompaniaAggregation
+    return { Todos: scoped.length, ...countsByLabel }
+  }, [marcoCompaniaAggregation])
+
   const companyTabs = useMemo(() => {
-    return Object.keys(countsByCompania).sort((a, b) => {
-      if (a === "Todos") return -1
-      if (b === "Todos") return 1
-      return a.localeCompare(b, "es")
-    })
-  }, [countsByCompania])
+    return ["Todos", ...marcoCompaniaAggregation.labels]
+  }, [marcoCompaniaAggregation.labels])
+
+  const marcoCompaniaLabels = marcoCompaniaAggregation.labels
 
   function openEntryModal(entry: MarcoRetributivoRow) {
     const parentId = resolveMarcoParentRowId(entry.id)
@@ -411,6 +412,7 @@ export function useMarcoRetributivoPanel({
     filteredRows,
     countsByCompania,
     companyTabs,
+    marcoCompaniaLabels,
     openEntryModal,
     openCreateModal,
     closeModal,

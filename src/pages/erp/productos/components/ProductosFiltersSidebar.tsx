@@ -21,6 +21,7 @@ type Props = {
   setPeaje: (value: ProductoPeajeFilter) => void
   webVisibility: ProductoWebVisibilityFilter
   setWebVisibility: (value: ProductoWebVisibilityFilter) => void
+  showWebVisibilityFilter?: boolean
 }
 
 export function ProductosFiltersSidebar({
@@ -30,6 +31,7 @@ export function ProductosFiltersSidebar({
   setPeaje,
   webVisibility,
   setWebVisibility,
+  showWebVisibilityFilter = false,
 }: Props) {
   // Por debajo de xl, Filtros va colapsado por defecto para no comerse la
   // pantalla y dejar ver las tarifas de entrada. En xl+ siempre va expandido
@@ -38,7 +40,7 @@ export function ProductosFiltersSidebar({
   const activeFiltersCount =
     (tipoCliente !== "todos" ? 1 : 0) +
     (peaje !== "todos" ? 1 : 0) +
-    (webVisibility !== "todas" ? 1 : 0)
+    (showWebVisibilityFilter && webVisibility !== "todas" ? 1 : 0)
 
   return (
     <aside className="w-full xl:w-44 shrink-0 xl:overflow-y-auto bg-brand-panel border border-brand-border rounded-xl p-3 shadow-sm dark:shadow-none">
@@ -87,27 +89,29 @@ export function ProductosFiltersSidebar({
           </div>
         </div>
 
-        <div className="space-y-2">
-          <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
-            Visibilidad web
-          </p>
-          <div className="flex flex-col gap-1">
-            {WEB_VISIBILITY_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setWebVisibility(opt.id)}
-                className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
-                  webVisibility === opt.id
-                    ? "bg-emerald-600 text-white"
-                    : "text-brand-subtext hover:bg-brand-surface/80 hover:text-brand-text"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
+        {showWebVisibilityFilter ? (
+          <div className="space-y-2">
+            <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">
+              Visibilidad web
+            </p>
+            <div className="flex flex-col gap-1">
+              {WEB_VISIBILITY_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setWebVisibility(opt.id)}
+                  className={`text-left px-2.5 py-2 rounded-lg text-[11px] font-medium transition-colors cursor-pointer ${
+                    webVisibility === opt.id
+                      ? "bg-emerald-600 text-white"
+                      : "text-brand-subtext hover:bg-brand-surface/80 hover:text-brand-text"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         <div className="space-y-2">
           <p className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">

@@ -1,5 +1,6 @@
 import { useRef, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react"
 import type { Contract } from "@/types/contract"
+import type { Settlement } from "@/types/settlement"
 import type { Client } from "@/types/client"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
@@ -30,6 +31,8 @@ export interface ContratosPanelProps {
   erpDataLoading?: boolean
   setClients: Dispatch<SetStateAction<Client[]>>
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  settlements?: Settlement[]
+  setSettlements?: Dispatch<SetStateAction<Settlement[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
@@ -88,9 +91,11 @@ export function ContratosPanel({
   visibleContracts,
   clients,
   erpDataLoading = false,
-  setClients,
-  setContracts,
-  addOptimisticContract,
+    setClients,
+    setContracts,
+    settlements,
+    setSettlements,
+    addOptimisticContract,
   contractsSearchQuery,
   setContractsSearchQuery,
   contractsListFilter,
@@ -142,6 +147,8 @@ export function ContratosPanel({
     clients,
     setClients,
     setContracts,
+    settlements,
+    setSettlements,
     addOptimisticContract,
     contractsSearchQuery,
     contractsListFilter,

@@ -2,7 +2,6 @@
 import { AnimatePresence, motion } from "motion/react"
 import { User, Zap, FileText, Trash2, Lock, X } from "lucide-react"
 import { FileDropZone } from "@/components/ui/FileDropZone"
-import { companiesTariffsCatalog } from "@/data/tarifas-catalog"
 import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 
 type Props = { ws: ErpWorkspaceContext }
@@ -39,6 +38,7 @@ export function ComparadorContractModal({ ws }: Props) {
     setModalCompany,
     modalTariff,
     setModalTariff,
+    contractModalTariffsByCompany,
     modalSegment,
     modalAccessTariff,
     modalFiles,
@@ -280,13 +280,11 @@ export function ComparadorContractModal({ ws }: Props) {
                         onChange={(e) => setModalCompany(e.target.value)}
                         className={`${inputClass} focus:outline-none`}
                       >
-                        {Object.keys(companiesTariffsCatalog[modalAccessTariff] || {}).map(
-                          (c) => (
-                            <option key={c} value={c}>
-                              {c}
-                            </option>
-                          )
-                        )}
+                        {Object.keys(contractModalTariffsByCompany).map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
                       </select>
                     </ModalField>
                     <ModalField label="Tarifa" required>
@@ -296,9 +294,7 @@ export function ComparadorContractModal({ ws }: Props) {
                         onChange={(e) => setModalTariff(e.target.value)}
                         className={`${inputClass} focus:outline-none`}
                       >
-                        {(
-                          (companiesTariffsCatalog[modalAccessTariff] || {})[modalCompany] || []
-                        ).map((t) => (
+                        {(contractModalTariffsByCompany[modalCompany] || []).map((t) => (
                           <option key={t} value={t}>
                             {t}
                           </option>

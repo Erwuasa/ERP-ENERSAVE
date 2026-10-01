@@ -1,3 +1,4 @@
+import { normalizeCompaniaKey } from "@/lib/erp/compania-logos"
 import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 
 const TARIFA_NOISE_TOKENS = new Set([
@@ -189,7 +190,7 @@ export function findMarcoSimilarDuplicateGroups(
 
 function marcoDisplayIdentityKey(row: MarcoRetributivoRow): string {
   return [
-    normalizeMarcoTarifaName(row.compania),
+    normalizeCompaniaKey(row.compania),
     normalizeMarcoTarifaName(row.tarifa),
     String(row.peaje ?? "").trim().toLowerCase(),
     normalizeMarcoTarifaName(row.segmento),

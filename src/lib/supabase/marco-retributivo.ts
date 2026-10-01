@@ -120,6 +120,14 @@ const MARCO_SELECT =
 /** PostgREST devuelve como máximo 1000 filas por petición; paginamos para traer todo el catálogo. */
 export const MARCO_LIST_PAGE_SIZE = 500
 
+/** Tras filtrar placeholders el batch puede ser < pageSize aunque haya más páginas en BD. */
+export function marcoListShouldFetchNextPage(
+  fetchedRowCount: number,
+  pageSize: number = MARCO_LIST_PAGE_SIZE
+): boolean {
+  return fetchedRowCount >= pageSize
+}
+
 function mapError(error: { message: string }): MarcoRetributivoResult<never> {
   return { ok: false, message: error.message }
 }
@@ -316,12 +324,13 @@ export async function listMarcoRetributivo(): Promise<
       return mapError(error)
     }
 
-    const batch = ((data ?? []) as MarcoRetributivoRow[])
+    const rawBatch = (data ?? []) as MarcoRetributivoRow[]
+    const batch = rawBatch
       .map(mapRow)
       .filter((row) => !isMarcoGenericPlaceholderTariff(row))
     allRows.push(...batch)
 
-    if (batch.length < MARCO_LIST_PAGE_SIZE) break
+    if (!marcoListShouldFetchNextPage(rawBatch.length)) break
     from += MARCO_LIST_PAGE_SIZE
   }
 
@@ -356,10 +365,11 @@ export async function listMarcoRetributivoForDedup(): Promise<
       return mapError(error)
     }
 
-    const batch = ((data ?? []) as MarcoRetributivoRow[]).map(mapRow)
+    const rawBatch = (data ?? []) as MarcoRetributivoRow[]
+    const batch = rawBatch.map(mapRow)
     allRows.push(...batch)
 
-    if (batch.length < MARCO_LIST_PAGE_SIZE) break
+    if (!marcoListShouldFetchNextPage(rawBatch.length)) break
     from += MARCO_LIST_PAGE_SIZE
   }
 

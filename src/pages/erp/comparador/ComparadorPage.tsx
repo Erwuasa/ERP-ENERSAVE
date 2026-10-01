@@ -229,7 +229,7 @@ export function ComparadorPage() {
             <ComparadorIaUpload
               loading={compOcrLoading}
               progress={compOcrProgress}
-              onFile={(file) => void handleComparadorInvoiceOcr(file)}
+              onFiles={(files) => void handleComparadorInvoiceOcr(files)}
             />
 
             <motion.div layout transition={springTransition} className={isCompactForm ? "space-y-2.5" : "space-y-3"}>

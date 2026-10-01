@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo } from "react"
 import { MARCO_COMPANIAS_LUZ } from "@/data/marco-retributivo-catalog"
-import { listAtCatalogEntries } from "@/lib/supabase/at-catalog"
+import { mergeCompanyNames } from "@/lib/erp/compania-logos"
 import { formatMarcoSegmentoLabel, MARCO_SEGMENTO_OPTIONS } from "@/lib/supabase/marco-retributivo"
 import type { MarcoEntryInput } from "@/lib/supabase/marco-retributivo"
 import {
@@ -14,27 +14,26 @@ type Props = {
   form: MarcoEntryInput
   disabled: boolean
   patchForm: (patch: Partial<MarcoEntryInput>) => void
+  /** Compañías presentes en marco_retributivo (Supabase), ya normalizadas. */
+  marcoCompaniaLabels: string[]
 }
 
-export function MarcoEditModalDatosSection({ form, disabled, patchForm }: Props) {
-  const [catalogCompanies, setCatalogCompanies] = useState<string[]>([])
+export function MarcoEditModalDatosSection({
+  form,
+  disabled,
+  patchForm,
+  marcoCompaniaLabels,
+}: Props) {
+  const companies = useMemo(
+    () =>
+      mergeCompanyNames([
+        [...MARCO_COMPANIAS_LUZ.filter((c) => c !== "Todos")],
+        marcoCompaniaLabels,
+        form.compania ? [form.compania] : [],
+      ]),
+    [marcoCompaniaLabels, form.compania]
+  )
 
-  useEffect(() => {
-    void listAtCatalogEntries("billing-companies").then((result) => {
-      if (result.ok) {
-        setCatalogCompanies(result.data.map((row) => row.label).filter(Boolean))
-      }
-    })
-  }, [])
-
-  const companies = useMemo(() => {
-    const set = new Set(
-      [...MARCO_COMPANIAS_LUZ.filter((c) => c !== "Todos"), ...catalogCompanies, form.compania].filter(
-        Boolean
-      )
-    )
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"))
-  }, [catalogCompanies, form.compania])
   return (
     <section className="space-y-3">
       <h4 className="text-[10px] font-mono font-bold uppercase text-brand-subtext tracking-wider">

@@ -4,6 +4,7 @@ import { FileText, Pencil, X } from "lucide-react"
 import { CONTRACT_ESTADO_BORRADOR, normalizeContractEstado } from "@/lib/contract-estado"
 import type { Contract } from "@/types/contract"
 import { formatActivationDate } from "@/pages/erp/contratos/components/contratos-panel-utils"
+import { resolveContractReferencia } from "@/lib/contract-referencia"
 import {
   formatContractDisplayId,
   CONTRATO_DETALLE_TABS,
@@ -162,7 +163,8 @@ export function ContratoDetallePanel({
   const [showNotas, setShowNotas] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
   const scrollContainerRef = useRef<HTMLElement | null>(null)
-  const displayId = formatContractDisplayId(contract.id)
+  const displayId = resolveContractReferencia(contract)
+  const technicalId = formatContractDisplayId(contract.id)
   const isDraft = normalizeContractEstado(contract.estado) === CONTRACT_ESTADO_BORRADOR
   const atExtras = useAtContractNotes({
     atContractId: contract.atContractId,
@@ -309,6 +311,11 @@ export function ContratoDetallePanel({
               <div className="min-w-0">
                 <h2 className="text-base font-black text-brand-text tracking-tight font-display">
                   Detalle contrato {displayId}
+                  {displayId !== technicalId ? (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      ({technicalId})
+                    </span>
+                  ) : null}
                 </h2>
                 <p className="text-xs text-brand-subtext truncate mt-0.5">{contract.clientName}</p>
               </div>

@@ -4,10 +4,10 @@ import { FileDropZone } from "../ui/FileDropZone"
 interface ComparadorIaUploadProps {
   loading: boolean
   progress: string | null
-  onFile: (file: File) => void
+  onFiles: (files: File[]) => void
 }
 
-export function ComparadorIaUpload({ loading, progress, onFile }: ComparadorIaUploadProps) {
+export function ComparadorIaUpload({ loading, progress, onFiles }: ComparadorIaUploadProps) {
   return (
     <div className="rounded-xl border border-blue-500/30 bg-gradient-to-r from-blue-500/[0.08] via-brand-panel to-brand-panel overflow-hidden shadow-sm">
       <div className="flex items-stretch gap-2 p-2">
@@ -19,12 +19,21 @@ export function ComparadorIaUpload({ loading, progress, onFile }: ComparadorIaUp
           comparadorCompactLayout
           className="flex-1 min-w-0 border-blue-500/20 bg-brand-surface/50"
           accept="image/*,.pdf,.png,.jpg,.jpeg,.webp"
-          multiple={false}
+          multiple
           disabled={loading}
-          label={loading ? "Leyendo factura…" : "Arrastra o adjunta la factura"}
+          label={
+            loading
+              ? "Leyendo factura…"
+              : "Arrastra o adjunta la factura PDF o imagen · la IA rellena el suministro"
+          }
+          hint="1 PDF o hasta 3 imágenes de la misma factura · no se guarda en servidor (modo comparador)"
           onFiles={(files) => {
-            const file = files[0]
-            if (file) onFile(file)
+            if (files.length === 0) return
+            const pdfCount = files.filter(
+              (f) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf")
+            ).length
+            if (pdfCount > 0 && files.length > 1) return
+            onFiles(files.slice(0, 3))
           }}
         />
       </div>

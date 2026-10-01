@@ -1,16 +1,12 @@
-import { normalizeCompaniaKey } from "@/lib/erp/compania-logos"
+import { companiaMatchesSelectorFilter } from "@/lib/erp/compania-logos"
 import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 
-/** Solo la compañía seleccionada; sin coincidencias parciales entre marcas. */
+/** Solo la compañía seleccionada; alinea etiqueta UI con nombre en marco_retributivo. */
 export function marcoCompaniaMatchesFilter(
   entryCompania: string | null | undefined,
   filter: string
 ): boolean {
-  if (!filter || filter === "Todos") return true
-  const entryKey = normalizeCompaniaKey(String(entryCompania ?? "").trim())
-  const filterKey = normalizeCompaniaKey(String(filter).trim())
-  if (!entryKey || !filterKey) return false
-  return entryKey === filterKey
+  return companiaMatchesSelectorFilter(entryCompania, filter)
 }
 
 /** Filtro defensivo final antes de pintar filas en tabla (evita filas residuales). */

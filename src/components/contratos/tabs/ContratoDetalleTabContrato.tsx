@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import { formatContractDisplayId } from "@/components/contratos/contrato-detalle-types"
+import { resolveContractReferencia } from "@/lib/contract-referencia"
 import {
   ContratoDetalleField,
   ContratoDetalleFieldGrid,
@@ -56,7 +57,12 @@ export function ContratoDetalleTabContrato({
       <ContratoDetalleSection title="Datos generales">
         <ContratoDetalleFieldGrid>
           <ContratoDetalleField
-            label="Referencia"
+            label="ID contrato"
+            value={resolveContractReferencia(contract)}
+            mono
+          />
+          <ContratoDetalleField
+            label="Ref. técnica"
             value={formatContractDisplayId(contract.id)}
             mono
           />

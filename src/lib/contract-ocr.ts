@@ -1,11 +1,35 @@
+import type { ComparadorAccessTariff } from "./erp/comparador-rates"
+import { normalizeComparadorAccessTariff } from "./comparador-access-tariff"
+import type { ComparadorPeriodValues } from "./erp/comparador-rates"
+import {
+  extractDiasFacturadosFromInvoice,
+  extractInvoicePeriodConsumoKwh,
+  extractInvoiceTotalAmountEur,
+  extractMeterRentalAmountEur,
+  extractServiciosSvaAmountEur,
+  extractSocialBonusFinancingEur,
+  parseSpanishInvoiceAmount,
+  scalePeriodConsumoToMonthlyKwh,
+} from "./invoice-ocr-billing-lines"
+
 export interface ContractOcrResult {
   tipo?: "luz" | "gas"
+  segment?: "residencial" | "pyme"
   fechaInicio?: string
   cups?: string
   tarifa?: string
   compania?: string
+  accessTariff?: ComparadorAccessTariff
   tipoPrecio?: "fijo" | "mercado"
   potenciaContratada?: string
+  potenciasKw?: ComparadorPeriodValues
+  consumosKwh?: ComparadorPeriodValues
+  preciosPotenciaEur?: ComparadorPeriodValues
+  preciosEnergiaEur?: ComparadorPeriodValues
+  diasFacturados?: number
+  meterRentalAmount?: number
+  socialBonusCostEur?: number
+  otherCosts?: number
   precioFijoConsumo?: number
   consumoAnualKwh?: number
   facturaImporteEur?: number
@@ -15,6 +39,17 @@ export interface ContractOcrResult {
   direccionSuministro?: string
   rawTextPreview?: string
   pageCount?: number
+}
+
+function parseSpanishDecimal(raw: string): number {
+  return parseSpanishInvoiceAmount(raw)
+}
+
+function matchPeriodKwh(text: string, labels: RegExp): number | undefined {
+  const m = text.match(labels)
+  if (!m?.[1]) return undefined
+  const value = parseSpanishDecimal(m[1])
+  return Number.isFinite(value) && value >= 0 ? value : undefined
 }
 
 function normalizeText(text: string): string {
@@ -69,11 +104,15 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
   }
 
   const companies = [
+    "Gana Energía",
+    "Gana Energia",
     "Iberdrola",
     "Endesa",
     "Naturgy",
     "Repsol",
     "TotalEnergies",
+    "Total Energies",
+    "Repsol",
     "Niba",
     "Ignis",
     "Axpo",
@@ -95,9 +134,109 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
     result.tarifa = result.tarifa || "Tarifa fija"
   }
 
-  const potenciaMatch = text.match(/(\d+[,.]?\d*)\s*kW/i)
-  if (potenciaMatch) {
-    result.potenciaContratada = potenciaMatch[1].replace(",", ".")
+  const accessDetected = normalizeComparadorAccessTariff(upper)
+  if (/2\.0\s*TD|2,0\s*TD/.test(text)) {
+    result.accessTariff = accessDetected
+  } else if (/3\.0\s*TD|3,0\s*TD/.test(text)) {
+    result.accessTariff = normalizeComparadorAccessTariff("3.0TD")
+  } else if (/6\.[0-9]\s*TD/.test(text)) {
+    result.accessTariff = normalizeComparadorAccessTariff("6.1TD")
+  }
+
+  const periodConsumo = extractInvoicePeriodConsumoKwh(text)
+  if (periodConsumo && periodConsumo.p1 + periodConsumo.p2 + periodConsumo.p3 > 0) {
+    const diasForScale =
+      extractDiasFacturadosFromInvoice(text) ?? result.diasFacturados ?? 30
+    const scaled = scalePeriodConsumoToMonthlyKwh(periodConsumo, diasForScale)
+    result.consumosKwh = {
+      p1: scaled.p1,
+      p2: scaled.p2,
+      p3: scaled.p3,
+      p4: 0,
+      p5: 0,
+      p6: 0,
+    }
+    const sum = periodConsumo.p1 + periodConsumo.p2 + periodConsumo.p3
+    if (sum > 0 && diasForScale > 0) {
+      result.consumoAnualKwh = Math.round((sum / diasForScale) * 365)
+    }
+  } else {
+    const p1Kwh = matchPeriodKwh(text, /(?:Punta|P1)[^\d]{0,50}(\d+[,.]\d+)\s*kWh/i)
+    const p2Kwh = matchPeriodKwh(text, /(?:Llano|P2|Plano)[^\d]{0,50}(\d+[,.]\d+)\s*kWh/i)
+    const p3Kwh = matchPeriodKwh(text, /(?:Valle|P3)[^\d]{0,50}(\d+[,.]\d+)\s*kWh/i)
+    if (p1Kwh != null || p2Kwh != null || p3Kwh != null) {
+      result.consumosKwh = {
+        p1: p1Kwh ?? 0,
+        p2: p2Kwh ?? 0,
+        p3: p3Kwh ?? 0,
+        p4: 0,
+        p5: 0,
+        p6: 0,
+      }
+      const sum = (p1Kwh ?? 0) + (p2Kwh ?? 0) + (p3Kwh ?? 0)
+      const dias = result.diasFacturados ?? 30
+      if (sum > 0 && !result.consumoAnualKwh) {
+        result.consumoAnualKwh = Math.round((sum / dias) * 365)
+      }
+    }
+  }
+
+  const potPunta = matchPeriodKwh(
+    text,
+    /Potencia[^\n]{0,80}?(?:Punta|P1)[^\d]{0,30}(\d+[,.]\d+)\s*kW/i
+  )
+  const potValle = matchPeriodKwh(
+    text,
+    /Potencia[^\n]{0,120}?(?:Valle|P3)[^\d]{0,30}(\d+[,.]\d+)\s*kW/i
+  )
+  if (potPunta != null || potValle != null) {
+    const p1 = potPunta ?? potValle ?? 0
+    const p2 = potValle ?? potPunta ?? p1
+    result.potenciasKw = { p1, p2, p3: 0, p4: 0, p5: 0, p6: 0 }
+    result.potenciaContratada = String(p1).replace(".", ",")
+  } else {
+    const potenciaMatch = text.match(/(\d+[,.]?\d*)\s*kW/i)
+    if (potenciaMatch) {
+      result.potenciaContratada = potenciaMatch[1].replace(",", ".")
+    }
+  }
+
+  const diasLabel = extractDiasFacturadosFromInvoice(text)
+  if (diasLabel != null) {
+    result.diasFacturados = diasLabel
+  } else {
+    const diasMatch = text.match(/(\d{1,3})\s*d[ií]as/i)
+    if (diasMatch) {
+      const days = Number.parseInt(diasMatch[1], 10)
+      if (days > 0 && days < 400) result.diasFacturados = days
+    }
+  }
+
+  const meterRental = extractMeterRentalAmountEur(text)
+  if (meterRental != null) {
+    result.meterRentalAmount = meterRental
+  }
+
+  const bonoFinanciacion = extractSocialBonusFinancingEur(text)
+  if (bonoFinanciacion != null) {
+    result.socialBonusCostEur = bonoFinanciacion
+  } else {
+    const bonoMatch = text.match(
+      /(?:Financiaci[oó]n\s+Bono\s+Social|bono\s+social)[^\d]{0,40}(\d+[,.]\d+)\s*€/i
+    )
+    if (bonoMatch) {
+      result.socialBonusCostEur = parseSpanishDecimal(bonoMatch[1])
+    }
+  }
+
+  const serviciosSva = extractServiciosSvaAmountEur(text)
+  if (serviciosSva != null) {
+    result.otherCosts = serviciosSva
+  } else {
+    const urgenciasMatch = text.match(/Urgencias[^\d]{0,30}(\d+[,.]\d+)\s*€/i)
+    if (urgenciasMatch) {
+      result.otherCosts = (result.otherCosts ?? 0) + parseSpanishDecimal(urgenciasMatch[1])
+    }
   }
 
   const precioMatch =
@@ -130,14 +269,32 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
     if (Number.isFinite(value) && value > 0) result.consumoAnualKwh = Math.round(value)
   }
 
-  const facturaMatch =
-    text.match(/total\s+(?:factura|importe|a\s+pagar)[^\d]{0,20}(\d+[,.]?\d*)\s*€/i) ||
-    text.match(/(\d+[,.]?\d*)\s*€[^\n]{0,30}(?:total|importe)/i)
-  if (facturaMatch) {
-    const value = Number.parseFloat(facturaMatch[1].replace(",", "."))
-    if (Number.isFinite(value) && value > 0) {
-      result.facturaImporteEur = value
-      result.facturaEsMensual = !/anual|año|12\s*meses/i.test(facturaMatch[0])
+  const invoiceTotal = extractInvoiceTotalAmountEur(text)
+  if (invoiceTotal != null) {
+    result.facturaImporteEur = invoiceTotal
+    const periodDays = result.diasFacturados ?? 30
+    result.facturaEsMensual = periodDays <= 31
+  } else {
+    const facturaMatch =
+      text.match(/TOTAL\s+IMPORTE\s+FACTURA[^\d]{0,20}(\d+[,.]\d+)\s*€/i) ||
+      text.match(/total\s+(?:factura|importe|a\s+pagar)[^\d]{0,20}(\d+[,.]?\d*)\s*€/i) ||
+      text.match(/(\d+[,.]?\d*)\s*€[^\n]{0,30}(?:total|importe)/i)
+    if (facturaMatch) {
+      const value = parseSpanishDecimal(facturaMatch[1])
+      if (Number.isFinite(value) && value > 0) {
+        result.facturaImporteEur = value
+        const periodDays = result.diasFacturados ?? 30
+        result.facturaEsMensual =
+          periodDays <= 31 && !/anual|año|12\s*meses/i.test(facturaMatch[0])
+      }
+    }
+  }
+
+  if (result.consumosKwh) {
+    const { p1, p2, p3 } = result.consumosKwh
+    const sum = p1 + p2 + p3
+    if (sum > 0 && result.diasFacturados) {
+      result.consumoAnualKwh = Math.round((sum / result.diasFacturados) * 365)
     }
   }
 
@@ -183,10 +340,10 @@ async function extractTextFromImage(file: File): Promise<{ text: string; pageCou
   }
 }
 
-export async function extractContractDataFromDocument(
+export async function extractDocumentTextForOcr(
   file: File,
   onProgress?: (message: string) => void
-): Promise<ContractOcrResult> {
+): Promise<{ text: string; pageCount: number }> {
   onProgress?.("Leyendo documento…")
 
   const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
@@ -213,7 +370,7 @@ export async function extractContractDataFromDocument(
         for (let page = 1; page <= pdf.numPages; page++) {
           onProgress?.(`OCR página ${page} de ${pdf.numPages}…`)
           const pageDoc = await pdf.getPage(page)
-          const viewport = pageDoc.getViewport({ scale: 2 })
+          const viewport = pageDoc.getViewport({ scale: 2.75 })
           const canvas = document.createElement("canvas")
           const ctx = canvas.getContext("2d")
           if (!ctx) continue
@@ -243,6 +400,14 @@ export async function extractContractDataFromDocument(
     throw new Error("Formato no soportado. Usa PDF o imagen (JPG, PNG).")
   }
 
+  return { text, pageCount }
+}
+
+export async function extractContractDataFromDocument(
+  file: File,
+  onProgress?: (message: string) => void
+): Promise<ContractOcrResult> {
+  const { text, pageCount } = await extractDocumentTextForOcr(file, onProgress)
   onProgress?.("Interpretando datos del contrato…")
   const parsed = parseContractTextFromOcr(text)
   return { ...parsed, pageCount }

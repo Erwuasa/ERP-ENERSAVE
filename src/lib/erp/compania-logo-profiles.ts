@@ -25,7 +25,7 @@ export interface CompaniaLogoDisplayProfile {
  * Perfiles calibrados logo a logo.
  * Criterio: recortar márgenes del archivo, luego rellenar el contenedor fijo sin overflow agresivo.
  */
-export const COMPANIA_LOGO_PROFILES: Record<CompaniaLogoKey, CompaniaLogoDisplayProfile> = {
+export const COMPANIA_LOGO_PROFILES: Partial<Record<CompaniaLogoKey, CompaniaLogoDisplayProfile>> = {
   axpo: {
     crop: { top: 0.146, right: 0.071, bottom: 0.146, left: 0.073 },
     boost: 1,

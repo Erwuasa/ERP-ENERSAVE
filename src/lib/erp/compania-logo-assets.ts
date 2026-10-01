@@ -13,7 +13,8 @@ import totalenergiesLogo from "../../assets/logos/comercializadoras/totalenergie
 import unielectricaLogo from "../../assets/logos/comercializadoras/unielectrica.webp"
 import type { CompaniaLogoKey } from "./compania-logos"
 
-export const COMPANIA_LOGO_SRC: Record<CompaniaLogoKey, string> = {
+/** Fallback local empaquetado (solo marcas con asset en repo). El resto usa Storage público. */
+export const COMPANIA_LOGO_SRC: Partial<Record<CompaniaLogoKey, string>> = {
   endesa: endesaLogo,
   repsol: repsolLogo,
   naturgy: naturgyLogo,

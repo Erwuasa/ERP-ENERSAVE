@@ -12,6 +12,23 @@ export const COMPANIA_LOGO_KEYS = [
   "edp",
   "holaluz",
   "octopus",
+  "acciona",
+  "alumbraenergia",
+  "chcenergia",
+  "cyenergia",
+  "energyavm",
+  "imaginaenergia",
+  "inerenergia",
+  "logos",
+  "maxenergia",
+  "nexus",
+  "nordy",
+  "opcionenergia",
+  "plenitude",
+  "podo",
+  "reazziona",
+  "yaluz",
+  "neon",
 ] as const
 
 export type CompaniaLogoKey = (typeof COMPANIA_LOGO_KEYS)[number]
@@ -30,10 +47,49 @@ export const COMPANIA_LABELS: Record<CompaniaLogoKey, string> = {
   edp: "EDP",
   holaluz: "Holaluz",
   octopus: "Octopus",
+  acciona: "Acciona",
+  alumbraenergia: "Alumbra Energía",
+  chcenergia: "CHC Energía",
+  cyenergia: "CyE Energía",
+  energyavm: "Energya VM",
+  imaginaenergia: "Imagina Energía",
+  inerenergia: "Iner Energía",
+  logos: "Logos",
+  maxenergia: "Max Energía",
+  nexus: "Nexus",
+  nordy: "Nordy",
+  opcionenergia: "Opción Energía",
+  plenitude: "Plenitude",
+  podo: "Podo",
+  reazziona: "Reazziona",
+  yaluz: "Yaluz",
+  neon: "Neón",
 }
 
 /** Alias → clave. Más específico primero. */
 const COMPANIA_ALIASES: [string, CompaniaLogoKey][] = [
+  ["nexus energia", "nexus"],
+  ["nexus energía", "nexus"],
+  ["logos energia", "logos"],
+  ["logos energía", "logos"],
+  ["max energia", "maxenergia"],
+  ["max energía", "maxenergia"],
+  ["neon energia", "neon"],
+  ["neon energía", "neon"],
+  ["neón energia", "neon"],
+  ["neón energía", "neon"],
+  ["imagina energia", "imaginaenergia"],
+  ["imagina energía", "imaginaenergia"],
+  ["iner energia", "inerenergia"],
+  ["iner energía", "inerenergia"],
+  ["opcion energia", "opcionenergia"],
+  ["opción energia", "opcionenergia"],
+  ["opcion energía", "opcionenergia"],
+  ["cye energia", "cyenergia"],
+  ["cye energía", "cyenergia"],
+  ["chc energia", "chcenergia"],
+  ["alumbra energia", "alumbraenergia"],
+  ["energya vm", "energyavm"],
   ["totalenergies", "totalenergies"],
   ["total energies", "totalenergies"],
   ["gana energia", "ganaenergia"],
@@ -51,7 +107,50 @@ const COMPANIA_ALIASES: [string, CompaniaLogoKey][] = [
   ["niba", "niba"],
   ["axpo", "axpo"],
   ["edp", "edp"],
+  ["acciona", "acciona"],
+  ["reazziona", "reazziona"],
+  ["plenitude", "plenitude"],
+  ["nordy", "nordy"],
+  ["podo", "podo"],
+  ["yaluz", "yaluz"],
+  ["nexus", "nexus"],
+  ["neon", "neon"],
+  ["neón", "neon"],
+  ["logos", "logos"],
 ]
+
+/** Etiqueta única por clave normalizada (datos manuales en Supabase, sin depender de AT). */
+const CANONICAL_COMPANIA_LABELS: Record<string, string> = {
+  acciona: "Acciona",
+  alumbraenergia: "Alumbra Energía",
+  axpo: "Axpo",
+  cyenergia: "CyE Energía",
+  eleia: "Eleia",
+  endesa: "Endesa",
+  factorenergia: "Factor Energía",
+  ganaenergia: "Gana Energía",
+  iberdrola: "Iberdrola",
+  ignis: "Ignis",
+  imaginaenergia: "Imagina Energía",
+  inerenergia: "Iner Energía",
+  logos: "Logos",
+  maxenergia: "Max Energía",
+  naturgy: "Naturgy",
+  neon: "Neón",
+  nexus: "Nexus",
+  chcenergia: "CHC Energía",
+  energyavm: "Energya VM",
+  plenitude: "Plenitude",
+  podo: "Podo",
+  niba: "Niba",
+  nordy: "Nordy",
+  opcionenergia: "Opción Energía",
+  reazziona: "Reazziona",
+  repsol: "Repsol",
+  totalenergies: "TotalEnergies",
+  unielectrica: "UniEléctrica",
+  yaluz: "Yaluz",
+}
 
 export function normalizeCompaniaKey(name: string): string {
   return name
@@ -59,6 +158,28 @@ export function normalizeCompaniaKey(name: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "")
+}
+
+/** Agrupa selector/filtros: misma clave para variantes (p. ej. «Todo Plenitude…» → plenitude). */
+export function companiaSelectorMergeKey(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return ""
+  const logoKey = resolveCompaniaLogoKey(trimmed)
+  if (logoKey) return logoKey
+  return normalizeCompaniaKey(trimmed) || trimmed.toLowerCase()
+}
+
+/** Filtro UI (etiqueta canónica) vs fila Supabase (nombre crudo). */
+export function companiaMatchesSelectorFilter(
+  entryName: string | null | undefined,
+  filterName: string
+): boolean {
+  if (!filterName || filterName === "Todos") return true
+  const entry = String(entryName ?? "").trim()
+  const filter = filterName.trim()
+  if (!entry || !filter) return false
+  if (formatCompaniaLabel(entry) === formatCompaniaLabel(filter)) return true
+  return companiaSelectorMergeKey(entry) === companiaSelectorMergeKey(filter)
 }
 
 export function resolveCompaniaLogoKey(name: string | null | undefined): CompaniaLogoKey | null {
@@ -84,6 +205,11 @@ export function hasCompaniaLogo(name: string): boolean {
 }
 
 export function formatCompaniaLabel(name: string): string {
+  const compact = normalizeCompaniaKey(name)
+  if (compact && CANONICAL_COMPANIA_LABELS[compact]) {
+    return CANONICAL_COMPANIA_LABELS[compact]
+  }
+
   const key = resolveCompaniaLogoKey(name)
   if (key) return COMPANIA_LABELS[key]
 
@@ -110,17 +236,27 @@ export function getCompaniaInitials(name: string): string {
 }
 
 export function mergeCompanyNames(groups: string[][]): string[] {
-  const seen = new Set<string>()
-  const out: string[] = []
+  const raw: Record<string, number> = {}
   for (const group of groups) {
     for (const name of group) {
-      const key = normalizeCompaniaKey(name)
-      if (!key || seen.has(key)) continue
-      seen.add(key)
-      out.push(name)
+      const trimmed = name.trim()
+      if (!trimmed) continue
+      raw[trimmed] = (raw[trimmed] ?? 0) + 1
     }
   }
-  return out
+  return mergeProviderCounts(raw).labels
+}
+
+export function buildCanonicalCompaniaCounts(
+  rows: Array<{ compania: string | null | undefined }>
+): ReturnType<typeof mergeProviderCounts> {
+  const raw: Record<string, number> = {}
+  for (const row of rows) {
+    const compania = String(row.compania ?? "").trim()
+    if (!compania) continue
+    raw[compania] = (raw[compania] ?? 0) + 1
+  }
+  return mergeProviderCounts(raw)
 }
 
 export function mergeProviderCounts(
@@ -137,7 +273,7 @@ export function mergeProviderCounts(
   >()
 
   for (const [name, count] of Object.entries(raw)) {
-    const key = normalizeCompaniaKey(name) || name.toLowerCase()
+    const key = companiaSelectorMergeKey(name) || name.toLowerCase()
     const label = formatCompaniaLabel(name)
     const existing = merged.get(key)
     if (existing) {

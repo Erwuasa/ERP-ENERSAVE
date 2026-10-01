@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   canEditMarcoRetributivo,
   canEditTariffSettings,
+  canFilterTariffsByWebVisibility,
   canManageTariffSettings,
   canViewMarcoRetributivo,
 } from "./marco-retributivo-permissions"
@@ -60,5 +61,14 @@ describe("canEditTariffSettings", () => {
     expect(
       canEditTariffSettings("superadmin", { superadminViewMode: "comercial" })
     ).toBe(false)
+  })
+})
+
+describe("canFilterTariffsByWebVisibility", () => {
+  it("allows only superadmin", () => {
+    expect(canFilterTariffsByWebVisibility("superadmin")).toBe(true)
+    expect(canFilterTariffsByWebVisibility("jefe_comercial")).toBe(false)
+    expect(canFilterTariffsByWebVisibility("comercial")).toBe(false)
+    expect(canFilterTariffsByWebVisibility("tramitacion")).toBe(false)
   })
 })

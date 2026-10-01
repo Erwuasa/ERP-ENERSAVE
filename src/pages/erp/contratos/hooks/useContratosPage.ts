@@ -45,6 +45,8 @@ export function useContratosPage({
     setContractsUserFilterId,
     highlightContractId,
     erpDataLoading,
+    settlements,
+    setSettlements,
   } = useErpData()
 
   const {
@@ -220,6 +222,8 @@ export function useContratosPage({
       clients,
       setClients,
       setContracts,
+      settlements,
+      setSettlements,
       addOptimisticContract,
       contractsSearchQuery,
       setContractsSearchQuery,
