@@ -24,30 +24,69 @@ function tarifaNamesMatch(marcoTarifa: string, tariffName: string): boolean {
 function marcoMatchesTariffContext(
   marco: MarcoRetributivoRow,
   tariff: TariffConPrecios,
-  peaje: string
+  peaje: string,
+  segment: string
 ): boolean {
-  if (normalizeSegmento(marco.segmento) !== normalizeSegmento(tariff.segment)) return false
+  if (normalizeSegmento(marco.segmento) !== segment) return false
   if (!companiaKeysMatch(marco.compania, tariff.providerName)) return false
-  if (!tarifaNamesMatch(marco.tarifa, tariff.name)) return false
-  return marcoPeajeMatchesFilter(marco.peaje, peaje, { matchGenericToSpecific: true })
+  if (!marcoPeajeMatchesFilter(marco.peaje, peaje, { matchGenericToSpecific: true })) return false
+  return tarifaNamesMatch(marco.tarifa, tariff.name)
 }
 
-/** Resuelve marco por IDs AT/ERP o por compañía + nombre + segmento + peaje. */
+function fallbackMarcoRows(
+  tariff: TariffConPrecios,
+  index: MarcoRetributivoIndex,
+  segment: string
+): MarcoRetributivoRow[] {
+  const segmentKey = segment
+  const keys = new Set<string>()
+  const nameKey = normalizeCompaniaKey(tariff.providerName)
+  if (nameKey) keys.add(nameKey)
+  const logoKey = resolveCompaniaLogoKey(tariff.providerName)
+  if (logoKey) keys.add(logoKey)
+
+  const rows: MarcoRetributivoRow[] = []
+  const seen = new Set<string>()
+  for (const key of keys) {
+    const bucket = index.fallbackBySegmentCompany.get(`${segmentKey}|${key}`)
+    if (!bucket) continue
+    for (const row of bucket) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      rows.push(row)
+    }
+  }
+  return rows
+}
+
+function marcoMatchesRequestedSegment(
+  marco: MarcoRetributivoRow | null | undefined,
+  segment: string
+): marco is MarcoRetributivoRow {
+  return marco != null && normalizeSegmento(marco.segmento) === segment
+}
+
+/**
+ * Resuelve marco por IDs AT/ERP o por compañía + nombre + segmento + peaje.
+ * `segment` permite emparejar un precio etiquetado PYME con el marco residencial.
+ */
 export function resolveMarcoForComparadorTariff(
   tariff: TariffConPrecios,
   index: MarcoRetributivoIndex,
-  marcoRows: MarcoRetributivoRow[],
-  peaje: string
+  _marcoRows: MarcoRetributivoRow[],
+  peaje: string,
+  segment?: string
 ): MarcoRetributivoRow | null {
-  if (tariff.atRateId && index.byAtRateId.has(tariff.atRateId)) {
-    return index.byAtRateId.get(tariff.atRateId) ?? null
-  }
-  if (index.byTariffId.has(tariff.tariffId)) {
-    return index.byTariffId.get(tariff.tariffId) ?? null
-  }
+  const wanted = normalizeSegmento(segment ?? tariff.segment)
 
-  const candidates = marcoRows.filter(
-    (row) => row.activo && marcoMatchesTariffContext(row, tariff, peaje)
+  const byRate = tariff.atRateId ? index.byAtRateId.get(tariff.atRateId) : undefined
+  if (marcoMatchesRequestedSegment(byRate, wanted)) return byRate
+
+  const byTariff = index.byTariffId.get(tariff.tariffId)
+  if (marcoMatchesRequestedSegment(byTariff, wanted)) return byTariff
+
+  const candidates = fallbackMarcoRows(tariff, index, wanted).filter((row) =>
+    marcoMatchesTariffContext(row, tariff, peaje, wanted)
   )
   if (candidates.length === 0) return null
   if (candidates.length === 1) return candidates[0]!

@@ -27,6 +27,20 @@ export function resolveComparadorConsumoAnualKwh(input: {
   return monthly > 0 ? monthly * 12 : 0
 }
 
+export function buildMarcoCommissionPools(
+  rows: MarcoRetributivoRow[]
+): Map<string, MarcoRetributivoRow[]> {
+  const pools = new Map<string, MarcoRetributivoRow[]>()
+  for (const row of rows) {
+    if (!row.activo) continue
+    const key = `${normalizeCompaniaKey(row.compania)}|${normalizeSegmento(row.segmento)}|${row.tipo}`
+    const list = pools.get(key)
+    if (list) list.push(row)
+    else pools.set(key, [row])
+  }
+  return pools
+}
+
 function listMarcoCandidatesForCommission(
   anchor: MarcoRetributivoRow,
   marcoRows: MarcoRetributivoRow[]

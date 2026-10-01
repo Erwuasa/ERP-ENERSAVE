@@ -1,16 +1,24 @@
 import { calcularCosteComparadorDesdeTariffPrecios } from "./comparador-billing"
+import {
+  buildMarcoCommissionPools,
+  resolveComparadorConsumoAnualKwh,
+  resolveComparadorOfferCommission,
+} from "./comparador-marco-commission"
 import { allowsComparadorProviderForSegment } from "./comparador-provider-segment"
+import { normalizeCompaniaKey, resolveCompaniaLogoKey } from "./erp/compania-logos"
+import { normalizeSegmento } from "./supabase/marco-retributivo"
 import {
   isComparadorTariffPricingComplete,
   mergeComparadorTariffPrecios,
 } from "./comparador-tariff-pricing"
 import type { ComparadorCostExtras, ComparadorPeriodInputs } from "./tarifa-cost-calculator"
+import { tariffMatchesComparadorAccessTariff } from "./comparador-access-tariff"
 import { filterCatalogForComparador } from "./comparador-catalog-marco"
-import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
 import {
-  resolveComparadorConsumoAnualKwh,
-  resolveComparadorOfferCommission,
-} from "./comparador-marco-commission"
+  inferIncluyeSvaFromMarcoText,
+  inferPotenciaBoeFromMarcoText,
+} from "./marco-comparador-meta"
+import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
 import type { MarcoTramoPrecision } from "./marco-consumo-tramo"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
@@ -62,18 +70,50 @@ export interface RankingTarifa {
 export interface MarcoRetributivoIndex {
   byAtRateId: Map<string, MarcoRetributivoRow>
   byTariffId: Map<string, MarcoRetributivoRow>
+  /** Filas activas agrupadas por segmento + compañía (nombre normalizado o logo). */
+  fallbackBySegmentCompany: Map<string, MarcoRetributivoRow[]>
+}
+
+function marcoFallbackBucketKey(segment: string, companyKey: string): string {
+  return `${segment}|${companyKey}`
+}
+
+function pushMarcoFallbackBucket(
+  buckets: Map<string, MarcoRetributivoRow[]>,
+  segment: string,
+  companyKey: string,
+  row: MarcoRetributivoRow
+): void {
+  if (!companyKey) return
+  const key = marcoFallbackBucketKey(segment, companyKey)
+  const list = buckets.get(key)
+  if (list) {
+    if (list[list.length - 1] !== row) list.push(row)
+    return
+  }
+  buckets.set(key, [row])
 }
 
 export function buildMarcoRetributivoIndex(rows: MarcoRetributivoRow[]): MarcoRetributivoIndex {
   const byAtRateId = new Map<string, MarcoRetributivoRow>()
   const byTariffId = new Map<string, MarcoRetributivoRow>()
+  const fallbackBySegmentCompany = new Map<string, MarcoRetributivoRow[]>()
 
   for (const row of rows) {
     if (row.at_rate_id) byAtRateId.set(row.at_rate_id, row)
     if (row.tariff_id) byTariffId.set(row.tariff_id, row)
+    if (!row.activo) continue
+
+    const segment = normalizeSegmento(row.segmento)
+    const nameKey = normalizeCompaniaKey(row.compania)
+    pushMarcoFallbackBucket(fallbackBySegmentCompany, segment, nameKey, row)
+    const logoKey = resolveCompaniaLogoKey(row.compania)
+    if (logoKey && logoKey !== nameKey) {
+      pushMarcoFallbackBucket(fallbackBySegmentCompany, segment, logoKey, row)
+    }
   }
 
-  return { byAtRateId, byTariffId }
+  return { byAtRateId, byTariffId, fallbackBySegmentCompany }
 }
 
 function normalizeCompanyName(name: string): string {
@@ -85,18 +125,37 @@ function matchesTipoPrecioFiltro(tariff: TariffConPrecios, filtro: "fijo" | "ind
   return resolveComparadorTariffPricingType(tariff) === filtro
 }
 
-function matchesSinSvaFilter(tariff: TariffConPrecios, sinSva: boolean): boolean {
+function tariffIncludesSva(
+  tariff: TariffConPrecios,
+  marco: MarcoRetributivoRow | null
+): boolean {
+  if ((tariff.svaPriceMonthly ?? 0) > 0) return true
+  if (marco?.incluye_sva) return true
+  if (inferIncluyeSvaFromMarcoText(tariff.name, marco?.tarifa ?? "")) return true
+  return /\bservicio\b/i.test(tariff.name)
+}
+
+function matchesSinSvaFilter(
+  tariff: TariffConPrecios,
+  marco: MarcoRetributivoRow | null,
+  sinSva: boolean
+): boolean {
   if (!sinSva) return true
-  return (tariff.svaPriceMonthly ?? 0) <= 0
+  return !tariffIncludesSva(tariff, marco)
 }
 
 function matchesPotenciaBoeFilter(
   marco: MarcoRetributivoRow | null,
+  tariff: TariffConPrecios,
   soloPotenciaBoe: boolean
 ): boolean {
   if (!soloPotenciaBoe) return true
   if (!marco) return false
-  return Boolean(marco.potencia_boe)
+  if (marco.potencia_boe) return true
+  return (
+    inferPotenciaBoeFromMarcoText(marco.tarifa, marco.condiciones ?? "") ||
+    inferPotenciaBoeFromMarcoText(tariff.name, "")
+  )
 }
 
 export function hasComparadorEnVivoUsage(form: ComparadorEnVivoFormState): boolean {
@@ -134,7 +193,14 @@ export function buildComparadorEnVivoRanking(
   }
 
   const marcoIndex = buildMarcoRetributivoIndex(marcoRows)
-  const eligibleCatalog = filterCatalogForComparador(catalog, marcoRows, form.peaje)
+  const commissionPools = buildMarcoCommissionPools(marcoRows)
+  const eligibleCatalog = filterCatalogForComparador(
+    catalog,
+    marcoRows,
+    form.peaje,
+    marcoIndex,
+    form.segmento
+  )
   const currentCompany = form.companiaActual?.trim()
     ? normalizeCompanyName(form.companiaActual)
     : null
@@ -164,15 +230,22 @@ export function buildComparadorEnVivoRanking(
       continue
     }
 
-    if (tariff.segment !== form.segmento) continue
+    if (!tariffMatchesComparadorAccessTariff(tariff.accessTariff, form.peaje)) continue
     if (!allowsComparadorProviderForSegment(tariff.providerName, form.segmento)) continue
 
     if (!matchesTipoPrecioFiltro(tariff, form.tipoPrecioFiltro)) continue
-    if (!matchesSinSvaFilter(tariff, form.sinSva)) continue
 
-    const marco = resolveMarcoForComparadorTariff(tariff, marcoIndex, marcoRows, form.peaje)
-    if (!marco) continue
-    if (!matchesPotenciaBoeFilter(marco, form.soloPotenciaBoe)) continue
+    const marco = resolveMarcoForComparadorTariff(
+      tariff,
+      marcoIndex,
+      marcoRows,
+      form.peaje,
+      form.segmento
+    )
+    const ownSegment = normalizeSegmento(tariff.segment) === normalizeSegmento(form.segmento)
+    if (!marco && !ownSegment) continue
+    if (!matchesSinSvaFilter(tariff, marco, form.sinSva)) continue
+    if (!matchesPotenciaBoeFilter(marco, tariff, form.soloPotenciaBoe)) continue
 
     if (
       !isComparadorTariffPricingComplete(
@@ -196,10 +269,13 @@ export function buildComparadorEnVivoRanking(
 
     if (rowPrecision === "estimado") precision = "estimado"
 
+    const commissionPoolKey = marco
+      ? `${normalizeCompaniaKey(marco.compania)}|${normalizeSegmento(marco.segmento)}|${marco.tipo}`
+      : ""
     const commission = marco
       ? resolveComparadorOfferCommission({
           marco,
-          marcoRows,
+          marcoRows: commissionPools.get(commissionPoolKey) ?? [marco],
           consumoAnualKwh: consumoAnual,
           commissionPercentage,
           formatCurrency,

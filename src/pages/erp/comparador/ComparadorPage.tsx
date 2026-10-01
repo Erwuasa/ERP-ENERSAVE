@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react"
-import { motion } from "motion/react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Calculator, User, Building2 } from "lucide-react"
 import { normalizeComparadorDiasFacturacion } from "@/lib/comparador-billing"
 import { resolveComparadorFormDensity } from "@/lib/comparador-period-layout"
@@ -22,6 +21,8 @@ import {
 import { useComparadorEnVivo } from "@/pages/erp/comparador/hooks/useComparadorEnVivo"
 import { resolveComparadorConsumoAnualKwh } from "@/lib/comparador-marco-commission"
 import { usePotenciaP1Autofill } from "@/pages/erp/comparador/hooks/usePotenciaP1Autofill"
+
+const OFFER_RENDER_BATCH = 24
 
 export function ComparadorPage() {
   const ws = useErpWorkspaceContext()
@@ -185,7 +186,30 @@ export function ComparadorPage() {
   const showEmptyState = offerOptions.length === 0 && !calculando
   const formDensity = resolveComparadorFormDensity(compAccessTariff)
   const isCompactForm = formDensity === "compact"
-  const springTransition = { type: "spring" as const, stiffness: 380, damping: 32 }
+  const [offerLimit, setOfferLimit] = useState(OFFER_RENDER_BATCH)
+  const offerSentinelRef = useRef<HTMLDivElement>(null)
+  const offerListKey = `${compSegment}|${compAccessTariff}|${compSortMode}|${compProposalFilters.join(",")}|${offerOptions.length}`
+
+  useEffect(() => {
+    setOfferLimit(OFFER_RENDER_BATCH)
+  }, [offerListKey])
+
+  useEffect(() => {
+    const node = offerSentinelRef.current
+    if (!node || offerLimit >= offerOptions.length) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setOfferLimit((current) => current + OFFER_RENDER_BATCH)
+        }
+      },
+      { rootMargin: "240px" }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [offerLimit, offerOptions.length])
+
+  const visibleOffers = offerOptions.slice(0, offerLimit)
 
   function handlePotenciaValueChange(slot: ComparadorPeriodSlot, value: number) {
     if (slot === "p1") {
@@ -210,18 +234,14 @@ export function ComparadorPage() {
   return (
     <div className="animate-fade-in text-slate-800 dark:text-slate-100 font-sans flex flex-col lg:h-full lg:min-h-0">
       <div className="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 gap-4 lg:gap-5">
-        <motion.aside
-          layout
-          transition={springTransition}
+        <aside
           className={`lg:flex-shrink-0 lg:h-full lg:min-h-0 lg:overflow-hidden ${
             isCompactForm
               ? "lg:w-[min(100%,480px)] xl:w-[40%]"
               : "lg:w-[min(100%,560px)] xl:w-[46%]"
           }`}
         >
-          <motion.div
-            layout
-            transition={springTransition}
+          <div
             className={`bg-brand-panel rounded-2xl border border-brand-border shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a] lg:h-full lg:flex lg:flex-col lg:overflow-hidden ${
               isCompactForm ? "p-3.5 space-y-3" : "p-4 space-y-4"
             }`}
@@ -232,7 +252,7 @@ export function ComparadorPage() {
               onFile={(file) => void handleComparadorInvoiceOcr(file)}
             />
 
-            <motion.div layout transition={springTransition} className={isCompactForm ? "space-y-2.5" : "space-y-3"}>
+            <div className={isCompactForm ? "space-y-2.5" : "space-y-3"}>
               <div className={`grid grid-cols-1 ${isCompactForm ? "sm:grid-cols-2 gap-2.5" : "sm:grid-cols-2 gap-3"}`}>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
@@ -277,7 +297,7 @@ export function ComparadorPage() {
                 </div>
               </div>
 
-            </motion.div>
+            </div>
 
             <ComparadorEnergyFields
               peaje={compAccessTariff}
@@ -318,8 +338,8 @@ export function ComparadorPage() {
               onDescuentoPotenciaChange={setCompDescuentoPotencia}
               onDescuentoEnergiaChange={setCompDescuentoEnergia}
             />
-          </motion.div>
-        </motion.aside>
+          </div>
+        </aside>
 
         <div className="flex flex-col min-w-0 lg:flex-1 lg:min-h-0">
           <div className="shrink-0 pb-3">
@@ -361,7 +381,7 @@ export function ComparadorPage() {
               </div>
             ) : (
               <div className="space-y-4 min-h-[12rem]">
-                {offerOptions.map((opt) => {
+                {visibleOffers.map((opt) => {
                   const savedToHistory = comparisonsHistory.some(
                     (item) =>
                       item.source !== "at" &&
@@ -406,6 +426,9 @@ export function ComparadorPage() {
                   />
                   )
                 })}
+                {offerLimit < offerOptions.length ? (
+                  <div ref={offerSentinelRef} className="h-8" aria-hidden />
+                ) : null}
               </div>
             )}
           </div>

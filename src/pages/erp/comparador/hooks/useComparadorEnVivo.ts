@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useDeferredValue, useEffect, useMemo, useState } from "react"
 import {
   buildComparadorEnVivoRanking,
   type ComparadorEnVivoFormState,
@@ -6,7 +6,10 @@ import {
 } from "@/lib/comparador-en-vivo-ranking"
 import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
-import { loadTariffsCatalogStaleWhileRevalidate } from "@/lib/supabase/tariffs-catalog-cache"
+import {
+  getTariffsCatalogCacheSnapshot,
+  loadTariffsCatalogStaleWhileRevalidate,
+} from "@/lib/supabase/tariffs-catalog-cache"
 import type { TariffConPrecios } from "@/lib/supabase/tariffs-catalog"
 
 export type { ComparadorEnVivoFormState, RankingTarifa }
@@ -20,6 +23,19 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   }, [value, delayMs])
 
   return debounced
+}
+
+function mergeTariffCatalogs(parts: TariffConPrecios[][]): TariffConPrecios[] {
+  const seen = new Set<string>()
+  const merged: TariffConPrecios[] = []
+  for (const part of parts) {
+    for (const tariff of part) {
+      if (seen.has(tariff.tariffId)) continue
+      seen.add(tariff.tariffId)
+      merged.push(tariff)
+    }
+  }
+  return merged
 }
 
 export interface UseComparadorEnVivoOptions {
@@ -41,17 +57,34 @@ export function useComparadorEnVivo(
     let cancelled = false
     setCatalogLoading(true)
     setCatalogError(null)
+    const segments: Array<"residencial" | "pyme"> =
+      form.segmento === "residencial" ? ["residencial", "pyme"] : [form.segmento]
 
-    void loadTariffsCatalogStaleWhileRevalidate(form.segmento, form.peaje, {
-      onRevalidated: (fresh) => {
-        if (cancelled) return
-        setCatalog(fresh)
-        setCatalogLoading(false)
-      },
-    }).then(({ data, error }) => {
+    const publish = () => {
       if (cancelled) return
-      setCatalog(data)
-      setCatalogError(error)
+      const parts = segments.map(
+        (segment) => getTariffsCatalogCacheSnapshot(segment, form.peaje) ?? []
+      )
+      if (parts.every((rows) => rows.length === 0)) return
+      setCatalog(mergeTariffCatalogs(parts))
+    }
+
+    if (segments.every((segment) => !getTariffsCatalogCacheSnapshot(segment, form.peaje))) {
+      setCatalog([])
+    } else {
+      publish()
+    }
+
+    void Promise.all(
+      segments.map((segment) =>
+        loadTariffsCatalogStaleWhileRevalidate(segment, form.peaje, {
+          onRevalidated: () => publish(),
+        })
+      )
+    ).then((results) => {
+      if (cancelled) return
+      setCatalog(mergeTariffCatalogs(results.map((result) => result.data)))
+      setCatalogError(results.find((result) => result.error)?.error ?? null)
       setCatalogLoading(false)
     })
 
@@ -122,19 +155,18 @@ export function useComparadorEnVivo(
     [form.tipoPrecioFiltro, form.sinSva, form.soloPotenciaBoe]
   )
 
-  const ranking = useMemo(
-    () =>
-      buildComparadorEnVivoRanking({
-        catalog,
-        marcoRows,
-        form: {
-          segmento: form.segmento,
-          ...debouncedUsageInput,
-          ...instantFilterInput,
-        },
-        commissionPercentage: options.commissionPercentage,
-        formatCurrency: options.formatCurrency,
-      }),
+  const rankingSource = useMemo(
+    () => ({
+      catalog,
+      marcoRows,
+      form: {
+        segmento: form.segmento,
+        ...debouncedUsageInput,
+        ...instantFilterInput,
+      },
+      commissionPercentage: options.commissionPercentage,
+      formatCurrency: options.formatCurrency,
+    }),
     [
       catalog,
       marcoRows,
@@ -146,11 +178,19 @@ export function useComparadorEnVivo(
     ]
   )
 
+  const deferredRankingSource = useDeferredValue(rankingSource)
+  const ranking = useMemo(
+    () => buildComparadorEnVivoRanking(deferredRankingSource),
+    [deferredRankingSource]
+  )
+
   return {
     resultados: ranking.resultados,
     precision: ranking.precision,
     calculando:
-      (catalogLoading && catalog.length === 0) || (marcoLoading && marcoRows.length === 0),
+      (catalogLoading && catalog.length === 0) ||
+      (marcoLoading && marcoRows.length === 0) ||
+      deferredRankingSource !== rankingSource,
     catalogError,
     catalogCount: catalog.length,
   }

@@ -148,12 +148,12 @@ describe("buildComparadorEnVivoRanking", () => {
     expect(sinSva.resultados.map((r) => r.tariffId)).not.toContain("sva")
   })
 
-  it("joins marco for commission and excludes tariffs without marco link", () => {
+  it("muestra la tarifa residencial con precio aunque no tenga marco", () => {
     const marco = marcoRow({ id: "m1", at_rate_id: "at1", tariff_id: "t1", potencia_boe: true })
     const index = buildMarcoRetributivoIndex([marco])
     const catalog = [
       makeTariff(),
-      makeTariff({ tariffId: "t2", atRateId: null, providerName: "Sin Marco" }),
+      makeTariff({ tariffId: "t2", atRateId: null, name: "Plan Suelto", providerName: "Iberdrola" }),
     ]
 
     const result = buildComparadorEnVivoRanking({
@@ -163,10 +163,47 @@ describe("buildComparadorEnVivoRanking", () => {
     })
 
     const withMarco = result.resultados.find((r) => r.tariffId === "t1")
+    const withoutMarco = result.resultados.find((r) => r.tariffId === "t2")
 
     expect(withMarco?.comisionEstimada).toBe(50)
-    expect(result.resultados).toHaveLength(1)
+    expect(withoutMarco?.comisionEstimada).toBeNull()
+    expect(result.resultados).toHaveLength(2)
     expect(index.byAtRateId.get("at1")).toBeDefined()
+  })
+
+  it("usa el precio PYME cuando el marco residencial coincide", () => {
+    const pyme = makeTariff({
+      tariffId: "pyme-plana",
+      atRateId: null,
+      segment: "pyme",
+      name: "PLANA 3.0",
+      providerName: "Endesa",
+    })
+    const soloPyme = makeTariff({
+      tariffId: "pyme-solo",
+      atRateId: null,
+      segment: "pyme",
+      name: "SOLO EMPRESA",
+      providerName: "Endesa",
+    })
+    const marco = marcoRow({
+      id: "m-res",
+      compania: "Endesa",
+      tarifa: "PLANA 3.0",
+      segmento: "residencial",
+      peaje: "2.0TD",
+      at_rate_id: null,
+      tariff_id: null,
+    })
+
+    const result = buildComparadorEnVivoRanking({
+      catalog: [pyme, soloPyme],
+      marcoRows: [marco],
+      form: baseForm,
+    })
+
+    expect(result.resultados.map((row) => row.tariffId)).toEqual(["pyme-plana"])
+    expect(result.resultados[0]?.comisionEstimada).toBe(50)
   })
 
   it("excludes tariffs without complete pricing for user data", () => {
@@ -285,5 +322,167 @@ describe("buildComparadorEnVivoRanking", () => {
     })
 
     expect(result.resultados.map((r) => r.tariffId)).toEqual(["t1"])
+  })
+
+  it("aplica peaje, SVA por nombre y potencia BOE aunque la columna venga en falso", () => {
+    const boe = marcoRow({
+      id: "m-boe",
+      at_rate_id: "at-boe",
+      tariff_id: "t-boe",
+      tarifa: "POTENCIA BOE 10",
+      peaje: "3.0TD",
+      segmento: "pyme",
+      potencia_boe: false,
+    })
+    const conSva = marcoRow({
+      id: "m-sva",
+      at_rate_id: "at-sva",
+      tariff_id: "t-sva",
+      tarifa: "LUZ 24H + SVA",
+      peaje: "3.0TD",
+      segmento: "pyme",
+      potencia_boe: false,
+    })
+    const normal = marcoRow({
+      id: "m-normal",
+      at_rate_id: "at-normal",
+      tariff_id: "t-normal",
+      tarifa: "Estable",
+      peaje: "3.0TD",
+      segmento: "pyme",
+      potencia_boe: false,
+    })
+    const precios = {
+      P1: { energyPriceKwh: 0.15, powerPriceKwDay: 0.08 },
+      P2: { energyPriceKwh: 0.12, powerPriceKwDay: 0.04 },
+      P3: { energyPriceKwh: 0.1, powerPriceKwDay: 0.03 },
+      P4: { energyPriceKwh: 0.09, powerPriceKwDay: 0.02 },
+      P5: { energyPriceKwh: 0.08, powerPriceKwDay: 0.02 },
+      P6: { energyPriceKwh: 0.07, powerPriceKwDay: 0.01 },
+    }
+    const catalog = [
+      makeTariff({
+        tariffId: "t-boe",
+        atRateId: "at-boe",
+        name: "POTENCIA BOE 10",
+        segment: "pyme",
+        accessTariff: "3.0TD",
+        precios,
+      }),
+      makeTariff({
+        tariffId: "t-sva",
+        atRateId: "at-sva",
+        name: "LUZ 24H + SVA",
+        segment: "pyme",
+        accessTariff: "3.0TD",
+        svaPriceMonthly: null,
+        precios,
+      }),
+      makeTariff({
+        tariffId: "t-normal",
+        atRateId: "at-normal",
+        name: "Estable",
+        segment: "pyme",
+        accessTariff: "3.0TD",
+        precios,
+      }),
+      makeTariff({
+        tariffId: "t-20",
+        atRateId: "at-20",
+        name: "Residencial 2.0",
+        segment: "pyme",
+        accessTariff: "2.0TD",
+        precios,
+      }),
+    ]
+    const marco20 = marcoRow({
+      id: "m-20",
+      at_rate_id: "at-20",
+      tariff_id: "t-20",
+      peaje: "2.0TD",
+      segmento: "pyme",
+    })
+    const form = { ...baseForm, segmento: "pyme" as const, peaje: "3.0TD" }
+
+    const boeOnly = buildComparadorEnVivoRanking({
+      catalog,
+      marcoRows: [boe, conSva, normal, marco20],
+      form: { ...form, soloPotenciaBoe: true },
+    })
+    expect(boeOnly.resultados.map((row) => row.tariffId)).toEqual(["t-boe"])
+
+    const sinSva = buildComparadorEnVivoRanking({
+      catalog,
+      marcoRows: [boe, conSva, normal, marco20],
+      form: { ...form, sinSva: true },
+    })
+    expect(sinSva.resultados.map((row) => row.tariffId)).not.toContain("t-sva")
+    expect(sinSva.resultados.map((row) => row.tariffId)).not.toContain("t-20")
+  })
+
+  it("ranquea un catálogo PYME 3.0 grande sin recorrer todo el marco", () => {
+    const catalog = []
+    const marcoRows = []
+    const precios = {
+      P1: { energyPriceKwh: 0.15, powerPriceKwDay: 0.08 },
+      P2: { energyPriceKwh: 0.14, powerPriceKwDay: 0.07 },
+      P3: { energyPriceKwh: 0.13, powerPriceKwDay: 0.06 },
+      P4: { energyPriceKwh: 0.12, powerPriceKwDay: 0.05 },
+      P5: { energyPriceKwh: 0.11, powerPriceKwDay: 0.04 },
+      P6: { energyPriceKwh: 0.1, powerPriceKwDay: 0.03 },
+    }
+
+    for (let companyIndex = 0; companyIndex < 25; companyIndex += 1) {
+      const company = `Comercializadora ${companyIndex}`
+      for (let tariffIndex = 0; tariffIndex < 18; tariffIndex += 1) {
+        catalog.push(
+          makeTariff({
+            tariffId: `t-${companyIndex}-${tariffIndex}`,
+            atRateId: null,
+            name: `Oferta ${companyIndex}-${tariffIndex}`,
+            providerName: company,
+            segment: "pyme",
+            accessTariff: "3.0TD",
+            precios,
+          })
+        )
+      }
+      for (let marcoIndex = 0; marcoIndex < 30; marcoIndex += 1) {
+        marcoRows.push(
+          marcoRow({
+            id: `m-${companyIndex}-${marcoIndex}`,
+            compania: company,
+            tarifa: `Marco ${companyIndex}-${marcoIndex}`,
+            segmento: "pyme",
+            peaje: "3.0TD",
+            at_rate_id: null,
+            tariff_id: null,
+          })
+        )
+      }
+    }
+
+    for (let index = 0; index < 1500; index += 1) {
+      marcoRows.push(
+        marcoRow({
+          id: `noise-${index}`,
+          compania: `Ajena ${index}`,
+          tarifa: `Ruido ${index}`,
+          segmento: "residencial",
+          peaje: "2.0TD",
+        })
+      )
+    }
+
+    const started = performance.now()
+    const result = buildComparadorEnVivoRanking({
+      catalog,
+      marcoRows,
+      form: { ...baseForm, segmento: "pyme", peaje: "3.0TD" },
+    })
+    const elapsed = performance.now() - started
+
+    expect(result.resultados).toHaveLength(450)
+    expect(elapsed).toBeLessThan(1000)
   })
 })

@@ -66,4 +66,27 @@ describe("resolveMarcoForComparadorTariff", () => {
     const resolved = resolveMarcoForComparadorTariff(tariff, index, rows, "2.0TD")
     expect(resolved?.id).toBe("m1")
   })
+
+  it("no recorre marcos de otras compañías al resolver por nombre", () => {
+    const noise = Array.from({ length: 400 }, (_, index) =>
+      marco({
+        id: `noise-${index}`,
+        compania: `Otra ${index}`,
+        tarifa: `Tarifa ${index}`,
+        segmento: "pyme",
+        peaje: "3.0TD",
+      })
+    )
+    const match = marco({ id: "m-match", segmento: "pyme", peaje: "3.0TD" })
+    const rows = [...noise, match]
+    const index = buildMarcoRetributivoIndex(rows)
+    const resolved = resolveMarcoForComparadorTariff(
+      { ...tariff, segment: "pyme", accessTariff: "3.0TD" },
+      index,
+      rows,
+      "3.0TD"
+    )
+    expect(resolved?.id).toBe("m-match")
+    expect(index.fallbackBySegmentCompany.get("pyme|niba")).toHaveLength(1)
+  })
 })

@@ -1,10 +1,24 @@
 import { areMarcoTarifaNamesSimilar, normalizeMarcoTarifaName } from "./marco-dedup"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
+import { normalizeSegmento } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
-import { buildMarcoRetributivoIndex } from "./comparador-en-vivo-ranking"
+import {
+  buildMarcoRetributivoIndex,
+  type MarcoRetributivoIndex,
+} from "./comparador-en-vivo-ranking"
 import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
 
-function preferCatalogTariff(current: TariffConPrecios, incoming: TariffConPrecios): TariffConPrecios {
+function preferCatalogTariff(
+  current: TariffConPrecios,
+  incoming: TariffConPrecios,
+  segmento?: string
+): TariffConPrecios {
+  if (segmento) {
+    const wanted = normalizeSegmento(segmento)
+    const currentMatch = normalizeSegmento(current.segment) === wanted
+    const incomingMatch = normalizeSegmento(incoming.segment) === wanted
+    if (currentMatch !== incomingMatch) return incomingMatch ? incoming : current
+  }
   const currentAt = Boolean(current.atRateId)
   const incomingAt = Boolean(incoming.atRateId)
   if (currentAt !== incomingAt) return incomingAt ? incoming : current
@@ -18,18 +32,24 @@ function dedupeKey(tariff: TariffConPrecios): string {
 }
 
 /**
- * Catálogo del comparador: solo tarifas activas en ERP ligadas al marco retributivo.
- * Ante duplicados de nombre, conserva la fila AT (`at_rate_id`). La comisión sale del marco enlazado.
+ * Catálogo del comparador para el segmento elegido.
+ * Entra la tarifa del propio segmento (aunque no tenga marco) y la de otro segmento
+ * si un marco de este segmento coincide en compañía, nombre y peaje.
  */
 export function filterCatalogForComparador(
   catalog: TariffConPrecios[],
   marcoRows: MarcoRetributivoRow[],
-  peaje: string
+  peaje: string,
+  marcoIndex?: MarcoRetributivoIndex,
+  segmento?: string
 ): TariffConPrecios[] {
-  const index = buildMarcoRetributivoIndex(marcoRows)
-  const linked = catalog.filter(
-    (tariff) => resolveMarcoForComparadorTariff(tariff, index, marcoRows, peaje) != null
-  )
+  const index = marcoIndex ?? buildMarcoRetributivoIndex(marcoRows)
+  const wanted = segmento ? normalizeSegmento(segmento) : null
+  const linked = catalog.filter((tariff) => {
+    const marco = resolveMarcoForComparadorTariff(tariff, index, marcoRows, peaje, segmento)
+    if (marco) return true
+    return wanted != null && normalizeSegmento(tariff.segment) === wanted
+  })
 
   const groups = new Map<string, TariffConPrecios[]>()
   for (const tariff of linked) {
@@ -47,28 +67,28 @@ export function filterCatalogForComparador(
       continue
     }
 
-    out.push(candidates.reduce((current, incoming) => preferCatalogTariff(current, incoming)))
+    out.push(
+      candidates.reduce((current, incoming) => preferCatalogTariff(current, incoming, segmento))
+    )
   }
 
-  // Fusionar nombres similares (variantes AT) en un solo representante
-  const merged: TariffConPrecios[] = []
+  // Fusionar nombres similares (variantes AT) dentro de la misma compañía y peaje.
+  const mergedGroups = new Map<string, TariffConPrecios[]>()
   for (const tariff of out) {
-    const similarIdx = merged.findIndex(
-      (existing) =>
-        normalizeMarcoTarifaName(existing.providerName) ===
-          normalizeMarcoTarifaName(tariff.providerName) &&
-        existing.segment === tariff.segment &&
-        existing.accessTariff === tariff.accessTariff &&
-        existing.supplyType === tariff.supplyType &&
-        areMarcoTarifaNamesSimilar(existing.name, tariff.name)
+    const key = `${normalizeMarcoTarifaName(tariff.providerName)}|${tariff.accessTariff}|${tariff.supplyType}`
+    const group = mergedGroups.get(key) ?? []
+    const similarIdx = group.findIndex((existing) =>
+      areMarcoTarifaNamesSimilar(existing.name, tariff.name)
     )
     if (similarIdx < 0) {
-      merged.push(tariff)
-      continue
+      group.push(tariff)
+    } else {
+      group[similarIdx] = preferCatalogTariff(group[similarIdx]!, tariff, segmento)
     }
-
-    merged[similarIdx] = preferCatalogTariff(merged[similarIdx]!, tariff)
+    if (!mergedGroups.has(key)) mergedGroups.set(key, group)
   }
 
+  const merged: TariffConPrecios[] = []
+  for (const group of mergedGroups.values()) merged.push(...group)
   return merged
 }
