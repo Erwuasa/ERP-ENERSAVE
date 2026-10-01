@@ -1,5 +1,5 @@
 import { useState, type MutableRefObject, ReactNode } from "react"
-import { Flame, Lightbulb, Pencil, Trash2 } from "lucide-react"
+import { Flame, Lightbulb, SquarePen, Trash2 } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import {
   calcularPenalizacion,
@@ -9,7 +9,6 @@ import {
 import {
   aplicaPenalizacionCincoPorCiento,
   getContractActivationDate,
-  getNibaRenovacionComisionPct,
   getRenewalSchedule,
 } from "@/lib/contract-segment-rules"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
@@ -33,6 +32,7 @@ import { RenovacionProximaPopover } from "@/components/RenovacionProximaPopover"
 import { contractHasActiveRenewalAlert } from "@/lib/renewal-alert-dismissed"
 import { TABLE_ROW_SELECTED } from "@/lib/enersave-ui-theme"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
+import { resolveContractCompaniaForDisplay } from "@/lib/resolve-contract-compania"
 import { formatContratoOperacionTableHint } from "@/components/contratos/contrato-detalle-utils"
 import {
   CONTRACTS_TD,
@@ -41,6 +41,7 @@ import {
   CONTRACTS_TH,
   CONTRACTS_TH_SUB,
   CONTRACTS_TH_SUB_SPACER,
+  CONTRACT_TABLE_ROW_HEIGHT_CLASS,
   formatActivationDate,
   mesesFraccionRenovacion,
 } from "@/pages/erp/contratos/components/contratos-panel-utils"
@@ -67,6 +68,7 @@ type Props = {
   onDismissRenewalAlert?: (contractId: string) => void
   onOpenDetalle?: (contract: Contract) => void
   onEditDraft?: (contract: Contract) => void
+  renderCompaniaLogo?: (brandName: string) => ReactNode
   showComercialColumn?: boolean
   /** Mantiene la columna Comercial aunque el filtro no la necesite (evita saltos de layout). */
   stableComercialColumn?: boolean
@@ -118,6 +120,7 @@ export function ContratosPanelTable({
   onDismissRenewalAlert,
   onOpenDetalle,
   onEditDraft,
+  renderCompaniaLogo,
   showComercialColumn,
   stableComercialColumn = false,
   isFilterPending = false,
@@ -128,7 +131,10 @@ export function ContratosPanelTable({
 
   const showOwnerColumn =
     stableComercialColumn || showComercialColumn === true || activeRole === "superadmin"
-  const columnCount = showOwnerColumn ? 9 : 8
+  const showDeleteColumn =
+    (activeRole === "tramitacion" || activeRole === "superadmin") &&
+    Boolean(onRequestDelete)
+  const columnCount = (showOwnerColumn ? 10 : 9) + (showDeleteColumn ? 1 : 0)
 
   function handleRowClick(event: React.MouseEvent<HTMLTableRowElement>, contract: Contract) {
     if (!onOpenDetalle) return
@@ -168,15 +174,17 @@ export function ContratosPanelTable({
     >
       <table className="w-full min-w-[1120px] table-fixed text-left text-[11px] leading-snug">
         <colgroup>
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "14%" }} />
           <col style={{ width: "10%" }} />
-          <col style={{ width: "11%" }} />
+          <col style={{ width: "17%" }} />
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "10%" }} />
           <col style={{ width: "14%" }} />
           <col style={{ width: "8%" }} />
           <col style={{ width: "8%" }} />
           {showOwnerColumn ? <col style={{ width: "6%" }} /> : null}
+          {showDeleteColumn ? <col style={{ width: "44px" }} /> : null}
         </colgroup>
         <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-brand-surface/95 backdrop-blur-sm">
           <tr>
@@ -193,6 +201,12 @@ export function ContratosPanelTable({
             <th className={`${CONTRACTS_TH} text-left`}>
               <span className="block">Compañía</span>
               <span className={CONTRACTS_TH_SUB}>Tarifa</span>
+            </th>
+            <th className={`${CONTRACTS_TH} text-center`}>
+              <span className="block">Creación</span>
+              <span className={CONTRACTS_TH_SUB_SPACER} aria-hidden>
+                ·
+              </span>
             </th>
             <th className={`${CONTRACTS_TH} text-center`}>
               <span className="block">Activación</span>
@@ -228,11 +242,16 @@ export function ContratosPanelTable({
                 </span>
               </th>
             ) : null}
+            {showDeleteColumn ? (
+              <th className={`${CONTRACTS_TH} text-center`} aria-label="Eliminar">
+                <span className="sr-only">Eliminar</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-brand-border/60 bg-brand-panel">
           {rows.length === 0 ? (
-            <tr className="h-[4.5rem]">
+            <tr className={CONTRACT_TABLE_ROW_HEIGHT_CLASS}>
               <td
                 colSpan={columnCount}
                 className="px-4 py-10 text-center font-mono text-xs text-brand-subtext align-middle"
@@ -247,7 +266,6 @@ export function ContratosPanelTable({
             const activationDate = getContractActivationDate(c)
             const showRenewalCountdown = renewal.estadoRenovacion !== "No aplica"
             const aplicaPenalizacion = aplicaPenalizacionCincoPorCiento(c)
-            const nibaRenovPct = getNibaRenovacionComisionPct(c)
             const consumoTabla = c.consumoAnualManual ?? (c.consumoAnual > 0 ? c.consumoAnual : null)
             const penalizacion = calcularPenalizacion({
               tipoCliente: c.tipoCliente,
@@ -273,7 +291,7 @@ export function ContratosPanelTable({
                   rowRefs.current[c.id] = el
                 }}
                 onClick={(event) => handleRowClick(event, c)}
-                className={`h-[4.5rem] transition-colors duration-200 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/40 ${
+                className={`${CONTRACT_TABLE_ROW_HEIGHT_CLASS} transition-colors duration-200 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-brand-elevated/40 ${
                   onOpenDetalle ? "cursor-pointer" : ""
                 } ${
                   isHighlighted
@@ -283,19 +301,19 @@ export function ContratosPanelTable({
                       : ""
                 }`}
               >
-                <td className={`${CONTRACTS_TD} overflow-hidden`}>
-                  <div className="flex h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1">
-                    <div className="flex h-8 w-full min-w-0 items-center justify-center">
-                      {renderEstadoCell(c)}
-                    </div>
-                    <div className="flex h-7 flex-col items-center justify-center gap-1">
-                    {(onEditDraft &&
+                <td className={`${CONTRACTS_TD} relative`}>
+                  <div
+                    className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} min-w-0 flex-col items-center justify-center`}
+                  >
+                    {renderEstadoCell(c)}
+                  </div>
+                  {(onEditDraft &&
                       canMutate &&
                       normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO) ||
-                    (onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId)) ||
                     (showTarifaRecommendations && tarifaRecommendations?.has(c.id)) ||
                     contractHasActiveRenewalAlert(c.id, isRenovacionProxima(c)) ? (
-                      <>
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0.5 flex items-center justify-center gap-1">
+                      <div className="pointer-events-auto flex items-center justify-center gap-1">
                     {onEditDraft &&
                     canMutate &&
                     normalizeContractEstado(c.estado) === CONTRACT_ESTADO_INCOMPLETO ? (
@@ -305,17 +323,7 @@ export function ContratosPanelTable({
                         ariaLabel={`Completar borrador ${c.clientName}`}
                         onClick={() => onEditDraft(c)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </ContractQuickActionButton>
-                    ) : null}
-                    {onRequestDelete && canUserDeleteContract(c, activeRole, activeUserId) ? (
-                      <ContractQuickActionButton
-                        tone="danger"
-                        title="Eliminar borrador"
-                        ariaLabel={`Eliminar borrador ${c.clientName}`}
-                        onClick={() => onRequestDelete(c)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <SquarePen aria-hidden />
                       </ContractQuickActionButton>
                     ) : null}
                     {showTarifaRecommendations && tarifaRecommendations?.has(c.id) ? (
@@ -359,13 +367,14 @@ export function ContratosPanelTable({
                         }}
                       />
                     ) : null}
-                      </>
-                    ) : null}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                 </td>
-                <td className={`${CONTRACTS_TD_LEFT} overflow-hidden`}>
-                  <div className="flex h-[4.5rem] flex-col justify-center overflow-hidden">
+                <td className={CONTRACTS_TD_LEFT}>
+                  <div
+                    className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} min-w-0 flex-col justify-center overflow-hidden gap-0.5`}
+                  >
                     <p className="break-words font-semibold leading-snug text-brand-text line-clamp-1">
                       {renderEditableCell(c, "clientName", { placeholder: "Cliente", ...cellReadOnly })}
                     </p>
@@ -379,31 +388,71 @@ export function ContratosPanelTable({
                     <p className="mt-0.5 font-mono text-[9px] text-brand-subtext line-clamp-1">
                       {renderEditableCell(c, "nif", { placeholder: "NIF/CIF", ...cellReadOnly })}
                     </p>
-                    {operacionHint ? (
-                      <p className="mt-0.5 text-[9px] font-mono text-cyan-700 dark:text-cyan-400 line-clamp-1">
-                        {operacionHint}
-                      </p>
-                    ) : null}
+                    <p
+                      className={`text-[9px] font-mono line-clamp-1 ${
+                        operacionHint
+                          ? "text-cyan-700 dark:text-cyan-400"
+                          : "invisible select-none"
+                      }`}
+                      title={operacionHint ?? undefined}
+                    >
+                      {operacionHint ?? "·"}
+                    </p>
                   </div>
                 </td>
-                <td className={`${CONTRACTS_TD_LEFT} overflow-hidden`}>
-                  <div className="flex h-[4.5rem] flex-col justify-center overflow-hidden">
-                    <div className="flex items-center justify-between gap-1">
-                      <p className="min-w-0 flex-1 break-words font-medium leading-snug text-brand-text line-clamp-1">
-                        {renderEditableCell(c, "compania", cellReadOnly)}
+                <td className={CONTRACTS_TD_LEFT}>
+                  <div
+                    className={`grid ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 overflow-hidden`}
+                  >
+                    <div className="flex min-w-0 flex-col items-center justify-center gap-0.5">
+                      <div className="flex h-8 shrink-0 items-center justify-center">
+                        {renderCompaniaLogo ? (
+                          renderCompaniaLogo(
+                            resolveContractCompaniaForDisplay({
+                              compania: c.compania,
+                              tarifa: c.tarifa,
+                            })
+                          )
+                        ) : (
+                          <span className="max-w-full truncate text-center text-[10px] font-medium text-brand-text">
+                            {resolveContractCompaniaForDisplay({
+                              compania: c.compania,
+                              tarifa: c.tarifa,
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className="w-full min-w-0 truncate text-center font-mono text-[10px] text-brand-subtext leading-snug"
+                        title={c.tarifa?.trim() || undefined}
+                      >
+                        {renderEditableCell(c, "tarifa", {
+                          ...cellReadOnly,
+                          className: "truncate block max-w-full text-center",
+                        })}
                       </p>
+                    </div>
+                    <div className="flex h-full items-center justify-center self-center">
                       <ContractSupplyTypeIcon tipo={c.tipo} />
                     </div>
-                    <p className="mt-0.5 line-clamp-1 font-mono text-[10px] text-brand-subtext">
-                      {renderEditableCell(c, "tarifa", cellReadOnly)}
+                  </div>
+                </td>
+                <td className={CONTRACTS_TD}>
+                  <div
+                    className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} flex-col items-center justify-center overflow-hidden`}
+                  >
+                    <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text leading-snug">
+                      {c.createdAt ? formatActivationDate(String(c.createdAt)) : <TableEmptyDash />}
                     </p>
                   </div>
                 </td>
                 <td className={CONTRACTS_TD}>
-                  <div className="flex h-[4.5rem] flex-col items-center justify-center gap-0.5 overflow-hidden">
+                  <div
+                    className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} flex-col items-center justify-center gap-0.5 overflow-hidden`}
+                  >
                     <p className="font-mono text-[10px] font-semibold tabular-nums text-brand-text leading-snug">
-                      {activationDate || c.createdAt ? (
-                        formatActivationDate(activationDate ?? String(c.createdAt))
+                      {activationDate ? (
+                        formatActivationDate(activationDate)
                       ) : (
                         <TableEmptyDash />
                       )}
@@ -424,19 +473,10 @@ export function ContratosPanelTable({
                     >
                       Próxima
                     </span>
-                    <p
-                      className={`text-[7px] font-mono leading-none ${
-                        showRenewalCountdown && nibaRenovPct != null
-                          ? "text-cyan-700 dark:text-cyan-300"
-                          : "invisible"
-                      }`}
-                    >
-                      {nibaRenovPct != null ? `Renov. ${nibaRenovPct}%` : "Renov. —"}
-                    </p>
                   </div>
                 </td>
                 <td className={`${CONTRACTS_TD_MIDDLE} font-mono text-brand-text`}>
-                  <div className="flex h-[4.5rem] items-center justify-center">
+                  <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
                     <p className="tabular-nums">
                       {c.potenciaContratada ? (
                         formatPotenciaContratadaDisplay(c.potenciaContratada)
@@ -447,7 +487,9 @@ export function ContratosPanelTable({
                   </div>
                 </td>
                 <td className={`${CONTRACTS_TD} max-w-0`}>
-                  <div className="flex h-[4.5rem] flex-col items-center justify-center gap-0.5 overflow-hidden">
+                  <div
+                    className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} flex-col items-center justify-center gap-0.5 overflow-hidden`}
+                  >
                     <p className="truncate w-full text-[9px] leading-snug text-brand-subtext">
                       {renderEditableCell(c, "direccionSuministro", cellReadOnly)}
                     </p>
@@ -457,7 +499,7 @@ export function ContratosPanelTable({
                   </div>
                 </td>
                 <td className={`${CONTRACTS_TD_MIDDLE} font-mono tabular-nums`}>
-                  <div className="flex h-[4.5rem] items-center justify-center">
+                  <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
                     {consumoTabla != null
                       ? `${Number(consumoTabla).toLocaleString("es-ES")} kWh`
                       : <TableEmptyDash />}
@@ -465,14 +507,16 @@ export function ContratosPanelTable({
                 </td>
                 <td className={CONTRACTS_TD}>
                   {!aplicaPenalizacion ? (
-                    <div className="flex h-[4.5rem] items-center justify-center">
+                    <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
                       <span className="font-mono text-[9px] text-brand-subtext">No aplica</span>
                     </div>
                   ) : penalizacion != null &&
                     c.precioFijoConsumo != null &&
                     consumoTabla != null &&
                     consumoTabla > 0 ? (
-                    <div className="flex h-[4.5rem] flex-col items-center justify-center gap-0.5 overflow-hidden">
+                    <div
+                      className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} flex-col items-center justify-center gap-0.5 overflow-hidden`}
+                    >
                       <p className="font-mono font-bold text-rose-600 dark:text-rose-400">
                         {formatPenalizacionDisplay(penalizacion)}
                       </p>
@@ -489,17 +533,37 @@ export function ContratosPanelTable({
                       </p>
                     </div>
                   ) : (
-                    <div className="flex h-[4.5rem] items-center justify-center">
+                    <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
                       <TableEmptyDash />
                     </div>
                   )}
                 </td>
                 {showOwnerColumn ? (
                   <td className={`${CONTRACTS_TD} font-medium text-brand-text overflow-hidden`}>
-                    <div className="flex h-[4.5rem] items-center justify-center px-1">
-                      <span className="line-clamp-2 w-full text-center text-[10px] leading-tight">
+                    <div
+                      className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center px-1`}
+                    >
+                      <span className="line-clamp-1 w-full text-center text-[10px] leading-tight">
                         {renderEditableCell(c, "comercialName", cellReadOnly)}
                       </span>
+                    </div>
+                  </td>
+                ) : null}
+                {showDeleteColumn ? (
+                  <td className={`${CONTRACTS_TD} text-center`} data-no-row-open>
+                    <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
+                      {canUserDeleteContract(c, activeRole, activeUserId) ? (
+                        <ContractQuickActionButton
+                          tone="danger"
+                          title="Eliminar contrato"
+                          ariaLabel={`Eliminar contrato ${c.clientName}`}
+                          onClick={() => onRequestDelete?.(c)}
+                        >
+                          <Trash2 aria-hidden />
+                        </ContractQuickActionButton>
+                      ) : (
+                        <TableEmptyDash />
+                      )}
                     </div>
                   </td>
                 ) : null}

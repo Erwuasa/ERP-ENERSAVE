@@ -17,6 +17,7 @@ export interface MarcoRetributivoEditModalProps {
   canEditComision: boolean
   isCreateMode: boolean
   allEntries: MarcoRetributivoRow[]
+  marcoCompaniaLabels: string[]
   commissionPercentage: number
   formatCurrency: (val: number) => string
   onClose: () => void
@@ -30,6 +31,7 @@ export function MarcoRetributivoEditModal({
   canEdit,
   canEditComision,
   isCreateMode,
+  marcoCompaniaLabels,
   commissionPercentage,
   formatCurrency,
   onClose,
@@ -94,6 +96,7 @@ export function MarcoRetributivoEditModal({
                 form={vm.form}
                 disabled={disabled}
                 patchForm={vm.patchForm}
+                marcoCompaniaLabels={marcoCompaniaLabels}
               />
               <MarcoEditModalComisionesSection
                 form={vm.form}

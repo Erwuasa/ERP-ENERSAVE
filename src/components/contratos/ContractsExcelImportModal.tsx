@@ -6,9 +6,10 @@ import {
   CONTRACT_EXCEL_COLUMNS,
   generateContractsImportTemplate,
   importedRowsToContracts,
-  parseContractsFromExcel,
+  parseContractsFromExcelWithReport,
 } from "../../lib/excel-import"
 import type { Contract } from "../../types/contract"
+import type { Profile } from "../../types/profile"
 import { toast } from "sonner"
 
 interface ContractsExcelImportModalProps {
@@ -18,6 +19,7 @@ interface ContractsExcelImportModalProps {
   comercialId: string
   comercialName: string
   existingContractCount: number
+  profiles?: Profile[]
 }
 
 export function ContractsExcelImportModal({
@@ -27,31 +29,52 @@ export function ContractsExcelImportModal({
   comercialId,
   comercialName,
   existingContractCount,
+  profiles = [],
 }: ContractsExcelImportModalProps) {
   const [loading, setLoading] = useState(false)
 
   async function handleFiles(files: File[]) {
     const file = files[0]
     if (!file) return
-    if (!file.name.toLowerCase().endsWith(".xlsx") && !file.name.toLowerCase().endsWith(".xls")) {
-      toast.error("Sube un archivo Excel (.xlsx o .xls)")
+    const lower = file.name.toLowerCase()
+    const allowed =
+      lower.endsWith(".xlsx") ||
+      lower.endsWith(".xls") ||
+      lower.endsWith(".csv")
+    if (!allowed) {
+      toast.error("Sube un archivo Excel (.xlsx, .xls) o CSV")
       return
     }
 
     setLoading(true)
     try {
       const buffer = await file.arrayBuffer()
-      const rows = parseContractsFromExcel(buffer)
+      const { rows, skipped, warnings, headerRowIndex } = parseContractsFromExcelWithReport(buffer)
       if (rows.length === 0) {
-        toast.error("No se encontraron filas válidas. Hace falta Cliente o CUPS en cada fila.")
+        const detail =
+          skipped.length > 0
+            ? ` ${skipped.length} fila(s) omitida(s). Cabecera detectada en fila ${headerRowIndex + 1}.`
+            : ""
+        toast.error(`No se encontraron filas válidas (Cliente o CUPS).${detail}`)
         return
       }
       const imported = importedRowsToContracts(rows, {
         comercialId,
         comercialName,
         existingCount: existingContractCount,
+        profiles,
       })
       await onImport(imported)
+      if (skipped.length > 0) {
+        toast.warning(
+          `${skipped.length} fila(s) no importadas. Ej.: fila ${skipped[0]?.line} — ${skipped[0]?.reason}`
+        )
+      }
+      if (warnings.length > 0) {
+        toast.warning(
+          `${warnings.length} contrato(s) con CUPS pendiente o ilegible. Revisa formato texto en Excel.`
+        )
+      }
       toast.success(`Importados ${imported.length} contratos. Los clientes nuevos se han creado en tu cartera.`)
       onClose()
     } catch (err) {
@@ -93,7 +116,7 @@ export function ContractsExcelImportModal({
           ) : (
             <>
               <FileDropZone
-                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                 multiple={false}
                 onFiles={handleFiles}
                 className="min-h-[120px]"

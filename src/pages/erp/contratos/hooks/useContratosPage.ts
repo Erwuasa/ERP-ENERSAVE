@@ -1,4 +1,5 @@
-import { useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
+import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
@@ -14,6 +15,7 @@ import {
   type ContractsTeamScope,
 } from "@/lib/contract-visibility"
 import { canExportDatabase } from "@/lib/staff-permissions"
+import { useJefeTeamContractAlerts } from "@/pages/erp/contratos/hooks/useJefeTeamContractAlerts"
 
 export interface UseContratosPageOptions {
   activeModule: "erp" | "ventas"
@@ -43,6 +45,8 @@ export function useContratosPage({
     setContractsUserFilterId,
     highlightContractId,
     erpDataLoading,
+    settlements,
+    setSettlements,
   } = useErpData()
 
   const {
@@ -63,6 +67,13 @@ export function useContratosPage({
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
   const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
   const [isFilterPending, startFilterTransition] = useTransition()
+  const [, setMarcoCatalogRevision] = useState(0)
+
+  useEffect(() => {
+    void loadMarcoRetributivoStaleWhileRevalidate({
+      onRevalidated: () => setMarcoCatalogRevision((revision) => revision + 1),
+    })
+  }, [])
 
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
@@ -136,8 +147,7 @@ export function useContratosPage({
 
   const canEditContractEstado =
     activeModule === "erp" &&
-    isErpOpsAdmin &&
-    (activeRole === "tramitacion" || superadminViewMode === "tramitacion")
+    (activeRole === "tramitacion" || activeRole === "superadmin")
 
   const profileOptions = useMemo(
     () =>
@@ -177,6 +187,14 @@ export function useContratosPage({
     [profiles]
   )
 
+  const { unseenTeamCount } = useJefeTeamContractAlerts({
+    activeRole,
+    activeUserId: activeUser.id,
+    teamMemberIds,
+    contracts,
+    teamScope,
+  })
+
   return {
     panelProps: {
       activeRole,
@@ -196,12 +214,16 @@ export function useContratosPage({
       showTeamScopeFilter,
       teamScope,
       onTeamScopeChange: handleTeamScopeChange,
+      teamScopeUnseenCount: unseenTeamCount,
+      authProfiles: profiles,
       stableComercialColumn,
       isFilterPending,
       showComercialColumn: stableComercialColumn,
       clients,
       setClients,
       setContracts,
+      settlements,
+      setSettlements,
       addOptimisticContract,
       contractsSearchQuery,
       setContractsSearchQuery,
@@ -222,7 +244,8 @@ export function useContratosPage({
       profiles: profileOptions,
       commissionPercentage: activeUser.commissionPercentage,
       formatCurrency,
-      renderCompaniaLogo,
+      renderCompaniaLogo: (brandName: string) =>
+        renderCompaniaLogo(brandName, null, "md"),
       reviewedContractIds: tramitacion.reviewedContractIds,
       showTarifaRecommendations: canViewTarifaRecommendations,
       tarifaRecommendations: recommendations.tarifaRecommendations,

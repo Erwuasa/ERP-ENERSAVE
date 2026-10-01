@@ -39,6 +39,10 @@ export function LoginPage() {
   }, [emailFromLink, setLoginEmail])
 
   useEffect(() => {
+    if (mfaPending) setMfaCode("")
+  }, [mfaPending])
+
+  useEffect(() => {
     const email = loginEmail.trim().toLowerCase()
     if (!email.includes("@")) {
       setShowFirstAccessHint(false)
@@ -96,8 +100,8 @@ export function LoginPage() {
             secret={mfaPending.kind === "enroll" ? mfaPending.secret : undefined}
             code={mfaCode}
             onCodeChange={(value) => setMfaCode(normalizeTotpCode(value))}
-            onSubmit={() => {
-              void submitMfa(mfaCode)
+            onSubmit={(code) => {
+              void submitMfa(code)
             }}
             onCancel={() => {
               setMfaCode("")

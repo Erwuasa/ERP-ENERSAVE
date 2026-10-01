@@ -4,9 +4,17 @@ import {
   importedRowsToContracts,
   type ImportedContractRow,
 } from "@/lib/excel-import"
+import { applyCupsComercialAssignmentToContract } from "@/lib/contract-import-cups-assign"
+import { isContractActivado, normalizeContractEstado } from "@/lib/contract-estado"
 import { insertTeamContractFromImport } from "@/lib/supabase/contracts"
+import {
+  persistEstimatedCommissionSettlement,
+  syncActiveContractCommissionSettlement,
+} from "@/lib/erp/sync-contract-commission-settlement"
+import type { Settlement } from "@/types/settlement"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
+import type { Profile } from "@/types/profile"
 
 type ImportDefaults = {
   comercialId: string
@@ -20,6 +28,7 @@ export type ImportContractsPersistResult = {
   clients: Client[]
   importedCount: number
   warnings: string[]
+  settlements: Settlement[]
 }
 
 function inferTipoClienteFromRow(row: ImportedContractRow): "particular" | "empresa" {
@@ -44,37 +53,42 @@ export async function persistImportedContractList(
   draftContracts: Contract[],
   clients: Client[],
   existingContracts: Contract[],
-  sourceRows?: ImportedContractRow[]
+  sourceRows?: ImportedContractRow[],
+  profiles: Profile[] = []
 ): Promise<ImportContractsPersistResult> {
   let nextClients = clients
   const persisted: Contract[] = []
   const warnings: string[] = []
+  const settlements: Settlement[] = []
   const seenSupply = new Set(existingContracts.map((contract) => contractSupplyKey(contract)))
 
   for (let i = 0; i < draftContracts.length; i++) {
-    const draft = draftContracts[i]
+    const assignedDraft = applyCupsComercialAssignmentToContract(draftContracts[i], profiles)
     const sourceRow = sourceRows?.[i]
 
     const { clients: withClient, client } = await ensureClientForContract(nextClients, {
-      nombre: draft.clientName,
-      comercialId: draft.comercialId,
-      documento: draft.nif,
-      telefono: draft.telefono,
-      email: draft.email,
-      direccion: draft.direccionSuministro,
+      nombre: assignedDraft.clientName,
+      comercialId: assignedDraft.comercialId,
+      documento: assignedDraft.nif,
+      telefono: assignedDraft.telefono,
+      email: assignedDraft.email,
+      direccion: assignedDraft.direccionSuministro,
+      codigoPostal: assignedDraft.codigoPostal,
+      ciudad: assignedDraft.poblacion,
+      provincia: assignedDraft.provincia,
       tipoCliente: sourceRow
         ? inferTipoClienteFromRow(sourceRow)
-        : draft.tipoCliente?.includes("pyme")
+        : assignedDraft.tipoCliente?.includes("pyme")
           ? "empresa"
           : "particular",
     })
     nextClients = withClient
 
-    const withClientId: Contract = { ...draft, clientId: client.id }
+    const withClientId: Contract = { ...assignedDraft, clientId: client.id }
     const supplyKey = contractSupplyKey(withClientId)
     if (seenSupply.has(supplyKey)) {
       warnings.push(
-        `${draft.clientName} (${draft.cups}): ya existía el mismo CUPS, tipo y estado. No se duplicó.`
+        `${assignedDraft.clientName} (${assignedDraft.cups}): ya existía el mismo CUPS, tipo y estado. No se duplicó.`
       )
       continue
     }
@@ -82,13 +96,28 @@ export async function persistImportedContractList(
 
     const saveResult = await insertTeamContractFromImport(withClientId)
 
+    let saved: Contract
     if (saveResult.ok) {
-      persisted.push({ ...withClientId, id: saveResult.id })
+      saved = { ...withClientId, id: saveResult.id }
+      persisted.push(saved)
     } else {
       warnings.push(
-        `${draft.clientName} (${draft.cups}): ${saveResult.message ?? "No se pudo guardar en Supabase"}`
+        `${assignedDraft.clientName} (${assignedDraft.cups}): ${saveResult.message ?? "No se pudo guardar en Supabase"}`
       )
-      persisted.push(withClientId)
+      saved = withClientId
+      persisted.push(saved)
+    }
+
+    if (saveResult.ok) {
+      const estado = normalizeContractEstado(saved.estado)
+      const syncResult = isContractActivado(estado)
+        ? await syncActiveContractCommissionSettlement(saved, settlements)
+        : await persistEstimatedCommissionSettlement(saved)
+      if (syncResult.settlement) {
+        settlements.push(syncResult.settlement)
+      } else if (syncResult.warning && !syncResult.warning.includes("Ya existía")) {
+        warnings.push(`${saved.clientName}: ${syncResult.warning}`)
+      }
     }
   }
 
@@ -100,5 +129,6 @@ export async function persistImportedContractList(
     clients: merged.clients,
     importedCount: persisted.length,
     warnings,
+    settlements,
   }
 }

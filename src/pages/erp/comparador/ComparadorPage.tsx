@@ -249,7 +249,7 @@ export function ComparadorPage() {
             <ComparadorIaUpload
               loading={compOcrLoading}
               progress={compOcrProgress}
-              onFile={(file) => void handleComparadorInvoiceOcr(file)}
+              onFiles={(files) => void handleComparadorInvoiceOcr(files)}
             />
 
             <div className={isCompactForm ? "space-y-2.5" : "space-y-3"}>

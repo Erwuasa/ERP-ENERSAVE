@@ -467,6 +467,32 @@ function isDeletableContractEstado(estado: string): boolean {
 }
 
 /** Campos persistibles al completar un borrador desde el wizard. */
+/** Metadatos JSON del wizard (potencias, operación, titular) persistidos en `contratos_equipo.metadata`. */
+export function buildContractWizardMetadata(
+  form: NewContractFormState,
+  extras?: { clientId?: string; atr?: string }
+): Record<string, unknown> {
+  return {
+    ...(extras?.clientId ? { client_id: extras.clientId } : {}),
+    ...(extras?.atr ? { atr: extras.atr } : {}),
+    potencia_p1: form.potenciaP1,
+    potencia_p2: form.potenciaP2,
+    potencia_p3: form.potenciaP3,
+    potencia_p4: form.potenciaP4,
+    potencia_p5: form.potenciaP5,
+    potencia_p6: form.potenciaP6,
+    peaje_segment: form.peajeSegment,
+    is_new_supply: form.tipoOperacion === "alta_nueva",
+    is_ownership_change: form.esCambioTitular,
+    ...(form.esCambioTitular && form.titularActualNombre.trim()
+      ? { titular_actual_nombre: form.titularActualNombre.trim() }
+      : {}),
+    ...(form.esCambioTitular && form.titularActualDni.trim()
+      ? { titular_actual_dni: form.titularActualDni.trim().toUpperCase() }
+      : {}),
+  }
+}
+
 export function buildContractPatchFromForm(form: NewContractFormState): Partial<Contract> {
   const input = newContractFormToRegistrationInput(form)
   const tipoPrecio =

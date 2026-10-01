@@ -29,6 +29,11 @@ function setTariffsCatalogCache(segmento: string, peaje: string, data: TariffCon
   catalogByKey.set(catalogKey(segmento, peaje), { data, fetchedAt: Date.now() })
 }
 
+export function invalidateAllTariffsCatalogCache(): void {
+  catalogByKey.clear()
+  inflightByKey.clear()
+}
+
 export async function loadTariffsCatalogStaleWhileRevalidate(
   segmento: string,
   peaje: string,

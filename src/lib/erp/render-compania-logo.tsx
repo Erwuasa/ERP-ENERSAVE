@@ -2,7 +2,10 @@
 import type { CSSProperties, ReactNode } from "react"
 import { fonts, radius } from "@/constants/styles"
 import { COMPANIA_LOGO_SRC } from "./compania-logo-assets"
-import { getCompaniaLogoBucketUrl } from "./compania-logo-storage"
+import {
+  getCompaniaLogoUrlSync,
+  resolveCompaniaLogoUrlAfterPublicFailure,
+} from "./compania-logo-storage"
 import {
   cropToClipPath,
   resolveCompaniaLogoProfile,
@@ -44,6 +47,11 @@ function resolveCompaniaLogoSrc(
   key: CompaniaLogoKey | null,
   logoUrl?: string | null
 ): string | null {
+  if (key) {
+    const publicStorage = getCompaniaLogoUrlSync(key)
+    if (publicStorage) return publicStorage
+  }
+
   const bundled = key ? COMPANIA_LOGO_SRC[key] : null
   if (bundled) return bundled
 
@@ -103,17 +111,6 @@ export function CompaniaLogo({
     setSrc(primarySrc)
   }, [primarySrc, name])
 
-  useEffect(() => {
-    if (!key) return
-    let cancelled = false
-    void getCompaniaLogoBucketUrl(key).then((bucketUrl) => {
-      if (!cancelled && bucketUrl) setSrc(bucketUrl)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [key])
-
   if (!src) {
     return <CompaniaLogoInitials name={name} size={size} />
   }
@@ -131,6 +128,13 @@ export function CompaniaLogo({
         onError={() => {
           if (fallbackSrc && src !== fallbackSrc) {
             setSrc(fallbackSrc)
+            return
+          }
+          if (key) {
+            void resolveCompaniaLogoUrlAfterPublicFailure(key).then((blobUrl) => {
+              if (blobUrl) setSrc(blobUrl)
+              else setSrc(null)
+            })
             return
           }
           setSrc(null)

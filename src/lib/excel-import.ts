@@ -1,5 +1,8 @@
 import * as XLSX from "xlsx"
 import { CONTRACT_ESTADO_INICIAL, normalizeContractEstado } from "./contract-estado"
+import { resolveImportComercialForCups } from "./contract-import-cups-assign"
+import { resolveContractCompaniaForPersist } from "./resolve-contract-compania"
+import type { Profile } from "../types/profile"
 import type { Contract } from "../types/contract"
 
 export interface ImportedContractRow {
@@ -10,6 +13,8 @@ export interface ImportedContractRow {
   nif?: string
   tipo?: "luz" | "gas"
   tarifa?: string
+  tarifaPeaje?: string
+  oferta?: string
   telefono?: string
   email?: string
   iban?: string
@@ -19,8 +24,14 @@ export interface ImportedContractRow {
   createdAt?: string
   fechaActivacion?: string
   direccionSuministro?: string
+  codigoPostal?: string
+  poblacion?: string
+  provincia?: string
   tipoCliente?: string
   comercialName?: string
+  comercialId?: string
+  jefeEquipo?: string | null
+  pagado?: string
 }
 
 export interface ContractExcelColumnSpec {
@@ -31,17 +42,42 @@ export interface ContractExcelColumnSpec {
   excludes?: string[]
   description: string
   example: string
+  skipImport?: boolean
 }
 
-/** Cabeceras oficiales de la plantilla. El parser también acepta alias. */
+/**
+ * Plantilla alineada con export CRM Aenergetic (sin Comisión ni Puntos).
+ * Orden fijo para descarga e importación.
+ */
 export const CONTRACT_EXCEL_COLUMNS: ContractExcelColumnSpec[] = [
+  {
+    header: "Estado",
+    required: false,
+    aliases: ["estado"],
+    description: "Estado del contrato en tramitación.",
+    example: "En tramite",
+  },
+  {
+    header: "Fecha alta",
+    required: false,
+    aliases: ["fecha alta", "fecha creacion", "fecha creación"],
+    description: "Fecha de creación / alta del contrato.",
+    example: "29/09/2026",
+  },
+  {
+    header: "DNI CIF",
+    required: false,
+    aliases: ["dni cif", "dni/cif", "nif", "cif", "dni", "nie"],
+    description: "Documento de identidad del titular.",
+    example: "12345678Z",
+  },
   {
     header: "Cliente",
     required: true,
     requiredAny: true,
-    aliases: ["cliente", "nombre cliente", "razon social", "razon", "nombre"],
+    aliases: ["cliente", "nombre cliente", "razon social"],
     excludes: ["comercial"],
-    description: "Nombre o razón social. Si el cliente no está en tu cartera, se crea al importar.",
+    description: "Nombre o razón social.",
     example: "María García López",
   },
   {
@@ -49,122 +85,109 @@ export const CONTRACT_EXCEL_COLUMNS: ContractExcelColumnSpec[] = [
     required: true,
     requiredAny: true,
     aliases: ["cups"],
-    description: "Código CUPS del suministro. Obligatorio si no hay nombre de cliente.",
+    description: "Código CUPS del suministro.",
     example: "ES0031408438579346AA",
-  },
-  {
-    header: "NIF",
-    required: false,
-    aliases: ["nif", "cif", "documento", "dni", "nie"],
-    description: "NIF/CIF/NIE. Clave para no duplicar el cliente en tu cartera.",
-    example: "12345678Z",
   },
   {
     header: "Compañía",
     required: false,
-    aliases: ["compania", "comercializadora"],
-    description: "Comercializadora del contrato.",
+    aliases: ["compania", "compañía", "comercializadora"],
+    description: "Comercializadora.",
     example: "Iberdrola",
   },
   {
-    header: "Estado",
+    header: "Producto",
     required: false,
-    aliases: ["estado"],
-    description: "Si falta, se usa PTE DE TRAMITACIÓN.",
-    example: "PTE DE TRAMITACIÓN",
-  },
-  {
-    header: "Tipo",
-    required: false,
-    aliases: ["tipo suministro", "tipo energia"],
+    aliases: ["producto", "tipo suministro", "tipo energia"],
     excludes: ["cliente"],
-    description: "Luz o gas. Si falta, se asume luz.",
+    description: "Luz o Gas.",
     example: "Luz",
   },
   {
     header: "Tarifa",
     required: false,
-    aliases: ["tarifa"],
-    description: "Nombre de la tarifa contratada.",
+    aliases: ["tarifa", "peaje", "atr"],
+    description: "Peaje / tarifa de acceso (ej. 2.0TD).",
     example: "2.0TD",
   },
   {
-    header: "Teléfono",
+    header: "Oferta",
     required: false,
-    aliases: ["telefono", "tel", "movil"],
-    description: "Teléfono de contacto del cliente.",
-    example: "600123123",
-  },
-  {
-    header: "Email",
-    required: false,
-    aliases: ["email", "correo"],
-    description: "Email de contacto del cliente.",
-    example: "maria@correo.es",
-  },
-  {
-    header: "IBAN",
-    required: false,
-    aliases: ["iban"],
-    description: "Cuenta de cobro.",
-    example: "ES9121000418450200051332",
-  },
-  {
-    header: "Consumo Anual",
-    required: false,
-    aliases: ["consumo anual", "consumo"],
-    description: "Consumo anual en kWh.",
-    example: "3500",
+    aliases: ["oferta", "producto comercial"],
+    description: "Nombre comercial de la oferta contratada.",
+    example: "TARIFA 24 HORAS",
   },
   {
     header: "Potencia",
     required: false,
     aliases: ["potencia"],
-    description: "Potencia contratada (kW o periodos).",
+    description: "Potencia contratada (kW).",
     example: "4.6",
   },
   {
-    header: "Precio kWh",
+    header: "Consumo",
     required: false,
-    aliases: ["precio fijo", "precio kwh", "precio", "kwh", "termino"],
-    description: "Precio fijo de energía si aplica.",
-    example: "0.145",
+    aliases: ["consumo", "consumo anual"],
+    description: "Consumo anual estimado (kWh).",
+    example: "3500",
+  },
+  {
+    header: "Comisión",
+    required: false,
+    aliases: ["comision", "comisión"],
+    description: "Ignorada en importación (solo referencia CRM).",
+    example: "104,00€",
+    skipImport: true,
+  },
+  {
+    header: "Pagado",
+    required: false,
+    aliases: ["pagado"],
+    description: "Indicador de pago de comisión en CRM (Sí/No).",
+    example: "No",
+  },
+  {
+    header: "Puntos",
+    required: false,
+    aliases: ["puntos"],
+    description: "Ignorada en importación.",
+    example: "1",
+    skipImport: true,
+  },
+  {
+    header: "Teléfono",
+    required: false,
+    aliases: ["telefono", "tel", "movil", "móvil"],
+    description: "Teléfono de contacto.",
+    example: "600123123",
   },
   {
     header: "Dirección",
     required: false,
-    aliases: ["direccion suministro", "direccion", "suministro", "domicilio"],
-    description: "Dirección del suministro o fiscal.",
-    example: "C/ Mayor 1, Madrid",
+    aliases: ["direccion", "dirección", "suministro", "domicilio"],
+    description: "Dirección del suministro.",
+    example: "C/ Mayor 1",
   },
   {
-    header: "Tipo cliente",
+    header: "C.P.",
     required: false,
-    aliases: ["tipo cliente", "segmento cliente"],
-    description: "Residencial, pyme, empresa o autónomo.",
-    example: "Residencial",
+    aliases: ["c.p.", "cp", "codigo postal", "código postal"],
+    description: "Código postal.",
+    example: "41010",
   },
   {
-    header: "Fecha Creación",
+    header: "Población",
     required: false,
-    aliases: ["fecha creacion", "fecha alta", "created"],
-    description: "Fecha de alta. Acepta dd/mm/yyyy, ISO o serial Excel.",
-    example: "21/09/2026",
+    aliases: ["poblacion", "población", "ciudad", "localidad"],
+    description: "Localidad.",
+    example: "Sevilla",
   },
   {
-    header: "Fecha activación",
+    header: "Provincia",
     required: false,
-    aliases: ["fecha activacion", "activacion", "activation"],
-    description: "Fecha de activación del contrato.",
-    example: "01/10/2026",
-  },
-  {
-    header: "Comercial",
-    required: false,
-    aliases: ["nombre comercial", "comercial"],
-    excludes: ["comercializadora"],
-    description: "Nombre del comercial. El contrato y el cliente quedan en tu cartera.",
-    example: "Ana Pérez",
+    aliases: ["provincia"],
+    description: "Provincia.",
+    example: "Sevilla",
   },
 ]
 
@@ -208,7 +231,7 @@ function pickField(
 function pickNumber(row: Record<string, unknown>, aliases: string[], excludes?: string[]): number | undefined {
   const raw = pickField(row, aliases, excludes)
   if (!raw) return undefined
-  const num = Number(raw.replace(",", "."))
+  const num = Number(String(raw).replace(",", "."))
   return Number.isFinite(num) ? num : undefined
 }
 
@@ -248,79 +271,177 @@ function pickDate(row: Record<string, unknown>, aliases: string[], excludes?: st
 
 function pickColumn(row: Record<string, unknown>, header: string): string {
   const spec = CONTRACT_EXCEL_COLUMNS.find((column) => column.header === header)
-  if (!spec) return ""
+  if (!spec || spec.skipImport) return ""
   return pickField(row, spec.aliases, spec.excludes)
 }
 
 function inferTipoSuministro(row: Record<string, unknown>): "luz" | "gas" | undefined {
-  const fromNamed = pickColumn(row, "Tipo").toLowerCase()
-  if (fromNamed.includes("gas")) return "gas"
-  if (fromNamed.includes("luz")) return "luz"
-
-  for (const [header, value] of Object.entries(row)) {
-    const normalized = normalizeHeader(header)
-    if (normalized === "tipo" || normalized === "segmento") {
-      const raw = String(value ?? "").toLowerCase()
-      if (raw.includes("gas")) return "gas"
-      if (raw.includes("luz")) return "luz"
-    }
-  }
+  const fromProducto = pickColumn(row, "Producto").toLowerCase()
+  if (fromProducto.includes("gas")) return "gas"
+  if (fromProducto.includes("luz")) return "luz"
+  const legacyTipo = pickField(row, ["tipo suministro", "tipo energia", "tipo"], ["cliente"]).toLowerCase()
+  if (legacyTipo.includes("gas")) return "gas"
+  if (legacyTipo.includes("luz")) return "luz"
   return undefined
 }
 
-export function parseContractsFromExcel(buffer: ArrayBuffer): ImportedContractRow[] {
+function findCrmHeaderRowIndex(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 25); i++) {
+    const cells = (rows[i] ?? []).map((c) => normalizeHeader(String(c ?? "")))
+    const hasCups = cells.some((cell) => cell === "cups" || cell.includes("cups"))
+    const hasCliente = cells.some((cell) => cell === "cliente" || cell.includes("cliente"))
+    if (hasCups && hasCliente) return i
+  }
+  return 0
+}
+
+/** Evita CUPS corruptos por notación científica de Excel. */
+export function formatExcelCellAsString(value: unknown): string {
+  if (value == null || value === "") return ""
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (Math.abs(value) >= 1e15) return value.toFixed(0)
+    if (Number.isInteger(value)) return String(value)
+    return String(value).replace(".", ",")
+  }
+  return String(value).replace(/\s+/g, " ").trim()
+}
+
+function normalizeImportedCups(raw: string): string {
+  const text = formatExcelCellAsString(raw).replace(/\s/g, "").toUpperCase()
+  if (!text) return ""
+  if (/^\d+(?:,\d+)?E\+?\d+$/i.test(text)) return ""
+  return text
+}
+
+function sheetToRowObjects(sheet: XLSX.WorkSheet): Record<string, unknown>[] {
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: true,
+  }) as unknown[][]
+
+  const headerIdx = findCrmHeaderRowIndex(matrix)
+  const headers = (matrix[headerIdx] ?? []).map((h) => String(h ?? "").trim())
+
+  const objects: Record<string, unknown>[] = []
+  for (let r = headerIdx + 1; r < matrix.length; r++) {
+    const line = matrix[r] ?? []
+    if (!line.some((cell) => String(cell ?? "").trim())) continue
+    const row: Record<string, unknown> = {}
+    headers.forEach((header, col) => {
+      if (!header) return
+      row[header] = formatExcelCellAsString(line[col] ?? "")
+    })
+    objects.push(row)
+  }
+  return objects
+}
+
+function mapRowToImported(row: Record<string, unknown>): ImportedContractRow | null {
+  const clientName = pickColumn(row, "Cliente").replace(/\s+/g, " ").trim()
+  const cups = normalizeImportedCups(pickColumn(row, "CUPS"))
+  const compania = pickColumn(row, "Compañía")
+  const estadoRaw = pickColumn(row, "Estado")
+  const nif = pickColumn(row, "DNI CIF") || undefined
+  const tipo = inferTipoSuministro(row)
+  const tarifaPeaje = pickColumn(row, "Tarifa") || undefined
+  const oferta = pickColumn(row, "Oferta") || undefined
+  const tarifa = oferta || tarifaPeaje
+  const telefonoRaw = pickColumn(row, "Teléfono")
+  const telefono = telefonoRaw ? String(telefonoRaw).replace(/\s/g, "") : undefined
+  const consumoAnual = pickNumber(row, ["consumo"])
+  const potenciaRaw = pickColumn(row, "Potencia") || pickNumber(row, ["potencia"])
+  const potenciaContratada = potenciaRaw === "" ? undefined : potenciaRaw
+  const createdAt = pickDate(row, ["fecha alta", "fecha creacion", "fecha creación"])
+  const direccionSuministro = pickColumn(row, "Dirección") || undefined
+  const codigoPostal = pickColumn(row, "C.P.") || undefined
+  const poblacion = pickColumn(row, "Población") || undefined
+  const provincia = pickColumn(row, "Provincia") || undefined
+  const pagado = pickColumn(row, "Pagado") || undefined
+
+  if (!clientName && !cups) return null
+
+  const companiaResolved = resolveContractCompaniaForPersist({
+    compania: compania || undefined,
+    tarifa: oferta || tarifaPeaje,
+    oferta,
+  })
+
+  return {
+    clientName: clientName || "Sin nombre",
+    cups: cups || "PENDIENTE",
+    compania: companiaResolved,
+    estado: estadoRaw ? normalizeContractEstado(estadoRaw) : CONTRACT_ESTADO_INICIAL,
+    nif,
+    tipo,
+    tarifa,
+    tarifaPeaje,
+    oferta,
+    telefono,
+    consumoAnual,
+    potenciaContratada,
+    createdAt,
+    fechaActivacion: createdAt,
+    direccionSuministro,
+    codigoPostal,
+    poblacion,
+    provincia,
+    pagado,
+  }
+}
+
+export type ExcelImportParseResult = {
+  rows: ImportedContractRow[]
+  skipped: { line: number; reason: string; preview: string }[]
+  warnings: { line: number; reason: string; preview: string }[]
+  headerRowIndex: number
+}
+
+export function parseContractsFromExcelWithReport(buffer: ArrayBuffer): ExcelImportParseResult {
   const workbook = XLSX.read(buffer, { type: "array" })
   const sheetName = workbook.SheetNames[0]
-  if (!sheetName) return []
+  if (!sheetName) return { rows: [], skipped: [], warnings: [], headerRowIndex: 0 }
 
   const sheet = workbook.Sheets[sheetName]
-  const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" })
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    defval: "",
+    raw: true,
+  }) as unknown[][]
+  const headerRowIndex = findCrmHeaderRowIndex(matrix)
+  const objects = sheetToRowObjects(sheet)
+  const rows: ImportedContractRow[] = []
+  const skipped: ExcelImportParseResult["skipped"] = []
+  const warnings: ExcelImportParseResult["warnings"] = []
 
-  return json
-    .map((row) => {
-      const clientName = pickColumn(row, "Cliente")
-      const cups = pickColumn(row, "CUPS")
-      const compania = pickColumn(row, "Compañía")
-      const estadoRaw = pickColumn(row, "Estado")
-      const nif = pickColumn(row, "NIF") || undefined
-      const tipo = inferTipoSuministro(row)
-      const tarifa = pickColumn(row, "Tarifa") || undefined
-      const telefono = pickColumn(row, "Teléfono") || undefined
-      const email = pickColumn(row, "Email") || undefined
-      const iban = pickColumn(row, "IBAN") || undefined
-      const consumoAnual = pickNumber(row, ["consumo anual", "consumo"])
-      const potenciaContratada = pickColumn(row, "Potencia") || pickNumber(row, ["potencia"])
-      const precioFijoConsumo = pickNumber(row, ["precio fijo", "precio kwh", "precio", "kwh", "termino"])
-      const createdAt = pickDate(row, ["fecha creacion", "fecha alta", "created"])
-      const fechaActivacion = pickDate(row, ["fecha activacion", "activacion", "activation"])
-      const direccionSuministro = pickColumn(row, "Dirección") || undefined
-      const tipoClienteRaw = pickColumn(row, "Tipo cliente").toLowerCase()
-      const comercialName = pickColumn(row, "Comercial") || undefined
+  objects.forEach((row, index) => {
+    const mapped = mapRowToImported(row)
+    const preview =
+      pickColumn(row, "Cliente") || pickColumn(row, "CUPS") || `Fila ${headerRowIndex + index + 2}`
+    if (!mapped) {
+      skipped.push({
+        line: headerRowIndex + index + 2,
+        reason: "Sin Cliente ni CUPS válido",
+        preview,
+      })
+      return
+    }
+    const cupsRaw = normalizeImportedCups(pickColumn(row, "CUPS"))
+    if (mapped.cups === "PENDIENTE" && !cupsRaw) {
+      warnings.push({
+        line: headerRowIndex + index + 2,
+        reason: "CUPS vacío o ilegible (formato texto en Excel)",
+        preview: mapped.clientName,
+      })
+    }
+    rows.push(mapped)
+  })
 
-      if (!clientName && !cups) return null
+  return { rows, skipped, warnings, headerRowIndex }
+}
 
-      return {
-        clientName: clientName || "Sin nombre",
-        cups: cups || "PENDIENTE",
-        compania: compania || "Sin compañía",
-        estado: estadoRaw ? normalizeContractEstado(estadoRaw) : CONTRACT_ESTADO_INICIAL,
-        nif,
-        tipo,
-        tarifa,
-        telefono,
-        email,
-        iban,
-        consumoAnual,
-        potenciaContratada,
-        precioFijoConsumo,
-        createdAt,
-        fechaActivacion,
-        direccionSuministro,
-        tipoCliente: tipoClienteRaw || undefined,
-        comercialName,
-      } satisfies ImportedContractRow
-    })
-    .filter(Boolean) as ImportedContractRow[]
+export function parseContractsFromExcel(buffer: ArrayBuffer): ImportedContractRow[] {
+  return parseContractsFromExcelWithReport(buffer).rows
 }
 
 export function importedRowsToContracts(
@@ -329,41 +450,56 @@ export function importedRowsToContracts(
     comercialId: string
     comercialName: string
     existingCount: number
+    profiles?: Profile[]
   }
 ): Contract[] {
   const today = new Date().toISOString().slice(0, 10)
+  const profiles = defaults.profiles ?? []
 
-  return rows.map((row, index) => ({
-    id: `con-import-${Date.now()}-${index}`,
-    clientName: row.clientName,
-    cups: row.cups.toUpperCase(),
-    tipo: row.tipo ?? "luz",
-    compania: row.compania,
-    tarifa: row.tarifa ?? "Importado",
-    consumoAnual: row.consumoAnual ?? 0,
-    consumoAnualManual: row.consumoAnual ?? null,
-    montoInterno: 0,
-    montoExterno: 0,
-    estado: normalizeContractEstado(row.estado),
-    comercialId: defaults.comercialId,
-    comercialName: row.comercialName ?? defaults.comercialName,
-    createdAt: row.createdAt ?? today,
-    fechaActivacion: row.fechaActivacion,
-    estadoEfectivoDesde: row.fechaActivacion,
-    nif: row.nif,
-    telefono: row.telefono,
-    email: row.email,
-    iban: row.iban,
-    potenciaContratada: row.potenciaContratada,
-    precioFijoConsumo: row.precioFijoConsumo,
-    direccionSuministro: row.direccionSuministro,
-    tipoCliente: row.tipoCliente,
-  }))
+  return rows.map((row, index) => {
+    const assigned = resolveImportComercialForCups(row.cups, profiles, {
+      id: row.comercialId ?? defaults.comercialId,
+      fullName: row.comercialName ?? defaults.comercialName,
+    })
+
+    return {
+      id: `con-import-${Date.now()}-${index}`,
+      clientName: row.clientName,
+      cups: row.cups.replace(/\s/g, "").toUpperCase(),
+      tipo: row.tipo ?? "luz",
+      compania: row.compania,
+      tarifa: row.tarifa ?? row.oferta ?? "Importado",
+      consumoAnual: row.consumoAnual ?? 0,
+      consumoAnualManual: row.consumoAnual ?? null,
+      montoInterno: 0,
+      montoExterno: 0,
+      estado: normalizeContractEstado(row.estado),
+      comercialId: assigned.comercialId,
+      comercialName: assigned.comercialName,
+      jefeEquipo: assigned.jefeEquipo ?? undefined,
+      nombreComercial: assigned.comercialName,
+      createdAt: row.createdAt ?? today,
+      fechaActivacion: row.fechaActivacion,
+      estadoEfectivoDesde: row.fechaActivacion,
+      nif: row.nif,
+      telefono: row.telefono,
+      email: row.email,
+      iban: row.iban,
+      potenciaContratada: row.potenciaContratada,
+      precioFijoConsumo: row.precioFijoConsumo,
+      direccionSuministro: row.direccionSuministro,
+      codigoPostal: row.codigoPostal,
+      poblacion: row.poblacion,
+      provincia: row.provincia,
+      atr: row.tarifaPeaje,
+      tipoCliente: row.tipoCliente,
+    }
+  })
 }
 
 export function generateContractsImportTemplate(): void {
-  const headers = CONTRACT_EXCEL_COLUMNS.map((column) => column.header)
-  const example = CONTRACT_EXCEL_COLUMNS.map((column) => column.example)
+  const headers = CONTRACT_EXCEL_COLUMNS.filter((c) => !c.skipImport).map((column) => column.header)
+  const example = CONTRACT_EXCEL_COLUMNS.filter((c) => !c.skipImport).map((column) => column.example)
   const worksheet = XLSX.utils.aoa_to_sheet([headers, example])
   worksheet["!cols"] = headers.map((header) => ({ wch: Math.max(header.length, 18) }))
   const workbook = XLSX.utils.book_new()

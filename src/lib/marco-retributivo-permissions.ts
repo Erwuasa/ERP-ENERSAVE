@@ -28,6 +28,13 @@ export function canEditMarcoRetributivo(
   return false
 }
 
+/** Filtro sidebar «Visibilidad web» en tarifas: solo superadmin. */
+export function canFilterTariffsByWebVisibility(
+  role: MarcoRetributivoEditorRole | string
+): boolean {
+  return role === "superadmin"
+}
+
 /** Modal ERP/Web y columnas admin en tarifas: misma regla que edición operativa. */
 export function canManageTariffSettings(
   role: MarcoRetributivoEditorRole | string,

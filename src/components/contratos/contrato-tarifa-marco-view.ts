@@ -1,4 +1,5 @@
 import type { Contract } from "@/types/contract"
+import { resolveContractCompaniaForDisplay } from "@/lib/resolve-contract-compania"
 import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 import { normalizePeaje } from "@/lib/tarifa-cost-calculator"
 import {
@@ -109,9 +110,16 @@ export function buildContratoTarifaMarcoView(
   const hasSva = marco ? marcoHasSva(marco) : Boolean(svaLabel)
   const storedTarifa = isPlaceholderLabel(contract.tarifa) ? undefined : contract.tarifa
   const tarifaNombre = contract.atRateName || storedTarifa
-  const company = !isPlaceholderLabel(contract.compania)
-    ? contract.compania
-    : marco?.compania
+  const resolvedCompany = resolveContractCompaniaForDisplay({
+    compania: contract.compania,
+    tarifa: contract.tarifa,
+  })
+  const company =
+    resolvedCompany !== "—"
+      ? resolvedCompany
+      : !isPlaceholderLabel(contract.compania)
+        ? contract.compania
+        : marco?.compania
   const hasCrmData = Boolean(
     marco ||
       contract.atRateName ||

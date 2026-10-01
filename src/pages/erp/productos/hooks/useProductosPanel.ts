@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
-import { canManageTariffSettings } from "@/lib/marco-retributivo-permissions"
+import {
+  canFilterTariffsByWebVisibility,
+  canManageTariffSettings,
+} from "@/lib/marco-retributivo-permissions"
 import { mergeProviderCounts } from "@/lib/erp/compania-logos"
 import { tariffRowToProducto, type ProductoPeajeFilter, type ProductoSuministroTab, type ProductoTarifa, type ProductoTipoClienteFilter, type ProductoWebVisibilityFilter } from "@/lib/productos-catalog"
 import {
@@ -44,8 +47,16 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
   const [deduping, setDeduping] = useState(false)
 
   const canManageTariffs = canManageTariffSettings(activeRole, { superadminViewMode })
+  const showWebVisibilityFilter = canFilterTariffsByWebVisibility(activeRole)
   const canRunTariffDedup = activeRole === "superadmin" && canManageTariffs
   const canEditCalendario = activeRole === "superadmin"
+  const catalogWebVisibility: ProductoWebVisibilityFilter = showWebVisibilityFilter
+    ? webVisibility
+    : "todas"
+
+  useEffect(() => {
+    if (!showWebVisibilityFilter && webVisibility !== "todas") setWebVisibility("todas")
+  }, [showWebVisibilityFilter, webVisibility])
   const providerFilterRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
@@ -69,7 +80,7 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
         compania: providerFilter,
         tipoCliente,
         peaje,
-        webVisibility,
+        webVisibility: catalogWebVisibility,
         search: debouncedSearch,
         offset,
         limit: TARIFF_CATALOG_PAGE_SIZE,
@@ -95,7 +106,7 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
         return merged
       })
     },
-    [suministro, compania, tipoCliente, peaje, webVisibility, debouncedSearch]
+    [suministro, compania, tipoCliente, peaje, catalogWebVisibility, debouncedSearch]
   )
 
   useEffect(() => {
@@ -277,6 +288,7 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
     setPeaje,
     webVisibility,
     setWebVisibility,
+    showWebVisibilityFilter,
     search,
     setSearch,
     modalOpen,

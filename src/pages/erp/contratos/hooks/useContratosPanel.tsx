@@ -53,6 +53,9 @@ import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
 import { persistImportedContractList } from "@/lib/erp/import-contracts-persist"
 import type { Client } from "@/types/client"
+import type { Profile } from "@/types/profile"
+import type { Settlement } from "@/types/settlement"
+import { syncSettlementOwnerForContract } from "@/lib/erp/sync-contract-commission-settlement"
 
 type Options = {
   canEditContractEstado: boolean
@@ -60,6 +63,8 @@ type Options = {
   clients: Client[]
   setClients: Dispatch<SetStateAction<Client[]>>
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  settlements?: Settlement[]
+  setSettlements?: Dispatch<SetStateAction<Settlement[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   contractsListFilter: ContractsListFilter
@@ -75,6 +80,7 @@ type Options = {
   reviewedContractIds?: ReadonlySet<string>
   tarifaRecommendations?: Map<string, TarifaRecommendation>
   canExportDatabase?: boolean
+  authProfiles?: Profile[]
 }
 
 export function useContratosPanel({
@@ -83,6 +89,8 @@ export function useContratosPanel({
   clients,
   setClients,
   setContracts,
+  settlements = [],
+  setSettlements,
   addOptimisticContract,
   contractsSearchQuery,
   contractsListFilter,
@@ -98,6 +106,7 @@ export function useContratosPanel({
   reviewedContractIds,
   tarifaRecommendations,
   canExportDatabase = false,
+  authProfiles = [],
 }: Options) {
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const [ocrLoading, setOcrLoading] = useState(false)
@@ -140,6 +149,25 @@ export function useContratosPanel({
         return
       }
       setContracts((prev) => prev.map((item) => (item.id === id ? result.data : item)))
+
+      if (
+        setSettlements &&
+        (field === "comercialId" ||
+          field === "comercialName" ||
+          field === "montoExterno" ||
+          field === "montoInterno")
+      ) {
+        const sync = await syncSettlementOwnerForContract(result.data, settlements)
+        if (sync.settlement) {
+          setSettlements((prev) => {
+            const idx = prev.findIndex((s) => s.id === sync.settlement!.id)
+            if (idx >= 0) {
+              return prev.map((s, i) => (i === idx ? sync.settlement! : s))
+            }
+            return [sync.settlement!, ...prev]
+          })
+        }
+      }
     })
   }
 
@@ -201,11 +229,13 @@ export function useContratosPanel({
         <select
           value={estado}
           autoFocus
+          onClick={(event) => event.stopPropagation()}
           onChange={(e) => {
             void persistEstadoChange(c, e.target.value as ContractEstado)
           }}
           onBlur={() => setEditingEstadoId(null)}
           className="mx-auto block w-full max-w-full rounded-md border border-cyan-500 bg-brand-panel p-1.5 text-[10px] font-mono text-brand-text outline-none"
+          data-no-row-open
         >
           {CONTRACT_ESTADOS.map((opt) => (
             <option key={opt} value={opt}>
@@ -220,22 +250,25 @@ export function useContratosPanel({
       <span
         role="button"
         tabIndex={0}
-        onClick={() => {
+        onClick={(event) => {
+          event.stopPropagation()
+          if (canEditEstado) {
+            setEditingEstadoId(c.id)
+            return
+          }
           navigator.clipboard.writeText(estado)
           toast.success(`Copiado: "${estado}"`)
         }}
-        onDoubleClick={() => {
-          if (!canEditEstado) return
-          setEditingEstadoId(c.id)
+        onKeyDown={(event) => {
+          if (event.key !== "Enter" && event.key !== " ") return
+          event.preventDefault()
+          event.stopPropagation()
+          if (canEditEstado) setEditingEstadoId(c.id)
         }}
-        className={`box-border inline-flex w-full max-w-full items-center justify-center rounded-lg border px-2 py-1.5 text-[9px] font-mono font-bold uppercase leading-tight tracking-wide ${
+        className={`box-border inline-flex w-fit max-w-full mx-auto items-center justify-center text-center rounded-lg border px-2.5 py-1.5 text-[9px] font-mono font-bold uppercase leading-tight tracking-wide ${
           canEditEstado ? "cursor-pointer hover:opacity-90" : "cursor-default"
         } ${getContractEstadoBadgeClass(estado)}`}
-        title={
-          canEditEstado
-            ? `${estado} · 1 clic copiar · doble clic cambiar`
-            : `${estado} · 1 clic copiar`
-        }
+        title={canEditEstado ? `${estado} · Clic para cambiar estado` : `${estado} · Clic para copiar`}
       >
         {formatContractEstadoTableLabel(estado)}
       </span>
@@ -405,10 +438,23 @@ export function useContratosPanel({
   }
 
   async function handleExcelImport(imported: Contract[]) {
-    const result = await persistImportedContractList(imported, clients, visibleContracts)
+    const result = await persistImportedContractList(
+      imported,
+      clients,
+      visibleContracts,
+      undefined,
+      authProfiles
+    )
 
     setClients(result.clients)
     setContracts(result.contracts)
+    if (setSettlements && result.settlements.length > 0) {
+      setSettlements((prev) => {
+        const byId = new Set(prev.map((s) => s.id))
+        const merged = [...result.settlements.filter((s) => !byId.has(s.id)), ...prev]
+        return merged
+      })
+    }
 
     if (result.warnings.length > 0) {
       toast.warning(

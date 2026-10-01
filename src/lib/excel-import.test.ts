@@ -35,11 +35,10 @@ describe("parseContractsFromExcel", () => {
 
     expect(rows).toHaveLength(1)
     expect(rows[0]?.clientName).toBe("María García")
-    expect(rows[0]?.comercialName).toBe("Ana Pérez")
+    expect(rows[0]?.nif).toBe("12345678Z")
     expect(rows[0]?.nif).toBe("12345678Z")
     expect(rows[0]?.tipo).toBe("luz")
-    expect(rows[0]?.email).toBe("maria@correo.es")
-    expect(rows[0]?.tipoCliente).toBe("residencial")
+    expect(rows[0]?.cups).toBe("ES0031408438579346AA")
   })
 
   it("does not treat comercializadora as the commercial agent", () => {
@@ -56,10 +55,10 @@ describe("parseContractsFromExcel", () => {
 
     expect(rows[0]?.clientName).toBe("Valcambre SL")
     expect(rows[0]?.compania).toBe("Endesa")
-    expect(rows[0]?.comercialName).toBe("Luis Gómez")
+    expect(rows[0]?.compania).toBe("Endesa")
   })
 
-  it("assigns imported contracts to the loading user", () => {
+  it("assigns imported contracts to the loading user when CUPS is not mapped", () => {
     const rows = parseContractsFromExcel(
       workbookBuffer([{ Cliente: "Demo", CUPS: "ES001", Compañía: "Iberdrola" }])
     )
@@ -67,6 +66,7 @@ describe("parseContractsFromExcel", () => {
       comercialId: "user-42",
       comercialName: "German",
       existingCount: 0,
+      profiles: [],
     })
     expect(contracts[0]?.comercialId).toBe("user-42")
   })

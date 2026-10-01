@@ -44,7 +44,6 @@ export function ProductosPanel({
     <div className="xl:h-full flex flex-col animate-fade-in font-sans">
       <div className="xl:shrink-0 space-y-3 pb-3">
         <ProductosPanelHeader
-          title={title}
           onOpenCalendario={() => setView("calendario")}
           canDedupTariffs={vm.canRunTariffDedup}
           dedupingTariffs={vm.deduping}
@@ -55,8 +54,6 @@ export function ProductosPanel({
           setCompania={vm.setCompania}
           companias={vm.companias}
           countsByCompania={vm.countsByCompania}
-          totalActivas={vm.totalActivas}
-          webPublishedCount={vm.webPublishedCount}
           supplyTabCounts={vm.supplyTabCounts}
         />
         {vm.loadError && (
@@ -74,6 +71,7 @@ export function ProductosPanel({
           setPeaje={vm.setPeaje}
           webVisibility={vm.webVisibility}
           setWebVisibility={vm.setWebVisibility}
+          showWebVisibilityFilter={vm.showWebVisibilityFilter}
         />
         <ProductosList
           search={vm.search}

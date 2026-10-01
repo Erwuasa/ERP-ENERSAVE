@@ -26,6 +26,7 @@ export interface MisClientesPanelProps {
   onNavigateToContract: (contract: Contract) => void
   onNavigateToContratosActivos?: () => void
   canExportDatabase?: boolean
+  onCreateContractForClient?: (client: Client) => void
 }
 
 export function MisClientesPanel(props: MisClientesPanelProps) {
@@ -75,6 +76,7 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
         onSort={vm.handleSort}
         onOpenFolder={vm.setFolderClientId}
         onOpenContracts={vm.setContractsClientId}
+        onCreateContract={props.onCreateContractForClient}
       />
       <p className="shrink-0 text-[10px] font-mono text-brand-subtext px-0.5">
         {vm.sorted.length} cliente{vm.sorted.length !== 1 ? "s" : ""}

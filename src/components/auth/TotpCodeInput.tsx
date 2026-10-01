@@ -1,16 +1,31 @@
-import { useRef, type KeyboardEvent } from "react"
+import { useEffect, useRef, type KeyboardEvent } from "react"
 
 interface TotpCodeInputProps {
   value: string
   onChange: (value: string) => void
+  /** Se invoca al completar los 6 dígitos (tecla o pegado). */
+  onComplete?: (code: string) => void
   disabled?: boolean
+  autoFocus?: boolean
 }
 
 const DIGIT_COUNT = 6
 
-export function TotpCodeInput({ value, onChange, disabled = false }: TotpCodeInputProps) {
+export function TotpCodeInput({
+  value,
+  onChange,
+  onComplete,
+  disabled = false,
+  autoFocus = true,
+}: TotpCodeInputProps) {
   const inputsRef = useRef<Array<HTMLInputElement | null>>([])
   const digits = Array.from({ length: DIGIT_COUNT }, (_, index) => value[index] ?? "")
+
+  useEffect(() => {
+    if (!autoFocus || disabled) return
+    const id = window.requestAnimationFrame(() => focusIndex(0))
+    return () => window.cancelAnimationFrame(id)
+  }, [autoFocus, disabled])
 
   function focusIndex(index: number) {
     inputsRef.current[index]?.focus()
@@ -18,7 +33,9 @@ export function TotpCodeInput({ value, onChange, disabled = false }: TotpCodeInp
   }
 
   function applyDigits(nextDigits: string[]) {
-    onChange(nextDigits.join("").slice(0, DIGIT_COUNT))
+    const next = nextDigits.join("").slice(0, DIGIT_COUNT)
+    onChange(next)
+    if (next.length === DIGIT_COUNT) onComplete?.(next)
   }
 
   function handleChange(index: number, raw: string) {
@@ -49,8 +66,10 @@ export function TotpCodeInput({ value, onChange, disabled = false }: TotpCodeInp
     event.preventDefault()
     const pasted = event.clipboardData.getData("text").replace(/\D/g, "").slice(0, DIGIT_COUNT)
     if (!pasted) return
-    applyDigits(Array.from({ length: DIGIT_COUNT }, (_, index) => pasted[index] ?? ""))
-    focusIndex(Math.min(pasted.length, DIGIT_COUNT - 1))
+    const nextDigits = Array.from({ length: DIGIT_COUNT }, (_, index) => pasted[index] ?? "")
+    applyDigits(nextDigits)
+    if (pasted.length >= DIGIT_COUNT) focusIndex(DIGIT_COUNT - 1)
+    else focusIndex(Math.min(pasted.length, DIGIT_COUNT - 1))
   }
 
   return (

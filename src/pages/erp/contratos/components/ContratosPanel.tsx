@@ -1,5 +1,6 @@
 import { useRef, useState, type Dispatch, type FormEvent, type ReactNode, type SetStateAction } from "react"
 import type { Contract } from "@/types/contract"
+import type { Settlement } from "@/types/settlement"
 import type { Client } from "@/types/client"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import type { ContractsListFilter } from "@/lib/contract-renewal"
@@ -10,6 +11,7 @@ import { ContratosPanelTable } from "@/pages/erp/contratos/components/ContratosP
 import { ContratosPanelToolbar } from "@/pages/erp/contratos/components/ContratosPanelToolbar"
 import { ContratoDetallePanel } from "@/components/contratos/ContratoDetallePanel"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
+import type { Profile } from "@/types/profile"
 import { PANEL_TOOLBAR } from "@/lib/enersave-ui-theme"
 import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel"
 import type { ContractOcrResult } from "@/lib/contract-ocr"
@@ -29,6 +31,8 @@ export interface ContratosPanelProps {
   erpDataLoading?: boolean
   setClients: Dispatch<SetStateAction<Client[]>>
   setContracts: Dispatch<SetStateAction<Contract[]>>
+  settlements?: Settlement[]
+  setSettlements?: Dispatch<SetStateAction<Settlement[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
@@ -66,6 +70,8 @@ export interface ContratosPanelProps {
   showTeamScopeFilter?: boolean
   teamScope?: ContractsTeamScope
   onTeamScopeChange?: (scope: ContractsTeamScope) => void
+  teamScopeUnseenCount?: number
+  authProfiles?: Profile[]
   showComercialColumn?: boolean
   showTarifaRecommendations?: boolean
   reviewedContractIds?: ReadonlySet<string>
@@ -85,9 +91,11 @@ export function ContratosPanel({
   visibleContracts,
   clients,
   erpDataLoading = false,
-  setClients,
-  setContracts,
-  addOptimisticContract,
+    setClients,
+    setContracts,
+    settlements,
+    setSettlements,
+    addOptimisticContract,
   contractsSearchQuery,
   setContractsSearchQuery,
   contractsListFilter,
@@ -116,6 +124,8 @@ export function ContratosPanel({
   showTeamScopeFilter = false,
   teamScope = "own",
   onTeamScopeChange,
+  teamScopeUnseenCount = 0,
+  authProfiles = [],
   showComercialColumn,
   showTarifaRecommendations = false,
   reviewedContractIds,
@@ -137,6 +147,8 @@ export function ContratosPanel({
     clients,
     setClients,
     setContracts,
+    settlements,
+    setSettlements,
     addOptimisticContract,
     contractsSearchQuery,
     contractsListFilter,
@@ -152,6 +164,7 @@ export function ContratosPanel({
     reviewedContractIds,
     tarifaRecommendations,
     canExportDatabase,
+    authProfiles,
   })
 
   return (
@@ -173,6 +186,7 @@ export function ContratosPanel({
           showTeamScopeFilter={showTeamScopeFilter}
           teamScope={teamScope}
           onTeamScopeChange={onTeamScopeChange}
+          teamScopeUnseenCount={teamScopeUnseenCount}
           profiles={profiles}
           estadoFilterUI={vm.estadoFilterUI}
           setEstadoFilterUI={vm.setEstadoFilterUI}
@@ -218,12 +232,14 @@ export function ContratosPanel({
             onDismissRenewalAlert={onDismissRenewalAlert}
             onOpenDetalle={setContratoSeleccionado}
             onEditDraft={onEditDraft}
+            renderCompaniaLogo={renderCompaniaLogo}
             showComercialColumn={showComercialColumn}
           />
         </div>
 
       <ConfirmDeleteContractModal
         open={contractPendingDelete != null}
+        contract={contractPendingDelete}
         loading={isDeletingContract}
         onCancel={() => {
           if (isDeletingContract) return
@@ -246,6 +262,7 @@ export function ContratosPanel({
         comercialId={activeUserId}
         comercialName={activeUserName}
         existingContractCount={visibleContracts.length}
+        profiles={authProfiles.length > 0 ? authProfiles : profiles}
       />
 
       <ContratosOcrModal

@@ -20,7 +20,7 @@ export function MfaLoginPanel({
   secret?: string
   code: string
   onCodeChange: (value: string) => void
-  onSubmit: () => void
+  onSubmit: (code: string) => void
   onCancel: () => void
   loading: boolean
   error: string | null
@@ -31,7 +31,7 @@ export function MfaLoginPanel({
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit()
+        if (isCompleteTotpCode(code)) onSubmit(code)
       }}
       className="space-y-5"
     >
@@ -73,7 +73,16 @@ export function MfaLoginPanel({
         <label className="block text-center text-xs font-bold text-slate-600 dark:text-slate-400 font-mono uppercase tracking-wider">
           Código de 6 dígitos
         </label>
-        <TotpCodeInput value={code} onChange={onCodeChange} disabled={loading} />
+        <TotpCodeInput
+          value={code}
+          onChange={onCodeChange}
+          disabled={loading}
+          autoFocus
+          onComplete={(completeCode) => {
+            if (loading || !isCompleteTotpCode(completeCode)) return
+            onSubmit(completeCode)
+          }}
+        />
       </div>
 
       <button

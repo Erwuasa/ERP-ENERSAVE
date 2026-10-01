@@ -10,31 +10,42 @@ export type ContractQuickActionTone =
 
 const TONE_CLASS: Record<
   ContractQuickActionTone,
-  { base: string; hover: string }
+  { idle: string; hover: string; focusRing: string }
 > = {
   edit: {
-    base: "text-cyan-600 border-cyan-500/40 bg-cyan-500/10",
-    hover: "hover:text-cyan-700 hover:border-cyan-500/60 hover:bg-cyan-500/20",
+    idle: "text-slate-500 dark:text-slate-400",
+    hover:
+      "hover:text-cyan-600 hover:bg-cyan-500/10 dark:hover:text-cyan-400 dark:hover:bg-cyan-500/15",
+    focusRing: "focus-visible:ring-cyan-500/35",
   },
   recommendation: {
-    base: "text-amber-500 border-amber-500/40 bg-amber-500/12",
-    hover: "hover:text-amber-600 hover:border-amber-500/65 hover:bg-amber-500/22",
+    idle: "text-amber-600/90 dark:text-amber-400/90",
+    hover:
+      "hover:text-amber-700 hover:bg-amber-500/12 dark:hover:text-amber-300 dark:hover:bg-amber-500/18",
+    focusRing: "focus-visible:ring-amber-500/40",
   },
   renewal: {
-    base: "text-orange-500 border-orange-500/40 bg-orange-500/12",
-    hover: "hover:text-orange-600 hover:border-orange-500/65 hover:bg-orange-500/22",
+    idle: "text-orange-600/85 dark:text-orange-400/90",
+    hover:
+      "hover:text-orange-700 hover:bg-orange-500/12 dark:hover:text-orange-300 dark:hover:bg-orange-500/18",
+    focusRing: "focus-visible:ring-orange-500/40",
   },
   penalty: {
-    base: "text-emerald-600 border-emerald-500/40 bg-emerald-500/10",
-    hover: "hover:text-emerald-700 hover:border-emerald-500/60 hover:bg-emerald-500/20",
+    idle: "text-emerald-600/90 dark:text-emerald-400/90",
+    hover:
+      "hover:text-emerald-700 hover:bg-emerald-500/10 dark:hover:text-emerald-300 dark:hover:bg-emerald-500/15",
+    focusRing: "focus-visible:ring-emerald-500/35",
   },
   danger: {
-    base: "text-rose-600 border-rose-500/40 bg-rose-500/10",
-    hover: "hover:text-rose-700 hover:border-rose-500/60 hover:bg-rose-500/20",
+    idle: "text-slate-500 dark:text-slate-400",
+    hover:
+      "hover:text-rose-600 hover:bg-rose-500/10 dark:hover:text-rose-400 dark:hover:bg-rose-500/15",
+    focusRing: "focus-visible:ring-rose-500/35",
   },
   muted: {
-    base: "text-brand-subtext/50 border-brand-border/45 bg-brand-surface/40",
+    idle: "text-brand-subtext/45",
     hover: "",
+    focusRing: "focus-visible:ring-brand-border/50",
   },
 }
 
@@ -44,6 +55,7 @@ interface ContractQuickActionButtonProps {
   ariaLabel: string
   onClick?: () => void
   disabled?: boolean
+  size?: "sm" | "md"
   children: ReactNode
 }
 
@@ -53,9 +65,11 @@ export function ContractQuickActionButton({
   ariaLabel,
   onClick,
   disabled = false,
+  size = "sm",
   children,
 }: ContractQuickActionButtonProps) {
   const palette = TONE_CLASS[disabled ? "muted" : tone]
+  const dimension = size === "md" ? "h-8 w-8" : "h-7 w-7"
 
   return (
     <button
@@ -64,9 +78,11 @@ export function ContractQuickActionButton({
       onClick={onClick}
       title={title}
       aria-label={ariaLabel}
-      className={`p-1 rounded-md border transition-colors cursor-pointer disabled:cursor-not-allowed ${palette.base} ${disabled ? "" : palette.hover}`}
+      className={`inline-flex ${dimension} shrink-0 items-center justify-center rounded-lg bg-transparent transition-colors duration-200 ease-out cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-brand-panel ${palette.idle} ${disabled ? "" : palette.hover} ${palette.focusRing}`}
     >
-      {children}
+      <span className="inline-flex items-center justify-center [&>svg]:size-[15px] [&>svg]:shrink-0 [&>svg]:stroke-[1.75]">
+        {children}
+      </span>
     </button>
   )
 }

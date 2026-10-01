@@ -1,6 +1,7 @@
 import type { Alegacion } from "../types/alegacion"
 import type { Settlement } from "../types/settlement"
 import type { Contract } from "../types/contract"
+import { normalizeContractEstado } from "./contract-estado"
 import { liquidacionRowMatchesSearch, resolveContractReferencia } from "./contract-referencia"
 import { computeComisionBreakdown } from "./marco-commission"
 import {
@@ -361,6 +362,40 @@ function resolveComisionComercialFromContract(
     .comisionComercial
 }
 
+function resolveLiquidacionComisionComercial(input: {
+  settlement: Settlement
+  contract: Contract | undefined
+  compania: string
+  profiles: ProfileRow[]
+  formatCurrency: (val: number) => string
+  marcoRows: MarcoRetributivoRow[]
+}): number {
+  const { settlement, contract, compania, profiles, formatCurrency, marcoRows } = input
+
+  if (isRetrocomisionSettlement(settlement)) {
+    return settlement.montoExterno
+  }
+
+  if (contract && contract.montoExterno > 0) {
+    const estado = normalizeContractEstado(contract.estado)
+    if (estado === "ACTIVADO" || settlement.estado === "pendiente") {
+      return contract.montoExterno
+    }
+  }
+
+  if (contract) {
+    const fromMarco = resolveComisionComercialFromContract(
+      { ...contract, compania },
+      profiles,
+      formatCurrency,
+      marcoRows
+    )
+    if (fromMarco != null && fromMarco > 0) return fromMarco
+  }
+
+  return settlement.montoExterno
+}
+
 export function enrichSettlementRow(
   settlement: Settlement,
   contracts: Contract[],
@@ -394,16 +429,14 @@ export function enrichSettlementRow(
     fechaActivacion:
       contract?.estadoEfectivoDesde ?? contract?.createdAt ?? settlement.createdAt,
     fechaBaja: settlement.fechaBaja ?? contract?.fechaBaja ?? "—",
-    comision: isRetrocomisionSettlement(settlement)
-      ? settlement.montoExterno
-      : contract != null
-        ? resolveComisionComercialFromContract(
-            { ...contract, compania },
-            profiles,
-            formatCurrency,
-            marcoRows
-          ) ?? settlement.montoExterno
-        : settlement.montoExterno,
+    comision: resolveLiquidacionComisionComercial({
+      settlement,
+      contract,
+      compania,
+      profiles,
+      formatCurrency,
+      marcoRows,
+    }),
     comercialId: contractComercialId,
     comercialName: resolveLiquidacionComercialDisplayName(
       {

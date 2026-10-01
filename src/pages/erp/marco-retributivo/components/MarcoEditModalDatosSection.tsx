@@ -13,6 +13,8 @@ type Props = {
   form: MarcoEntryInput
   disabled: boolean
   patchForm: (patch: Partial<MarcoEntryInput>) => void
+  /** Compañías presentes en marco_retributivo (Supabase), ya normalizadas. */
+  marcoCompaniaLabels: string[]
 }
 
 export function MarcoEditModalDatosSection({ form, disabled, patchForm }: Props) {

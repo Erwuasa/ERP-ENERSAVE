@@ -59,6 +59,15 @@ describe("marcoCompaniaMatchesFilter", () => {
     expect(marcoCompaniaMatchesFilter("Neon", "Naturgy")).toBe(false)
     expect(marcoCompaniaMatchesFilter("Total Energies", "TotalEnergies")).toBe(true)
   })
+
+  it("empareja nombre Supabase con etiqueta del selector (Plenitude)", () => {
+    expect(
+      marcoCompaniaMatchesFilter("Todo Plenitude (Digital Energy)", "Plenitude")
+    ).toBe(true)
+    expect(marcoCompaniaMatchesFilter("Todo Plenitude (Digital Energy)", "Endesa")).toBe(
+      false
+    )
+  })
 })
 
 describe("filterMarcoRowsForTable", () => {

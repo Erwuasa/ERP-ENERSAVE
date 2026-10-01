@@ -1,13 +1,18 @@
 import type { Contract } from "../../types/contract"
 import { normalizeContractEstado } from "../contract-estado"
+import { resolveContractCompaniaForDisplay } from "../resolve-contract-compania"
 import {
   CONTRACT_FIELD_TO_OVERRIDE_COLUMN,
   mergeManualOverrides,
   parseManualOverrides,
 } from "../manual-overrides"
 import { insertContratoHistorialCambioEstado } from "./contrato-historial"
+import { applyCupsComercialAssignmentToContract } from "../contract-import-cups-assign"
 import { resolveContractComercialDbFields } from "../contract-comercial-assign"
-import type { NewContractFormState } from "../contract-registration"
+import {
+  buildContractWizardMetadata,
+  type NewContractFormState,
+} from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import { pushContractToAt } from "./push-contract-at"
 import {
@@ -109,25 +114,10 @@ export function buildTeamContractRow(
     monto_externo: contract.montoExterno,
     comentarios_internos: form.comentariosInternos,
     documentos: [],
-    metadata: {
-      client_id: contract.clientId,
+    metadata: buildContractWizardMetadata(form, {
+      clientId: contract.clientId,
       atr: contract.atr,
-      potencia_p1: form.potenciaP1,
-      potencia_p2: form.potenciaP2,
-      potencia_p3: form.potenciaP3,
-      potencia_p4: form.potenciaP4,
-      potencia_p5: form.potenciaP5,
-      potencia_p6: form.potenciaP6,
-      peaje_segment: form.peajeSegment,
-      is_new_supply: form.tipoOperacion === "alta_nueva",
-      is_ownership_change: form.esCambioTitular,
-      ...(form.esCambioTitular && form.titularActualNombre.trim()
-        ? { titular_actual_nombre: form.titularActualNombre.trim() }
-        : {}),
-      ...(form.esCambioTitular && form.titularActualDni.trim()
-        ? { titular_actual_dni: form.titularActualDni.trim().toUpperCase() }
-        : {}),
-    },
+    }),
     referencia: contract.referencia ?? null,
   }
 }
@@ -163,6 +153,17 @@ async function loadProviderByAtCompanyId(
       .filter((row) => row.at_company_id && row.name)
       .map((row) => [String(row.at_company_id), String(row.name)])
   )
+
+  const ganaName = (data ?? []).find((row) =>
+    String(row.name ?? "")
+      .toLowerCase()
+      .includes("gana")
+  )?.name
+  const ganaAtAlt = "537a9c3a-f741-43a6-8fee-c0b0d653ec7a"
+  if (ganaName && !providerByAtCompanyIdCache.has(ganaAtAlt)) {
+    providerByAtCompanyIdCache.set(ganaAtAlt, String(ganaName))
+  }
+
   return providerByAtCompanyIdCache
 }
 
@@ -226,23 +227,52 @@ export function resolveContractCompania(
   const fromProvider = providerAtId ? providerByAtCompanyId.get(providerAtId) : undefined
   if (fromProvider?.trim()) return fromProvider.trim()
 
+  const marcoLogical = str(payload.marco_logical_id)
+  if (marcoLogical && /^M-GAN/i.test(marcoLogical)) return "Gana Energía"
+
+  const searchTokens = str(payload.search_tokens)?.toLowerCase() ?? ""
+  if (searchTokens.includes("gana energ") || searchTokens.includes("gana energia")) {
+    return "Gana Energía"
+  }
+
   return "—"
+}
+
+function isGanaAtContract(payload: Record<string, unknown>): boolean {
+  const marcoLogical = str(payload.marco_logical_id)
+  if (marcoLogical && /^M-GAN/i.test(marcoLogical)) return true
+  const tokens = str(payload.search_tokens)?.toLowerCase() ?? ""
+  return tokens.includes("gana energ") || tokens.includes("gana energia")
 }
 
 export function resolveContractTarifa(row: Row): string {
   const stored = str(row.tarifa)?.trim() ?? ""
-  if (stored && stored.toUpperCase() !== "TARIFA AT") return stored
-
   const payload = payloadRecord(row)
   const electricity = nestedPayload(payload, "electricity_data")
   const gas = nestedPayload(payload, "gas_data")
-  return (
+  const fromAt =
     str(electricity.rate_name) ??
     str(electricity.tariff_name) ??
     str(gas.rate_name) ??
-    str(gas.tariff_name) ??
-    stored
-  )
+    str(gas.tariff_name)
+
+  const raw = fromAt ?? (stored && stored.toUpperCase() !== "TARIFA AT" ? stored : "")
+  const normalized = raw.trim()
+  if (!normalized) return stored || "—"
+
+  const rateKey = normalized
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+
+  if (rateKey === "indexado" && isGanaAtContract(payload)) {
+    const tokens = str(payload.search_tokens)?.toLowerCase() ?? ""
+    if (tokens.includes("precio de mercado")) return "Precio de Mercado"
+    return "Precio de Mercado"
+  }
+
+  if (stored && stored.toUpperCase() !== "TARIFA AT" && !fromAt) return stored
+  return normalized
 }
 
 function mapObjectRows(raw: unknown): Record<string, unknown>[] {
@@ -380,14 +410,17 @@ export function mapRowToContract(
   const consumoAnual = num(row.consumo_anual) ?? 0
   const tipoPrecio = str(row.tipo_precio)
 
-  return {
+  const contract: Contract = {
     id: String(row.id ?? ""),
     referencia: str(row.referencia),
     clientId: str(row.cliente_id) ?? str(metadata.client_id),
     clientName: str(row.client_name) ?? "",
     cups: str(row.cups) ?? "",
     tipo: row.tipo === "gas" ? "gas" : "luz",
-    compania: resolveContractCompania(row, providerByAtCompanyId),
+    compania: resolveContractCompaniaForDisplay({
+      compania: resolveContractCompania(row, providerByAtCompanyId),
+      tarifa: resolveContractTarifa(row),
+    }),
     tarifa: resolveContractTarifa(row),
     consumoAnual,
     montoInterno: num(row.monto_interno) ?? 0,
@@ -473,6 +506,8 @@ export function mapRowToContract(
       ? (row.comentarios_internos as Contract["comentariosInternos"])
       : undefined,
   }
+
+  return applyCupsComercialAssignmentToContract(contract)
 }
 
 const PATCH_COLUMNS: Partial<Record<keyof Contract, string>> = {
@@ -570,6 +605,7 @@ export async function updateTeamContract(
       autorNombre: string
       estadoAnterior?: string
     }
+    mergeWizardMetadata?: Record<string, unknown>
   }
 ): Promise<TeamContractResult<Contract>> {
   const resolved = resolveClient()
@@ -581,11 +617,15 @@ export async function updateTeamContract(
     patch.isOwnershipChange !== undefined ||
     patch.titularActualNombre !== undefined ||
     patch.titularActualDni !== undefined
-  if (Object.keys(row).length === 0 && !metadataFlags) {
+  if (
+    Object.keys(row).length === 0 &&
+    !metadataFlags &&
+    !options?.mergeWizardMetadata
+  ) {
     return { ok: false, reason: "error", message: "No hay cambios que persistir." }
   }
 
-  if (metadataFlags) {
+  if (metadataFlags || options?.mergeWizardMetadata) {
     const { data: currentMetaRow } = await resolved.client
       .from(TABLE)
       .select("metadata")
@@ -597,6 +637,7 @@ export async function updateTeamContract(
         : {}
     row.metadata = {
       ...prevMeta,
+      ...(options?.mergeWizardMetadata ?? {}),
       ...(patch.isNewSupply !== undefined ? { is_new_supply: patch.isNewSupply } : {}),
       ...(patch.isOwnershipChange !== undefined
         ? { is_ownership_change: patch.isOwnershipChange }
@@ -672,17 +713,26 @@ export async function deleteTeamContract(id: string): Promise<TeamContractResult
 }
 
 export function buildTeamContractRowFromImport(contract: Contract): Row {
-  const row = buildTeamContractPatch(contract)
+  const normalized = applyCupsComercialAssignmentToContract(contract)
+  const row = buildTeamContractPatch(normalized)
   const comercial = resolveContractComercialDbFields({
-    comercialId: contract.comercialId,
-    comercialName: contract.comercialName,
-    nombreComercial: contract.nombreComercial,
+    comercialId: normalized.comercialId,
+    comercialName: normalized.comercialName,
+    nombreComercial: normalized.nombreComercial,
+    sellerProfile: normalized.jefeEquipo
+      ? { managerId: normalized.jefeEquipo, fullName: normalized.comercialName }
+      : null,
   })
   row.comercial_id = comercial.comercial_id
   row.comercial_name = comercial.comercial_name
   row.nombre_comercial = comercial.nombre_comercial
+  row.jefe_equipo = contract.jefeEquipo ?? comercial.jefe_equipo
   row.cliente_id = contract.clientId ?? null
   row.referencia = contract.referencia ?? null
+  row.fecha_inicio = contract.createdAt ?? null
+  row.codigo_postal = contract.codigoPostal ?? null
+  row.poblacion = contract.poblacion ?? null
+  row.provincia = contract.provincia ?? null
   row.source = "manual"
   row.documentos = contract.documentos ?? []
   row.comentarios_internos = contract.comentariosInternos ?? []
@@ -690,6 +740,7 @@ export function buildTeamContractRowFromImport(contract: Contract): Row {
     client_id: contract.clientId,
     atr: contract.atr,
     import_source: "excel",
+    oferta: contract.tarifa,
   }
   return row
 }
