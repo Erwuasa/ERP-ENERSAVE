@@ -22,9 +22,6 @@ verify_jwt = false
 [functions.sync-incidents-at]
 verify_jwt = false
 
-[functions.sync-catalog-at]
-verify_jwt = false
-
 [functions.sync-comparisons-at]
 verify_jwt = false
 

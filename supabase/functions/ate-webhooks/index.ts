@@ -7,7 +7,6 @@ import { runClientSync } from '../_shared/sync-clients.ts'
 import { runContractSync } from '../_shared/sync-contracts.ts'
 import { runLiquidationSync } from '../_shared/sync-liquidations.ts'
 import { runIncidentSync } from '../_shared/sync-incidents.ts'
-import { runCatalogSync } from '../_shared/sync-catalog.ts'
 import { runComparisonSync } from '../_shared/sync-comparisons.ts'
 import { runEmailSync } from '../_shared/sync-emails.ts'
 import type { AtSyncContext } from '../_shared/at-webhook-entity.ts'
@@ -35,7 +34,6 @@ const ROUTES: Array<{
   { prefix: 'contract.', routed: 'sync-contracts-at', run: (ctx) => runContractSync(ctx) },
   { prefix: 'liquidation.', routed: 'sync-liquidations-at', run: () => runLiquidationSync() },
   { prefix: 'incident.', routed: 'sync-incidents-at', run: (ctx) => runIncidentSync(ctx) },
-  { prefix: 'catalog.', routed: 'sync-catalog-at', run: () => runCatalogSync() },
   { prefix: 'comparison.', routed: 'sync-comparisons-at', run: () => runComparisonSync() },
   { prefix: 'email.', routed: 'sync-emails-at', run: () => runEmailSync() },
 ]

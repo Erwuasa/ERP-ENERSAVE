@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
-import { listAtCatalogEntries } from "@/lib/supabase/at-catalog"
 import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
 import { listTariffCatalogPage } from "@/lib/supabase/tariffs"
-import { mergeCompanyNames, normalizeCompaniaKey } from "@/lib/erp/compania-logos"
+import { mergeCompanyNames } from "@/lib/erp/compania-logos"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
 import {
@@ -14,7 +13,6 @@ import {
   filterMarcoTariffs,
   getWizardCompanies,
   getWizardCompanySupplyTypes,
-  isMarcoEntryForSegment,
   type ContractWizardSegment,
 } from "@/lib/contract-tariff-filter"
 import type { NewContractFormState, WizardStep } from "@/lib/contract-registration"
@@ -72,7 +70,6 @@ export function useNuevoContratoWizard({
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
   const [serviciosExtrasExpanded, setServiciosExtrasExpanded] = useState(false)
-  const [atCompanies, setAtCompanies] = useState<string[]>([])
   const [tariffCompanies, setTariffCompanies] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
 
@@ -82,9 +79,6 @@ export function useNuevoContratoWizard({
       if (result.ok && result.data.length > 0) {
         setMarcoCatalog(result.data.map(marcoRowToCatalogEntry))
       }
-    })
-    void listAtCatalogEntries("billing-companies").then((result) => {
-      if (result.ok) setAtCompanies(result.data.map((row) => row.label).filter(Boolean))
     })
   }, [open])
 
@@ -150,40 +144,6 @@ export function useNuevoContratoWizard({
         tariffCompanies,
       ]),
     [segment, marcoCatalog, form.tipo, tariffCompanies]
-  )
-
-  // Companies known to marco_retributivo, mapped to which segment(s) they
-  // actually serve (independent of the currently active tab). Used below to
-  // stop a pyme-only (or residencial-only) company from leaking into the
-  // "resto" AT-catalog list when the *other* tab is active — the AT catalog
-  // itself carries no segmento info, so we fall back to whatever
-  // marco_retributivo already knows about that company.
-  const marcoCompanySegments = useMemo(() => {
-    const map = new Map<string, Set<ContractWizardSegment>>()
-    for (const entry of marcoCatalog) {
-      const key = normalizeCompaniaKey(entry.compania)
-      const segs = map.get(key) ?? new Set<ContractWizardSegment>()
-      if (isMarcoEntryForSegment(entry, "residencial")) segs.add("residencial")
-      if (isMarcoEntryForSegment(entry, "pyme")) segs.add("pyme")
-      map.set(key, segs)
-    }
-    return map
-  }, [marcoCatalog])
-
-  const atRestCompanies = useMemo(() => {
-    const featuredKeys = new Set(featuredCompanies.map(normalizeCompaniaKey))
-    return atCompanies.filter((name) => {
-      const key = normalizeCompaniaKey(name)
-      if (featuredKeys.has(key)) return false
-      const knownSegments = marcoCompanySegments.get(key)
-      if (knownSegments && !knownSegments.has(segment)) return false
-      return true
-    })
-  }, [atCompanies, featuredCompanies, marcoCompanySegments, segment])
-
-  const companies = useMemo(
-    () => mergeCompanyNames([featuredCompanies, atRestCompanies]),
-    [featuredCompanies, atRestCompanies]
   )
 
   const companySupplyTypes = useMemo(() => {
@@ -526,9 +486,7 @@ export function useNuevoContratoWizard({
     incompleteConfirmOpen,
     setIncompleteConfirmOpen,
     incompleteMissing,
-    companies,
     featuredCompanies,
-    atRestCompanies,
     companySupplyTypes,
     filteredTariffs,
     documentosObligatorios,

@@ -18,13 +18,12 @@ Eventos reales de `GET /v1/webhooks/events` (sep 2026):
 
 | Dominio | Función | Cron | Por qué |
 |---|---|---|---|
-| Catálogos | `sync-catalog-at` | `0 */6 * * *` (cada 6 h) | Enums, comercializadoras, regulatoria: casi no cambian |
-| Comparativas | `sync-comparisons-at` | `20 * * * *` (cada hora, :20) | Altas durante el día; desfase para no coincidir con catálogo |
+| Comparativas | `sync-comparisons-at` | `20 * * * *` (cada hora, :20) | Altas durante el día |
 
 El cron llama con Bearer del vault `at-sync-webhook-secret` (mismo valor que `AT_TARIFFS_SYNC_SECRET`). Crearlo **una vez** en SQL Editor:
 
 ```sql
-select vault.create_secret('<mismo Bearer que los webhooks>', 'at-sync-webhook-secret', 'cron catalog/comparisons');
+select vault.create_secret('<mismo Bearer que los webhooks>', 'at-sync-webhook-secret', 'cron comparisons');
 ```
 
 Hasta que exista ese secret, el job falla con `Falta vault secret at-sync-webhook-secret`.
