@@ -84,11 +84,13 @@ export function CompaniaFilterSelect({
   const options = useMemo(() => {
     return [
       { id: allOptionValue, label: allOptionLabel, count: totalCount },
-      ...companias.map((c) => ({
-        id: c,
-        label: formatCompaniaLabel(c),
-        count: countsByCompania[c] ?? 0,
-      })),
+      ...companias
+        .filter((c) => (countsByCompania[c] ?? 0) > 0)
+        .map((c) => ({
+          id: c,
+          label: formatCompaniaLabel(c),
+          count: countsByCompania[c] ?? 0,
+        })),
     ]
   }, [allOptionLabel, allOptionValue, companias, countsByCompania, totalCount])
 

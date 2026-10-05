@@ -1,4 +1,3 @@
-import type { ReactNode } from "react"
 import { useAuth } from "@/hooks/useAuth"
 import { MarcoRetributivoPanel } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoPanel"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
@@ -19,7 +18,9 @@ export function MarcoRetributivoPage() {
         superadminViewMode={superadminViewMode}
         commissionPercentage={activeUser.commissionPercentage}
         formatCurrency={formatCurrency}
-        renderCompaniaLogo={renderCompaniaLogo as (brandName: string) => ReactNode}
+        renderCompaniaLogo={(brandName) =>
+          renderCompaniaLogo(brandName, null, "md")
+        }
       />
     </div>
   )

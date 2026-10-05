@@ -12,18 +12,12 @@ import {
   type MarcoRetributivoRow,
   type NewMarcoEntryInput,
 } from "@/lib/supabase/marco-retributivo"
+import { buildMarcoPeajeFilterOptions } from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
 import {
-  buildMarcoPeajeFilterOptions,
-  filterMarcoRowsForTable,
-  marcoCompaniaMatchesFilter,
-  marcoPeajeMatchesFilter,
-} from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
-import {
-  expandMarcoRowsByTramos,
+  buildMarcoVisibleTableRows,
   resolveMarcoParentRowId,
 } from "@/pages/erp/marco-retributivo/lib/marco-table-rows"
 import { buildCanonicalCompaniaCounts } from "@/lib/erp/compania-logos"
-import { filterMarcoRowsForDisplay } from "@/lib/marco-dedup"
 import {
   markCatalogDedupRan,
   persistMarcoCatalogDedup,
@@ -130,20 +124,6 @@ export function useMarcoRetributivoPanel({
     })
   }, [canEditComision, supabaseConfigured, loading, runMarcoDedup])
 
-  const scopedRows = useMemo(() => {
-    return rows.filter((entry) => {
-      if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
-      if (
-        segmentoFilter !== "todos" &&
-        normalizeSegmento(entry.segmento) !== segmentoFilter
-      ) {
-        return false
-      }
-      if (!marcoCompaniaMatchesFilter(entry.compania, companiaFilter)) return false
-      return true
-    })
-  }, [rows, companiaFilter, tipoFilter, segmentoFilter])
-
   const peajeOptions = useMemo(() => {
     const byTipoSegmento = rows.filter((entry) => {
       if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
@@ -158,16 +138,20 @@ export function useMarcoRetributivoPanel({
     return buildMarcoPeajeFilterOptions(byTipoSegmento.map((entry) => entry.peaje))
   }, [rows, tipoFilter, segmentoFilter])
 
-  const filteredRows = useMemo(() => {
-    const byPeaje = scopedRows.filter((entry) =>
-      marcoPeajeMatchesFilter(entry.peaje, peajeFilter, {
-        matchGenericToSpecific: companiaFilter !== "Todos",
-      })
-    )
-    const deduped = filterMarcoRowsForDisplay(byPeaje)
-    const expanded = expandMarcoRowsByTramos(deduped)
-    return filterMarcoRowsForTable(expanded, companiaFilter)
-  }, [scopedRows, peajeFilter, companiaFilter])
+  const tableViewFilters = useMemo(
+    () => ({
+      tipoFilter,
+      segmentoFilter,
+      peajeFilter,
+      companiaFilter,
+    }),
+    [tipoFilter, segmentoFilter, peajeFilter, companiaFilter]
+  )
+
+  const filteredRows = useMemo(
+    () => buildMarcoVisibleTableRows(rows, tableViewFilters),
+    [rows, tableViewFilters]
+  )
 
   const marcoCompaniaAggregation = useMemo(() => {
     const scoped = rows.filter((e) => {
@@ -180,13 +164,19 @@ export function useMarcoRetributivoPanel({
       }
       return true
     })
-    return { scoped, ...buildCanonicalCompaniaCounts(scoped) }
+    return buildCanonicalCompaniaCounts(scoped)
   }, [rows, tipoFilter, segmentoFilter])
 
   const countsByCompania = useMemo(() => {
-    const { scoped, countsByLabel } = marcoCompaniaAggregation
-    return { Todos: scoped.length, ...countsByLabel }
-  }, [marcoCompaniaAggregation])
+    const visibleForCounts = buildMarcoVisibleTableRows(rows, {
+      ...tableViewFilters,
+      companiaFilter: "Todos",
+    })
+    const byLabel = buildCanonicalCompaniaCounts(
+      visibleForCounts.map((row) => ({ compania: row.compania }))
+    ).countsByLabel
+    return { Todos: visibleForCounts.length, ...byLabel }
+  }, [rows, tableViewFilters])
 
   const companyTabs = useMemo(() => {
     return ["Todos", ...marcoCompaniaAggregation.labels]

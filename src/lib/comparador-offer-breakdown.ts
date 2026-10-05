@@ -21,6 +21,27 @@ export interface ComparadorOfferBreakdownRow {
   savings: number | null
 }
 
+export type ComparadorDesgloseRowKind =
+  | "energia"
+  | "potencia"
+  | "otros_no_comunes"
+  | "otros_comunes"
+  | "iee"
+  | "alquiler"
+  | "base"
+  | "iva"
+  | "total"
+
+export interface ComparadorDesgloseTableRow {
+  id: string
+  kind: ComparadorDesgloseRowKind
+  termLabel: string
+  unit?: "kWh" | "kW"
+  /** Precio unitario (€/kWh o €/kW·día); null en conceptos fijos. */
+  rateEur: number | null
+  costEur: number
+}
+
 function slotToPeriodKey(slot: ComparadorPeriodSlot): TariffPeriodKey {
   return `P${slot.slice(1)}` as TariffPeriodKey
 }
@@ -214,6 +235,111 @@ export function buildComparadorOfferBreakdown(
 
   return rows
 }
+
+function formatDesgloseUnitRate(value: number | null, decimals = 4): string {
+  if (value == null || value <= 0) return "—"
+  return `${formatRate(value, decimals)} €`
+}
+
+function formatDesgloseCost(value: number, bold = false): string {
+  if (value <= 0) return "— €"
+  const formatted = value.toLocaleString("es-ES", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+  })
+  return bold ? `${formatted} €` : `${formatted} €`
+}
+
+/** Tabla de desglose mensual (estilo factura: energía, potencia, impuestos). */
+export function buildComparadorDesgloseTable(
+  input: BuildComparadorOfferBreakdownInput
+): ComparadorDesgloseTableRow[] {
+  const rows: ComparadorDesgloseTableRow[] = []
+  const conSlots = activeConsumoPeriodSlots(input.peaje)
+  const potSlots = activePotenciaPeriodSlots(input.peaje)
+  const preciosOferta = input.preciosOferta ?? {}
+  const dias = input.diasFacturacion ?? COMPARADOR_DIAS_FACTURACION_MENSUAL
+
+  for (const slot of conSlots) {
+    const key = slotToPeriodKey(slot)
+    const kwhMes = input.consumos[slot] ?? 0
+    const rate = preciosOferta[key]?.energyPriceKwh ?? 0
+    const cost =
+      kwhMes > 0 && rate > 0 ? energiaPeriodCostMensual(kwhMes, rate) : 0
+    rows.push({
+      id: `desglose-ene-${slot}`,
+      kind: "energia",
+      termLabel: `ENERGÍA ${getComparadorPeriodLabel(slot)}`,
+      unit: "kWh",
+      rateEur: rate > 0 ? rate : null,
+      costEur: cost,
+    })
+  }
+
+  for (const slot of potSlots) {
+    const key = slotToPeriodKey(slot)
+    const kw = input.potencias[slot] ?? 0
+    const rate = preciosOferta[key]?.powerPriceKwDay ?? 0
+    const cost = kw > 0 && rate > 0 ? potenciaPeriodCostMensual(kw, rate, dias) : 0
+    rows.push({
+      id: `desglose-pot-${slot}`,
+      kind: "potencia",
+      termLabel: `POTENCIA ${getComparadorPeriodLabel(slot)}`,
+      unit: "kW",
+      rateEur: rate > 0 ? rate : null,
+      costEur: cost,
+    })
+  }
+
+  const otrosComunesConIe =
+    (input.energiaReactivaMensual ?? 0) +
+    (input.bonoSocialMensual ?? 0) +
+    input.alquilerMensual +
+    (input.ieeMensualOferta ?? 0)
+  if (otrosComunesConIe > 0) {
+    rows.push({
+      id: "desglose-otros-comunes",
+      kind: "otros_comunes",
+      termLabel: "OTROS COSTES COMUNES CON I.E.",
+      rateEur: null,
+      costEur: otrosComunesConIe,
+    })
+  }
+
+  const base = input.baseImponibleMensualOferta ?? 0
+  if (base > 0) {
+    rows.push({
+      id: "desglose-base",
+      kind: "base",
+      termLabel: "BASE IMPONIBLE",
+      rateEur: null,
+      costEur: base,
+    })
+  }
+
+  const iva = input.ivaMensualOferta ?? 0
+  if (iva > 0) {
+    rows.push({
+      id: "desglose-iva",
+      kind: "iva",
+      termLabel: "IVA",
+      rateEur: null,
+      costEur: iva,
+    })
+  }
+
+  rows.push({
+    id: "desglose-total",
+    kind: "total",
+    termLabel: "TOTAL CON IVA",
+    rateEur: null,
+    costEur: input.totalMensualOferta,
+  })
+
+  return rows
+}
+
+export { formatDesgloseUnitRate, formatDesgloseCost }
 
 export function breakdownAmountTone(
   savings: number | null

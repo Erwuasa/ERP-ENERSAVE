@@ -298,20 +298,41 @@ export function resolveMarcoTramoForConsumo(
   }
 }
 
+function tramoBoundsFromRow(row: Record<string, unknown>): { desde: number; hasta: number } | null {
+  const desdeKwh = Number(row.desde_kwh)
+  const hastaKwh = Number(row.hasta_kwh)
+  if (Number.isFinite(desdeKwh) && Number.isFinite(hastaKwh)) {
+    return { desde: desdeKwh, hasta: hastaKwh }
+  }
+
+  const minMwh = Number(row.min_mwh)
+  const maxMwh = Number(row.max_mwh)
+  if (Number.isFinite(minMwh) && Number.isFinite(maxMwh)) {
+    return {
+      desde: minMwh * 1000,
+      hasta: maxMwh >= 9999 ? 999_999_999 : maxMwh * 1000,
+    }
+  }
+
+  return null
+}
+
 export function parseMarcoTramosJson(raw: unknown): MarcoConsumoTramo[] {
   if (!Array.isArray(raw)) return []
   return raw
     .map((item): MarcoConsumoTramo | null => {
       if (!item || typeof item !== "object") return null
       const row = item as Record<string, unknown>
-      const desde = Number(row.desde_kwh)
-      const hasta = Number(row.hasta_kwh)
-      if (!Number.isFinite(desde) || !Number.isFinite(hasta)) return null
-      const comisionBase = row.comision_base == null ? undefined : Number(row.comision_base)
+      const bounds = tramoBoundsFromRow(row)
+      if (!bounds) return null
+      const comisionBaseRaw =
+        row.comision_base ?? row.comision ?? row.comisionBase ?? null
+      const comisionBase =
+        comisionBaseRaw == null ? undefined : Number(comisionBaseRaw)
       const unidad = row.unidad
       return {
-        desde_kwh: desde,
-        hasta_kwh: hasta,
+        desde_kwh: bounds.desde,
+        hasta_kwh: bounds.hasta,
         comision_base: Number.isFinite(comisionBase) ? comisionBase : undefined,
         condicion: typeof row.condicion === "string" ? row.condicion : undefined,
         unidad:

@@ -25,6 +25,7 @@ import {
 import type { useEditableCell } from "@/hooks/use-editable-cell"
 import { ContratosTableSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
 import { canUserDeleteContract } from "@/lib/contract-deletion"
+import { isContractDeletable } from "@/lib/contract-registration"
 import { canUserMutateContract } from "@/lib/contract-visibility"
 import { ContractQuickActionButton } from "@/components/contratos/ContractQuickActionButton"
 import { TarifaRecommendationPopover } from "@/components/TarifaRecommendationPopover"
@@ -131,9 +132,7 @@ export function ContratosPanelTable({
 
   const showOwnerColumn =
     stableComercialColumn || showComercialColumn === true || activeRole === "superadmin"
-  const showDeleteColumn =
-    (activeRole === "tramitacion" || activeRole === "superadmin") &&
-    Boolean(onRequestDelete)
+  const showDeleteColumn = Boolean(onRequestDelete)
   const columnCount = (showOwnerColumn ? 10 : 9) + (showDeleteColumn ? 1 : 0)
 
   function handleRowClick(event: React.MouseEvent<HTMLTableRowElement>, contract: Contract) {
@@ -552,11 +551,12 @@ export function ContratosPanelTable({
                 {showDeleteColumn ? (
                   <td className={`${CONTRACTS_TD} text-center`} data-no-row-open>
                     <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
-                      {canUserDeleteContract(c, activeRole, activeUserId) ? (
+                      {isContractDeletable(c) &&
+                      canUserDeleteContract(c, activeRole, activeUserId) ? (
                         <ContractQuickActionButton
                           tone="danger"
-                          title="Eliminar contrato"
-                          ariaLabel={`Eliminar contrato ${c.clientName}`}
+                          title="Eliminar borrador"
+                          ariaLabel={`Eliminar borrador ${c.clientName}`}
                           onClick={() => onRequestDelete?.(c)}
                         >
                           <Trash2 aria-hidden />

@@ -18,7 +18,10 @@ import {
   inferIncluyeSvaFromMarcoText,
   inferPotenciaBoeFromMarcoText,
 } from "./marco-comparador-meta"
-import { resolveMarcoForComparadorTariff } from "./comparador-marco-resolver"
+import {
+  resolveMarcoForComparadorCommission,
+  resolveMarcoForComparadorTariff,
+} from "./comparador-marco-resolver"
 import type { MarcoTramoPrecision } from "./marco-consumo-tramo"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
@@ -27,6 +30,8 @@ import {
   resolveComparadorTariffPricingType,
   type ComparadorTariffPricingType,
 } from "./comparador-tariff-pricing-type"
+import { applyComparadorEnVivoUsageFallbacks } from "./comparador-en-vivo-form"
+import { hasComparadorUserProvidedData } from "./comparador-user-input"
 
 export interface ComparadorEnVivoFormState {
   segmento: "residencial" | "pyme"
@@ -44,6 +49,8 @@ export interface ComparadorEnVivoFormState {
   soloPotenciaBoe: boolean
   /** kWh/año para tramos de comisión en marco retributivo (prioritario sobre suma de periodos). */
   consumoAnualKwh: number | null
+  /** Total factura actual (€/mes) introducido por el usuario. */
+  facturaMensual: number | null
 }
 
 export interface RankingTarifa {
@@ -158,10 +165,9 @@ function matchesPotenciaBoeFilter(
   )
 }
 
+/** @deprecated Usa hasComparadorUserProvidedData */
 export function hasComparadorEnVivoUsage(form: ComparadorEnVivoFormState): boolean {
-  const potencia = Object.values(form.potencias).some((value) => value != null && value > 0)
-  const consumo = Object.values(form.consumos).some((value) => value != null && value > 0)
-  return potencia || consumo
+  return hasComparadorUserProvidedData(form)
 }
 
 export interface BuildComparadorRankingInput {
@@ -188,8 +194,14 @@ export function buildComparadorEnVivoRanking(
     formatCurrency = (value) => `${value.toFixed(2)} €`,
   } = input
 
-  if (!hasComparadorEnVivoUsage(form)) {
+  if (!hasComparadorUserProvidedData(form)) {
     return { resultados: [], precision: "exacto" }
+  }
+
+  const usageFallbacks = applyComparadorEnVivoUsageFallbacks(form)
+  const formWithFallbacks: ComparadorEnVivoFormState = {
+    ...form,
+    ...usageFallbacks,
   }
 
   const marcoIndex = buildMarcoRetributivoIndex(marcoRows)
@@ -197,30 +209,30 @@ export function buildComparadorEnVivoRanking(
   const eligibleCatalog = filterCatalogForComparador(
     catalog,
     marcoRows,
-    form.peaje,
+    formWithFallbacks.peaje,
     marcoIndex,
-    form.segmento
+    formWithFallbacks.segmento
   )
-  const currentCompany = form.companiaActual?.trim()
-    ? normalizeCompanyName(form.companiaActual)
+  const currentCompany = formWithFallbacks.companiaActual?.trim()
+    ? normalizeCompanyName(formWithFallbacks.companiaActual)
     : null
 
   const periodInputs: ComparadorPeriodInputs = {
-    potencias: form.potencias,
-    consumos: form.consumos,
+    potencias: formWithFallbacks.potencias,
+    consumos: formWithFallbacks.consumos,
   }
 
   const extras: ComparadorCostExtras = {
-    alquilerContador: form.alquilerContador,
-    bonoSocial: form.bonoSocial,
-    energiaReactiva: form.energiaReactiva,
-    otrosCostesSva: form.otrosCostesSva,
-    diasFacturacion: form.diasFacturacion,
+    alquilerContador: formWithFallbacks.alquilerContador,
+    bonoSocial: formWithFallbacks.bonoSocial,
+    energiaReactiva: formWithFallbacks.energiaReactiva,
+    otrosCostesSva: formWithFallbacks.otrosCostesSva,
+    diasFacturacion: formWithFallbacks.diasFacturacion,
   }
 
   const consumoAnual = resolveComparadorConsumoAnualKwh({
-    consumoAnualKwh: form.consumoAnualKwh,
-    consumosMensuales: form.consumos,
+    consumoAnualKwh: formWithFallbacks.consumoAnualKwh,
+    consumosMensuales: formWithFallbacks.consumos,
   })
   let precision: "exacto" | "estimado" = "exacto"
   const resultados: RankingTarifa[] = []
@@ -230,27 +242,32 @@ export function buildComparadorEnVivoRanking(
       continue
     }
 
-    if (!tariffMatchesComparadorAccessTariff(tariff.accessTariff, form.peaje)) continue
-    if (!allowsComparadorProviderForSegment(tariff.providerName, form.segmento)) continue
+    if (!tariffMatchesComparadorAccessTariff(tariff.accessTariff, formWithFallbacks.peaje)) {
+      continue
+    }
+    if (!allowsComparadorProviderForSegment(tariff.providerName, formWithFallbacks.segmento)) {
+      continue
+    }
 
-    if (!matchesTipoPrecioFiltro(tariff, form.tipoPrecioFiltro)) continue
+    if (!matchesTipoPrecioFiltro(tariff, formWithFallbacks.tipoPrecioFiltro)) continue
 
     const marco = resolveMarcoForComparadorTariff(
       tariff,
       marcoIndex,
       marcoRows,
-      form.peaje,
-      form.segmento
+      formWithFallbacks.peaje,
+      formWithFallbacks.segmento
     )
-    const ownSegment = normalizeSegmento(tariff.segment) === normalizeSegmento(form.segmento)
+    const ownSegment =
+      normalizeSegmento(tariff.segment) === normalizeSegmento(formWithFallbacks.segmento)
     if (!marco && !ownSegment) continue
-    if (!matchesSinSvaFilter(tariff, marco, form.sinSva)) continue
-    if (!matchesPotenciaBoeFilter(marco, tariff, form.soloPotenciaBoe)) continue
+    if (!matchesSinSvaFilter(tariff, marco, formWithFallbacks.sinSva)) continue
+    if (!matchesPotenciaBoeFilter(marco, tariff, formWithFallbacks.soloPotenciaBoe)) continue
 
     if (
       !isComparadorTariffPricingComplete(
         periodInputs,
-        form.peaje,
+        formWithFallbacks.peaje,
         tariff.precios,
         marco
       )
@@ -258,33 +275,51 @@ export function buildComparadorEnVivoRanking(
       continue
     }
 
-    const precios = mergeComparadorTariffPrecios(tariff.precios, marco, form.peaje)
+    const precios = mergeComparadorTariffPrecios(
+      tariff.precios,
+      marco,
+      formWithFallbacks.peaje
+    )
 
     const { breakdown, precision: rowPrecision } = calcularCosteComparadorDesdeTariffPrecios(
       precios,
-      form.peaje,
+      formWithFallbacks.peaje,
       periodInputs,
       extras
     )
 
     if (rowPrecision === "estimado") precision = "estimado"
 
-    const commissionPoolKey = marco
-      ? `${normalizeCompaniaKey(marco.compania)}|${normalizeSegmento(marco.segmento)}|${marco.tipo}`
+    const marcoCommission = resolveMarcoForComparadorCommission(
+      tariff,
+      marcoIndex,
+      marcoRows,
+      formWithFallbacks.peaje,
+      formWithFallbacks.segmento,
+      marco
+    )
+    const commissionPoolKey = marcoCommission
+      ? `${normalizeCompaniaKey(marcoCommission.compania)}|${normalizeSegmento(marcoCommission.segmento)}|${marcoCommission.tipo}`
       : ""
-    const commission = marco
+    const commission = marcoCommission
       ? resolveComparadorOfferCommission({
-          marco,
-          marcoRows: commissionPools.get(commissionPoolKey) ?? [marco],
+          marco: marcoCommission,
+          marcoRows: commissionPools.get(commissionPoolKey) ?? [marcoCommission],
           consumoAnualKwh: consumoAnual,
           commissionPercentage,
           formatCurrency,
         })
-      : {
-          comisionPercibidaEur: null,
-          precision: "sin_consumo" as const,
-          tramoLabel: null,
-        }
+      : consumoAnual <= 0
+        ? {
+            comisionPercibidaEur: null,
+            precision: "sin_consumo" as const,
+            tramoLabel: null,
+          }
+        : {
+            comisionPercibidaEur: null,
+            precision: "sin_datos" as const,
+            tramoLabel: null,
+          }
 
     resultados.push({
       tariffId: tariff.tariffId,

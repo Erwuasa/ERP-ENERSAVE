@@ -1,5 +1,18 @@
+import { filterMarcoRowsForDisplay } from "@/lib/marco-dedup"
 import { formatTramoCondicionMwh, parseMarcoTramosJson } from "@/lib/marco-consumo-tramo"
-import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+import { normalizeSegmento, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+import {
+  filterMarcoRowsForTable,
+  marcoCompaniaMatchesFilter,
+  marcoPeajeMatchesFilter,
+} from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
+
+export type MarcoTableViewFilters = {
+  tipoFilter: "luz" | "gas" | "todos"
+  segmentoFilter: "todos" | "residencial" | "pyme"
+  peajeFilter: string
+  companiaFilter: string
+}
 
 const TRAMO_ROW_ID_SEP = "::tramo::"
 
@@ -38,4 +51,34 @@ export function expandMarcoRowsByTramos(rows: MarcoRetributivoRow[]): MarcoRetri
   }
 
   return expanded
+}
+
+/** Misma pipeline que la tabla (dedup UI + tramos); alinea contadores del selector y pie. */
+export function buildMarcoVisibleTableRows(
+  rows: MarcoRetributivoRow[],
+  filters: MarcoTableViewFilters
+): MarcoRetributivoRow[] {
+  const { tipoFilter, segmentoFilter, peajeFilter, companiaFilter } = filters
+
+  const scoped = rows.filter((entry) => {
+    if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
+    if (
+      segmentoFilter !== "todos" &&
+      normalizeSegmento(entry.segmento) !== segmentoFilter
+    ) {
+      return false
+    }
+    if (!marcoCompaniaMatchesFilter(entry.compania, companiaFilter)) return false
+    return true
+  })
+
+  const byPeaje = scoped.filter((entry) =>
+    marcoPeajeMatchesFilter(entry.peaje, peajeFilter, {
+      matchGenericToSpecific: companiaFilter !== "Todos",
+    })
+  )
+
+  const deduped = filterMarcoRowsForDisplay(byPeaje)
+  const expanded = expandMarcoRowsByTramos(deduped)
+  return filterMarcoRowsForTable(expanded, companiaFilter)
 }

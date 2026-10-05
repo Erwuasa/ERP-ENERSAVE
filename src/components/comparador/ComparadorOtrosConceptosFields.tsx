@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react"
 import type { LucideIcon } from "lucide-react"
 import {
   Activity,
@@ -16,8 +17,53 @@ import {
   comparadorNumericInputClass,
 } from "@/lib/comparador-period-layout"
 import {
-  COMPARADOR_DIAS_FACTURACION_MIN,
+  COMPARADOR_DIAS_FACTURACION_MENSUAL,
+  normalizeComparadorDiasFacturacion,
 } from "@/lib/comparador-billing"
+
+function DiasFacturadosInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: number
+  onChange: (value: number) => void
+  className: string
+}) {
+  const [draft, setDraft] = useState(() => String(value))
+
+  useEffect(() => {
+    setDraft(String(value))
+  }, [value])
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      value={draft}
+      onChange={(event) => {
+        const raw = event.target.value.replace(/[^\d]/g, "")
+        setDraft(raw)
+        if (raw === "") return
+        const parsed = Number.parseInt(raw, 10)
+        if (Number.isFinite(parsed)) onChange(parsed)
+      }}
+      onBlur={() => {
+        if (draft.trim() === "") {
+          onChange(COMPARADOR_DIAS_FACTURACION_MENSUAL)
+          setDraft(String(COMPARADOR_DIAS_FACTURACION_MENSUAL))
+          return
+        }
+        const normalized = normalizeComparadorDiasFacturacion(Number.parseInt(draft, 10))
+        onChange(normalized)
+        setDraft(String(normalized))
+      }}
+      className={className}
+      aria-label="Días facturados del periodo"
+    />
+  )
+}
 
 interface ComparadorOtrosConceptosFieldsProps {
   density: ComparadorFormDensity
@@ -164,18 +210,10 @@ export function ComparadorOtrosConceptosFields({
           <FieldLabelWithIcon icon={CalendarDays} labelClass={labelClass}>
             Días facturados
           </FieldLabelWithIcon>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={COMPARADOR_DIAS_FACTURACION_MIN}
-            step={1}
+          <DiasFacturadosInput
             value={diasFacturados}
-            onChange={(e) => {
-              const parsed = Number.parseInt(e.target.value, 10)
-              if (Number.isFinite(parsed)) onDiasFacturadosChange(parsed)
-            }}
+            onChange={onDiasFacturadosChange}
             className={inputClass}
-            aria-label="Días facturados del periodo"
           />
         </div>
         <div className={fieldClass}>

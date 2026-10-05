@@ -24,10 +24,10 @@ describe("isContractDeletable", () => {
     expect(isContractDeletable(baseContract)).toBe(true)
   })
 
-  it("allows PTE DE TRAMITACIÓN without documents", () => {
+  it("blocks PTE DE TRAMITACIÓN", () => {
     expect(
       isContractDeletable({ ...baseContract, estado: "PTE DE TRAMITACIÓN" })
-    ).toBe(true)
+    ).toBe(false)
   })
 
   it("allows legacy Pendiente de info.", () => {
@@ -65,13 +65,37 @@ describe("isContractDeletable", () => {
 })
 
 describe("canUserDeleteContract", () => {
-  it("denies comercial roles", () => {
-    expect(canUserDeleteContract(baseContract, "comercial", "usr-1")).toBe(false)
-    expect(canUserDeleteContract(baseContract, "jefe_comercial", "usr-1")).toBe(false)
+  it("allows comercial on own borrador", () => {
+    expect(canUserDeleteContract(baseContract, "comercial", "usr-1")).toBe(true)
   })
 
-  it("allows tramitacion and superadmin", () => {
+  it("denies comercial on another user's borrador", () => {
+    expect(canUserDeleteContract(baseContract, "comercial", "usr-2")).toBe(false)
+  })
+
+  it("allows jefe on team borrador when jefe_equipo matches", () => {
+    expect(canUserDeleteContract(baseContract, "jefe_comercial", "usr-2")).toBe(false)
+    expect(
+      canUserDeleteContract(
+        { ...baseContract, comercialId: "usr-2", jefeEquipo: "usr-boss" },
+        "jefe_comercial",
+        "usr-boss"
+      )
+    ).toBe(true)
+  })
+
+  it("allows tramitacion and superadmin on deletable borrador", () => {
     expect(canUserDeleteContract(baseContract, "tramitacion", "usr-3")).toBe(true)
     expect(canUserDeleteContract(baseContract, "superadmin", "usr-3")).toBe(true)
+  })
+
+  it("denies delete when not borrador even for tramitacion", () => {
+    expect(
+      canUserDeleteContract(
+        { ...baseContract, estado: "ACTIVADO" },
+        "tramitacion",
+        "usr-3"
+      )
+    ).toBe(false)
   })
 })

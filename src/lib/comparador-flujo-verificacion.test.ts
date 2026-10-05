@@ -95,6 +95,8 @@ function buildForm(overrides: Partial<ComparadorEnVivoFormState> = {}): Comparad
     tipoPrecioFiltro: null,
     sinSva: false,
     soloPotenciaBoe: false,
+    consumoAnualKwh: null,
+    facturaMensual: null,
     ...overrides,
   }
 }
@@ -187,7 +189,21 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
     const ranking = buildComparadorEnVivoRanking({
       catalog,
       marcoRows: marcoRowsForCatalog(catalog),
-      form: buildForm({ sinSva: true }),
+      form: buildComparadorEnVivoFormState({
+        segmento: "pyme",
+        peaje: "3.0TD",
+        potencias: basePotencias,
+        consumos: baseConsumos,
+        diasFacturacion: 30,
+        alquilerContador: 1.84,
+        bonoSocial: 0,
+        energiaReactiva: 0,
+        otrosCostesSva: 0,
+        consumoAnualKwh: 0,
+        facturaMensual: 0,
+        companiaActual: null,
+        proposalFilters: ["sin_sva"],
+      }),
     })
 
     expect(ranking.resultados.map((r) => r.tariffId)).toEqual(["sin-sva"])
@@ -210,6 +226,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       energiaReactiva: 0,
       otrosCostesSva: 0,
       consumoAnualKwh: 0,
+      facturaMensual: 0,
       companiaActual: null,
       proposalFilters: [],
     })
@@ -281,6 +298,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       energiaReactiva: 0,
       otrosCostesSva: 0,
       consumoAnualKwh: 0,
+      facturaMensual: 0,
       companiaActual: null,
       proposalFilters: [],
     })
@@ -304,6 +322,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       energiaReactiva: 0,
       otrosCostesSva: 0,
       consumoAnualKwh: 0,
+      facturaMensual: 0,
       companiaActual: null,
       proposalFilters: [],
     })
@@ -329,6 +348,7 @@ describe("Comparador — verificación flujo E2E (lógica)", () => {
       energiaReactiva: 0,
       otrosCostesSva: 0,
       consumoAnualKwh: 0,
+      facturaMensual: 0,
       companiaActual: null,
       proposalFilters: [],
     })
