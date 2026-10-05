@@ -11,9 +11,12 @@ export const USUARIOS_TH =
 
 export const USUARIOS_TD = "px-2.5 py-2.5 align-middle border-b border-brand-border/70"
 
+export function isPlatformAppUser(user: AppUser): boolean {
+  return user.role !== "customer"
+}
+
 export const USER_ROLE_FILTER_OPTIONS = [
   { id: "all", label: "Todos los roles" },
-  { id: "customer", label: "Cliente" },
   { id: "comercial", label: "Comercial" },
   { id: "jefe_comercial", label: "Director Comercial" },
   { id: "tramitacion", label: "Tramitación" },

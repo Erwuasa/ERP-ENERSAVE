@@ -20,6 +20,8 @@ export interface SelectFilterDropdownProps {
   minWidthClass?: string
   className?: string
   trailingBadge?: ReactNode
+  triggerVariant?: "surface" | "ghost"
+  triggerClassName?: string
 }
 
 export function SelectFilterDropdown({
@@ -35,6 +37,8 @@ export function SelectFilterDropdown({
   minWidthClass = "min-w-0",
   className = "",
   trailingBadge,
+  triggerVariant = "surface",
+  triggerClassName = "w-full",
 }: SelectFilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -62,8 +66,9 @@ export function SelectFilterDropdown({
         icon={icon}
         minWidthClass={minWidthClass}
         maxWidthClass="max-w-full"
-        className="w-full"
+        className={triggerClassName}
         badge={trailingBadge}
+        variant={triggerVariant}
       />
 
       <FloatingPanelPortal
