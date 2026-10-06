@@ -1,5 +1,21 @@
 import type { Client, ClienteEstado, ClienteTipo } from "@/types/client"
 
+export type ClientesCreateRole = "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+
+export function shouldPickComercialOnClientCreate(role: ClientesCreateRole): boolean {
+  return role === "superadmin" || role === "tramitacion"
+}
+
+export function defaultComercialIdForClientCreate(
+  role: ClientesCreateRole,
+  activeUserId: string,
+  comercialOptionIds: string[]
+): string {
+  if (!shouldPickComercialOnClientCreate(role)) return activeUserId
+  if (comercialOptionIds.includes(activeUserId)) return activeUserId
+  return comercialOptionIds[0] ?? ""
+}
+
 export interface ClientesCreateFormState {
   tipoCliente: ClienteTipo
   nombre: string
@@ -34,11 +50,19 @@ export function emptyClientesCreateForm(defaultComercialId: string): ClientesCre
   }
 }
 
-export function validateClientesCreateForm(form: ClientesCreateFormState): string | null {
+export function validateClientesCreateForm(
+  form: ClientesCreateFormState,
+  role: ClientesCreateRole
+): string | null {
   if (!form.nombre.trim()) {
     return form.tipoCliente === "empresa" ? "Indica la razón social." : "Indica el nombre del cliente."
   }
-  if (!form.comercialId.trim()) return "Selecciona el comercial responsable."
+  if (shouldPickComercialOnClientCreate(role) && !form.comercialId.trim()) {
+    return "Selecciona el comercial responsable."
+  }
+  if (!shouldPickComercialOnClientCreate(role) && !form.comercialId.trim()) {
+    return "No se pudo asignar el comercial del cliente."
+  }
   if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
     return "El email no es válido."
   }

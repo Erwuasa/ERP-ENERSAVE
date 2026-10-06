@@ -55,6 +55,10 @@ export function getVisibleClientsForRole(
       return clients
     }
     if (activeRole === "tramitacion") return clients
+    if (activeRole === "jefe_comercial") {
+      const teamIds = new Set([activeUserId, ...teamMemberIds])
+      return clients.filter((c) => c.comercialId != null && teamIds.has(c.comercialId))
+    }
     return clients.filter((c) => c.comercialId === activeUserId)
   })()
   return dedupeClients(scoped).clients

@@ -1,13 +1,21 @@
 import { describe, expect, it } from "vitest"
 import {
   buildClientFromCreateForm,
+  defaultComercialIdForClientCreate,
   emptyClientesCreateForm,
+  shouldPickComercialOnClientCreate,
   validateClientesCreateForm,
 } from "./clientes-create-form"
 
 describe("clientes-create-form", () => {
   it("requiere nombre", () => {
-    expect(validateClientesCreateForm(emptyClientesCreateForm("u1"))).toMatch(/nombre/i)
+    expect(validateClientesCreateForm(emptyClientesCreateForm("u1"), "comercial")).toMatch(/nombre/i)
+  })
+
+  it("asigna comercial automático a comercial y jefe", () => {
+    expect(shouldPickComercialOnClientCreate("comercial")).toBe(false)
+    expect(shouldPickComercialOnClientCreate("jefe_comercial")).toBe(false)
+    expect(defaultComercialIdForClientCreate("comercial", "u9", [])).toBe("u9")
   })
 
   it("construye cliente manual con notas", () => {

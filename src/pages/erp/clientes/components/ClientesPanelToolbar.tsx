@@ -17,7 +17,7 @@ type Props = {
   setAceptacionFilter: (value: ClienteAceptacionFilter) => void
   tipoCounts: { todos: number; particular: number; empresa: number }
   aceptacionCounts: { todos: number; aceptado: number; pendiente: number }
-  onCreateClient?: () => void
+  onCreateClient: () => void
 }
 
 export function ClientesPanelToolbar({
@@ -57,16 +57,14 @@ export function ClientesPanelToolbar({
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          {onCreateClient ? (
-            <button
-              type="button"
-              onClick={onCreateClient}
-              className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors duration-200 ${ENERSAVE_ACTION.primary}`}
-            >
-              <UserPlus className="w-3.5 h-3.5" aria-hidden />
-              Nuevo cliente
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={onCreateClient}
+            className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors duration-200 ${ENERSAVE_ACTION.primary}`}
+          >
+            <UserPlus className="w-3.5 h-3.5" aria-hidden />
+            Nuevo cliente
+          </button>
           {canExportDatabase ? (
             <button
               type="button"

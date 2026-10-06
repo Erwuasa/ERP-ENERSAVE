@@ -4,9 +4,12 @@ import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { ENERSAVE_ACTION, clientTypeBadgeClass } from "@/lib/enersave-ui-theme"
 import type { ClienteEstado, ClienteTipo } from "@/types/client"
 import {
+  defaultComercialIdForClientCreate,
   emptyClientesCreateForm,
+  shouldPickComercialOnClientCreate,
   validateClientesCreateForm,
   type ClientesCreateFormState,
+  type ClientesCreateRole,
 } from "@/pages/erp/clientes/lib/clientes-create-form"
 import type { ClientesProfileOption } from "@/pages/erp/clientes/components/clientes-panel-utils"
 
@@ -19,7 +22,7 @@ type Props = {
   onClose: () => void
   onSubmit: (form: ClientesCreateFormState) => Promise<boolean>
   activeUserId: string
-  activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
+  activeRole: ClientesCreateRole
   profiles: ClientesProfileOption[]
 }
 
@@ -43,17 +46,32 @@ export function ClientesCreateModal({
     [profiles]
   )
 
-  const showComercialPicker =
-    activeRole !== "comercial" &&
-    activeRole !== "jefe_comercial" &&
-    (activeRole === "superadmin" || activeRole === "tramitacion")
+  const showComercialPicker = shouldPickComercialOnClientCreate(activeRole)
 
   useEffect(() => {
     if (!open) return
-    setForm(emptyClientesCreateForm(activeUserId))
+    const base = emptyClientesCreateForm(activeUserId)
+    setForm(
+      shouldPickComercialOnClientCreate(activeRole)
+        ? { ...base, comercialId: "" }
+        : { ...base, comercialId: activeUserId }
+    )
     setError(null)
     setSaving(false)
-  }, [open, activeUserId])
+  }, [open, activeUserId, activeRole])
+
+  useEffect(() => {
+    if (!open || !showComercialPicker) return
+    const ids = comercialOptions.map((p) => p.id)
+    if (ids.length === 0) return
+    setForm((prev) => {
+      if (prev.comercialId && ids.includes(prev.comercialId)) return prev
+      return {
+        ...prev,
+        comercialId: defaultComercialIdForClientCreate(activeRole, activeUserId, ids),
+      }
+    })
+  }, [open, showComercialPicker, activeRole, activeUserId, comercialOptions])
 
   function patch<K extends keyof ClientesCreateFormState>(key: K, value: ClientesCreateFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -62,7 +80,7 @@ export function ClientesCreateModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const validation = validateClientesCreateForm(form)
+    const validation = validateClientesCreateForm(form, activeRole)
     if (validation) {
       setError(validation)
       return
