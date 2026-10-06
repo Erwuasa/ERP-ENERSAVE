@@ -220,8 +220,8 @@ export function useNuevoContratoWizard({
   }, [open, marcoTramoResolution.entry?.id, form.marcoEntryId, onChange])
 
   const documentosObligatorios = useMemo(
-    () => getDocumentosObligatoriosForMarco(selectedMarcoEntry),
-    [selectedMarcoEntry]
+    () => getDocumentosObligatoriosForMarco(selectedMarcoEntry, form.tipoCliente),
+    [selectedMarcoEntry, form.tipoCliente]
   )
 
   const commissionEstimate = useMemo(() => {

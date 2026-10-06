@@ -52,6 +52,7 @@ export function mapRowToClient(row: Row): Client {
 
 const PATCH_COLUMNS: Partial<Record<keyof Client, string>> = {
   nombre: "nombre",
+  apellidos: "apellidos",
   estado: "estado",
   documento: "nif_cif",
   telefono: "telefono",
@@ -64,6 +65,10 @@ const PATCH_COLUMNS: Partial<Record<keyof Client, string>> = {
   tipoCliente: "tipo_cliente",
   comercialId: "comercial_id",
   archivos: "archivos",
+  notas: "notas",
+  rgpdAccepted: "rgpd_accepted",
+  source: "source",
+  cups: "cups",
 }
 
 export function buildClientPatch(patch: Partial<Client>): Row {

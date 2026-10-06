@@ -6,7 +6,6 @@ import {
   createMarcoEntry,
   deleteMarcoEntry,
   listMarcoRetributivo,
-  normalizeSegmento,
   updateMarcoEntry,
   type MarcoEntryInput,
   type MarcoRetributivoRow,
@@ -15,6 +14,7 @@ import {
 import { buildMarcoPeajeFilterOptions } from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
 import {
   buildMarcoVisibleTableRows,
+  marcoRowAudience,
   resolveMarcoParentRowId,
 } from "@/pages/erp/marco-retributivo/lib/marco-table-rows"
 import { buildCanonicalCompaniaCounts } from "@/lib/erp/compania-logos"
@@ -127,10 +127,7 @@ export function useMarcoRetributivoPanel({
   const peajeOptions = useMemo(() => {
     const byTipoSegmento = rows.filter((entry) => {
       if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
-      if (
-        segmentoFilter !== "todos" &&
-        normalizeSegmento(entry.segmento) !== segmentoFilter
-      ) {
+      if (segmentoFilter !== "todos" && marcoRowAudience(entry) !== segmentoFilter) {
         return false
       }
       return true
@@ -156,10 +153,7 @@ export function useMarcoRetributivoPanel({
   const marcoCompaniaAggregation = useMemo(() => {
     const scoped = rows.filter((e) => {
       if (tipoFilter !== "todos" && e.tipo !== tipoFilter) return false
-      if (
-        segmentoFilter !== "todos" &&
-        normalizeSegmento(e.segmento) !== segmentoFilter
-      ) {
+      if (segmentoFilter !== "todos" && marcoRowAudience(e) !== segmentoFilter) {
         return false
       }
       return true

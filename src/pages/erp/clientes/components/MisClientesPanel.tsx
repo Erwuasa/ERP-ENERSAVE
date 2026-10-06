@@ -7,6 +7,7 @@ import { ClientesPanelToolbar } from "@/pages/erp/clientes/components/ClientesPa
 import { ClientesPanelTable } from "@/pages/erp/clientes/components/ClientesPanelTable"
 import { ClientesFolderModal } from "@/pages/erp/clientes/components/ClientesFolderModal"
 import { ClientesContractsModal } from "@/pages/erp/clientes/components/ClientesContractsModal"
+import { ClientesCreateModal } from "@/pages/erp/clientes/components/ClientesCreateModal"
 import type { ClientesProfileOption } from "@/pages/erp/clientes/components/clientes-panel-utils"
 import type { ClientOptimisticAction } from "@/lib/clients-optimistic-actions"
 
@@ -63,6 +64,7 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
         setAceptacionFilter={vm.setAceptacionFilter}
         tipoCounts={vm.tipoCounts}
         aceptacionCounts={vm.aceptacionCounts}
+        onCreateClient={() => vm.setCreateOpen(true)}
       />
       </div>
 
@@ -100,6 +102,15 @@ export function MisClientesPanel(props: MisClientesPanelProps) {
           onRemoveArchivo={vm.removeArchivo}
         />
       )}
+
+      <ClientesCreateModal
+        open={vm.createOpen}
+        onClose={() => vm.setCreateOpen(false)}
+        onSubmit={vm.submitNewClient}
+        activeUserId={props.activeUserId}
+        activeRole={props.activeRole}
+        profiles={props.profiles}
+      />
 
       {vm.contractsClient && (
         <ClientesContractsModal

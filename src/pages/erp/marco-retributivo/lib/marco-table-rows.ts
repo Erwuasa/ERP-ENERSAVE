@@ -1,11 +1,25 @@
 import { filterMarcoRowsForDisplay } from "@/lib/marco-dedup"
 import { formatTramoCondicionMwh, parseMarcoTramosJson } from "@/lib/marco-consumo-tramo"
+import {
+  inferErpAudienceFromText,
+  marcoSegmentoToErpAudience,
+} from "@/lib/infer-erp-segment"
 import { normalizeSegmento, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
 import {
   filterMarcoRowsForTable,
   marcoCompaniaMatchesFilter,
   marcoPeajeMatchesFilter,
 } from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
+
+export function marcoRowAudience(entry: MarcoRetributivoRow): "residencial" | "pyme" {
+  const condiciones = [entry.condiciones, entry.condicion_1, entry.condicion_2]
+    .filter(Boolean)
+    .join(" ")
+  return (
+    inferErpAudienceFromText(entry.tarifa, condiciones) ??
+    marcoSegmentoToErpAudience(normalizeSegmento(entry.segmento))
+  )
+}
 
 export type MarcoTableViewFilters = {
   tipoFilter: "luz" | "gas" | "todos"
@@ -62,10 +76,7 @@ export function buildMarcoVisibleTableRows(
 
   const scoped = rows.filter((entry) => {
     if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
-    if (
-      segmentoFilter !== "todos" &&
-      normalizeSegmento(entry.segmento) !== segmentoFilter
-    ) {
+    if (segmentoFilter !== "todos" && marcoRowAudience(entry) !== segmentoFilter) {
       return false
     }
     if (!marcoCompaniaMatchesFilter(entry.compania, companiaFilter)) return false
