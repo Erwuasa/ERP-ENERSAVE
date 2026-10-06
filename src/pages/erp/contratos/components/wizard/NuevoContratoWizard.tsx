@@ -172,6 +172,9 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     onToggleServiciosExtras={() =>
                       vm.setServiciosExtrasExpanded(!vm.serviciosExtrasExpanded)
                     }
+                    customTariffExpanded={vm.customTariffExpanded}
+                    onToggleCustomTariff={vm.toggleCustomTariffExpanded}
+                    setCustomTariffName={vm.setCustomTariffName}
                     onToggleServicioExtra={vm.toggleServicioExtra}
                     onChange={onChange}
                     selectTariff={vm.selectTariff}
