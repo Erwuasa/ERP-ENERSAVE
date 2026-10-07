@@ -1,53 +1,98 @@
 import { ScanSearch } from "lucide-react"
-import { SipsHistoryList } from "./components/SipsHistoryList"
+import { AnimatePresence, motion } from "framer-motion"
+import { SIPS_USE_MOCK_DATA } from "@/lib/sips/mock-lookup"
+import { SipsLoadingAnimation } from "./components/SipsLoadingAnimation"
 import { SipsResultPanel } from "./components/SipsResultPanel"
+import { SipsResultsPanel } from "./components/SipsResultsPanel"
 import { SipsSearchForm } from "./components/SipsSearchForm"
 import { SipsStatusNotice } from "./components/SipsStatusNotice"
 import { useSipsLookup } from "./hooks/useSipsLookup"
 
 const PANEL =
-  "bg-brand-panel p-6 sm:p-8 rounded-3xl border border-brand-border shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]"
+  "bg-brand-panel p-4 sm:p-6 rounded-3xl border border-brand-border shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a]"
 
 export function SipsPage() {
   const lookup = useSipsLookup()
   const busy = lookup.state.phase === "loading" || lookup.state.phase === "waiting"
-  const listo =
-    lookup.state.phase === "done" && lookup.state.outcome.status === "listo" ? lookup.state.outcome : null
+  const doneState = lookup.state.phase === "done" ? lookup.state : null
+  const listo = doneState?.outcome.status === "listo" ? doneState.outcome : null
+  const demoCharts = doneState?.demoCharts ?? null
+  const showStatusNotice =
+    (lookup.state.phase === "loading" && !SIPS_USE_MOCK_DATA) ||
+    lookup.state.phase === "waiting" ||
+    (lookup.state.phase === "done" &&
+      (lookup.state.outcome.status === "error" || lookup.state.outcome.status === "sin_datos"))
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
-      <div className={`${PANEL} space-y-6 min-w-0`}>
-        <div className="flex items-center space-x-3 border-b border-brand-border pb-5">
-          <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-500">
-            <ScanSearch className="w-6 h-6" />
-          </span>
-          <div>
-            <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">SIPS</h3>
-            <p className="text-[10px] font-mono text-brand-subtext mt-0.5">
-              Datos de un punto de suministro por CUPS. Cada consulta nueva gasta cuota del proveedor.
-            </p>
+    <div className="animate-fade-in text-slate-800 dark:text-slate-100 font-sans max-w-[1600px]">
+      <div className={`${PANEL} space-y-4 min-w-0`}>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between border-b border-brand-border pb-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-500 shrink-0">
+              <ScanSearch className="w-5 h-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">Consulta SIPS</h3>
+              <p className="text-[10px] font-mono text-brand-subtext mt-0.5 truncate">
+                {SIPS_USE_MOCK_DATA
+                  ? "Demo · gráficos y cifras de prueba"
+                  : "Punto de suministro por CUPS"}
+              </p>
+            </div>
+          </div>
+          <div className="w-full lg:max-w-3xl shrink-0">
+            <SipsSearchForm
+              cups={lookup.cups}
+              producto={lookup.producto}
+              busy={busy}
+              inputError={lookup.inputError}
+              onCupsChange={lookup.updateCups}
+              onProductoChange={lookup.setProducto}
+              onSubmit={() => lookup.submit()}
+              onCancel={lookup.cancel}
+              compact
+            />
           </div>
         </div>
 
-        <SipsSearchForm
-          cups={lookup.cups}
-          producto={lookup.producto}
-          busy={busy}
-          inputError={lookup.inputError}
-          onCupsChange={lookup.updateCups}
-          onProductoChange={lookup.setProducto}
-          onSubmit={() => lookup.submit()}
-          onCancel={lookup.cancel}
-        />
+        {lookup.state.phase === "loading" && SIPS_USE_MOCK_DATA ? (
+          <SipsLoadingAnimation />
+        ) : showStatusNotice ? (
+          <SipsStatusNotice state={lookup.state} />
+        ) : null}
 
-        <SipsStatusNotice state={lookup.state} />
-
-        {listo ? <SipsResultPanel outcome={listo} onRefresh={() => lookup.submit({ force: true })} /> : null}
+        <AnimatePresence mode="wait">
+          {listo && demoCharts ? (
+            <motion.div
+              key="demo-charts"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <SipsResultsPanel data={demoCharts} onClose={lookup.cancel} />
+            </motion.div>
+          ) : listo ? (
+            <motion.div key="api-result" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <SipsResultPanel outcome={listo} onRefresh={() => lookup.submit({ force: true })} />
+            </motion.div>
+          ) : lookup.state.phase === "idle" ? (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="rounded-xl border border-dashed border-brand-border bg-brand-surface/40 px-4 py-12 text-center"
+            >
+              <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
+                Introduce un CUPS y pulsa consultar
+              </p>
+              <p className="text-[10px] font-mono text-brand-subtext/80 mt-1 max-w-md mx-auto">
+                Los resultados aparecerán aquí en una tabla con el detalle del suministro.
+              </p>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
-
-      <aside className={`${PANEL} h-fit`}>
-        <SipsHistoryList entries={lookup.history} onPick={lookup.pickFromHistory} />
-      </aside>
     </div>
   )
 }

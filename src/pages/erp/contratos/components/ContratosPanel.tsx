@@ -303,7 +303,7 @@ export function ContratosPanel({
         comercialId={activeUserId}
         comercialName={activeUserName}
         existingContractCount={visibleContracts.length}
-        profiles={authProfiles.length > 0 ? authProfiles : profiles}
+        profiles={authProfiles ?? []}
       />
 
       <ContratosOcrModal

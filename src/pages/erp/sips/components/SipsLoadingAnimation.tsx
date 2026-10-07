@@ -4,7 +4,7 @@ import { EnersaveMonogram } from "@/components/common/EnersaveMonogram"
 export function SipsLoadingAnimation() {
   return (
     <div
-      className="flex flex-col items-center justify-center gap-4 py-16"
+      className="flex flex-col items-center justify-center gap-3 py-10"
       role="status"
       aria-live="polite"
       aria-label="Consultando SIPS"

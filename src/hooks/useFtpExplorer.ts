@@ -27,6 +27,7 @@ import {
   uploadFtpFile,
 } from "../lib/supabase/ftp-nodes"
 import { useAtApiSettings } from "@/providers/AtApiSettingsProvider"
+import type { FtpNode } from "@/types/ftp"
 
 export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   const { active: atApiEnabled } = useAtApiSettings()

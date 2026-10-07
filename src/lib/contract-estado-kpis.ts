@@ -1,4 +1,5 @@
 import { normalizeContractEstado, type ContractEstado } from "./contract-estado"
+import type { ContractsListFilter } from "@/lib/contracts-view-filters"
 
 export const CONTRACT_ESTADO_KPI_FILTERS = [
   "activado",

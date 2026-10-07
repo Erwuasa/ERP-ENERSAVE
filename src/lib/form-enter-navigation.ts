@@ -14,7 +14,16 @@ function isEnterNavigationField(target: EventTarget | null): target is HTMLEleme
 }
 
 function isFieldVisible(el: HTMLElement): boolean {
-  if (!el.isConnected || el.disabled) return false
+  if (!el.isConnected) return false
+  if (
+    (el instanceof HTMLInputElement ||
+      el instanceof HTMLButtonElement ||
+      el instanceof HTMLSelectElement ||
+      el instanceof HTMLTextAreaElement) &&
+    el.disabled
+  ) {
+    return false
+  }
   if (el.getAttribute("aria-hidden") === "true") return false
   return el.getClientRects().length > 0
 }

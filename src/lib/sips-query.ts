@@ -181,7 +181,7 @@ function buildMonthlySeries(
 export async function fetchSipsByCups(cups: string): Promise<SipsQueryResult> {
   const normalized = normalizeSipsCupsInput(cups)
   if (!isPlausibleSipsCups(normalized)) {
-    throw new Error("Introduce un CUPS válido (formato ES + 16 dígitos + 2 caracteres).")
+    throw new Error("Introduce un CUPS válido (formato ES + 16 dígitos + 2 letras de control).")
   }
 
   await new Promise((resolve) => setTimeout(resolve, 1400 + (hashCups(normalized) % 600)))

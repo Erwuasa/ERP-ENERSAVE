@@ -2,13 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { CUPS_ERROR_MESSAGES, validateCups } from "@/lib/sips/cups"
 import { nextSipsPollDelaySeconds } from "@/lib/sips/polling"
 import type { SipsOutcome, SipsProducto } from "@/lib/sips/types"
-import { listRecentSipsLookups, lookupSips, type SipsHistoryEntry } from "@/lib/supabase/sips"
+import { lookupSips } from "@/lib/supabase/sips"
+import type { SipsQueryResult } from "@/lib/sips-query"
+import { lookupSipsMock, SIPS_USE_MOCK_DATA } from "@/lib/sips/mock-lookup"
 
 export type SipsLookupState =
   | { phase: "idle" }
   | { phase: "loading" }
   | { phase: "waiting"; secondsLeft: number; attempt: number }
-  | { phase: "done"; outcome: Exclude<SipsOutcome, { status: "procesando" }> }
+  | {
+      phase: "done"
+      outcome: Exclude<SipsOutcome, { status: "procesando" }>
+      demoCharts?: SipsQueryResult
+    }
 
 const EXHAUSTED_MESSAGE =
   "El proveedor sigue procesando este CUPS. Vuelve a consultarlo en unos minutos."
@@ -18,7 +24,6 @@ export function useSipsLookup() {
   const [producto, setProducto] = useState<SipsProducto>("luz")
   const [state, setState] = useState<SipsLookupState>({ phase: "idle" })
   const [inputError, setInputError] = useState<string | null>(null)
-  const [history, setHistory] = useState<SipsHistoryEntry[]>([])
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const runIdRef = useRef(0)
 
@@ -27,27 +32,39 @@ export function useSipsLookup() {
     timerRef.current = null
   }, [])
 
-  const refreshHistory = useCallback(async () => {
-    setHistory(await listRecentSipsLookups(8))
-  }, [])
-
   useEffect(() => {
-    void refreshHistory()
     return () => {
       runIdRef.current += 1
       clearTimer()
     }
-  }, [refreshHistory, clearTimer])
+  }, [clearTimer])
 
   const run = useCallback(
     async (normalizedCups: string, attempt: number, force: boolean, runId: number) => {
       setState({ phase: "loading" })
+
+      if (SIPS_USE_MOCK_DATA) {
+        try {
+          const { outcome, demoCharts } = await lookupSipsMock(normalizedCups, producto)
+          if (runId !== runIdRef.current) return
+          setState({ phase: "done", outcome, demoCharts })
+        } catch (err) {
+          if (runId !== runIdRef.current) return
+          const message =
+            err instanceof Error ? err.message : "No se pudo generar la consulta de prueba."
+          setState({
+            phase: "done",
+            outcome: { status: "error", code: "INVALID_CUPS", message },
+          })
+        }
+        return
+      }
+
       const outcome = await lookupSips(normalizedCups, producto, { force })
       if (runId !== runIdRef.current) return
 
       if (outcome.status !== "procesando") {
         setState({ phase: "done", outcome })
-        void refreshHistory()
         return
       }
 
@@ -70,7 +87,7 @@ export function useSipsLookup() {
         void run(normalizedCups, attempt + 1, force, runId)
       }, 1000)
     },
-    [producto, refreshHistory, clearTimer]
+    [producto, clearTimer]
   )
 
   const submit = useCallback(
@@ -99,22 +116,14 @@ export function useSipsLookup() {
     setInputError(null)
   }, [])
 
-  const pickFromHistory = useCallback((entry: SipsHistoryEntry) => {
-    setCups(entry.cups)
-    setProducto(entry.producto)
-    setInputError(null)
-  }, [])
-
   return {
     cups,
     producto,
     state,
     inputError,
-    history,
     setProducto,
     updateCups,
     submit,
     cancel,
-    pickFromHistory,
   }
 }

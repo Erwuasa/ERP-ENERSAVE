@@ -106,12 +106,11 @@ export function useNuevoContratoWizard({
   const isLastWizardStep = activeTab === "documentos"
 
   function goNextStep() {
-    if (!activeTab || isLastWizardStep) return
+    if (!activeTab || activeTab === 1 || isLastWizardStep) return
     const order = WIZARD_TABS.map((tab) => tab.id)
     const index = order.indexOf(activeTab)
-    if (index >= 0 && index < order.length - 1) {
-      goToTab(order[index + 1]!)
-    }
+    const next = index >= 0 ? order[index + 1] : undefined
+    if (next) goToTab(next)
   }
 
   function setPeajeSegment(next: ContractPeajeSegment) {

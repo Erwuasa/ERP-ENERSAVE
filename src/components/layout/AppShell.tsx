@@ -23,11 +23,13 @@ import { EnersaveBrandMark } from "@/components/common/EnersaveLogo"
 import { LogoutConfirmModal } from "@/components/layout/LogoutConfirmModal"
 import { NavLink } from "react-router-dom"
 import type { AppModule } from "@/constants/navigation"
+import type { Profile, UserRole } from "@/types/profile"
 import { menuTabToPath } from "@/constants/navigation"
 import { sidebar } from "@/constants/styles"
 import { useIsMobileSidebar } from "@/hooks/useMediaQuery"
 import { getVisibleSidebarItems, getPreviewSidebarItems, getSidebarItemDisplayName } from "@/lib/navigation/sidebar-items"
 import { buildSidebarActionBadges } from "@/lib/sidebar-action-badges"
+import type { ContractAccessRole } from "@/lib/contract-visibility"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useIncidenciasContext } from "@/pages/erp/incidencias/IncidenciasProvider"
 import { useAtApiSettings } from "@/providers/AtApiSettingsProvider"
@@ -149,7 +151,7 @@ export function AppShell({
           incidencias,
           settlements,
           activeUserId: activeUser.id,
-          activeRole,
+          activeRole: activeRole as ContractAccessRole,
           superadminViewMode,
         }
       ),

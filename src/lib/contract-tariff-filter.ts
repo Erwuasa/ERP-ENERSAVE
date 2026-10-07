@@ -71,7 +71,7 @@ export function isMarcoEntryForSegment(
 ): boolean {
   const fromName = inferErpAudienceFromText(
     entry.tarifa,
-    [entry.condiciones, entry.condicion_1, entry.condicion_2].filter(Boolean).join(" ")
+    [entry.condiciones, entry.condicion1, entry.condicion2].filter(Boolean).join(" ")
   )
   if (fromName !== null) return fromName === segment
 
