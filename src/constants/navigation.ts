@@ -17,6 +17,7 @@ export type ErpTabId =
   | "Usuarios"
   | "Cashflow"
   | "Comparador"
+  | "SIPS"
   | "Tarifas"
   | "Marco Retributivo"
   | "Calendario"
@@ -49,6 +50,7 @@ const ERP_TAB_SLUGS: Record<string, string> = {
   Comparador: "comparador",
   "Comparador de Facturas": "comparador",
   "Historial de Comparativas": "historial-comparativas",
+  SIPS: "sips",
   Tarifas: "tarifas",
   "Marco Retributivo": "marco-retributivo",
   Calendario: "calendario",
@@ -129,6 +131,7 @@ export const ERP_TABS: readonly ErpTabId[] = [
   "Usuarios",
   "Cashflow",
   "Comparador",
+  "SIPS",
   "Tarifas",
   "Marco Retributivo",
   "Calendario",
@@ -165,6 +168,7 @@ export const ROUTES = {
     usuarios: "/erp/usuarios",
     cashflow: "/erp/cashflow",
     comparador: "/erp/comparador",
+    sips: "/erp/sips",
     tarifas: "/erp/tarifas",
     marcoRetributivo: "/erp/marco-retributivo",
     calendario: "/erp/calendario",

@@ -43,5 +43,29 @@ verify_jwt = false
 [functions.push-contract-at]
 verify_jwt = false
 
+[functions.enertech-sips-lookup]
+verify_jwt = false
+
 [functions.notify-contract-estado-change]
+verify_jwt = false
+
+[functions.enertech-sync-comercializadoras]
+verify_jwt = false
+
+[functions.enertech-sync-tarifas-acceso]
+verify_jwt = false
+
+[functions.enertech-sync-precios]
+verify_jwt = false
+
+[functions.enertech-sync-comisiones]
+verify_jwt = false
+
+[functions.enertech-sync-clientes]
+verify_jwt = false
+
+[functions.enertech-sync-contratos]
+verify_jwt = false
+
+[functions.enertech-perfil]
 verify_jwt = false

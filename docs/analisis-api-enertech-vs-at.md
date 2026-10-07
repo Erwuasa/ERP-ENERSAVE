@@ -2,6 +2,8 @@
 
 Fecha: 2026-10-06. Fuentes: `docs/BIENVENIDA-NUEVA-API.md`, `https://intranet.enertechcore.com/v1/openapi.json` (leído entero), código de AT en `supabase/functions/`. **No se ha llamado a la API nueva con credencial** (no tenemos clave): los puntos marcados ⚠ son lo que no se puede saber sin ella o sin que Enertech lo confirme.
 
+> **Actualización 2026-10-06 — decisión tomada:** para los datos de la API Enertech se usan **tablas y Edge Functions propias con prefijo `enertech_` / `enertech-`**, sin mezclarlas con las tablas de AT (`providers`, `tariffs`, `contratos_equipo`…). Esto sustituye al §4.1–4.2 (`external_provider`/`external_id`/`external_refs`) para estos datos; el cruce con las tablas núcleo del ERP (qué tarifa de Enertech equivale a cuál nuestra, qué contrato…) queda como paso posterior y se hará sobre estos espejos. El `actualizado_en` de la API cambia ante cualquier modificación de la fila (confirmado por el usuario). Detalle de implementación en `AGENTS.md` §9.
+
 ## 1. Resumen ejecutivo
 
 - **Es viable tener las dos y alternar desde superadmin**, pero no como un interruptor que "cambia de fuente" sobre las mismas filas. Hay que sellar cada fila con su proveedor y que el interruptor solo decida quién escribe a partir de ahora.
@@ -132,14 +134,14 @@ Funcionalidad **nueva, solo de Enertech** (`GET /sips?cups=&producto=`). AT no t
 - Hay **cuota aparte para consultas SIPS nuevas** además de 120 req/min ⚠ (cifra a confirmar con Enertech).
 
 ### Diseño
-- **La clave nunca va al navegador.** Nueva Edge Function `sips-lookup` (verify_jwt = true) que valida sesión y permiso, llama a Enertech con `ENERTECH_API_KEY` (variable de la función) y devuelve solo `resumen`. Adaptador en `_shared/` coherente con §3.
+- **La clave nunca va al navegador.** Nueva Edge Function `enertech-sips-lookup` (verify_jwt = true) que valida sesión y permiso, llama a Enertech con `ENERTECH_API_KEY` (variable de la función) y devuelve solo `resumen`. Adaptador en `_shared/` coherente con §3.
 - **Ruta y navegación:** pestaña `SIPS` en el módulo ERP (`/erp/sips`): `constants/navigation.ts` → `pages/erp/routes/sips.tsx` → `lib/router.tsx` + `lib/workspaceModuleRegistry.ts` + `lib/workspaceAccess.ts`.
 - **Permisos:** decidir si basta `comparatorAccess` o se crea `sipsAccess` en `Profile.permissions`. La cuota es compartida y de pago, así que conviene restringir por rol y registrar quién consulta.
 - **UI (usar `/frontend-design`):** campo CUPS con normalización (mayúsculas, sin espacios; reutilizar `useNoSpacePasteInput` y `paste-format`), validación local de formato y letra de control **antes** de gastar una consulta, selector luz/gas, estados de carga/"procesando…" con cuenta atrás de `reintentar_en`, tarjeta de resultado con potencias P1–P6, consumo, ATR, CNAE, distribuidora y ubicación, indicador de `origen`/`consultado_en` y botón de refrescar deshabilitado cuando sea `sin_datos` (24 h).
 - **Valor real:** acciones desde el resultado → **"Crear contrato"** (precarga el wizard: ATR, potencias, consumo, CP/población/provincia, CNAE; el `cnae` es obligatorio en el alta Enertech) y **"Comparar tarifas"** (precarga el comparador con ATR, potencias y consumo anual).
-- **Datos:** tabla `sips_consultas` (`id`, `cups`, `producto`, `estado`, `resumen jsonb`, `origen`, `consultado_en`, `solicitado_por`, `created_at`) con RLS (cada usuario ve las suyas; jefe, las de su equipo; superadmin todas). Sirve de histórico, de caché interna para no repetir consultas y de control de cuota. No guardar el `datos` crudo.
+- **Datos:** tabla `enertech_sips_consultas` (`id`, `cups`, `producto`, `estado`, `resumen jsonb`, `origen`, `consultado_en`, `solicitado_por`, `created_at`) con RLS (cada usuario ve las suyas; jefe, las de su equipo; superadmin todas). Sirve de histórico, de caché interna para no repetir consultas y de control de cuota. No guardar el `datos` crudo.
 - **Datos personales:** el CUPS y los datos de suministro son personales; el log y la RLS lo tratan como tal y no se muestra en logs técnicos.
 - **Tests (Vitest, lógica en `lib/`):** validación/normalización de CUPS, mapeo `resumen` → formulario de contrato/comparador, máquina de estados `listo/procesando/sin_datos`, política de reintento.
 
 ### Fases (encaja tras la fase 0 del §7, independiente del resto)
-S1. Clave de pruebas (`devintranet`) y contrato de la cuota SIPS. S2. `lib/sips/` (validación, mapeo, estados) con tests. S3. Edge Function `sips-lookup` + tabla `sips_consultas` (migración aditiva, en rama). S4. Pantalla `/erp/sips`. S5. Acciones "Crear contrato" / "Comparar tarifas".
+S1. Clave de pruebas (`devintranet`) y contrato de la cuota SIPS. S2. `lib/sips/` (validación, mapeo, estados) con tests. S3. Edge Function `enertech-sips-lookup` + tabla `enertech_sips_consultas` (migración aditiva, en rama). S4. Pantalla `/erp/sips`. S5. Acciones "Crear contrato" / "Comparar tarifas".

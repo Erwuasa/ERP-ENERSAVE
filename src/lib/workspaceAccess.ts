@@ -3,9 +3,11 @@ import { pathToMenuTab } from "@/constants/navigation"
 import { getVisibleSidebarItems } from "@/lib/navigation/sidebar-items"
 import {
   canAccessComparator,
+  canAccessSips,
   canViewContracts,
   isComparatorWorkspaceSegment,
   isContractsWorkspaceSegment,
+  isSipsWorkspaceSegment,
 } from "@/lib/staff-permissions"
 import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
 
@@ -24,6 +26,9 @@ export function canAccessWorkspaceSegment(
       return false
     }
     if (isComparatorWorkspaceSegment(segment) && !canAccessComparator(ws.activeRole, permissions)) {
+      return false
+    }
+    if (isSipsWorkspaceSegment(segment) && !canAccessSips(ws.activeRole, permissions)) {
       return false
     }
   }

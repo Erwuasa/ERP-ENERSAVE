@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   Megaphone,
   Package,
+  ScanSearch,
   ShieldAlert,
   UserSquare2,
   Users,
@@ -25,6 +26,7 @@ import { defaultPermissionsForRole, type Profile, type UserRole } from "@/types/
 import type { AppModule } from "@/constants/navigation"
 import {
   canAccessComparator,
+  canAccessSips,
   canViewContracts,
 } from "@/lib/staff-permissions"
 
@@ -47,6 +49,7 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Mis Clientes", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: UserSquare2 },
   { name: "Comparador", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Calculator },
   { name: "Historial de Comparativas", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: FileClock },
+  { name: "SIPS", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: ScanSearch },
   { name: "Tarifas", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Package },
   { name: "Marco Retributivo", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Coins },
   { name: "Incidencias", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: AlertTriangle },
@@ -78,6 +81,7 @@ export const SUPERADMIN_COMERCIAL_ERP_TAB_NAMES = [
   "Mis Clientes",
   "Comparador",
   "Historial de Comparativas",
+  "SIPS",
   "Tarifas",
   "Marco Retributivo",
   "Incidencias",
@@ -107,6 +111,7 @@ function isSidebarItemAllowedByPermissions(
   ) {
     return false
   }
+  if (itemName === "SIPS" && !canAccessSips(activeRole, staffPermissions)) return false
   return true
 }
 
@@ -160,6 +165,7 @@ export function getVisibleSidebarItems({
         "Usuarios",
         "Contratos",
         "Mis Clientes",
+        "SIPS",
         "Tarifas",
         "Marco Retributivo",
         "Incidencias",
@@ -177,6 +183,7 @@ export function getVisibleSidebarItems({
         "Liquidaciones externas",
         "Contratos",
         "Mis Clientes",
+        "SIPS",
         "Tarifas",
         "Marco Retributivo",
         "Incidencias",

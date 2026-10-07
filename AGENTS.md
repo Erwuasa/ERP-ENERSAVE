@@ -80,7 +80,7 @@ Rutas: `/erp/<slug>` y `/ventas/<slug>`. Para añadir una pantalla: tab en `cons
 - Alias `@/` → `src/`. `tsconfig` sin `strict`; aun así escribe tipos explícitos.
 - Separa por responsabilidad: **lógica de negocio en `lib/` (pura, con test)**, acceso a datos en `lib/supabase/` o `api/`, estado en hooks, UI en componentes. Ningún fichero enorme: extrae subcomponentes/hooks (`App.tsx` ya se partió así).
 - Estilo: sin `;` ni comas finales raras — imita el fichero que editas. Tailwind + shadcn; sin `div` envoltorios gratuitos.
-- Al tocar UI invoca la skill `/frontend-design`. Estética base: minimalista con toque brutalista, tipografía con carácter, sin gradientes morados ni Inter/Roboto/Arial.
+- **UI: una sola identidad visual en todo el proyecto. Copia el patrón de las pantallas existentes; no inventes estilo propio.** Aunque se use la skill `/frontend-design`, aquí manda lo que ya hay. Referencias: `pages/erp/historial/HistorialPage.tsx` (panel `rounded-3xl`, cabecera con icono en chip + título `text-sm font-extrabold uppercase` + subtítulo `text-[10px] font-mono`), `pages/erp/comparador/ComparadorPage.tsx` (formularios), `lib/enersave-ui-theme.ts` (`supplyTabClass`, `filterPillClass`, `kpiCardClass`, `SUPPLY_KIND_THEME`), `constants/styles.ts` y los tokens `brand-*` de `index.css`. Reglas: etiquetas `text-[10px] font-mono font-bold uppercase tracking-wider`, inputs `bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 text-xs`, botón primario `rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-extrabold uppercase tracking-wider`, badges `rounded text-[8px] font-mono font-bold uppercase`, vacíos con borde discontinuo. Reutiliza componentes existentes (p. ej. `ComparadorFormSection`) antes de crear otros. Nada de bordes gruesos, tipografías gigantes ni paletas nuevas.
 - Backend (Edge Functions): SOLID, una responsabilidad por módulo, lo compartido en `_shared/`.
 - Tests: Vitest solo en node, sobre `lib/`. Toda regla de negocio nueva lleva su `*.test.ts` al lado.
 
@@ -149,7 +149,28 @@ Detalle completo en `docs/sync-at-supabase.md`. Resumen:
 
 **Nueva API:** Enertech/aenergetic (`https://intranet.enertechcore.com/v1`, guía en `docs/BIENVENIDA-NUEVA-API.md`). Análisis de diferencias, viabilidad del conmutador y estrategia de BD en **`docs/analisis-api-enertech-vs-at.md`** (léelo antes de tocar nada de integración). Resumen: se recomienda conmutador con proveedor activo único + migración aditiva (`external_provider`/`external_id` + tabla `external_refs`), sin borrar datos AT. La API nueva NO cubre incidencias, liquidaciones, comparativas, emails ni FTP.
 
-**Pendiente de construir — pantalla SIPS** (`/erp/sips`, consulta de CUPS vía `GET /sips` de Enertech): independiente del conmutador AT/Enertech. Diseño y fases en §8 del análisis. Reglas: la API key solo en la Edge Function `sips-lookup`, usar siempre `resumen` (nunca `datos`), validar el CUPS en cliente antes de consultar, manejar `listo/procesando/sin_datos`.
+**Espejo de la API Enertech — DECISIÓN TOMADA (2026-10-06): tablas y Edge Functions propias con prefijo `enertech_` / `enertech-`, separadas de las de AT. No se mezclan con `providers`/`tariffs`/`contratos_equipo`/`clientes`.** Sustituye a la propuesta de `external_*` + `external_refs` del análisis (§4) para estos datos. Código listo, **sin aplicar ni desplegar ni probado contra la API real** (no hay clave aún).
+
+| Endpoint Enertech | Tabla | Edge Function | Cron |
+|---|---|---|---|
+| `GET /comercializadoras` | `enertech_comercializadoras` | `enertech-sync-comercializadoras` | diario 03:00 |
+| `GET /tarifas-acceso` | `enertech_tarifas_acceso` | `enertech-sync-tarifas-acceso` | diario 03:05 |
+| `GET /precios?todas=1` | `enertech_precios` (PK `clave`) | `enertech-sync-precios` | cada 6 h (:10) |
+| `GET /comisiones?todas=1` | `enertech_comisiones` (PK `clave`) | `enertech-sync-comisiones` | cada 6 h (:20) |
+| `GET /clientes` (paginado) | `enertech_clientes` | `enertech-sync-clientes` | cada hora (:30) |
+| `GET /contratos` (incremental `modificado_desde`) | `enertech_contratos` | `enertech-sync-contratos` | cada 15 min |
+| `GET /sips` | `enertech_sips_consultas` | `enertech-sips-lookup` | — (bajo demanda) |
+| `GET /perfil` | — | `enertech-perfil` (valida la clave) | — |
+
+- Migraciones: `20261006120000_enertech_sips_consultas.sql` y `20261006130000_enertech_mirror_tables.sql` (tablas, RLS, locks, cron, flag). **Ninguna aplicada.**
+- Cada tabla espejo guarda `payload` (fila cruda completa), `content_hash`, `actualizado_en`, `first_seen_at/last_seen_at/changed_at/removed_at`. Una fila cuenta como cambiada si `actualizado_en` difiere **o** el hash difiere (`_shared/enertech-diff.ts`). Los cambios quedan en `enertech_catalog_changes` (base para avisos). Las filas que desaparecen de un feed completo se marcan `removed_at`, nunca se borran; protección: no se aplican bajas tras una respuesta vacía o con menos de la mitad de filas. Contratos es incremental: nunca marca bajas; el cursor vive en `enertech_sync_state` (último `fecha_actualizacion` − 120 s).
+- Motor: `_shared/enertech-sync-runner.ts` (auth, explore/sync, flag, lock, log de ejecuciones en `enertech_sync_runs`), `enertech-sync-engine.ts` (upsert + diff), `enertech-entities.ts` (una definición por endpoint), `enertech-mappers.ts` (fila cruda → columnas; **nombres de campo de comercializadoras/precios/comisiones son suposiciones tolerantes: el OpenAPI no los fija**).
+- **Interruptor:** `erp_settings.enertech_sync_enabled` (por defecto `false`). El cron llama a las funciones pero responden `skipped` hasta activarlo. `?force=1` lo salta para pruebas manuales; `?mode=explore` (GET) nunca escribe y devuelve campos y muestras.
+- Secretos de las funciones: `ENERTECH_API_KEY`, `ENERTECH_SYNC_SECRET` (Bearer del cron y de las pruebas), opcional `ENERTECH_API_BASE_URL` (`https://devintranet.enertechcore.com/v1` para pruebas). Vault: `select vault.create_secret('<mismo valor>', 'enertech-sync-secret', ...)`.
+- **Cuando llegue la clave, en este orden:** (1) `npm run enertech:smoke` (llama a la API directa, solo lectura; añade `-- --cups=ES…` para probar SIPS, `-- --edge` para las funciones en explore) y revisa los avisos de "faltan campos"; (2) ajustar `enertech-mappers.ts` si los nombres reales difieren; (3) aplicar migraciones y desplegar funciones (con permiso expreso); (4) `?mode=sync&force=1` función a función; (5) activar `enertech_sync_enabled`.
+- Tests sin API real: `src/lib/enertech/*.test.ts` (diff, mappers, extractores y motor completo con Supabase en memoria y `fetch` simulado). `npm run lint` no comprueba tipos de las Edge Functions con Deno (no hay Deno en el entorno): revisar a mano lo que no importe el test.
+
+**Pantalla SIPS — código escrito, SIN desplegar ni probar contra la API real** (`/erp/sips`, consulta de CUPS vía `GET /sips` de Enertech). Independiente del conmutador AT/Enertech. Diseño y fases en §8 del análisis. Piezas: `src/lib/sips/` (validación CUPS, parseo, reintentos; con tests), `src/lib/supabase/sips.ts` (cliente), `src/pages/erp/sips/` (UI), `supabase/functions/enertech-sips-lookup` (+ `_shared/enertech-api.ts`, `sips-cups.ts` espejo de `lib/sips/cups.ts`: mantener sincronizados), migración `20261006120000_enertech_sips_consultas.sql` (NO aplicada). Para ponerla en marcha falta: aplicar la migración, definir `ENERTECH_API_KEY` (y opcional `ENERTECH_API_BASE_URL`, p. ej. `https://devintranet.enertechcore.com/v1`) en las variables de la función y desplegar `enertech-sips-lookup`. Reglas: la API key solo vive en esa Edge Function, usar siempre `resumen` (nunca `datos`), validar el CUPS antes de consultar, manejar `listo/procesando/sin_datos`. Permiso: reutiliza `comparatorAccess` (`canAccessSips` en `lib/staff-permissions.ts`); **tramitación lo tiene a `false` por defecto, así que no ve SIPS hasta que un superadmin se lo active** — decisión pendiente: crear `sipsAccess` propio.
 
 **Contexto:** AT (`https://api.at-enterprise.es/v1`) fue la fuente externa de tarifas, clientes, contratos, incidencias, liquidaciones, comparativas y emails, además de destino de altas de contrato. **Se va a usar otra API a partir de ahora.** Hoy AT está apagada con un interruptor y el ERP vive de la última copia local.
 
@@ -220,7 +241,8 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
-- 2026-10-06 — Anotada la pantalla SIPS como trabajo pendiente (§9, análisis §8).
+- 2026-10-06 — Espejo Enertech con prefijo `enertech_` (6 tablas + sips + sync/log/locks), 7 Edge Functions de sync con cron, flag `enertech_sync_enabled`, smoke script y tests con Supabase simulado. SIPS renombrada a `enertech_sips_consultas` / `enertech-sips-lookup`. Todo sin aplicar/desplegar.
+- 2026-10-06 — Pantalla SIPS implementada (lib + tests, Edge Function `enertech-sips-lookup`, migración `enertech_sips_consultas`, UI `/erp/sips`, sidebar y permisos). Pendiente: aplicar migración, secret, deploy y prueba con clave `devintranet`.
 - 2026-10-06 — Análisis API Enertech vs AT (`docs/analisis-api-enertech-vs-at.md`); §9 y §11 actualizados. Sin cambios de código ni de BD.
 - 2026-10-06 — Creación de AGENTS.md a partir de un recorrido del repo ERP y del repo web. API AT: pausada, decisión de limpieza/congelado pendiente (§9).
 - 2026-10-01 — `drop_at_catalog` y retirada del catálogo AT del wizard de contrato (`a990792`).
