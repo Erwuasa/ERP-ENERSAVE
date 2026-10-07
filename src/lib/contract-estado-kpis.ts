@@ -9,19 +9,7 @@ export const CONTRACT_ESTADO_KPI_FILTERS = [
 
 export type ContractEstadoKpiFilter = (typeof CONTRACT_ESTADO_KPI_FILTERS)[number]
 
-export type ContractsListFilter =
-  | "all"
-  | "ultima_modificacion"
-  | "renovacion_proxima"
-  | "con_recomendacion"
-  | "borrador"
-  | "nuevos_sin_revisar"
-  | "creados_este_mes"
-  | "bajas_este_mes"
-  | "pipeline_en_proceso"
-  | "pipeline_bajas"
-  | "pipeline_ko"
-  | ContractEstadoKpiFilter
+export type { ContractsListFilter } from "@/lib/contracts-view-filters"
 
 export interface ContractEstadoKpiMeta {
   id: ContractEstadoKpiFilter
@@ -123,6 +111,7 @@ export function countContractsByEstadoKpi(
 
 export function contractsListFilterLabel(filter: ContractsListFilter): string {
   if (filter === "all") return ""
+  if (filter === "ultima_inclusion") return " · última inclusión"
   if (filter === "ultima_modificacion") return " · última modificación"
   if (filter === "renovacion_proxima") return " · renovación próxima"
   if (filter === "con_recomendacion") return " · con recomendación"
@@ -141,15 +130,12 @@ export function contractsListFilterLabel(filter: ContractsListFilter): string {
 export const CONTRACT_ESTADO_UI_FILTERS = [
   "todos",
   "borrador",
-  "solicitado",
+  "pendiente_rgpd",
   "pendiente_firma",
-  "firmado",
   "en_tramitacion",
-  "scoring",
+  "ko",
   "activo",
-  "finalizado",
   "baja",
-  "baja_decomisionable",
   "incidencia",
 ] as const
 
@@ -165,23 +151,21 @@ export interface ContractEstadoUiMeta {
 export const CONTRACT_ESTADO_UI_META: ContractEstadoUiMeta[] = [
   { id: "todos", label: "Todos", sampleEstado: "ACTIVADO" },
   { id: "borrador", label: "Borrador", sampleEstado: "Borrador" },
-  { id: "solicitado", label: "Solicitado", sampleEstado: "PTE DE TRAMITACIÓN" },
+  { id: "pendiente_rgpd", label: "Pendiente RGPD", sampleEstado: "PTE DE RGPD" },
   { id: "pendiente_firma", label: "Pendiente de firma", sampleEstado: "PTE DE FIRMA" },
-  { id: "firmado", label: "Firmado", sampleEstado: "PTE DE FIRMA" },
   { id: "en_tramitacion", label: "En tramitación", sampleEstado: "TRAMITANDO" },
-  { id: "scoring", label: "Scoring", sampleEstado: "TRAMITANDO" },
+  { id: "ko", label: "KO", sampleEstado: "FIRMA CADUCADA" },
   { id: "activo", label: "Activo", sampleEstado: "ACTIVADO" },
-  { id: "finalizado", label: "Finalizado", sampleEstado: "ACTIVADO" },
   { id: "baja", label: "Baja", sampleEstado: "Dado de Baja" },
-  { id: "baja_decomisionable", label: "Baja Decomisionable", sampleEstado: "Dado de Baja" },
   { id: "incidencia", label: "Incidencia", sampleEstado: "INCIDENCIA ADMINISTRATIVA" },
 ]
 
 const ESTADO_INTERNO_TO_UI: Record<ContractEstado, Exclude<ContractEstadoUiFilter, "todos">> = {
   Borrador: "borrador",
-  "PTE DE TRAMITACIÓN": "solicitado",
+  "PTE DE TRAMITACIÓN": "en_tramitacion",
+  "PTE DE RGPD": "pendiente_rgpd",
   "PTE DE FIRMA": "pendiente_firma",
-  "FIRMA CADUCADA": "incidencia",
+  "FIRMA CADUCADA": "ko",
   TRAMITANDO: "en_tramitacion",
   ACTIVADO: "activo",
   "INCIDENCIA ADMINISTRATIVA": "incidencia",

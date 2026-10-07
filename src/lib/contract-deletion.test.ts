@@ -89,6 +89,36 @@ describe("canUserDeleteContract", () => {
     expect(canUserDeleteContract(baseContract, "superadmin", "usr-3")).toBe(true)
   })
 
+  it("restricts superadmin in comercial view to own or team borradors", () => {
+    expect(
+      canUserDeleteContract(baseContract, "superadmin", "usr-1", undefined, {
+        superadminViewMode: "comercial",
+      })
+    ).toBe(true)
+    expect(
+      canUserDeleteContract(baseContract, "superadmin", "usr-9", undefined, {
+        superadminViewMode: "comercial",
+      })
+    ).toBe(false)
+    expect(
+      canUserDeleteContract(
+        { ...baseContract, comercialId: "usr-2", jefeEquipo: "usr-boss" },
+        "superadmin",
+        "usr-boss",
+        undefined,
+        { superadminViewMode: "comercial" }
+      )
+    ).toBe(true)
+  })
+
+  it("allows superadmin in tramitacion view on any deletable borrador", () => {
+    expect(
+      canUserDeleteContract(baseContract, "superadmin", "usr-9", undefined, {
+        superadminViewMode: "tramitacion",
+      })
+    ).toBe(true)
+  })
+
   it("denies delete when not borrador even for tramitacion", () => {
     expect(
       canUserDeleteContract(

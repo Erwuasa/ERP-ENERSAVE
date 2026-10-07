@@ -27,7 +27,7 @@ describe("resolveDashboardNavigation", () => {
 
     expect(resolveDashboardNavigation("contratos_nuevos", { activeRole: "superadmin" })).toMatchObject({
       tab: "Contratos",
-      contractsListFilter: "creados_este_mes",
+      contractsListFilter: "ultima_inclusion",
     })
 
     expect(resolveDashboardNavigation("bajas", { activeRole: "superadmin" })).toMatchObject({

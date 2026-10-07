@@ -28,9 +28,7 @@ function AuthLayout() {
   return (
     <AuthProvider>
       <ErpDataProvider>
-        <ContractActionsProvider>
-          <Outlet />
-        </ContractActionsProvider>
+        <Outlet />
       </ErpDataProvider>
     </AuthProvider>
   )
@@ -47,11 +45,13 @@ function ProtectedWorkspaceLayout() {
   return (
     <ProtectedRoute area="staff">
       <IncidenciasProvider teamMemberIds={teamMemberIds} isErpOpsAdmin={isErpOpsAdmin}>
-        <ErpWorkspaceProvider>
-          <Suspense fallback={<WorkspaceFallback />}>
-            <ErpWorkspaceShell />
-          </Suspense>
-        </ErpWorkspaceProvider>
+        <ContractActionsProvider>
+          <ErpWorkspaceProvider>
+            <Suspense fallback={<WorkspaceFallback />}>
+              <ErpWorkspaceShell />
+            </Suspense>
+          </ErpWorkspaceProvider>
+        </ContractActionsProvider>
       </IncidenciasProvider>
     </ProtectedRoute>
   )

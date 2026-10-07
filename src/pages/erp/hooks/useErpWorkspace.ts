@@ -19,6 +19,7 @@ import { useErpUsuarios } from './workspace/useErpUsuarios';
 import { useErpComparador } from './workspace/useErpComparador';
 import { useErpFiscalProfile } from './workspace/useErpFiscalProfile';
 import { canAccessComparator, canViewContracts } from '@/lib/staff-permissions';
+import { applyDashboardContractsListFilter } from '@/lib/dashboard-contracts-filter';
 
 export function useErpWorkspace() {
   const { profiles, setProfiles, activeUserId, setActiveUserId, activeUser, logout } = useAuth();
@@ -30,7 +31,8 @@ export function useErpWorkspace() {
     settlements,
     setSettlements,
     setContractsSearchQuery,
-    setContractsListFilter,
+    setContractsViewFilters,
+    setContractsLegacyFilter,
     setHighlightContractId,
   } = useErpData();
   const {
@@ -156,7 +158,7 @@ export function useErpWorkspace() {
     }
     setHighlightContractId(contract.id);
     setContractsSearchQuery(contract.cups);
-    setContractsListFilter('all');
+    applyDashboardContractsListFilter('all', setContractsViewFilters, setContractsLegacyFilter);
     navigateToTab(activeModule, activeModule === 'ventas' ? 'Mis Contratos' : 'Contratos');
     toast.info(`Contrato ${contract.cups} — pantalla Contratos`);
   }
@@ -171,7 +173,7 @@ export function useErpWorkspace() {
     }
     setHighlightContractId(null);
     setContractsSearchQuery('');
-    setContractsListFilter('renovacion_proxima');
+    applyDashboardContractsListFilter('renovacion_proxima', setContractsViewFilters, setContractsLegacyFilter);
     navigateToTab('erp', 'Contratos');
     toast.info('Contratos con renovación próxima');
   }
@@ -179,7 +181,7 @@ export function useErpWorkspace() {
   function navigateToContratosEstadoKpi(filter: ContractEstadoKpiFilter) {
     setHighlightContractId(null);
     setContractsSearchQuery('');
-    setContractsListFilter(filter);
+    applyDashboardContractsListFilter(filter, setContractsViewFilters, setContractsLegacyFilter);
     navigateToTab('erp', 'Contratos');
     toast.info('Contratos filtrados por estado');
   }
@@ -206,7 +208,13 @@ export function useErpWorkspace() {
     if (action.clearHighlight) setHighlightContractId(null);
     if (action.clearContractsSearch) setContractsSearchQuery('');
     if (action.clearLiquidacionesSearch) setLiquidacionesSearchQuery('');
-    if (action.contractsListFilter) setContractsListFilter(action.contractsListFilter);
+    if (action.contractsListFilter) {
+      applyDashboardContractsListFilter(
+        action.contractsListFilter,
+        setContractsViewFilters,
+        setContractsLegacyFilter
+      );
+    }
 
     navigateToTab('erp', action.tab);
     if (action.toastMessage) toast.info(action.toastMessage);
@@ -256,7 +264,8 @@ export function useErpWorkspace() {
     settlements,
     setSettlements,
     setContractsSearchQuery,
-    setContractsListFilter,
+    setContractsViewFilters,
+    setContractsLegacyFilter,
     setHighlightContractId,
     openContractWizardForClient,
     openContractWizardForProspecto,

@@ -1,4 +1,4 @@
-import { useState, type MutableRefObject, ReactNode } from "react"
+import { useMemo, useState, type MutableRefObject, ReactNode } from "react"
 import { Flame, Lightbulb, SquarePen, Trash2 } from "lucide-react"
 import type { Contract } from "@/types/contract"
 import {
@@ -11,21 +11,20 @@ import {
   getContractActivationDate,
   getRenewalSchedule,
 } from "@/lib/contract-segment-rules"
-import type { ContractsListFilter } from "@/lib/contract-renewal"
 import { isRenovacionProxima } from "@/lib/contract-renewal"
 import { formatPotenciaContratadaDisplay } from "@/lib/contract-registration"
 import {
-  contractsListFilterLabel,
-  isContractEstadoKpiFilter,
-} from "@/lib/contract-estado-kpis"
+  contractsPanelEmptyMessage,
+  type ContractsViewFilter,
+  type LegacyContractsListFilter,
+} from "@/lib/contracts-view-filters"
 import {
   CONTRACT_ESTADO_INCOMPLETO,
   normalizeContractEstado,
 } from "@/lib/contract-estado"
 import type { useEditableCell } from "@/hooks/use-editable-cell"
 import { ContratosTableSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
-import { canUserDeleteContract } from "@/lib/contract-deletion"
-import { isContractDeletable } from "@/lib/contract-registration"
+import { canShowContractDeleteAction } from "@/lib/contract-deletion"
 import { canUserMutateContract } from "@/lib/contract-visibility"
 import { ContractQuickActionButton } from "@/components/contratos/ContractQuickActionButton"
 import { TarifaRecommendationPopover } from "@/components/TarifaRecommendationPopover"
@@ -52,9 +51,11 @@ type RenderEditableCell = ReturnType<typeof useEditableCell<Contract>>["renderEd
 type Props = {
   activeRole: "superadmin" | "jefe_comercial" | "comercial" | "tramitacion"
   activeUserId: string
+  superadminViewMode?: "tramitacion" | "comercial"
   rows: Contract[]
   filtered: Contract[]
-  contractsListFilter: ContractsListFilter
+  contractsViewFilters: ContractsViewFilter[]
+  contractsLegacyFilter: LegacyContractsListFilter | null
   highlightContractId?: string | null
   rowRefs: MutableRefObject<Record<string, HTMLTableRowElement | null>>
   renderEstadoCell: (c: Contract) => ReactNode
@@ -103,9 +104,11 @@ function TableEmptyDash({ align = "center" }: { align?: "left" | "center" | "rig
 export function ContratosPanelTable({
   activeRole,
   activeUserId,
+  superadminViewMode,
   rows,
   filtered,
-  contractsListFilter,
+  contractsViewFilters,
+  contractsLegacyFilter,
   highlightContractId,
   rowRefs,
   renderEstadoCell,
@@ -132,7 +135,22 @@ export function ContratosPanelTable({
 
   const showOwnerColumn =
     stableComercialColumn || showComercialColumn === true || activeRole === "superadmin"
-  const showDeleteColumn = Boolean(onRequestDelete)
+
+  const deleteActionOptions = useMemo(
+    () =>
+      activeRole === "superadmin" && superadminViewMode
+        ? { superadminViewMode }
+        : undefined,
+    [activeRole, superadminViewMode]
+  )
+
+  const showDeleteColumn = useMemo(() => {
+    if (!onRequestDelete) return false
+    return rows.some((contract) =>
+      canShowContractDeleteAction(contract, activeRole, activeUserId, deleteActionOptions)
+    )
+  }, [onRequestDelete, rows, activeRole, activeUserId, deleteActionOptions])
+
   const columnCount = (showOwnerColumn ? 10 : 9) + (showDeleteColumn ? 1 : 0)
 
   function handleRowClick(event: React.MouseEvent<HTMLTableRowElement>, contract: Contract) {
@@ -146,24 +164,7 @@ export function ContratosPanelTable({
     return <ContratosTableSkeleton rows={6} />
   }
 
-  const emptyMessage =
-    contractsListFilter === "renovacion_proxima"
-      ? "No hay contratos con renovación próxima."
-      : contractsListFilter === "con_recomendacion"
-        ? "No hay contratos con recomendación tarifaria."
-        : contractsListFilter === "creados_este_mes"
-          ? "No hay contratos creados este mes."
-          : contractsListFilter === "bajas_este_mes"
-            ? "No hay bajas registradas este mes."
-            : contractsListFilter === "pipeline_en_proceso"
-              ? "No hay contratos en proceso."
-              : contractsListFilter === "pipeline_bajas"
-                ? "No hay contratos dados de baja."
-                : contractsListFilter === "pipeline_ko"
-                  ? "No hay contratos KO (firma caducada)."
-                  : isContractEstadoKpiFilter(contractsListFilter)
-                    ? `No hay contratos en estado «${contractsListFilterLabel(contractsListFilter).replace(/^ · /, "")}».`
-                    : "No hay contratos que coincidan con la búsqueda."
+  const emptyMessage = contractsPanelEmptyMessage(contractsViewFilters, contractsLegacyFilter)
 
   return (
     <div
@@ -550,9 +551,10 @@ export function ContratosPanelTable({
                 ) : null}
                 {showDeleteColumn ? (
                   <td className={`${CONTRACTS_TD} text-center`} data-no-row-open>
-                    <div className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}>
-                      {isContractDeletable(c) &&
-                      canUserDeleteContract(c, activeRole, activeUserId) ? (
+                    {canShowContractDeleteAction(c, activeRole, activeUserId, deleteActionOptions) ? (
+                      <div
+                        className={`flex ${CONTRACT_TABLE_ROW_HEIGHT_CLASS} items-center justify-center`}
+                      >
                         <ContractQuickActionButton
                           tone="danger"
                           title="Eliminar borrador"
@@ -561,10 +563,8 @@ export function ContratosPanelTable({
                         >
                           <Trash2 aria-hidden />
                         </ContractQuickActionButton>
-                      ) : (
-                        <TableEmptyDash />
-                      )}
-                    </div>
+                      </div>
+                    ) : null}
                   </td>
                 ) : null}
               </tr>

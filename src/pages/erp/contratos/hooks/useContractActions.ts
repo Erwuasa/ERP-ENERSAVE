@@ -48,6 +48,8 @@ import {
   contractDeletionBlockedMessage,
   type ContractDeleteRole,
 } from "@/lib/contract-deletion"
+import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
+import { useSuperadminViewMode } from "@/providers/superadmin-view-mode-context"
 
 export interface ComparadorContractWizardInput {
   companyName: string
@@ -62,9 +64,13 @@ export interface ComparadorContractWizardInput {
   consumoAnual?: number
 }
 
-export interface UseContractActionsOptions {}
+export interface UseContractActionsOptions {
+  superadminViewMode?: "tramitacion" | "comercial"
+}
 
-export function useContractActions(_options: UseContractActionsOptions = {}) {
+export function useContractActions(options: UseContractActionsOptions = {}) {
+  const superadminViewModeFromContext = useSuperadminViewMode()
+  const superadminViewMode = options.superadminViewMode ?? superadminViewModeFromContext
   const { profiles, activeUserId, activeUser } = useAuth()
   const {
     contracts,
@@ -84,6 +90,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     fechaInicio: new Date().toISOString().split("T")[0],
   }))
   const [contractWizardOpen, setContractWizardOpen] = useState(false)
+  const [contractWizardDraftNoticeVisible, setContractWizardDraftNoticeVisible] = useState(false)
   const [contractWizardProspectoId, setContractWizardProspectoId] = useState<string | null>(
     null
   )
@@ -118,10 +125,12 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
   )
 
   const openContractWizardBlank = useCallback(() => {
-    resetNewContractForm()
-    setContractWizardProspectoId(null)
+    setNewContractForm((current) => {
+      if (hasContractWizardDraft(current)) return current
+      return buildResetNewContractForm(profiles, activeUserId)
+    })
     setContractWizardOpen(true)
-  }, [resetNewContractForm])
+  }, [profiles, activeUserId])
 
   const openContractWizardFromProducto = useCallback(
     (product: ProductoTarifa) => {
@@ -132,6 +141,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       const potenciaP1 = product.precios.potencia.p1
 
       resetNewContractForm()
+      setContractWizardDraftNoticeVisible(false)
       patchNewContractForm({
         compania: product.compania,
         tarifa: product.tarifa,
@@ -162,6 +172,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       const user = profiles.find((p) => p.id === activeUserId) || profiles[0]
       const jefe = user.managerId ? profiles.find((p) => p.id === user.managerId) : undefined
       resetNewContractForm()
+      setContractWizardDraftNoticeVisible(false)
       patchNewContractForm({
         ...EMPTY_NEW_CONTRACT_FORM,
         fechaInicio: new Date().toISOString().split("T")[0],
@@ -181,6 +192,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     (prospecto: Prospecto) => {
       const user = profiles.find((p) => p.id === activeUserId) || profiles[0]
       const jefe = profiles.find((p) => p.id === user.managerId)
+      setContractWizardDraftNoticeVisible(false)
       patchNewContractForm({
         ...EMPTY_NEW_CONTRACT_FORM,
         fechaInicio: new Date().toISOString().split("T")[0],
@@ -201,6 +213,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       const jefe = profiles.find((p) => p.id === user.managerId)
       const consumo = contract.consumoAnualManual ?? contract.consumoAnual
       resetNewContractForm()
+      setContractWizardDraftNoticeVisible(false)
       patchNewContractForm({
         clientName: contract.clientName,
         cups: contract.cups,
@@ -230,12 +243,38 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     [profiles, activeUserId, resetNewContractForm, patchNewContractForm]
   )
 
-  const closeContractWizard = useCallback(() => {
+  const discardContractWizardDraft = useCallback(() => {
+    resetNewContractForm()
+    setContractWizardProspectoId(null)
+    setEditingContractId(null)
+    setContractWizardDraftNoticeVisible(false)
+  }, [resetNewContractForm])
+
+  const finishContractWizard = useCallback(() => {
     setContractWizardOpen(false)
     setContractWizardProspectoId(null)
     setEditingContractId(null)
     resetNewContractForm()
+    setContractWizardDraftNoticeVisible(false)
   }, [resetNewContractForm])
+
+  const dismissContractWizard = useCallback(() => {
+    setContractWizardOpen(false)
+    setNewContractForm((current) => {
+      if (hasContractWizardDraft(current)) {
+        setContractWizardDraftNoticeVisible(true)
+      } else {
+        setContractWizardDraftNoticeVisible(false)
+        setContractWizardProspectoId(null)
+        setEditingContractId(null)
+      }
+      return current
+    })
+  }, [])
+
+  const hideContractWizardDraftNotice = useCallback(() => {
+    setContractWizardDraftNoticeVisible(false)
+  }, [])
 
   const openContractWizardFromComparador = useCallback(
     (input: ComparadorContractWizardInput) => {
@@ -246,6 +285,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         input.potenciaP1 != null && input.potenciaP1 > 0 ? String(input.potenciaP1) : ""
 
       resetNewContractForm()
+      setContractWizardDraftNoticeVisible(false)
       patchNewContractForm({
         compania: input.companyName,
         tarifa: input.tariffName,
@@ -294,6 +334,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
         fechaInicio: contract.fechaActivacion ?? new Date().toISOString().split("T")[0],
         wizardStep: "cliente",
       })
+      setContractWizardDraftNoticeVisible(false)
       setEditingContractId(contract.id)
       setContractWizardProspectoId(null)
       setContractWizardOpen(true)
@@ -370,6 +411,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
               } else {
                 resetNewContractForm()
                 setEditingContractId(null)
+                setContractWizardDraftNoticeVisible(false)
                 onSuccess?.()
               }
             } else {
@@ -388,6 +430,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
               )
               resetNewContractForm()
               setEditingContractId(null)
+              setContractWizardDraftNoticeVisible(false)
               onSuccess?.()
             }
 
@@ -450,6 +493,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
           }
 
           resetNewContractForm()
+          setContractWizardDraftNoticeVisible(false)
           onSuccess?.()
 
           toast.success(
@@ -678,7 +722,9 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       }
 
       const role = activeRole as ContractDeleteRole
-      if (!canUserDeleteContract(contract, role, activeUserId, newContractForm)) {
+      const deleteOptions =
+        role === "superadmin" && superadminViewMode ? { superadminViewMode } : undefined
+      if (!canUserDeleteContract(contract, role, activeUserId, newContractForm, deleteOptions)) {
         toast.error(contractDeletionBlockedMessage(contract))
         return
       }
@@ -720,6 +766,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
       activeRole,
       activeUserId,
       newContractForm,
+      superadminViewMode,
       addOptimisticContract,
       setContracts,
       setSettlements,
@@ -733,7 +780,11 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
     applyOcrToNewContractForm,
     contractWizardOpen,
     contractWizardProspectoId,
-    closeContractWizard,
+    contractWizardDraftNoticeVisible,
+    dismissContractWizard,
+    finishContractWizard,
+    discardContractWizardDraft,
+    hideContractWizardDraftNotice,
     openContractWizardBlank,
     openContractWizardFromProducto,
     openContractWizardForClient,

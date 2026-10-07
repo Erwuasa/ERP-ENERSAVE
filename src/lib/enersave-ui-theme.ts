@@ -139,6 +139,22 @@ export const INTERACTIVE_CARD = {
     "transition-[border-color,box-shadow,background-color] duration-200 hover:border-slate-300/70 dark:hover:border-slate-500/50 hover:shadow-card",
 } as const
 
+/** Colores de periodos horarios para gráficas SIPS / consumo (marca EnerSave). */
+export const ENERSAVE_PERIOD_CHART_COLORS = {
+  P1: "#059669",
+  P2: "#0891b2",
+  P3: "#10b981",
+  P4: "#ea580c",
+  P5: "#2563eb",
+  P6: "#0d9488",
+} as const
+
+export type EnersavePeriodChartKey = keyof typeof ENERSAVE_PERIOD_CHART_COLORS
+
+export function enersavePeriodChartColor(period: EnersavePeriodChartKey): string {
+  return ENERSAVE_PERIOD_CHART_COLORS[period]
+}
+
 export const ENERSAVE_ACTION = {
   primary: "bg-emerald-600 hover:bg-emerald-500 text-white",
   secondary:

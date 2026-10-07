@@ -1,5 +1,5 @@
 import type { DashboardNavigateTarget } from "@/components/dashboard/SuperadminDashboard"
-import type { ContractsListFilter } from "@/lib/contract-estado-kpis"
+import type { ContractsListFilter } from "@/lib/contracts-view-filters"
 
 export interface DashboardNavigationContext {
   activeRole: string
@@ -48,7 +48,7 @@ export function resolveDashboardNavigation(
       return {
         kind: "tab",
         tab: "Contratos",
-        contractsListFilter: "creados_este_mes",
+        contractsListFilter: "ultima_inclusion",
         clearContractsSearch: true,
         clearHighlight: true,
         toastMessage: "Contratos creados este mes",

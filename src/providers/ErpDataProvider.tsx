@@ -44,7 +44,10 @@ import {
   type ClientOptimisticAction,
 } from "@/lib/clients-optimistic-actions"
 
-import type { ContractsListFilter } from "@/lib/contract-renewal"
+import type {
+  ContractsViewFilter,
+  LegacyContractsListFilter,
+} from "@/lib/contracts-view-filters"
 import type { ClawbackPendingContract } from "@/lib/erp/contract-clawback"
 
 const INITIAL_PENDING_CONTRACTS: ClawbackPendingContract[] = []
@@ -68,8 +71,10 @@ interface ErpDataContextValue {
   setSettlements: Dispatch<SetStateAction<Settlement[]>>
   contractsSearchQuery: string
   setContractsSearchQuery: Dispatch<SetStateAction<string>>
-  contractsListFilter: ContractsListFilter
-  setContractsListFilter: Dispatch<SetStateAction<ContractsListFilter>>
+  contractsViewFilters: ContractsViewFilter[]
+  setContractsViewFilters: Dispatch<SetStateAction<ContractsViewFilter[]>>
+  contractsLegacyFilter: LegacyContractsListFilter | null
+  setContractsLegacyFilter: Dispatch<SetStateAction<LegacyContractsListFilter | null>>
   contractsUserFilterId: string
   setContractsUserFilterId: Dispatch<SetStateAction<string>>
   highlightContractId: string | null
@@ -87,8 +92,9 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
   const [contracts, setContracts] = useState<Contract[]>(INITIAL_CRM.contracts)
   const [settlements, setSettlements] = useState<Settlement[]>(INITIAL_SETTLEMENTS)
   const [contractsSearchQuery, setContractsSearchQuery] = useState("")
-  const [contractsListFilter, setContractsListFilter] =
-    useState<ContractsListFilter>("all")
+  const [contractsViewFilters, setContractsViewFilters] = useState<ContractsViewFilter[]>([])
+  const [contractsLegacyFilter, setContractsLegacyFilter] =
+    useState<LegacyContractsListFilter | null>(null)
   const [contractsUserFilterId, setContractsUserFilterId] = useState("all")
   const [highlightContractId, setHighlightContractId] = useState<string | null>(
     null
@@ -316,8 +322,10 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       setSettlements,
       contractsSearchQuery,
       setContractsSearchQuery,
-      contractsListFilter,
-      setContractsListFilter,
+      contractsViewFilters,
+      setContractsViewFilters,
+      contractsLegacyFilter,
+      setContractsLegacyFilter,
       contractsUserFilterId,
       setContractsUserFilterId,
       highlightContractId,
@@ -333,7 +341,8 @@ export function ErpDataProvider({ children }: { children: ReactNode }) {
       addOptimisticClient,
       settlements,
       contractsSearchQuery,
-      contractsListFilter,
+      contractsViewFilters,
+      contractsLegacyFilter,
       contractsUserFilterId,
       highlightContractId,
       pendingContracts,

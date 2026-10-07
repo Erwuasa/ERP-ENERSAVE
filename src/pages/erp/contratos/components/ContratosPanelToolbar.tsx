@@ -5,12 +5,12 @@ import { EstadoFilterDropdown } from "@/components/contratos/EstadoFilterDropdow
 import { CompaniaFilterDropdown } from "@/components/contratos/CompaniaFilterDropdown"
 import { SelectFilterDropdown } from "@/components/ui/SelectFilterDropdown"
 import type { ContractEstadoUiFilter } from "@/lib/contract-estado-kpis"
-import type { ContractsListFilter } from "@/lib/contract-renewal"
 import type { DateRangePickerValue } from "@/lib/date-range"
 import type { ContractsTeamScope } from "@/lib/contract-visibility"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 import { SEARCH_INPUT } from "@/lib/enersave-ui-theme"
-import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
+import { ContractsViewFilterDropdown } from "@/components/contratos/ContractsViewFilterDropdown"
+import type { ContractsViewFilter, LegacyContractsListFilter } from "@/lib/contracts-view-filters"
 
 const FILTER_SLOT_CLASS = "w-[11.5rem] min-w-[11.5rem] max-w-[11.5rem] shrink-0 overflow-hidden"
 const TEAM_FILTER_SLOT_CLASS = FILTER_SLOT_CLASS
@@ -18,8 +18,10 @@ const TEAM_FILTER_SLOT_CLASS = FILTER_SLOT_CLASS
 type Props = {
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
-  contractsListFilter: ContractsListFilter
-  setContractsListFilter: (value: ContractsListFilter) => void
+  contractsViewFilters: ContractsViewFilter[]
+  setContractsViewFilters: (value: ContractsViewFilter[]) => void
+  contractsLegacyFilter: LegacyContractsListFilter | null
+  setContractsLegacyFilter: (value: LegacyContractsListFilter | null) => void
   showTarifaRecommendations?: boolean
   showUserFilter: boolean
   userFilterId: string
@@ -62,9 +64,11 @@ function FilterSlot({
 export function ContratosPanelToolbar({
   contractsSearchQuery,
   setContractsSearchQuery,
-  contractsListFilter,
-  setContractsListFilter,
-  showTarifaRecommendations = false,
+  contractsViewFilters,
+  setContractsViewFilters,
+  contractsLegacyFilter: _contractsLegacyFilter,
+  setContractsLegacyFilter,
+  showTarifaRecommendations: _showTarifaRecommendations = false,
   showUserFilter,
   userFilterId,
   onUserFilterChange,
@@ -161,16 +165,12 @@ export function ContratosPanelToolbar({
           ) : null}
 
           <FilterSlot className={FILTER_SLOT_CLASS}>
-            <SelectFilterDropdown
-              label="Vista"
-              value={contractsListFilter}
-              defaultValue="all"
-              options={buildContractsListFilterOptions({
-                showTarifaRecommendations,
-                current: contractsListFilter,
-              })}
-              onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
-              minWidthClass="min-w-0 w-full"
+            <ContractsViewFilterDropdown
+              value={contractsViewFilters}
+              onChange={(next) => {
+                setContractsLegacyFilter(null)
+                setContractsViewFilters(next)
+              }}
             />
           </FilterSlot>
         </div>

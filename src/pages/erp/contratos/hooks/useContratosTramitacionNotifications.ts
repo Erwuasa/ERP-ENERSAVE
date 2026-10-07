@@ -16,7 +16,7 @@ import {
 
 export function useContratosTramitacionNotifications(enabled: boolean) {
   const { isLoggedIn } = useAuth()
-  const { contracts, setContracts, setContractsListFilter, setContractsUserFilterId } =
+  const { contracts, setContracts, setContractsLegacyFilter, setContractsUserFilterId } =
     useErpData()
   const [reviewedContractIds, setReviewedContractIds] = useState(loadReviewedTramitacionIds)
   const [insertBuffer, setInsertBuffer] = useState<TramitacionInsertEvent[]>([])
@@ -63,16 +63,16 @@ export function useContratosTramitacionNotifications(enabled: boolean) {
 
   const selectComercial = useCallback(
     (comercialId: string) => {
-      setContractsListFilter("nuevos_sin_revisar")
+      setContractsLegacyFilter("nuevos_sin_revisar")
       setContractsUserFilterId(comercialId)
     },
-    [setContractsListFilter, setContractsUserFilterId]
+    [setContractsLegacyFilter, setContractsUserFilterId]
   )
 
   const showAllUnreviewed = useCallback(() => {
-    setContractsListFilter("nuevos_sin_revisar")
+    setContractsLegacyFilter("nuevos_sin_revisar")
     setContractsUserFilterId("all")
-  }, [setContractsListFilter, setContractsUserFilterId])
+  }, [setContractsLegacyFilter, setContractsUserFilterId])
 
   const markReviewed = useCallback((contractId: string) => {
     setReviewedContractIds((prev) => {

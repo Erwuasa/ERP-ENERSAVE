@@ -8,19 +8,38 @@ import {
 
 export type ContractDeleteRole = ContractAccessRole
 
+export type CanUserDeleteContractOptions = {
+  superadminViewMode?: "tramitacion" | "comercial"
+}
+
 export function canUserDeleteContract(
   contract: Contract,
   activeRole: ContractDeleteRole,
   activeUserId: string,
-  form?: NewContractFormState
+  form?: NewContractFormState,
+  options?: CanUserDeleteContractOptions
 ): boolean {
   if (!isContractDeletable(contract, { documentosPorTipo: form?.documentosPorTipo })) {
+    return false
+  }
+  if (activeRole === "superadmin" && options?.superadminViewMode === "comercial") {
+    if (contract.comercialId === activeUserId) return true
+    if (contract.jefeEquipo === activeUserId) return true
     return false
   }
   if (activeRole === "superadmin" || activeRole === "tramitacion") return true
   if (contract.comercialId === activeUserId) return true
   if (activeRole === "jefe_comercial" && contract.jefeEquipo === activeUserId) return true
   return false
+}
+
+export function canShowContractDeleteAction(
+  contract: Contract,
+  activeRole: ContractDeleteRole,
+  activeUserId: string,
+  options?: CanUserDeleteContractOptions
+): boolean {
+  return canUserDeleteContract(contract, activeRole, activeUserId, undefined, options)
 }
 
 /** @deprecated Usa isContractDeletable + canUserDeleteContract */

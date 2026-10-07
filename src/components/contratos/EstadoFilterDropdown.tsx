@@ -27,6 +27,19 @@ export function EstadoFilterDropdown({ value, onChange, counts, onOpenChange }: 
     onOpenChange?.(next)
   }
 
+  function estadoUiBadgeClass(meta: (typeof CONTRACT_ESTADO_UI_META)[number]): string {
+    if (meta.id === "incidencia") {
+      return "bg-red-100 text-red-900 dark:bg-red-500/20 dark:text-red-100 border border-red-300/70 dark:border-red-500/30"
+    }
+    if (meta.id === "ko") {
+      return "bg-violet-100 text-violet-900 dark:bg-violet-500/20 dark:text-violet-100 border border-violet-300/70 dark:border-violet-500/30"
+    }
+    if (meta.id === "pendiente_rgpd") {
+      return getContractEstadoBadgeClass("PTE DE RGPD")
+    }
+    return getContractEstadoBadgeClass(meta.sampleEstado)
+  }
+
   const activeMeta = CONTRACT_ESTADO_UI_META.find((m) => m.id === value) ?? CONTRACT_ESTADO_UI_META[0]
   const activeCount = counts[value] ?? counts.todos
   const isActive = value !== DEFAULT_VALUE
@@ -76,7 +89,7 @@ export function EstadoFilterDropdown({ value, onChange, counts, onOpenChange }: 
                 className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-brand-surface/80 transition-colors cursor-pointer ${listItemSelectedClass(isSelected)}`}
               >
                 <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${getContractEstadoBadgeClass(meta.sampleEstado)}`}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-mono font-bold ${estadoUiBadgeClass(meta)}`}
                 >
                   {meta.label}
                 </span>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useTransition } from "react"
 import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
-import type { ContractsListFilter } from "@/lib/contract-renewal"
+import type { ContractsViewFilter, LegacyContractsListFilter } from "@/lib/contracts-view-filters"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
 import { useContractActionsContext } from "@/providers/ContractActionsProvider"
@@ -39,8 +39,10 @@ export function useContratosPage({
     addOptimisticContract,
     contractsSearchQuery,
     setContractsSearchQuery,
-    contractsListFilter,
-    setContractsListFilter,
+    contractsViewFilters,
+    setContractsViewFilters,
+    contractsLegacyFilter,
+    setContractsLegacyFilter,
     contractsUserFilterId,
     setContractsUserFilterId,
     highlightContractId,
@@ -227,11 +229,17 @@ export function useContratosPage({
       addOptimisticContract,
       contractsSearchQuery,
       setContractsSearchQuery,
-      contractsListFilter: contractsListFilter as ContractsListFilter,
-      setContractsListFilter,
+      contractsViewFilters,
+      setContractsViewFilters: (value: ContractsViewFilter[] | ((prev: ContractsViewFilter[]) => ContractsViewFilter[])) => {
+        setContractsLegacyFilter(null)
+        setContractsViewFilters(value)
+      },
+      contractsLegacyFilter,
+      setContractsLegacyFilter,
       onActivateContract: openActivateModal,
       onBajaContract: openBajaModal,
       onDeleteContract: handleDeleteContract,
+      superadminViewMode,
       handleCreateContract,
       isCreatingContract,
       newContractForm,

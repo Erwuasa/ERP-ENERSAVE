@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/erp/format-currency"
 import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { ContractActivateModal } from "@/pages/erp/contratos/components/ContractActivateModal"
 import { ContractBajaModal } from "@/pages/erp/contratos/components/ContractBajaModal"
+import { ContractWizardDraftNotice } from "@/pages/erp/contratos/components/ContractWizardDraftNotice"
 
 const NuevoContratoWizard = lazy(() =>
   import("@/pages/erp/contratos/components/wizard/NuevoContratoWizard").then((m) => ({
@@ -23,7 +24,11 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
   const {
     newContractForm,
     patchNewContractForm,
-    closeContractWizard,
+    dismissContractWizard,
+    finishContractWizard,
+    contractWizardDraftNoticeVisible,
+    discardContractWizardDraft,
+    hideContractWizardDraftNotice,
     contractWizardOpen,
     contractWizardProspectoId,
     editingContractId,
@@ -87,14 +92,14 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
       <Suspense fallback={null}>
         <NuevoContratoWizard
           open={contractWizardOpen}
-          onClose={closeContractWizard}
+          onClose={dismissContractWizard}
           form={newContractForm}
           onChange={patchNewContractForm}
           onSubmit={(e, opts) =>
             handleCreateContract(
               e,
               () => {
-                closeContractWizard()
+                finishContractWizard()
                 if (contractWizardProspectoId) {
                   toast.success("Contrato vinculado al prospecto")
                 }
@@ -118,6 +123,12 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
           editingContractId={editingContractId}
         />
       </Suspense>
+
+      <ContractWizardDraftNotice
+        open={contractWizardDraftNoticeVisible && !contractWizardOpen}
+        onDiscard={discardContractWizardDraft}
+        onDismiss={hideContractWizardDraftNotice}
+      />
     </>
   )
 }

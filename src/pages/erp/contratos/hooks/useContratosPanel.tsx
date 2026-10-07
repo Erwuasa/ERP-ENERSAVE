@@ -13,16 +13,17 @@ import type { Contract } from "@/types/contract"
 import { exportContractsToExcel } from "@/lib/contracts-excel-export"
 import { dateRangeToIsoStrings, type DateRangePickerValue } from "@/lib/date-range"
 import {
-  isRenovacionProxima,
-  type ContractsListFilter,
-} from "@/lib/contract-renewal"
-import {
   countContractsByEstadoUi,
-  isContractEstadoKpiFilter,
   matchesContractEstadoKpiFilter,
   matchesContractEstadoUiFilter,
   type ContractEstadoUiFilter,
 } from "@/lib/contract-estado-kpis"
+import {
+  matchesContractsViewFilters,
+  sortContractsByViewFilters,
+  type ContractsViewFilter,
+  type LegacyContractsListFilter,
+} from "@/lib/contracts-view-filters"
 import { matchesContractListFilter } from "@/lib/contract-list-filters"
 import {
   extractContractDataFromDocument,
@@ -45,7 +46,6 @@ import {
   matchesCompaniaFilter,
 } from "@/lib/erp/comercializadoras-catalog"
 import { isContractPendingTramitacionReview } from "@/lib/contratos-tramitacion-notifications"
-import { compareContractsByLastModified } from "@/lib/contrato-historial"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import { updateTeamContract } from "@/lib/supabase/contracts"
 import { useContractActionsContext } from "@/providers/ContractActionsProvider"
@@ -67,7 +67,8 @@ type Options = {
   setSettlements?: Dispatch<SetStateAction<Settlement[]>>
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
-  contractsListFilter: ContractsListFilter
+  contractsViewFilters: ContractsViewFilter[]
+  contractsLegacyFilter: LegacyContractsListFilter | null
   newContractForm: NewContractFormState
   onResetNewContractForm: () => void
   applyOcrToNewContractForm: (data: ContractOcrResult) => void
@@ -93,7 +94,8 @@ export function useContratosPanel({
   setSettlements,
   addOptimisticContract,
   contractsSearchQuery,
-  contractsListFilter,
+  contractsViewFilters,
+  contractsLegacyFilter,
   newContractForm,
   onResetNewContractForm,
   applyOcrToNewContractForm,
@@ -340,28 +342,31 @@ export function useContratosPanel({
   }
 
   function matchesListFilter(c: Contract): boolean {
-    if (contractsListFilter === "renovacion_proxima" && !isRenovacionProxima(c)) return false
-    if (contractsListFilter === "con_recomendacion" && !tarifaRecommendations?.has(c.id)) {
-      return false
-    }
-    if (contractsListFilter === "nuevos_sin_revisar") {
+    if (!matchesContractsViewFilters(c, contractsViewFilters)) return false
+
+    const legacy = contractsLegacyFilter
+    if (!legacy) return true
+
+    if (legacy === "con_recomendacion" && !tarifaRecommendations?.has(c.id)) return false
+    if (legacy === "nuevos_sin_revisar") {
       return isContractPendingTramitacionReview(c, reviewedContractIds ?? new Set())
     }
     if (
-      (contractsListFilter === "creados_este_mes" ||
-        contractsListFilter === "bajas_este_mes" ||
-        contractsListFilter === "pipeline_en_proceso" ||
-        contractsListFilter === "pipeline_bajas" ||
-        contractsListFilter === "pipeline_ko") &&
-      !matchesContractListFilter(c, contractsListFilter)
+      legacy === "creados_este_mes" ||
+      legacy === "bajas_este_mes" ||
+      legacy === "pipeline_en_proceso" ||
+      legacy === "pipeline_bajas" ||
+      legacy === "pipeline_ko"
     ) {
-      return false
+      if (!matchesContractListFilter(c, legacy)) return false
     }
     if (
-      isContractEstadoKpiFilter(contractsListFilter) &&
-      !matchesContractEstadoKpiFilter(c.estado, contractsListFilter)
+      legacy === "activado" ||
+      legacy === "pte_firma" ||
+      legacy === "tramitando" ||
+      legacy === "incidencia_administrativa"
     ) {
-      return false
+      if (!matchesContractEstadoKpiFilter(c.estado, legacy)) return false
     }
     return true
   }
@@ -385,12 +390,12 @@ export function useContratosPanel({
 
   const poolForEstadoCounts = useMemo(
     () => applyPanelFilters(visibleContracts, { skipEstado: true }),
-    [visibleContracts, contractsSearchQuery, contractsListFilter, companiaFilterUI, fechaDesde, fechaHasta, reviewedContractIds, tarifaRecommendations]
+    [visibleContracts, contractsSearchQuery, contractsViewFilters, contractsLegacyFilter, companiaFilterUI, fechaDesde, fechaHasta, reviewedContractIds, tarifaRecommendations]
   )
 
   const poolForCompaniaCounts = useMemo(
     () => applyPanelFilters(visibleContracts, { skipCompania: true }),
-    [visibleContracts, contractsSearchQuery, contractsListFilter, estadoFilterUI, fechaDesde, fechaHasta, reviewedContractIds, tarifaRecommendations]
+    [visibleContracts, contractsSearchQuery, contractsViewFilters, contractsLegacyFilter, estadoFilterUI, fechaDesde, fechaHasta, reviewedContractIds, tarifaRecommendations]
   )
 
   const estadoCounts = useMemo(
@@ -414,7 +419,8 @@ export function useContratosPanel({
     [
       visibleContracts,
       contractsSearchQuery,
-      contractsListFilter,
+      contractsViewFilters,
+      contractsLegacyFilter,
       estadoFilterUI,
       companiaFilterUI,
       fechaDesde,
@@ -424,10 +430,10 @@ export function useContratosPanel({
     ]
   )
 
-  const visibleRows = useMemo(() => {
-    if (contractsListFilter !== "ultima_modificacion") return filtered
-    return [...filtered].sort(compareContractsByLastModified)
-  }, [filtered, contractsListFilter])
+  const visibleRows = useMemo(
+    () => sortContractsByViewFilters(filtered, contractsViewFilters),
+    [filtered, contractsViewFilters]
+  )
 
   function handleExportExcel() {
     if (!canExportDatabase) {

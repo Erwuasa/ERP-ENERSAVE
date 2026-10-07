@@ -1,10 +1,14 @@
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { contractsListFilterLabel } from "@/lib/contract-estado-kpis"
-import type { ContractsListFilter } from "@/lib/contract-renewal"
+import {
+  contractsPanelFilterSummary,
+  type ContractsViewFilter,
+  type LegacyContractsListFilter,
+} from "@/lib/contracts-view-filters"
 
 type Props = {
   filteredCount: number
-  contractsListFilter: ContractsListFilter
+  contractsViewFilters: ContractsViewFilter[]
+  contractsLegacyFilter: LegacyContractsListFilter | null
   safePage: number
   totalPages: number
   onPrevPage: () => void
@@ -13,7 +17,8 @@ type Props = {
 
 export function ContratosPanelPagination({
   filteredCount,
-  contractsListFilter,
+  contractsViewFilters,
+  contractsLegacyFilter,
   safePage,
   totalPages,
   onPrevPage,
@@ -25,7 +30,7 @@ export function ContratosPanelPagination({
     <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-1">
       <p className="text-[10px] font-mono text-brand-subtext">
         {filteredCount} contrato{filteredCount !== 1 ? "s" : ""}
-        {contractsListFilterLabel(contractsListFilter)}
+        {contractsPanelFilterSummary(contractsViewFilters, contractsLegacyFilter)}
       </p>
       <div className="flex items-center gap-1">
         <button

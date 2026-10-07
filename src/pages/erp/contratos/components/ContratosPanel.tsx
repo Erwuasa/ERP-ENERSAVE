@@ -3,7 +3,7 @@ import type { Contract } from "@/types/contract"
 import type { Settlement } from "@/types/settlement"
 import type { Client } from "@/types/client"
 import type { NewContractFormState } from "@/lib/contract-registration"
-import type { ContractsListFilter } from "@/lib/contract-renewal"
+import type { ContractsViewFilter, LegacyContractsListFilter } from "@/lib/contracts-view-filters"
 import { ContractsExcelImportModal } from "@/components/contratos/ContractsExcelImportModal"
 import { ConfirmDeleteContractModal } from "@/components/contratos/ConfirmDeleteContractModal"
 import { ContratosOcrModal } from "@/pages/erp/contratos/components/ContratosOcrModal"
@@ -17,6 +17,7 @@ import { useContratosPanel } from "@/pages/erp/contratos/hooks/useContratosPanel
 import type { ContractOcrResult } from "@/lib/contract-ocr"
 import type { ContractsTeamScope } from "@/lib/contract-visibility"
 import { canUserMutateContract } from "@/lib/contract-visibility"
+import { canShowContractDeleteAction } from "@/lib/contract-deletion"
 import type { TarifaRecommendation } from "@/lib/tarifa-recommendation"
 import type { ContractOptimisticAction } from "@/lib/erp/contract-optimistic-actions"
 
@@ -36,8 +37,10 @@ export interface ContratosPanelProps {
   addOptimisticContract: (action: ContractOptimisticAction) => void
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
-  contractsListFilter: ContractsListFilter
-  setContractsListFilter: (value: ContractsListFilter) => void
+  contractsViewFilters: ContractsViewFilter[]
+  setContractsViewFilters: (value: ContractsViewFilter[]) => void
+  contractsLegacyFilter: LegacyContractsListFilter | null
+  setContractsLegacyFilter: (value: LegacyContractsListFilter | null) => void
   onActivateContract: (contract: Contract) => void
   onBajaContract: (contract: Contract) => void
   onDeleteContract?: (contractId: string) => void | Promise<void>
@@ -81,6 +84,7 @@ export interface ContratosPanelProps {
   onDismissRecommendation?: (contractId: string) => void
   onDismissRenewalAlert?: (contractId: string) => void
   canExportDatabase?: boolean
+  superadminViewMode?: "tramitacion" | "comercial"
 }
 
 export function ContratosPanel({
@@ -98,8 +102,10 @@ export function ContratosPanel({
     addOptimisticContract,
   contractsSearchQuery,
   setContractsSearchQuery,
-  contractsListFilter,
-  setContractsListFilter,
+  contractsViewFilters,
+  setContractsViewFilters,
+  contractsLegacyFilter,
+  setContractsLegacyFilter,
   onActivateContract,
   onBajaContract,
   onDeleteContract,
@@ -135,7 +141,10 @@ export function ContratosPanel({
   onDismissRecommendation,
   onDismissRenewalAlert,
   canExportDatabase = false,
+  superadminViewMode,
 }: ContratosPanelProps) {
+  const deleteActionOptions =
+    activeRole === "superadmin" && superadminViewMode ? { superadminViewMode } : undefined
   const [contractPendingDelete, setContractPendingDelete] = useState<Contract | null>(null)
   const [isDeletingContract, setIsDeletingContract] = useState(false)
   const [contratoSeleccionado, setContratoSeleccionado] = useState<Contract | null>(null)
@@ -151,7 +160,8 @@ export function ContratosPanel({
     setSettlements,
     addOptimisticContract,
     contractsSearchQuery,
-    contractsListFilter,
+    contractsViewFilters,
+    contractsLegacyFilter,
     newContractForm,
     onResetNewContractForm,
     applyOcrToNewContractForm,
@@ -173,8 +183,10 @@ export function ContratosPanel({
         <ContratosPanelToolbar
           contractsSearchQuery={contractsSearchQuery}
           setContractsSearchQuery={setContractsSearchQuery}
-          contractsListFilter={contractsListFilter}
-          setContractsListFilter={setContractsListFilter}
+          contractsViewFilters={contractsViewFilters}
+          setContractsViewFilters={setContractsViewFilters}
+          contractsLegacyFilter={contractsLegacyFilter}
+          setContractsLegacyFilter={setContractsLegacyFilter}
           showTarifaRecommendations={showTarifaRecommendations}
           showUserFilter={showUserFilter}
           userFilterId={userFilterId}
@@ -217,12 +229,30 @@ export function ContratosPanel({
             loading={erpDataLoading}
             isFilterPending={isFilterPending}
             stableComercialColumn={stableComercialColumn}
-            contractsListFilter={contractsListFilter}
+            contractsViewFilters={contractsViewFilters}
+            contractsLegacyFilter={contractsLegacyFilter}
             highlightContractId={highlightContractId}
             rowRefs={vm.rowRefs}
             renderEstadoCell={vm.renderEstadoCell}
             renderEditableCell={vm.renderEditableCell}
-            onRequestDelete={onDeleteContract ? setContractPendingDelete : undefined}
+            superadminViewMode={superadminViewMode}
+            onRequestDelete={
+              onDeleteContract
+                ? (contract) => {
+                    if (
+                      !canShowContractDeleteAction(
+                        contract,
+                        activeRole,
+                        activeUserId,
+                        deleteActionOptions
+                      )
+                    ) {
+                      return
+                    }
+                    setContractPendingDelete(contract)
+                  }
+                : undefined
+            }
             formatCurrency={formatCurrency}
             showTarifaRecommendations={showTarifaRecommendations}
             tarifaRecommendations={tarifaRecommendations}
@@ -247,6 +277,17 @@ export function ContratosPanel({
         }}
         onConfirm={() => {
           if (!contractPendingDelete || !onDeleteContract) return
+          if (
+            !canShowContractDeleteAction(
+              contractPendingDelete,
+              activeRole,
+              activeUserId,
+              deleteActionOptions
+            )
+          ) {
+            setContractPendingDelete(null)
+            return
+          }
           setIsDeletingContract(true)
           void Promise.resolve(onDeleteContract(contractPendingDelete.id)).finally(() => {
             setIsDeletingContract(false)

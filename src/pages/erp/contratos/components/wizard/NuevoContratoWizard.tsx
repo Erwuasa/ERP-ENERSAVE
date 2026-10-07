@@ -179,7 +179,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     onChange={onChange}
                     selectTariff={vm.selectTariff}
                     setPeajeSegment={vm.setPeajeSegment}
-                    setTipo={vm.setTipo}
                     handlePotenciaP1Change={vm.handlePotenciaP1Change}
                     consumoAnualRequired={vm.consumoAnualRequired}
                   />

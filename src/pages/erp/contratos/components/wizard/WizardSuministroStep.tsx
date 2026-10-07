@@ -1,15 +1,10 @@
-import { Coins, Flame, Layers, Lightbulb, Plus } from "lucide-react"
+import { Coins, Layers, Plus } from "lucide-react"
 import type { MarcoTramoResolution } from "@/lib/marco-consumo-tramo"
 import type { ServicioExtraOption } from "@/lib/marco-servicios-extras"
 import { WizardAccessTariffChips } from "@/components/contratos/WizardAccessTariffChips"
 import type { ContractPeajeSegment } from "@/lib/contract-peaje-segment"
 import type { NewContractFormState } from "@/lib/contract-registration"
-import { SUPPLY_KIND_THEME } from "@/lib/enersave-ui-theme"
 import type { Contract } from "@/types/contract"
-import {
-  CONTRACT_ESTADO_INICIAL,
-  getContractEstadoBadgeClass,
-} from "@/lib/contract-estado"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
   FORMA_PAGO_LABELS,
@@ -49,7 +44,6 @@ type Props = {
   onChange: (patch: Partial<NewContractFormState>) => void
   selectTariff: (tarifa: string) => void
   setPeajeSegment: (segment: ContractPeajeSegment) => void
-  setTipo: (tipo: "luz" | "gas") => void
   handlePotenciaP1Change: (value: string) => void
   consumoAnualRequired?: boolean
 }
@@ -74,7 +68,6 @@ export function WizardSuministroStep({
   onChange,
   selectTariff,
   setPeajeSegment,
-  setTipo,
   handlePotenciaP1Change,
   consumoAnualRequired = true,
 }: Props) {
@@ -88,41 +81,13 @@ export function WizardSuministroStep({
 
   return (
     <div className="h-full flex flex-col gap-2.5 min-h-0">
-      <div className="flex flex-wrap items-end gap-3 shrink-0">
-        <div className="space-y-0.5">
-          <label className={WIZARD_LABEL_CLASS}>Tipo contrato</label>
-          <div className="flex gap-1.5">
-            {(["luz", "gas"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTipo(t)}
-                className={`inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase border transition-all cursor-pointer ${
-                  form.tipo === t ? SUPPLY_KIND_THEME[t].tabActive : "border-brand-border text-brand-subtext"
-                }`}
-              >
-                {t === "luz" ? <Lightbulb className="w-3 h-3" /> : <Flame className="w-3 h-3" />}
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="space-y-0.5 min-w-0 flex-1">
-          <label className={WIZARD_LABEL_CLASS}>Tarifa de acceso</label>
-          <WizardAccessTariffChips
-            value={form.peajeSegment}
-            onChange={setPeajeSegment}
-            compact
-          />
-        </div>
-        <div className="space-y-0.5">
-          <label className={WIZARD_LABEL_CLASS}>Estado</label>
-          <span
-            className={`inline-flex px-2.5 py-1 rounded-lg text-[9px] font-mono font-bold uppercase ${getContractEstadoBadgeClass(CONTRACT_ESTADO_INICIAL)}`}
-          >
-            {CONTRACT_ESTADO_INICIAL}
-          </span>
-        </div>
+      <div className="space-y-0.5 shrink-0 min-w-0">
+        <label className={WIZARD_LABEL_CLASS}>Tarifa de acceso</label>
+        <WizardAccessTariffChips
+          value={form.peajeSegment}
+          onChange={setPeajeSegment}
+          compact
+        />
       </div>
 
       <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 flex-1 min-h-0 content-start overflow-y-auto pr-0.5">

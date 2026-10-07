@@ -1,22 +1,21 @@
 import { Search, X } from "lucide-react"
-import { SelectFilterDropdown } from "@/components/ui/SelectFilterDropdown"
-import type { ContractsListFilter } from "@/lib/contract-renewal"
-import { buildContractsListFilterOptions } from "@/lib/contracts-list-filter-options"
+import { ContractsViewFilterDropdown } from "@/components/contratos/ContractsViewFilterDropdown"
+import type { ContractsViewFilter, LegacyContractsListFilter } from "@/lib/contracts-view-filters"
 
 type Props = {
   contractsSearchQuery: string
   setContractsSearchQuery: (value: string) => void
-  contractsListFilter: ContractsListFilter
-  setContractsListFilter: (value: ContractsListFilter) => void
-  showTarifaRecommendations?: boolean
+  contractsViewFilters: ContractsViewFilter[]
+  setContractsViewFilters: (value: ContractsViewFilter[]) => void
+  setContractsLegacyFilter: (value: LegacyContractsListFilter | null) => void
 }
 
 export function ContratosPanelSearchRow({
   contractsSearchQuery,
   setContractsSearchQuery,
-  contractsListFilter,
-  setContractsListFilter,
-  showTarifaRecommendations = false,
+  contractsViewFilters,
+  setContractsViewFilters,
+  setContractsLegacyFilter,
 }: Props) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -41,13 +40,12 @@ export function ContratosPanelSearchRow({
         )}
       </div>
 
-      <SelectFilterDropdown
-        label="Vista"
-        value={contractsListFilter}
-        defaultValue="all"
-        options={buildContractsListFilterOptions({ showTarifaRecommendations, current: contractsListFilter })}
-        onChange={(next) => setContractsListFilter(next as ContractsListFilter)}
-        minWidthClass="min-w-[140px]"
+      <ContractsViewFilterDropdown
+        value={contractsViewFilters}
+        onChange={(next) => {
+          setContractsLegacyFilter(null)
+          setContractsViewFilters(next)
+        }}
       />
     </div>
   )

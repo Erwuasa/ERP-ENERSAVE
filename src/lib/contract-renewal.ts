@@ -1,6 +1,10 @@
 import { getRenewalSchedule, type ContractSegmentContext } from "./contract-segment-rules"
 
-export type { ContractsListFilter } from "./contract-estado-kpis"
+export type {
+  ContractsListFilter,
+  ContractsViewFilter,
+  LegacyContractsListFilter,
+} from "./contracts-view-filters"
 
 export interface ContractRenewalRow extends ContractSegmentContext {
   createdAt?: string
