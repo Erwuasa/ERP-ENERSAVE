@@ -1,4 +1,4 @@
-import { FileSpreadsheet, Search, X } from "lucide-react"
+import { FileSpreadsheet, Search, UserPlus, X } from "lucide-react"
 import type {
   ClienteAceptacionFilter,
   ClienteTipoFilter,
@@ -17,6 +17,7 @@ type Props = {
   setAceptacionFilter: (value: ClienteAceptacionFilter) => void
   tipoCounts: { todos: number; particular: number; empresa: number }
   aceptacionCounts: { todos: number; aceptado: number; pendiente: number }
+  onCreateClient: () => void
 }
 
 export function ClientesPanelToolbar({
@@ -30,6 +31,7 @@ export function ClientesPanelToolbar({
   setAceptacionFilter,
   tipoCounts,
   aceptacionCounts,
+  onCreateClient,
 }: Props) {
   return (
     <div className={`${PANEL_TOOLBAR} space-y-2.5`}>
@@ -54,16 +56,26 @@ export function ClientesPanelToolbar({
             </button>
           )}
         </div>
-        {canExportDatabase ? (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={onExportCsv}
-            className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 shrink-0 cursor-pointer ${ENERSAVE_ACTION.secondary}`}
+            onClick={onCreateClient}
+            className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors duration-200 ${ENERSAVE_ACTION.primary}`}
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            Excel
+            <UserPlus className="w-3.5 h-3.5" aria-hidden />
+            Nuevo cliente
           </button>
-        ) : null}
+          {canExportDatabase ? (
+            <button
+              type="button"
+              onClick={onExportCsv}
+              className={`h-9 px-3.5 text-[10px] font-bold rounded-lg flex items-center gap-1.5 cursor-pointer ${ENERSAVE_ACTION.secondary}`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Excel
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between border-t border-brand-border/70 pt-2.5">

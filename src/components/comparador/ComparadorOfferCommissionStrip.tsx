@@ -1,9 +1,6 @@
-import { Wallet } from "lucide-react"
-
 export interface ComparadorOfferCommissionStripProps {
-  amountEur: number
+  amountEur?: number | null
   precision?: "exacto" | "estimado" | "sin_datos" | "sin_consumo"
-  tramoLabel?: string
   /** Destaca cuando la oferta lidera el ranking por comisión. */
   highlighted?: boolean
 }
@@ -17,53 +14,48 @@ function formatEuro(value: number): string {
   }).format(value)
 }
 
+function resolveCommissionDisplay(
+  amountEur: number | null | undefined,
+  precision: ComparadorOfferCommissionStripProps["precision"]
+): { text: string; muted: boolean; title?: string } {
+  if (precision === "sin_consumo") {
+    return { text: "—", muted: true, title: "Indica consumo para calcular la comisión" }
+  }
+  if (amountEur == null || precision === "sin_datos") {
+    return { text: "—", muted: true, title: "Sin marco retributivo vinculado" }
+  }
+  return { text: formatEuro(amountEur), muted: false }
+}
+
+/** Fila de comisión bajo el total de la tarjeta. */
 export function ComparadorOfferCommissionStrip({
   amountEur,
   precision,
-  tramoLabel,
   highlighted = false,
 }: ComparadorOfferCommissionStripProps) {
-  const precisionNote =
-    precision === "estimado" ? "Estimado" : precision === "exacto" ? "Marco retributivo" : null
+  const display = resolveCommissionDisplay(amountEur, precision)
 
   return (
     <div
-      className={`mt-3 flex items-stretch gap-3 rounded-xl border px-3 py-2.5 transition-colors duration-200 ${
-        highlighted
-          ? "border-amber-500/45 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent ring-1 ring-amber-500/20 dark:from-amber-400/15 dark:via-amber-400/10"
-          : "border-amber-500/25 bg-amber-500/[0.07] dark:bg-amber-400/[0.08]"
-      }`}
+      className="flex items-center justify-between gap-4 text-sm mt-2"
       role="group"
-      aria-label={`Tu comisión percibida ${formatEuro(amountEur)}`}
+      aria-label={
+        display.muted
+          ? "Comisión percibida no disponible"
+          : `Comisión percibida ${display.text}`
+      }
     >
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-          highlighted ? "bg-amber-500/20 text-amber-800 dark:text-amber-200" : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+      <span className="text-brand-subtext">Comisión percibida</span>
+      <span
+        className={`font-mono tabular-nums shrink-0 ${
+          display.muted
+            ? "text-brand-subtext/80"
+            : `text-emerald-600 dark:text-emerald-400 ${highlighted ? "font-bold" : "font-semibold"}`
         }`}
-        aria-hidden
+        title={display.title}
       >
-        <Wallet className="h-5 w-5" strokeWidth={2} />
-      </div>
-
-      <div className="min-w-0 flex-1 flex flex-col justify-center gap-0.5">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-amber-800/90 dark:text-amber-200/90">
-          Tu comisión percibida
-        </p>
-        {(precisionNote || tramoLabel) && (
-          <p className="text-[10px] leading-snug text-amber-900/70 dark:text-amber-100/70 line-clamp-2">
-            {[precisionNote, tramoLabel].filter(Boolean).join(" · ")}
-          </p>
-        )}
-      </div>
-
-      <div className="shrink-0 flex flex-col items-end justify-center pl-1">
-        <span className="text-xl sm:text-2xl font-extrabold font-mono tabular-nums leading-none text-amber-700 dark:text-amber-300">
-          {formatEuro(amountEur)}
-        </span>
-        <span className="mt-1 text-[9px] font-mono uppercase text-amber-800/60 dark:text-amber-200/60">
-          por contrato
-        </span>
-      </div>
+        {display.text}
+      </span>
     </div>
   )
 }

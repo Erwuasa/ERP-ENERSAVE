@@ -7,19 +7,17 @@ import {
 import { formatMarcoCondicionesCelda } from "@/lib/marco-condiciones-display"
 import { formatMarcoPermanenciaFromRow } from "@/lib/marco-permanencia"
 import { marcoRowToCatalogEntry, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
-import {
-  buildMarcoTableRowKey,
-  filterMarcoRowsForTable,
-} from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
+import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
+import { buildMarcoTableRowKey } from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
 
 const MARCO_TH =
   "px-2.5 py-2 text-[10px] font-semibold uppercase tracking-normal text-brand-subtext align-bottom border-b border-brand-border whitespace-nowrap"
 
-const MARCO_TD = "px-2.5 py-2.5 align-top border-b border-brand-border/70"
+const MARCO_TD = "px-2.5 py-2 align-top border-b border-brand-border/70"
+const MARCO_TD_LOGO = "px-1.5 py-1.5 align-middle border-b border-brand-border/70"
 
 type Props = {
   loading: boolean
-  companiaFilter: string
   filteredRows: MarcoRetributivoRow[]
   canEdit: boolean
   commissionPercentage: number
@@ -31,7 +29,6 @@ type Props = {
 
 export function MarcoRetributivoTable({
   loading,
-  companiaFilter,
   filteredRows,
   canEdit,
   commissionPercentage,
@@ -40,8 +37,6 @@ export function MarcoRetributivoTable({
   onOpenEntry,
   onDeactivate,
 }: Props) {
-  const visibleRows = filterMarcoRowsForTable(filteredRows, companiaFilter)
-
   if (loading) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center gap-2 rounded-xl border border-brand-border/60 bg-brand-surface/30 text-brand-subtext">
@@ -53,19 +48,19 @@ export function MarcoRetributivoTable({
 
   return (
     <div className="h-full min-h-0 overflow-auto overscroll-contain scrollbar-overlay rounded-xl border border-brand-border/60 bg-brand-surface/30">
-      <table className="w-full min-w-[880px] table-fixed text-left text-xs">
+      <table className="w-full min-w-[820px] table-fixed text-left text-xs">
         <colgroup>
-          <col className="w-[18%]" />
-          <col className="w-[18%]" />
-          <col className="w-[88px]" />
-          <col className="w-[24%]" />
-          <col className="w-[110px]" />
-          <col className="w-[14%]" />
-          <col className="w-[88px]" />
+          <col className="w-[5.25rem]" />
+          <col className="w-[20%]" />
+          <col className="w-[72px]" />
+          <col className="w-[26%]" />
+          <col className="w-[100px]" />
+          <col className="w-[13%]" />
+          <col className="w-[80px]" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-brand-panel">
           <tr>
-            <th className={MARCO_TH}>Compañía</th>
+            <th className={`${MARCO_TH} text-center`}>Compañía</th>
             <th className={MARCO_TH}>Tarifa</th>
             <th className={MARCO_TH}>Peaje</th>
             <th className={MARCO_TH}>Condiciones</th>
@@ -75,7 +70,7 @@ export function MarcoRetributivoTable({
           </tr>
         </thead>
         <tbody>
-          {visibleRows.length === 0 ? (
+          {filteredRows.length === 0 ? (
             <tr>
               <td
                 colSpan={7}
@@ -85,7 +80,7 @@ export function MarcoRetributivoTable({
               </td>
             </tr>
           ) : (
-            visibleRows.map((row, index) => {
+            filteredRows.map((row, index) => {
               const entry = marcoRowToCatalogEntry(row)
               return (
                 <tr
@@ -93,12 +88,10 @@ export function MarcoRetributivoTable({
                   onClick={() => onOpenEntry(row)}
                   className="hover:bg-slate-50 dark:hover:bg-brand-elevated/50 transition-colors cursor-pointer"
                 >
-                  <td className={MARCO_TD}>
-                    <div className="flex items-center gap-2 min-w-0">
+                  <td className={MARCO_TD_LOGO}>
+                    <div className="flex items-center justify-center min-h-[2.5rem]">
                       {renderCompaniaLogo(row.compania)}
-                      <span className="font-semibold text-brand-text leading-tight truncate">
-                        {row.compania}
-                      </span>
+                      <span className="sr-only">{formatCompaniaLabel(row.compania)}</span>
                     </div>
                   </td>
                   <td className={MARCO_TD}>

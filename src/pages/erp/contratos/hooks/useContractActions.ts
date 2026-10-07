@@ -679,7 +679,7 @@ export function useContractActions(_options: UseContractActionsOptions = {}) {
 
       const role = activeRole as ContractDeleteRole
       if (!canUserDeleteContract(contract, role, activeUserId, newContractForm)) {
-        toast.error(contractDeletionBlockedMessage())
+        toast.error(contractDeletionBlockedMessage(contract))
         return
       }
 

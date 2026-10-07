@@ -70,6 +70,7 @@ export function useNuevoContratoWizard({
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
   const [serviciosExtrasExpanded, setServiciosExtrasExpanded] = useState(false)
+  const [customTariffExpanded, setCustomTariffExpanded] = useState(false)
   const [tariffCompanies, setTariffCompanies] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
 
@@ -220,8 +221,8 @@ export function useNuevoContratoWizard({
   }, [open, marcoTramoResolution.entry?.id, form.marcoEntryId, onChange])
 
   const documentosObligatorios = useMemo(
-    () => getDocumentosObligatoriosForMarco(selectedMarcoEntry),
-    [selectedMarcoEntry]
+    () => getDocumentosObligatoriosForMarco(selectedMarcoEntry, form.tipoCliente),
+    [selectedMarcoEntry, form.tipoCliente]
   )
 
   const commissionEstimate = useMemo(() => {
@@ -389,6 +390,7 @@ export function useNuevoContratoWizard({
     setIncompleteConfirmOpen(false)
     setIncompleteMissing([])
     setNewComment("")
+    setCustomTariffExpanded(false)
     onClose()
   }
 
@@ -404,6 +406,7 @@ export function useNuevoContratoWizard({
   }
 
   function selectTariff(tarifa: string) {
+    setCustomTariffExpanded(false)
     const candidates = findMarcoTramoCandidates(marcoCatalog, {
       compania: form.compania,
       tarifa,
@@ -419,6 +422,19 @@ export function useNuevoContratoWizard({
       tarifa,
       tipoPrecio: inferTipoPrecioFromTarifa(tarifa),
       tipo: entry?.tipo ?? form.tipo,
+      selectedServiciosExtras: [],
+    })
+  }
+
+  function toggleCustomTariffExpanded() {
+    setCustomTariffExpanded((prev) => !prev)
+  }
+
+  function setCustomTariffName(tarifa: string) {
+    onChange({
+      marcoEntryId: "",
+      tarifa,
+      tipoPrecio: tarifa.trim() ? inferTipoPrecioFromTarifa(tarifa) : "",
       selectedServiciosExtras: [],
     })
   }
@@ -510,6 +526,9 @@ export function useNuevoContratoWizard({
     setPeajeSegment,
     serviciosExtrasExpanded,
     setServiciosExtrasExpanded,
+    customTariffExpanded,
+    toggleCustomTariffExpanded,
+    setCustomTariffName,
     marcoTramoResolution,
     serviciosExtrasOptions,
     toggleServicioExtra,

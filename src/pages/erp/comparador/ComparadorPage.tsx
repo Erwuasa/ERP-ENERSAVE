@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Calculator, User, Building2 } from "lucide-react"
-import { normalizeComparadorDiasFacturacion } from "@/lib/comparador-billing"
 import { resolveComparadorFormDensity } from "@/lib/comparador-period-layout"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 import { ComparadorIaUpload } from "@/components/comparador/ComparadorIaUpload"
@@ -10,7 +9,6 @@ import { ComparadorOtrosConceptosFields } from "@/components/comparador/Comparad
 import { ComparadorResultsToolbar } from "@/components/comparador/ComparadorResultsToolbar"
 import { ComparadorOfferCard } from "@/components/ComparadorOfferCard"
 import { ComparadorRankingSkeleton } from "@/components/comparador/ComparadorRankingSkeleton"
-import { EmailPropuestaModal } from "@/components/comparador/EmailPropuestaModal"
 import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { formatCurrency } from "@/lib/erp/format-currency"
 import type { ComparadorPeriodSlot } from "@/lib/comparador-periods"
@@ -21,6 +19,8 @@ import {
 import { useComparadorEnVivo } from "@/pages/erp/comparador/hooks/useComparadorEnVivo"
 import { resolveComparadorConsumoAnualKwh } from "@/lib/comparador-marco-commission"
 import { usePotenciaP1Autofill } from "@/pages/erp/comparador/hooks/usePotenciaP1Autofill"
+import { onFormEnterNavigationKeyDown } from "@/lib/form-enter-navigation"
+import { hasComparadorUserProvidedData } from "@/lib/comparador-user-input"
 
 const OFFER_RENDER_BATCH = 24
 
@@ -28,8 +28,6 @@ export function ComparadorPage() {
   const ws = useErpWorkspaceContext()
   const {
     activeUser,
-    activeRole,
-    superadminViewMode,
     compSegment,
     setCompSegment,
     compAccessTariff,
@@ -71,18 +69,6 @@ export function ComparadorPage() {
     handleDownloadComparadorPdf,
     handleSaveComparativaToHistory,
     comparisonsHistory,
-    handleGenerarEmailPropuesta,
-    emailPropuestaOpen,
-    emailPropuestaLoading,
-    emailPropuestaGeneratingId,
-    emailPropuestaDestino,
-    setEmailPropuestaDestino,
-    emailPropuestaAsunto,
-    setEmailPropuestaAsunto,
-    emailPropuestaCuerpo,
-    setEmailPropuestaCuerpo,
-    setEmailPropuestaOpen,
-    handleOpenEmailPropuestaMailClient,
     openContractWizardFromComparador,
     compClient,
     compCups,
@@ -94,10 +80,6 @@ export function ComparadorPage() {
 
   const { handlePotenciaP1Change, handlePotenciaManualChange } =
     usePotenciaP1Autofill(setCompPotencias)
-
-  const showCommissionOnOffers =
-    activeRole !== "tramitacion" &&
-    !(activeRole === "superadmin" && superadminViewMode === "tramitacion")
 
   const enVivoForm = useMemo(
     () =>
@@ -112,6 +94,7 @@ export function ComparadorPage() {
         energiaReactiva: compEnergiaReactiva,
         otrosCostesSva: compOtrosCostesSva,
         consumoAnualKwh: compConsumoAnualKwh,
+        facturaMensual: compCurrentBill,
         companiaActual: compCompaniaActual.trim() || null,
         proposalFilters: compProposalFilters,
       }),
@@ -126,9 +109,21 @@ export function ComparadorPage() {
       compEnergiaReactiva,
       compOtrosCostesSva,
       compConsumoAnualKwh,
+      compCurrentBill,
       compCompaniaActual,
       compProposalFilters,
     ]
+  )
+
+  const hasComparisonInput = useMemo(
+    () =>
+      hasComparadorUserProvidedData({
+        potencias: compPotencias,
+        consumos: compConsumos,
+        consumoAnualKwh: compConsumoAnualKwh,
+        facturaMensual: compCurrentBill,
+      }),
+    [compPotencias, compConsumos, compConsumoAnualKwh, compCurrentBill]
   )
 
   const { resultados, calculando, catalogError, catalogCount } = useComparadorEnVivo(
@@ -184,6 +179,7 @@ export function ComparadorPage() {
   const offerOptions = rankingMapped.options
   const showSkeleton = offerOptions.length === 0 && calculando
   const showEmptyState = offerOptions.length === 0 && !calculando
+  const awaitingUserData = !hasComparisonInput
   const formDensity = resolveComparadorFormDensity(compAccessTariff)
   const isCompactForm = formDensity === "compact"
   const [offerLimit, setOfferLimit] = useState(OFFER_RENDER_BATCH)
@@ -242,6 +238,8 @@ export function ComparadorPage() {
           }`}
         >
           <div
+            data-enter-navigation
+            onKeyDown={onFormEnterNavigationKeyDown}
             className={`bg-brand-panel rounded-2xl border border-brand-border shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a] lg:h-full lg:flex lg:flex-col lg:overflow-hidden ${
               isCompactForm ? "p-3.5 space-y-3" : "p-4 space-y-4"
             }`}
@@ -328,9 +326,7 @@ export function ComparadorPage() {
               onBonoSocialChange={setCompBonoSocial}
               onEnergiaReactivaChange={setCompEnergiaReactiva}
               onOtrosCostesSvaChange={setCompOtrosCostesSva}
-              onDiasFacturadosChange={(value) =>
-                setCompDiasFacturados(normalizeComparadorDiasFacturacion(value))
-              }
+              onDiasFacturadosChange={setCompDiasFacturados}
               onConsumoAnualKwhChange={setCompConsumoAnualKwh}
               onFacturaMensualChange={setCompCurrentBill}
               descuentoPotencia={compDescuentoPotencia}
@@ -362,20 +358,24 @@ export function ComparadorPage() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-xs font-bold text-brand-text uppercase tracking-wider">
-                    {catalogError
-                      ? "No se pudo cargar el catálogo de tarifas"
-                      : compProposalFilters.length > 0
-                        ? "Sin ofertas para los filtros seleccionados"
-                        : "Sin tarifas disponibles"}
+                    {awaitingUserData
+                      ? "Introduce datos para comparar"
+                      : catalogError
+                        ? "No se pudo cargar el catálogo de tarifas"
+                        : compProposalFilters.length > 0
+                          ? "Sin ofertas para los filtros seleccionados"
+                          : "Sin tarifas disponibles"}
                   </h3>
                   <p className="text-xs text-brand-subtext max-w-sm mt-1 mx-auto leading-relaxed">
-                    {catalogError
-                      ? catalogError
-                      : compProposalFilters.length > 0
-                        ? "Prueba quitando algún filtro o cambia la tarifa de acceso."
-                        : catalogCount === 0
-                          ? "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."
-                          : "Hay tarifas en catálogo pero ninguna encaja con marco retributivo y los datos introducidos. Revisa precios por periodo o quita filtros."}
+                    {awaitingUserData
+                      ? "Rellena potencia, consumo por periodo, consumo anual o el total de tu factura. Las ofertas aparecerán conforme haya datos con los que calcular."
+                      : catalogError
+                        ? catalogError
+                        : compProposalFilters.length > 0
+                          ? "Prueba quitando algún filtro o cambia la tarifa de acceso."
+                          : catalogCount === 0
+                            ? "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."
+                            : "Hay tarifas en catálogo pero ninguna encaja con marco retributivo y los datos introducidos. Revisa precios por periodo o quita filtros."}
                   </p>
                 </div>
               </div>
@@ -391,7 +391,7 @@ export function ComparadorPage() {
                   return (
                   <ComparadorOfferCard
                     key={opt.id}
-                    option={{ ...opt, showCommission: showCommissionOnOffers }}
+                    option={opt}
                     segment={compSegment}
                     sortMode={compSortMode}
                     savedToHistory={savedToHistory}
@@ -417,12 +417,6 @@ export function ComparadorPage() {
                     }
                     onDownloadPdf={() => void handleDownloadComparadorPdf(opt)}
                     onSaveToHistory={() => handleSaveComparativaToHistory(opt)}
-                    onSendEmail={
-                      opt.savingsAnnual > 0
-                        ? () => void handleGenerarEmailPropuesta(opt)
-                        : undefined
-                    }
-                    sendingEmail={emailPropuestaGeneratingId === opt.id}
                   />
                   )
                 })}
@@ -435,18 +429,6 @@ export function ComparadorPage() {
         </div>
       </div>
 
-      <EmailPropuestaModal
-        open={emailPropuestaOpen}
-        loading={emailPropuestaLoading}
-        emailDestino={emailPropuestaDestino}
-        asunto={emailPropuestaAsunto}
-        cuerpo={emailPropuestaCuerpo}
-        onEmailDestinoChange={setEmailPropuestaDestino}
-        onAsuntoChange={setEmailPropuestaAsunto}
-        onCuerpoChange={setEmailPropuestaCuerpo}
-        onClose={() => setEmailPropuestaOpen(false)}
-        onOpenMailClient={handleOpenEmailPropuestaMailClient}
-      />
     </div>
   )
 }

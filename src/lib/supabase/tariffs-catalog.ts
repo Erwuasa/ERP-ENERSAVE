@@ -2,6 +2,7 @@ import {
   comparadorAccessTariffDbIlikePattern,
   tariffMatchesComparadorAccessTariff,
 } from "../comparador-access-tariff"
+import { tariffMatchesErpAudience } from "../infer-erp-segment"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import type { TariffPeriodKey, TariffPeriodPrices, TariffPreciosPorPeriodo } from "../tarifa-cost-calculator"
 
@@ -158,6 +159,7 @@ export async function listTariffsConPrecios(
 
   const rows = ((data ?? []) as TariffDbRow[])
     .filter((row) => tariffMatchesComparadorAccessTariff(row.access_tariff, accessTariff))
+    .filter((row) => tariffMatchesErpAudience(row.name, row.segment, segmento))
     .map(mapTariffRowToConPrecios)
 
   return { ok: true, data: rows }

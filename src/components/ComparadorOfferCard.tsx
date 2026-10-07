@@ -1,15 +1,13 @@
 import { useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { ChevronDown, Bookmark, BookmarkCheck, Download, Mail, Star } from "lucide-react"
+import { ChevronDown, Bookmark, BookmarkCheck, Download, FileSignature, Star } from "lucide-react"
 import type { ReactNode } from "react"
 import type { ComparadorSortMode } from "../lib/comparador-sort"
 import type { ComparadorTariffPricingType } from "../lib/comparador-tariff-pricing-type"
 import { resolveComparadorTariffPricingType } from "../lib/comparador-tariff-pricing-type"
 import { resolveCompaniaLogoKey } from "../lib/erp/compania-logos"
-import {
-  breakdownAmountTone,
-  type ComparadorOfferBreakdownRow,
-} from "../lib/comparador-offer-breakdown"
+import type { ComparadorDesgloseTableRow } from "../lib/comparador-offer-breakdown"
+import { ComparadorOfferDesgloseTable } from "./comparador/ComparadorOfferDesgloseTable"
 import type { TariffPreciosPorPeriodo } from "../lib/tarifa-cost-calculator"
 import { roundComparadorMoney } from "../lib/comparador-billing"
 import { ComparadorOfferCommissionStrip } from "./comparador/ComparadorOfferCommissionStrip"
@@ -35,7 +33,7 @@ export interface ComparadorOfferOption {
   commissionTramoLabel?: string
   showCommission?: boolean
   isBestOption?: boolean
-  breakdownRows?: ComparadorOfferBreakdownRow[]
+  desgloseTableRows?: ComparadorDesgloseTableRow[]
   precios?: TariffPreciosPorPeriodo
 }
 
@@ -48,8 +46,6 @@ interface ComparadorOfferCardProps {
   onContract: () => void
   onDownloadPdf: () => void
   onSaveToHistory?: () => void
-  onSendEmail?: () => void
-  sendingEmail?: boolean
 }
 
 function formatEuro(value: number): string {
@@ -67,41 +63,6 @@ function savingsTone(savingsAnnual: number): "positive" | "neutral" | "negative"
   return "neutral"
 }
 
-function toneClass(tone: "positive" | "neutral" | "negative", bold = false): string {
-  const weight = bold ? "font-bold" : "font-semibold"
-  if (tone === "positive") return `${weight} text-emerald-600 dark:text-emerald-400`
-  if (tone === "negative") return `${weight} text-rose-600 dark:text-rose-400`
-  return `${weight} text-brand-text`
-}
-
-function BreakdownRow({ row }: { row: ComparadorOfferBreakdownRow }) {
-  const tone = breakdownAmountTone(row.savings)
-  const isTotal = row.kind === "total"
-
-  return (
-    <div
-      className={`grid grid-cols-[1fr_auto] gap-3 items-start py-2 ${
-        isTotal ? "border-t border-brand-border pt-3 mt-1" : "border-b border-brand-border/50 last:border-0"
-      }`}
-    >
-      <p className={`text-xs leading-snug ${isTotal ? "font-bold text-brand-text" : "text-brand-subtext"}`}>
-        {row.labelLeft}
-      </p>
-      <div className="text-right min-w-[5.5rem]">
-        <p className={`text-xs font-mono tabular-nums ${toneClass(tone, isTotal)}`}>
-          {formatEuro(row.amountOffer)}
-        </p>
-        {row.savings != null && row.savings !== 0 && !isTotal ? (
-          <p className={`text-[10px] font-mono tabular-nums mt-0.5 ${toneClass(tone)}`}>
-            {row.savings > 0 ? "−" : "+"}
-            {formatEuro(Math.abs(row.savings))}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  )
-}
-
 export function ComparadorOfferCard({
   option,
   segment,
@@ -111,8 +72,6 @@ export function ComparadorOfferCard({
   onContract,
   onDownloadPdf,
   onSaveToHistory,
-  onSendEmail,
-  sendingEmail = false,
 }: ComparadorOfferCardProps) {
   const [desgloseOpen, setDesgloseOpen] = useState(false)
   const bestLabel = sortMode === "comision" ? "Top comisión" : "Top ahorro"
@@ -128,21 +87,11 @@ export function ComparadorOfferCard({
   const pricingLabelText = pricingLabel === "indexado" ? "Indexado" : "Fijo"
   const tone = savingsTone(option.savingsAnnual)
   const savingsPct = Math.abs(option.savingsPercentage ?? 0)
-  const breakdownRows = option.breakdownRows ?? []
+  const desgloseRows = option.desgloseTableRows ?? []
   const hasBundledLogo = Boolean(resolveCompaniaLogoKey(option.companyName))
-  const showCommissionStrip =
-    option.showCommission !== false &&
-    option.commissionEur != null &&
-    option.commissionEur > 0
+  const showCommissionStrip = option.showCommission !== false
   const commissionHighlighted =
     sortMode === "comision" && Boolean(option.isBestOption)
-
-  const totalClass =
-    tone === "positive"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : tone === "negative"
-        ? "text-rose-600 dark:text-rose-400"
-        : "text-brand-text"
 
   const savingsClass =
     tone === "positive"
@@ -234,15 +183,6 @@ export function ComparadorOfferCard({
         </span>
       </div>
 
-      {showCommissionStrip ? (
-        <ComparadorOfferCommissionStrip
-          amountEur={option.commissionEur!}
-          precision={option.commissionPrecision}
-          tramoLabel={option.commissionTramoLabel}
-          highlighted={commissionHighlighted}
-        />
-      ) : null}
-
       <div className="mt-4 space-y-1.5 text-sm">
         <div className="flex items-center justify-between gap-4">
           <span className="text-brand-subtext">Potencia</span>
@@ -261,27 +201,17 @@ export function ComparadorOfferCard({
       <div className="mt-4 pt-3 border-t border-brand-border">
         <div className="flex items-end justify-between gap-4">
           <span className="text-sm font-semibold text-brand-text">Total</span>
-          <span
-            className={`text-2xl font-extrabold font-display tabular-nums leading-none ${totalClass}`}
-          >
+          <span className="text-2xl font-extrabold font-display tabular-nums leading-none text-brand-text">
             {formatEuro(option.monthlyCost)}
           </span>
         </div>
-        <p className="mt-1 text-[10px] font-mono text-brand-subtext text-right leading-snug">
-          IEE e IVA incluidos
-          {option.monthlyBaseImponible != null && option.monthlyBaseImponible > 0 ? (
-            <>
-              <br />
-              Base {formatEuro(option.monthlyBaseImponible)}
-              {option.monthlyIee != null && option.monthlyIee > 0
-                ? ` · IEE ${formatEuro(option.monthlyIee)}`
-                : ""}
-              {option.monthlyIva != null && option.monthlyIva > 0
-                ? ` · IVA ${formatEuro(option.monthlyIva)}`
-                : ""}
-            </>
-          ) : null}
-        </p>
+        {showCommissionStrip ? (
+          <ComparadorOfferCommissionStrip
+            amountEur={option.commissionEur}
+            precision={option.commissionPrecision}
+            highlighted={commissionHighlighted}
+          />
+        ) : null}
         <p className={`mt-2 text-sm font-semibold ${savingsClass}`}>
           {tone === "positive"
             ? `Ahorra ${formatEuro(ahorroMonthly)}/mes (${savingsPct}%)`
@@ -291,7 +221,7 @@ export function ComparadorOfferCard({
         </p>
       </div>
 
-      {breakdownRows.length > 0 ? (
+      {desgloseRows.length > 0 ? (
         <div className="mt-3">
           <button
             type="button"
@@ -314,10 +244,8 @@ export function ComparadorOfferCard({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="mt-2 rounded-xl border border-brand-border/70 bg-brand-surface/40 px-3 py-1">
-                  {breakdownRows.map((row) => (
-                    <BreakdownRow key={row.id} row={row} />
-                  ))}
+                <div className="mt-2">
+                  <ComparadorOfferDesgloseTable rows={desgloseRows} />
                 </div>
               </motion.div>
             ) : null}
@@ -328,22 +256,11 @@ export function ComparadorOfferCard({
       <button
         type="button"
         onClick={onContract}
-        className="mt-4 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors cursor-pointer"
+        className="mt-4 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
       >
+        <FileSignature className="h-4 w-4 shrink-0" aria-hidden />
         Contratar
       </button>
-
-      {tone === "positive" && onSendEmail ? (
-        <button
-          type="button"
-          onClick={onSendEmail}
-          disabled={sendingEmail}
-          className="mt-2 w-full py-2.5 rounded-xl border border-brand-border bg-brand-surface hover:bg-brand-elevated text-brand-text text-xs font-bold transition-colors cursor-pointer disabled:opacity-60 inline-flex items-center justify-center gap-2"
-        >
-          <Mail className="h-3.5 w-3.5" />
-          {sendingEmail ? "Generando email…" : "Enviar propuesta por email"}
-        </button>
-      ) : null}
     </article>
   )
 }

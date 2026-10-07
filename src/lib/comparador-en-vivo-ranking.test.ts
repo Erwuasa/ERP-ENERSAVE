@@ -23,6 +23,7 @@ const baseForm: ComparadorEnVivoFormState = {
   sinSva: false,
   soloPotenciaBoe: false,
   consumoAnualKwh: null,
+  facturaMensual: null,
 }
 
 function makeTariff(overrides: Partial<TariffConPrecios> = {}): TariffConPrecios {

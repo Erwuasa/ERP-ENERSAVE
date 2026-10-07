@@ -15,6 +15,8 @@ export interface FilterTriggerButtonProps {
   minWidthClass?: string
   maxWidthClass?: string
   clearAriaLabel?: string
+  /** `ghost`: sin relleno, integrado en el fondo de página */
+  variant?: "surface" | "ghost"
 }
 
 export function FilterTriggerButton({
@@ -30,12 +32,19 @@ export function FilterTriggerButton({
   minWidthClass = "min-w-[160px]",
   maxWidthClass = "max-w-[280px]",
   clearAriaLabel,
+  variant = "surface",
 }: FilterTriggerButtonProps) {
   const borderClass = filterTriggerBorderClass({ open, active: isActive })
+  const surfaceClass =
+    variant === "ghost"
+      ? isActive || open
+        ? "bg-cyan-500/[0.06] dark:bg-cyan-400/[0.08]"
+        : "bg-transparent hover:bg-brand-surface/40 dark:hover:bg-white/[0.03]"
+      : "bg-brand-surface"
 
   return (
     <div
-      className={`inline-flex items-stretch rounded-lg border bg-brand-surface transition-colors ${borderClass} ${className}`}
+      className={`inline-flex items-stretch rounded-lg border transition-colors duration-200 ${surfaceClass} ${borderClass} ${className}`}
     >
       <button
         type="button"

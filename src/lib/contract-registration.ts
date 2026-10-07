@@ -4,7 +4,7 @@ import {
   peajeSegmentToAccessTariff,
   type ContractPeajeSegment,
 } from "./contract-peaje-segment"
-import { normalizeContractEstado } from "./contract-estado"
+import { normalizeContractEstado, type ContractEstado } from "./contract-estado"
 
 export type FormaPago =
   | "al_contado"
@@ -449,7 +449,7 @@ export function contractRegistrationErrorMessage(missingLabels: string[]): strin
   return `Faltan ${missingLabels.length} campos obligatorios: ${missingLabels.join(", ")}.`
 }
 
-const DELETABLE_ESTADO_UI = new Set(["Borrador", "PTE DE TRAMITACIÓN"])
+const DELETABLE_ESTADO_UI = new Set<ContractEstado>(["Borrador"])
 
 function contractHasUploadedDocuments(
   contract: Contract,
@@ -539,7 +539,7 @@ export function buildContractPatchFromForm(form: NewContractFormState): Partial<
   }
 }
 
-/** Solo borradores sin documentos adjuntos (Pendiente de info. / Borrador / PTE DE TRAMITACIÓN). */
+/** Solo borradores sin documentos adjuntos (incl. legacy Pendiente de info.). */
 export function isContractDeletable(
   contract: Contract,
   opts?: { documentosPorTipo?: DocumentosPorTipo }

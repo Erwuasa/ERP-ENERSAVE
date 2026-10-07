@@ -1,4 +1,3 @@
-import { FilePenLine, FolderOpen, Plus } from "lucide-react"
 import type { Client } from "@/types/client"
 import type { Contract } from "@/types/contract"
 import { clientDisplayName, getContractsForClient } from "@/lib/clients"
@@ -9,7 +8,8 @@ import {
   type ClienteSortField,
   type SortDirection,
 } from "@/lib/clientes-panel-filters"
-import { ENERSAVE_ACTION, clientTypeBadgeClass } from "@/lib/enersave-ui-theme"
+import { clientTypeBadgeClass } from "@/lib/enersave-ui-theme"
+import { ClientesQuickActions } from "@/pages/erp/clientes/components/ClientesQuickActions"
 import { ClientesSortableHeader } from "@/pages/erp/clientes/components/ClientesSortableHeader"
 import { CLIENTES_TD, CLIENTES_TH } from "@/pages/erp/clientes/components/clientes-panel-utils"
 import { ClientesTableSkeleton } from "@/components/ui/skeletons/VentasSkeletons"
@@ -44,17 +44,17 @@ export function ClientesPanelTable({
 
   return (
     <div className="h-full min-h-0 overflow-auto overscroll-contain rounded-2xl border border-brand-border bg-brand-panel shadow-sm">
-      <table className="w-full min-w-[920px] table-fixed text-left border-collapse text-xs">
+      <table className="w-full min-w-[980px] table-fixed text-left border-collapse text-xs">
         <colgroup>
-          <col className="w-[22%]" />
-          <col className="w-[12%]" />
-          <col className="w-[88px]" />
-          <col className="w-[88px]" />
-          <col className="w-[16%]" />
-          <col className="w-[12%]" />
+          <col className="w-[19%]" />
+          <col className="w-[11%]" />
+          <col className="w-[92px]" />
+          <col className="w-[92px]" />
           <col className="w-[14%]" />
-          <col className="w-[72px]" />
-          <col className="w-[88px]" />
+          <col className="w-[11%]" />
+          <col className="w-[12%]" />
+          <col className="w-[80px]" />
+          <col className="w-[124px]" />
         </colgroup>
         <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-brand-surface/90">
           <tr className="text-brand-subtext font-mono border-b border-brand-border">
@@ -89,8 +89,8 @@ export function ClientesPanelTable({
             <th className={CLIENTES_TH}>Contacto</th>
             <th className={CLIENTES_TH}>Provincia</th>
             <th className={CLIENTES_TH}>Términos</th>
-            <th className={`${CLIENTES_TH} text-right`}>Contratos</th>
-            <th className={`${CLIENTES_TH} text-right`}>Acciones</th>
+            <th className={`${CLIENTES_TH} text-center pr-2`}>Contratos</th>
+            <th className={`${CLIENTES_TH} text-right pl-1`}>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -140,40 +140,18 @@ export function ClientesPanelTable({
                 <td className={`${CLIENTES_TD} text-brand-subtext truncate`} title={terminos}>
                   {terminos}
                 </td>
-                <td className={`${CLIENTES_TD} text-right`}>
-                  <span className="inline-flex min-w-[1.5rem] justify-center px-1.5 py-0.5 rounded-full bg-brand-surface font-mono font-bold text-brand-text ring-1 ring-inset ring-brand-border">
+                <td className={`${CLIENTES_TD} text-center pr-3`}>
+                  <span className="inline-flex h-6 min-w-[1.5rem] items-center justify-center tabular-nums text-[11px] font-semibold text-slate-700 dark:text-slate-200">
                     {linked.length}
                   </span>
                 </td>
-                <td className={CLIENTES_TD}>
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onOpenFolder(client.id)}
-                      className={ENERSAVE_ACTION.iconAmber}
-                      title="Carpeta de documentos"
-                    >
-                      <FolderOpen className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenContracts(client.id)}
-                      className={ENERSAVE_ACTION.iconCyan}
-                      title="Contratos del cliente"
-                    >
-                      <FilePenLine className="w-3.5 h-3.5" />
-                    </button>
-                    {onCreateContract ? (
-                      <button
-                        type="button"
-                        onClick={() => onCreateContract(client)}
-                        className={ENERSAVE_ACTION.iconEmerald}
-                        title="Nuevo contrato para este cliente"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    ) : null}
-                  </div>
+                <td className={`${CLIENTES_TD} pl-1 pr-2`}>
+                  <ClientesQuickActions
+                    client={client}
+                    onOpenFolder={() => onOpenFolder(client.id)}
+                    onOpenContracts={() => onOpenContracts(client.id)}
+                    onCreateContract={onCreateContract}
+                  />
                 </td>
               </tr>
             )

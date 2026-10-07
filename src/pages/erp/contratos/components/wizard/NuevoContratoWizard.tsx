@@ -9,6 +9,7 @@ import { WizardIncompleteConfirmModal } from "@/pages/erp/contratos/components/w
 import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
 import { WIZARD_TABS } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
+import { onFormEnterNavigationKeyDown } from "@/lib/form-enter-navigation"
 
 export type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 
@@ -129,7 +130,12 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               onClose={vm.handleClose}
             />
           ) : (
-            <form onSubmit={vm.handleFormSubmit} className="flex flex-col flex-1 min-h-0">
+            <form
+              data-enter-navigation
+              onKeyDown={onFormEnterNavigationKeyDown}
+              onSubmit={vm.handleFormSubmit}
+              className="flex flex-col flex-1 min-h-0"
+            >
               <div className="px-6 py-4 flex-1 min-h-0 overflow-hidden">
                 {vm.activeTab === "cliente" && (
                   <WizardClienteStep
@@ -166,6 +172,9 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     onToggleServiciosExtras={() =>
                       vm.setServiciosExtrasExpanded(!vm.serviciosExtrasExpanded)
                     }
+                    customTariffExpanded={vm.customTariffExpanded}
+                    onToggleCustomTariff={vm.toggleCustomTariffExpanded}
+                    setCustomTariffName={vm.setCustomTariffName}
                     onToggleServicioExtra={vm.toggleServicioExtra}
                     onChange={onChange}
                     selectTariff={vm.selectTariff}

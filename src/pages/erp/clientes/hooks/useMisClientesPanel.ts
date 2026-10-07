@@ -10,9 +10,9 @@ import {
 import { toast } from "sonner"
 import type { Client, ClienteArchivo } from "@/types/client"
 import type { Contract } from "@/types/contract"
-import { getContractsForClient } from "@/lib/clients"
+import { dedupeClients, getContractsForClient } from "@/lib/clients"
 import type { ClientOptimisticAction } from "@/lib/clients-optimistic-actions"
-import { updateCliente } from "@/lib/supabase/clientes"
+import { createCliente, updateCliente } from "@/lib/supabase/clientes"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import {
   applyClientesPanelFilters,
@@ -34,6 +34,10 @@ import {
   readFileAsDataUrl,
   type ClientesProfileOption,
 } from "@/pages/erp/clientes/components/clientes-panel-utils"
+import {
+  buildClientFromCreateForm,
+  type ClientesCreateFormState,
+} from "@/pages/erp/clientes/lib/clientes-create-form"
 
 type Options = {
   clients: Client[]
@@ -67,6 +71,7 @@ export function useMisClientesPanel({
   const [aceptacionFilter, setAceptacionFilter] = useState<ClienteAceptacionFilter>("todos")
   const [sortField, setSortField] = useState<ClienteSortField>("alta")
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc")
+  const [createOpen, setCreateOpen] = useState(false)
 
   const teamMemberIds = useMemo(
     () => profiles.filter((p) => p.managerId === activeUserId).map((p) => p.id),
@@ -213,6 +218,29 @@ export function useMisClientesPanel({
     })
   }
 
+  async function submitNewClient(form: ClientesCreateFormState): Promise<boolean> {
+    const draft = buildClientFromCreateForm(form)
+
+    if (!isSupabaseConfigured()) {
+      setClients((prev) => dedupeClients([draft, ...prev]).clients)
+      toast.success("Cliente creado en la sesión local")
+      return true
+    }
+
+    const result = await createCliente(draft)
+    if (!result.ok) {
+      toast.error(result.message ?? "No se pudo crear el cliente")
+      return false
+    }
+
+    setClients((prev) => {
+      const withoutDraft = prev.filter((c) => c.id !== draft.id)
+      return dedupeClients([result.data, ...withoutDraft]).clients
+    })
+    toast.success("Cliente creado")
+    return true
+  }
+
   function exportCsv() {
     if (!canExportDatabase) {
       toast.error("No tienes permiso para exportar la base de datos.")
@@ -277,5 +305,10 @@ export function useMisClientesPanel({
     removeArchivo,
     exportCsv,
     contracts,
+    createOpen,
+    setCreateOpen,
+    submitNewClient,
+    activeRole,
+    profiles,
   }
 }

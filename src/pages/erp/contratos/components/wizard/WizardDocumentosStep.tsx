@@ -96,6 +96,7 @@ export function WizardDocumentosStep({
             onChange={(e) => setNewComment(e.target.value)}
             placeholder="Añadir comentario para tramitación…"
             className={`${WIZARD_INPUT_CLASS} py-1.5 flex-1 min-w-0`}
+            data-enter-nav="skip"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault()

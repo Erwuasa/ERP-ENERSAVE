@@ -3,6 +3,7 @@ import {
   marcoEntryMatchesPeajeSegment,
   type ContractPeajeSegment,
 } from "./contract-peaje-segment"
+import { inferErpAudienceFromText } from "./infer-erp-segment"
 import { isWizardCompaniaAllowedForSegment } from "./wizard-compania-segment"
 
 export type ContractWizardSegment = "residencial" | "pyme"
@@ -68,6 +69,12 @@ export function isMarcoEntryForSegment(
   entry: MarcoRetributivoEntry,
   segment: ContractWizardSegment
 ): boolean {
+  const fromName = inferErpAudienceFromText(
+    entry.tarifa,
+    [entry.condiciones, entry.condicion_1, entry.condicion_2].filter(Boolean).join(" ")
+  )
+  if (fromName !== null) return fromName === segment
+
   const fromPeaje = inferWizardSegmentFromPeaje(entry.peaje)
   if (fromPeaje !== null) return fromPeaje === segment
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
   dedupeMarcoTariffsForSelect,
+  parseMarcoTramosJson,
   resolveMarcoTramoForConsumo,
 } from "./marco-consumo-tramo"
 
@@ -83,5 +84,18 @@ describe("dedupeMarcoTariffsForSelect", () => {
     const deduped = dedupeMarcoTariffsForSelect(entries)
     expect(deduped).toHaveLength(2)
     expect(deduped.find((entry) => entry.tarifa === "S1")?.comisionBase).toBe(100)
+  })
+})
+
+describe("parseMarcoTramosJson", () => {
+  it("acepta tramos legacy min_mwh / max_mwh / comision", () => {
+    const tramos = parseMarcoTramosJson([
+      { min_mwh: 0, max_mwh: 5, comision: 64.8, unidad: "eur_cups" },
+      { min_mwh: 5, max_mwh: 10, comision: 201.6, unidad: "eur_cups" },
+    ])
+    expect(tramos).toHaveLength(2)
+    expect(tramos[0]?.desde_kwh).toBe(0)
+    expect(tramos[0]?.hasta_kwh).toBe(5000)
+    expect(tramos[0]?.comision_base).toBe(64.8)
   })
 })

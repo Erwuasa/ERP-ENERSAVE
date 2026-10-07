@@ -79,11 +79,17 @@ export function resolveMarcoForComparadorTariff(
 ): MarcoRetributivoRow | null {
   const wanted = normalizeSegmento(segment ?? tariff.segment)
 
-  const byRate = tariff.atRateId ? index.byAtRateId.get(tariff.atRateId) : undefined
-  if (marcoMatchesRequestedSegment(byRate, wanted)) return byRate
-
   const byTariff = index.byTariffId.get(tariff.tariffId)
   if (marcoMatchesRequestedSegment(byTariff, wanted)) return byTariff
+
+  const byRate = tariff.atRateId ? index.byAtRateId.get(tariff.atRateId) : undefined
+  if (
+    marcoMatchesRequestedSegment(byRate, wanted) &&
+    (byRate!.tariff_id === tariff.tariffId ||
+      tarifaNamesMatch(byRate!.tarifa, tariff.name))
+  ) {
+    return byRate!
+  }
 
   const candidates = fallbackMarcoRows(tariff, index, wanted).filter((row) =>
     marcoMatchesTariffContext(row, tariff, peaje, wanted)
@@ -91,4 +97,58 @@ export function resolveMarcoForComparadorTariff(
   if (candidates.length === 0) return null
   if (candidates.length === 1) return candidates[0]!
   return pickMarcoRowToKeep(candidates)
+}
+
+/**
+ * Marco para comisión: reutiliza el enlace de precios o fallback por tariff_id / compañía + tarifa.
+ */
+export function resolveMarcoForComparadorCommission(
+  tariff: TariffConPrecios,
+  index: MarcoRetributivoIndex,
+  _marcoRows: MarcoRetributivoRow[],
+  peaje: string,
+  segment?: string,
+  linkedMarco?: MarcoRetributivoRow | null
+): MarcoRetributivoRow | null {
+  if (linkedMarco) return linkedMarco
+
+  const wanted = normalizeSegmento(segment ?? tariff.segment)
+
+  const byTariffId = index.byTariffId.get(tariff.tariffId)
+  if (
+    byTariffId?.activo &&
+    byTariffId.tariff_id === tariff.tariffId &&
+    normalizeSegmento(byTariffId.segmento) === wanted
+  ) {
+    return byTariffId
+  }
+
+  const companyKeys = new Set<string>()
+  const nameKey = normalizeCompaniaKey(tariff.providerName)
+  if (nameKey) companyKeys.add(nameKey)
+  const logoKey = resolveCompaniaLogoKey(tariff.providerName)
+  if (logoKey) companyKeys.add(logoKey)
+
+  const companyCandidates: MarcoRetributivoRow[] = []
+  const seen = new Set<string>()
+  for (const key of companyKeys) {
+    const bucket = index.fallbackBySegmentCompany.get(`${wanted}|${key}`)
+    if (!bucket) continue
+    for (const row of bucket) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      companyCandidates.push(row)
+    }
+  }
+
+  const byName = companyCandidates.filter((row) => tarifaNamesMatch(row.tarifa, tariff.name))
+  if (byName.length === 0) return null
+  if (byName.length === 1) return byName[0]!
+
+  const withPeaje = byName.filter((row) =>
+    marcoPeajeMatchesFilter(row.peaje, peaje, { matchGenericToSpecific: true })
+  )
+  if (withPeaje.length === 1) return withPeaje[0]!
+  if (withPeaje.length > 0) return pickMarcoRowToKeep(withPeaje)
+  return pickMarcoRowToKeep(byName)
 }

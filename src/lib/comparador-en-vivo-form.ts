@@ -10,7 +10,9 @@ import { normalizePeaje } from "./tarifa-cost-calculator"
 import type { ComparadorOfferOption } from "../components/ComparadorOfferCard"
 import type { RankingTarifa } from "./comparador-en-vivo-ranking"
 import {
+  buildComparadorDesgloseTable,
   buildComparadorOfferBreakdown,
+  type ComparadorDesgloseTableRow,
   type ComparadorOfferBreakdownRow,
 } from "./comparador-offer-breakdown"
 import {
@@ -115,6 +117,7 @@ export interface BuildComparadorEnVivoFormInput {
   energiaReactiva: number
   otrosCostesSva: number
   consumoAnualKwh: number
+  facturaMensual: number
   companiaActual: string | null
   proposalFilters: CompProposalFilterId[]
 }
@@ -123,26 +126,31 @@ export function buildComparadorEnVivoFormState(
   input: BuildComparadorEnVivoFormInput
 ): ComparadorEnVivoFormState {
   const filterFields = mapProposalFiltersToEnVivoFilters(input.proposalFilters)
-  const potencias = withDefaultPotencias(mapPeriodValues(input.potencias), input.peaje)
-  const consumos = withMarketFallbackConsumos(
-    mapPeriodValues(input.consumos),
-    input.segmento,
-    input.peaje
-  )
 
   return {
     segmento: input.segmento,
     peaje: input.peaje,
-    potencias,
-    consumos,
+    potencias: mapPeriodValues(input.potencias),
+    consumos: mapPeriodValues(input.consumos),
     diasFacturacion: normalizeComparadorDiasFacturacion(input.diasFacturacion),
     alquilerContador: input.alquilerContador > 0 ? input.alquilerContador : null,
     bonoSocial: input.bonoSocial > 0 ? input.bonoSocial : null,
     energiaReactiva: input.energiaReactiva > 0 ? input.energiaReactiva : null,
     otrosCostesSva: input.otrosCostesSva > 0 ? input.otrosCostesSva : null,
     consumoAnualKwh: input.consumoAnualKwh > 0 ? input.consumoAnualKwh : null,
+    facturaMensual: input.facturaMensual > 0 ? input.facturaMensual : null,
     companiaActual: input.companiaActual,
     ...filterFields,
+  }
+}
+
+/** Valores de mercado / peaje solo cuando el usuario ya ha introducido datos de comparación. */
+export function applyComparadorEnVivoUsageFallbacks(
+  form: Pick<ComparadorEnVivoFormState, "potencias" | "consumos" | "peaje" | "segmento">
+): Pick<ComparadorEnVivoFormState, "potencias" | "consumos"> {
+  return {
+    potencias: withDefaultPotencias(form.potencias, form.peaje),
+    consumos: withMarketFallbackConsumos(form.consumos, form.segmento, form.peaje),
   }
 }
 
@@ -233,6 +241,7 @@ export function mapRankingToOfferOptions(
     commissionPrecision: row.comisionPrecision,
     commissionTramoLabel: row.comisionTramoLabel ?? undefined,
     breakdownRows: [],
+    desgloseTableRows: [],
   }))
 
   const currentBill = resolveComparadorCurrentBillAnnual({
@@ -292,7 +301,7 @@ export function mapRankingToOfferOptions(
     })
     const savingsAnnual = currentAnnualExpense - offerTaxes.totalAnual
 
-    const breakdownRows: ComparadorOfferBreakdownRow[] = buildComparadorOfferBreakdown({
+    const breakdownInput = {
       peaje,
       potencias,
       consumos,
@@ -312,7 +321,11 @@ export function mapRankingToOfferOptions(
       ieeMensualActual: currentTaxes?.ieeMensual,
       ivaMensualActual: currentTaxes?.ivaMensual,
       diasFacturacion: dias,
-    })
+    }
+    const breakdownRows: ComparadorOfferBreakdownRow[] =
+      buildComparadorOfferBreakdown(breakdownInput)
+    const desgloseTableRows: ComparadorDesgloseTableRow[] =
+      buildComparadorDesgloseTable(breakdownInput)
 
     return {
       id: row.tariffId,
@@ -337,6 +350,7 @@ export function mapRankingToOfferOptions(
       commissionPrecision: row.comisionPrecision,
       commissionTramoLabel: row.comisionTramoLabel ?? undefined,
       breakdownRows,
+      desgloseTableRows,
     }
   })
 

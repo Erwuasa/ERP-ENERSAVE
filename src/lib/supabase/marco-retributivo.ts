@@ -1,4 +1,5 @@
 import type { MarcoRetributivoEntry } from "../../data/marco-retributivo-catalog"
+import { inferMarcoSegmentoFromText } from "../infer-erp-segment"
 import { parseMarcoTramosJson } from "../marco-consumo-tramo"
 import { computeComisionBreakdown } from "../marco-commission"
 import { isMarcoGenericPlaceholderTariff } from "../marco-dedup"
@@ -28,18 +29,7 @@ export function normalizeSegmento(raw: string): MarcoSegmento {
 }
 
 export function inferSegmentoFromText(text: string): MarcoSegmento {
-  const t = text.toLowerCase()
-  if (t.includes("comunidad") || t.includes("vecinos")) return "comunidades"
-  if (t.includes("autónom") || t.includes("autonom")) return "autonomo"
-  if (
-    t.includes("pyme") ||
-    t.includes("industrial") ||
-    t.includes("negocio") ||
-    t.includes("empresa")
-  ) {
-    return "pyme"
-  }
-  return "residencial"
+  return inferMarcoSegmentoFromText(text) ?? "residencial"
 }
 
 export function formatMarcoSegmentoLabel(segmento: MarcoSegmento): string {

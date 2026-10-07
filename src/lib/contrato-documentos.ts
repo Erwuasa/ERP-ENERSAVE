@@ -3,6 +3,7 @@ import type {
   ContratoDocumentoArchivo,
   DocumentosPorTipo,
   NewContractFormState,
+  TipoClienteContrato,
 } from "./contract-registration"
 
 export const CONTRATO_DOCUMENTO_TIPOS = [
@@ -54,21 +55,44 @@ export interface ContratoDocumentoRecord {
   status?: "uploading" | "error"
 }
 
-export const DEFAULT_DOCUMENTOS_OBLIGATORIOS: ContratoDocumentoTipoId[] = [
-  "cif_empresa",
-  "dni_nie_titular",
-]
+function defaultIdentityDocumentoForTipoCliente(
+  tipoCliente: TipoClienteContrato
+): ContratoDocumentoTipoId[] {
+  if (tipoCliente === "pyme" || tipoCliente === "comunidad_vecinos") {
+    return ["cif_empresa"]
+  }
+  return ["dni_nie_titular"]
+}
+
+/** DNI solo aplica a residencial/autónomo; CIF a PYME/comunidades. */
+export function filterDocumentosObligatoriosByTipoCliente(
+  ids: ContratoDocumentoTipoId[],
+  tipoCliente: TipoClienteContrato
+): ContratoDocumentoTipoId[] {
+  const needsCif = tipoCliente === "pyme" || tipoCliente === "comunidad_vecinos"
+  const needsDni =
+    tipoCliente === "autonomo" || tipoCliente === "residencial"
+
+  return ids.filter((id) => {
+    if (id === "cif_empresa") return needsCif
+    if (id === "dni_nie_titular") return needsDni
+    return true
+  })
+}
 
 export function getDocumentosObligatoriosForMarco(
-  entry: MarcoRetributivoEntry | null | undefined
+  entry: MarcoRetributivoEntry | null | undefined,
+  tipoCliente: TipoClienteContrato = "autonomo"
 ): ContratoDocumentoTipoId[] {
   const fromMarco = entry?.documentosObligatorios
-  if (fromMarco && fromMarco.length > 0) {
-    return fromMarco
-      .map((id) => normalizeDocumentoTipoId(id))
-      .filter((id): id is ContratoDocumentoTipoId => id != null)
-  }
-  return DEFAULT_DOCUMENTOS_OBLIGATORIOS
+  const base =
+    fromMarco && fromMarco.length > 0
+      ? fromMarco
+          .map((id) => normalizeDocumentoTipoId(id))
+          .filter((id): id is ContratoDocumentoTipoId => id != null)
+      : defaultIdentityDocumentoForTipoCliente(tipoCliente)
+
+  return filterDocumentosObligatoriosByTipoCliente(base, tipoCliente)
 }
 
 export function flattenDocumentosPorTipo(

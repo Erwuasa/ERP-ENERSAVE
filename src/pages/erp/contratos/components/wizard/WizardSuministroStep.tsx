@@ -1,4 +1,4 @@
-import { Coins, Flame, Lightbulb, Plus } from "lucide-react"
+import { Coins, Flame, Layers, Lightbulb, Plus } from "lucide-react"
 import type { MarcoTramoResolution } from "@/lib/marco-consumo-tramo"
 import type { ServicioExtraOption } from "@/lib/marco-servicios-extras"
 import { WizardAccessTariffChips } from "@/components/contratos/WizardAccessTariffChips"
@@ -42,6 +42,9 @@ type Props = {
   selectedServiciosExtras: string[]
   serviciosExtrasExpanded: boolean
   onToggleServiciosExtras: () => void
+  customTariffExpanded: boolean
+  onToggleCustomTariff: () => void
+  setCustomTariffName: (tarifa: string) => void
   onToggleServicioExtra: (id: string) => void
   onChange: (patch: Partial<NewContractFormState>) => void
   selectTariff: (tarifa: string) => void
@@ -64,6 +67,9 @@ export function WizardSuministroStep({
   selectedServiciosExtras,
   serviciosExtrasExpanded,
   onToggleServiciosExtras,
+  customTariffExpanded,
+  onToggleCustomTariff,
+  setCustomTariffName,
   onToggleServicioExtra,
   onChange,
   selectTariff,
@@ -76,6 +82,9 @@ export function WizardSuministroStep({
     peajeSegmentToTariffPeajeType(form.peajeSegment)
   )
   const rate = commissionPercentage / 100
+  const catalogTarifaValues = new Set(filteredTariffs.map((entry) => entry.tarifa))
+  const selectTarifaValue =
+    form.tarifa && catalogTarifaValues.has(form.tarifa) ? form.tarifa : ""
 
   return (
     <div className="h-full flex flex-col gap-2.5 min-h-0">
@@ -121,7 +130,7 @@ export function WizardSuministroStep({
           <label className={WIZARD_LABEL_CLASS}>Tarifa {form.compania}</label>
           <div className="flex items-stretch gap-2">
             <select
-              value={form.tarifa || ""}
+              value={selectTarifaValue}
               onChange={(e) => {
                 if (e.target.value) selectTariff(e.target.value)
               }}
@@ -140,6 +149,20 @@ export function WizardSuministroStep({
             </select>
             <button
               type="button"
+              onClick={onToggleCustomTariff}
+              aria-expanded={customTariffExpanded}
+              className={`shrink-0 inline-flex items-center justify-center w-10 rounded-lg border transition-colors cursor-pointer ${
+                customTariffExpanded || (form.tarifa.trim() && !catalogTarifaValues.has(form.tarifa))
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                  : "border-brand-border bg-brand-surface text-brand-text hover:border-emerald-500/50 hover:bg-emerald-500/10"
+              }`}
+              title="Tarifa personalizada (texto libre)"
+              aria-label="Añadir tarifa personalizada"
+            >
+              <Plus className={`w-4 h-4 transition-transform ${customTariffExpanded ? "rotate-45" : ""}`} />
+            </button>
+            <button
+              type="button"
               onClick={onToggleServiciosExtras}
               aria-expanded={serviciosExtrasExpanded}
               className={`shrink-0 inline-flex items-center justify-center w-10 rounded-lg border transition-colors cursor-pointer ${
@@ -150,9 +173,26 @@ export function WizardSuministroStep({
               title="Servicios extras (SVA, SSA…)"
               aria-label="Mostrar servicios extras"
             >
-              <Plus className={`w-4 h-4 transition-transform ${serviciosExtrasExpanded ? "rotate-45" : ""}`} />
+              <Layers className="w-4 h-4" />
             </button>
           </div>
+
+          {customTariffExpanded ? (
+            <div className="mt-2">
+              <label className={WIZARD_LABEL_CLASS} htmlFor="wizard-tarifa-personalizada">
+                Nombre de la tarifa
+              </label>
+              <input
+                id="wizard-tarifa-personalizada"
+                type="text"
+                value={form.tarifa}
+                onChange={(e) => setCustomTariffName(e.target.value)}
+                placeholder="Escribe el nombre tal como debe verse en contratos"
+                className={`${WIZARD_INPUT_CLASS} py-1.5`}
+                autoFocus
+              />
+            </div>
+          ) : null}
 
           {form.tarifa && marcoTramoResolution.condicionLabel ? (
             <div className="mt-1.5">

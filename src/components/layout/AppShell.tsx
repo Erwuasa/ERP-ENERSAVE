@@ -287,18 +287,19 @@ export function AppShell({
 
             <div className="p-3 border-b border-brand-border">
               <div
-                className={`grid grid-cols-2 gap-1 p-1 bg-brand-panel border border-brand-border rounded-xl ${
-                  !isExpanded ? "grid-cols-1 gap-0.5" : ""
-                }`}
+                className={`grid grid-cols-2 gap-2 ${!isExpanded ? "grid-cols-1 gap-1.5" : ""}`}
+                role="group"
+                aria-label="Módulo activo"
               >
                 <button
                   type="button"
                   onClick={() => onSwitchModule("erp")}
                   title="Módulo ERP"
-                  className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-mono font-bold transition-colors duration-200 cursor-pointer ${
+                  aria-pressed={activeModule === "erp"}
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-bold tracking-wide transition-colors duration-200 cursor-pointer border bg-transparent ${
                     activeModule === "erp"
-                      ? "bg-cyan-600 text-white shadow-sm"
-                      : "text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-white/5"
+                      ? "border-cyan-600 text-cyan-700 dark:border-cyan-500 dark:text-cyan-400"
+                      : "border-slate-200/80 dark:border-slate-700/80 text-brand-subtext hover:border-cyan-600/45 hover:text-cyan-700 dark:hover:border-cyan-500/45 dark:hover:text-cyan-400"
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
@@ -308,10 +309,11 @@ export function AppShell({
                   type="button"
                   onClick={() => onSwitchModule("ventas")}
                   title="Módulo Ventas"
-                  className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-mono font-bold transition-colors duration-200 cursor-pointer ${
+                  aria-pressed={activeModule === "ventas"}
+                  className={`flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[10px] font-bold tracking-wide transition-colors duration-200 cursor-pointer border bg-transparent ${
                     activeModule === "ventas"
-                      ? "bg-cyan-600 text-white shadow-sm"
-                      : "text-brand-subtext hover:text-brand-text hover:bg-slate-200/55 dark:hover:bg-white/5"
+                      ? "border-emerald-600 text-emerald-700 dark:border-emerald-500 dark:text-emerald-400"
+                      : "border-slate-200/80 dark:border-slate-700/80 text-brand-subtext hover:border-emerald-600/45 hover:text-emerald-700 dark:hover:border-emerald-500/45 dark:hover:text-emerald-400"
                   }`}
                 >
                   <Zap className="w-3.5 h-3.5 shrink-0" aria-hidden />

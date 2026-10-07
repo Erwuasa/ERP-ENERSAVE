@@ -62,7 +62,6 @@ export function MarcoRetributivoPanel({
           <MarcoRetributivoTable
             key={tableScopeKey}
             loading={vm.loading}
-            companiaFilter={vm.companiaFilter}
             filteredRows={vm.filteredRows}
             canEdit={vm.canEdit}
             commissionPercentage={commissionPercentage}
@@ -74,8 +73,8 @@ export function MarcoRetributivoPanel({
         </div>
 
         <p className="shrink-0 pt-2 text-right text-[10px] font-mono text-brand-subtext">
-          {vm.filteredRows.length} tarifa{vm.filteredRows.length !== 1 ? "s" : ""} ·{" "}
-          {vm.loading ? "…" : "actualizado desde Supabase"}
+          {vm.filteredRows.length} fila{vm.filteredRows.length !== 1 ? "s" : ""} visible
+          {vm.loading ? " · …" : " · marco retributivo (Supabase)"}
         </p>
       </div>
 

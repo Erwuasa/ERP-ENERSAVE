@@ -1,11 +1,11 @@
 import { Lock } from "lucide-react"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 import type { AppUser } from "@/lib/supabase/app-users"
-import { UsuariosKpiStrip } from "@/pages/erp/usuarios/UsuariosKpiStrip"
 import { UsuariosTable } from "@/pages/erp/usuarios/UsuariosTable"
 import { UsuariosToolbar } from "@/pages/erp/usuarios/UsuariosToolbar"
 import { getErpComercialCommissionPercentage } from "@/lib/supabase/erp-comerciales"
 import {
+  isPlatformAppUser,
   matchesUserFilters,
   profileFromAppUser,
   sortAppUsers,
@@ -67,19 +67,10 @@ export function UsuariosPage() {
     )
   }
 
-  const directory = appUsers
+  const directory = appUsers.filter(isPlatformAppUser)
   const filtered = sortAppUsers(directory).filter((user) =>
     matchesUserFilters(user, userSearchText, userRoleFilter, userStatusFilter)
   )
-
-  const kpiSelected =
-    userStatusFilter === "cuenta"
-      ? ("cuentas" as const)
-      : userRoleFilter === "customer"
-        ? ("clientes" as const)
-        : userStatusFilter === "sin_cuenta"
-          ? ("sin_cuenta" as const)
-          : null
 
   function openStaffSheet(user: AppUser) {
     const fromDirectory =
@@ -103,31 +94,7 @@ export function UsuariosPage() {
   }
 
   return (
-    <div className="space-y-2.5 animate-fade-in font-sans">
-      <UsuariosKpiStrip
-        cuentas={directory.filter((u) => u.hasAuth).length}
-        clientes={directory.filter((u) => u.role === "customer").length}
-        staff={directory.filter((u) => u.role !== "customer").length}
-        sinCuenta={directory.filter((u) => !u.hasAuth).length}
-        selected={kpiSelected}
-        onSelect={(id) => {
-          if (id === "cuentas") {
-            setUserStatusFilter(userStatusFilter === "cuenta" ? "all" : "cuenta")
-            return
-          }
-          if (id === "clientes") {
-            setUserRoleFilter(userRoleFilter === "customer" ? "all" : "customer")
-            return
-          }
-          if (id === "sin_cuenta") {
-            setUserStatusFilter(userStatusFilter === "sin_cuenta" ? "all" : "sin_cuenta")
-            return
-          }
-          setUserRoleFilter("all")
-          setUserStatusFilter("all")
-        }}
-      />
-
+    <div className="space-y-5 animate-fade-in font-sans">
       {appUsersError ? <p className="text-xs text-rose-500">{appUsersError}</p> : null}
 
       <UsuariosToolbar
@@ -137,6 +104,7 @@ export function UsuariosPage() {
         onRoleFilterChange={setUserRoleFilter}
         statusFilter={userStatusFilter}
         onStatusFilterChange={setUserStatusFilter}
+        visibleCount={filtered.length}
         onCreate={() => setIsCreateOpen(true)}
         syncing={isSyncingErpUsers && directory.length > 0}
       />

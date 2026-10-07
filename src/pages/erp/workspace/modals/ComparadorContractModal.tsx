@@ -1,8 +1,9 @@
-﻿import type { ReactNode } from "react"
+import type { ReactNode } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { User, Zap, FileText, Trash2, Lock, X } from "lucide-react"
 import { FileDropZone } from "@/components/ui/FileDropZone"
 import type { ErpWorkspaceContext } from "@/pages/erp/hooks/useErpWorkspace"
+import { onFormEnterNavigationKeyDown } from "@/lib/form-enter-navigation"
 
 type Props = { ws: ErpWorkspaceContext }
 
@@ -86,6 +87,8 @@ export function ComparadorContractModal({ ws }: Props) {
             </div>
 
             <form
+              data-enter-navigation
+              onKeyDown={onFormEnterNavigationKeyDown}
               onSubmit={handleCreateContractFromModal}
               className="flex-1 overflow-y-auto p-6 space-y-6"
             >

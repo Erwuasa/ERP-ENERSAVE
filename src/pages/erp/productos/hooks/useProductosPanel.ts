@@ -236,17 +236,27 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
     providerFilterRef.current = mergedProviders.filterNameByLabel
   }, [mergedProviders.filterNameByLabel])
 
-  const companias = mergedProviders.labels
-
   const countsByCompania = useMemo(() => {
-    const counts: Record<string, number> = {
-      Todas: Object.values(mergedProviders.countsByLabel).reduce((sum, n) => sum + n, 0),
-    }
+    const totalFiltered = catalogPage?.total ?? 0
+    const counts: Record<string, number> = { Todas: totalFiltered }
     for (const [label, count] of Object.entries(mergedProviders.countsByLabel)) {
-      counts[label] = count
+      if (count > 0) counts[label] = count
     }
     return counts
-  }, [mergedProviders.countsByLabel])
+  }, [catalogPage?.total, mergedProviders.countsByLabel])
+
+  const companias = useMemo(
+    () =>
+      mergedProviders.labels.filter(
+        (label) => (countsByCompania[label] ?? mergedProviders.countsByLabel[label] ?? 0) > 0
+      ),
+    [mergedProviders.labels, mergedProviders.countsByLabel, countsByCompania]
+  )
+
+  useEffect(() => {
+    if (compania === "Todas") return
+    if ((countsByCompania[compania] ?? 0) <= 0) setCompania("Todas")
+  }, [compania, countsByCompania, tipoCliente, peaje, suministro, debouncedSearch])
 
   const totalActivas =
     suministro === "gas"
