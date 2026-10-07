@@ -47,4 +47,39 @@ describe("getVisibleSidebarItems", () => {
       expect(items.some((item) => item.name === "Usuarios")).toBe(false)
     }
   })
+  it("muestra SIPS con el permiso del comparador (tramitación no lo tiene por defecto)", () => {
+    for (const activeRole of ["superadmin", "jefe_comercial", "comercial"] as const) {
+      const items = getVisibleSidebarItems({
+        activeModule: "erp",
+        activeRole,
+        superadminViewMode: "tramitacion",
+        staffPermissions: defaultPermissionsForRole(activeRole),
+      })
+      expect(items.some((item) => item.name === "SIPS")).toBe(true)
+    }
+
+    const tramitacionDefault = getVisibleSidebarItems({
+      activeModule: "erp",
+      activeRole: "tramitacion",
+      superadminViewMode: "tramitacion",
+      staffPermissions: defaultPermissionsForRole("tramitacion"),
+    })
+    expect(tramitacionDefault.some((item) => item.name === "SIPS")).toBe(false)
+
+    const tramitacionGranted = getVisibleSidebarItems({
+      activeModule: "erp",
+      activeRole: "tramitacion",
+      superadminViewMode: "tramitacion",
+      staffPermissions: { ...defaultPermissionsForRole("tramitacion"), comparatorAccess: true },
+    })
+    expect(tramitacionGranted.some((item) => item.name === "SIPS")).toBe(true)
+
+    const withoutPermission = getVisibleSidebarItems({
+      activeModule: "erp",
+      activeRole: "comercial",
+      superadminViewMode: "tramitacion",
+      staffPermissions: { ...defaultPermissionsForRole("comercial"), comparatorAccess: false },
+    })
+    expect(withoutPermission.some((item) => item.name === "SIPS")).toBe(false)
+  })
 })

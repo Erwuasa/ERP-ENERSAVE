@@ -1,5 +1,5 @@
-import { SipsConsultaPage } from "@/pages/erp/sips/SipsConsultaPage"
+import { SipsPage } from "@/pages/erp/sips/SipsPage"
 
 export default function ErpSipsRoute() {
-  return <SipsConsultaPage />
+  return <SipsPage />
 }

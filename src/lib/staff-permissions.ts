@@ -97,3 +97,15 @@ export function isContractsWorkspaceSegment(segment: string): boolean {
 export function isComparatorWorkspaceSegment(segment: string): boolean {
   return segment === "comparador" || segment === "historial-comparativas"
 }
+
+/** SIPS spends a shared provider quota. Reuses the comparator permission until a dedicated one is decided. */
+export function canAccessSips(
+  role: UserRole,
+  permissions: Profile["permissions"]
+): boolean {
+  return hasStaffPermission(role, permissions, "comparatorAccess")
+}
+
+export function isSipsWorkspaceSegment(segment: string): boolean {
+  return segment === "sips"
+}
