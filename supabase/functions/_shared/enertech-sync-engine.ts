@@ -15,6 +15,15 @@ export interface TrackedTableConfig {
   entity: string
   /** True only for feeds that always return the complete set (no incremental filter). */
   removeMissing: boolean
+  /**
+   * Name of a `source` column on this table, when it has one. Rows with `source = 'manual'` are
+   * excluded from `loadExisting`, so they never enter the diff: they can't be matched against the
+   * incoming feed (synthetic keys never appear there) and therefore can never be marked
+   * `removed_at` by the "missing from feed" pass. Manual rows stay invisible to the sync engine
+   * entirely — the only way to override one is for a real API row to later arrive with the same
+   * key, which goes through the normal upsert-by-key path untouched by this flag.
+   */
+  manualSourceColumn?: string
 }
 
 export interface TrackedSyncStats {
@@ -42,11 +51,15 @@ function chunk<T>(items: T[], size: number): T[][] {
 async function loadExisting(supabase: AdminClient, config: TrackedTableConfig): Promise<ExistingRow[]> {
   const rows: ExistingRow[] = []
   for (let from = 0; ; from += READ_PAGE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from(config.table)
       .select(`${config.keyColumn}, actualizado_en, content_hash, removed_at`)
       .order(config.keyColumn, { ascending: true })
       .range(from, from + READ_PAGE - 1)
+    if (config.manualSourceColumn) {
+      query = query.neq(config.manualSourceColumn, 'manual')
+    }
+    const { data, error } = await query
     if (error) throw new Error(`${config.table} read failed: ${error.message}`)
 
     for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {

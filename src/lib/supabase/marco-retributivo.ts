@@ -104,9 +104,6 @@ export interface MarcoEntryInput {
 
 export type NewMarcoEntryInput = MarcoEntryInput
 
-const MARCO_SELECT =
-  "id, compania, tarifa, tipo, peaje, segmento, condicion_1, condicion_2, condiciones, comision_tipo, comision_base, comision_unidad, vigencia_meses, fecha_inicio, activo, created_at, updated_at, updated_by, energia_p1, energia_p2, energia_p3, energia_p4, energia_p5, energia_p6, potencia_p1, potencia_p2, potencia_p3, potencia_p4, potencia_p5, potencia_p6, tipo_precio, incluye_sva, potencia_boe, tariff_id, at_rate_id, at_marco_id, collaborator_min, collaborator_max, at_kwh_min, at_kwh_max, tramos, source"
-
 /** PostgREST devuelve como máximo 1000 filas por petición; paginamos para traer todo el catálogo. */
 export const MARCO_LIST_PAGE_SIZE = 500
 
@@ -240,41 +237,6 @@ export function marcoRowToCatalogEntry(row: MarcoRetributivoRow): MarcoRetributi
     atKwhMax: row.at_kwh_max,
     tramos: tramos.length > 0 ? tramos : undefined,
   }
-}
-
-function toDbPatch(
-  patch: Partial<MarcoEntryInput>,
-  updatedBy?: string | null
-): Record<string, unknown> {
-  const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
-  if (updatedBy !== undefined) row.updated_by = updatedBy
-  if (patch.compania !== undefined) row.compania = patch.compania
-  if (patch.tarifa !== undefined) row.tarifa = patch.tarifa
-  if (patch.tipo !== undefined) row.tipo = patch.tipo
-  if (patch.peaje !== undefined) row.peaje = patch.peaje
-  if (patch.segmento !== undefined) row.segmento = patch.segmento
-  if (patch.condicion_1 !== undefined) row.condicion_1 = patch.condicion_1
-  if (patch.condicion_2 !== undefined) row.condicion_2 = patch.condicion_2
-  if (patch.condiciones !== undefined) row.condiciones = patch.condiciones
-  if (patch.comision_tipo !== undefined) row.comision_tipo = patch.comision_tipo
-  if (patch.comision_base !== undefined) row.comision_base = patch.comision_base
-  if (patch.comision_unidad !== undefined) row.comision_unidad = patch.comision_unidad
-  if (
-    patch.comision_base !== undefined ||
-    patch.comision_tipo !== undefined ||
-    patch.comision_unidad !== undefined ||
-    patch.condiciones !== undefined ||
-    patch.condicion_1 !== undefined ||
-    patch.condicion_2 !== undefined ||
-    patch.vigencia_meses !== undefined
-  ) {
-    row.source = "manual"
-    row.at_marco_id = null
-  }
-  if (patch.vigencia_meses !== undefined) row.vigencia_meses = patch.vigencia_meses
-  if (patch.fecha_inicio !== undefined) row.fecha_inicio = patch.fecha_inicio
-  if (patch.activo !== undefined) row.activo = patch.activo
-  return row
 }
 
 // `marco_retributivo` fue archivada (renombrada a marco_retributivo_legacy_archive) tras la
@@ -501,10 +463,87 @@ export async function listMarcoRetributivoForDedup(): Promise<
   return { ok: true, data: groupEnertechComisiones(rowsResult.data).map(mapRow) }
 }
 
-const MARCO_DEACTIVATE_BATCH = 40
-
 const MARCO_RETIRED_MESSAGE =
   "Marco retributivo manual retirado: los precios y comisiones ahora vienen solo de Enertech."
+
+// --- CRUD sobre enertech_comisiones ---------------------------------------------------------
+//
+// Restringido por RLS a superadmin/tramitacion (private.is_marco_retributivo_manager(), migración
+// 20261008120000_enertech_comisiones_manual_crud.sql). Invariante: los datos de la API Enertech
+// siempre prevalecen.
+// - CREAR: inserta una fila nueva con `source = 'manual'` y una clave sintética que nunca puede
+//   coincidir con una clave real de la API. El motor de sync (`manualSourceColumn: 'source'` en
+//   enertech-entities.ts) excluye estas filas de su cálculo de "desaparecidas del feed", así que
+//   sobreviven indefinidamente a los sync — no se "pisan" por no estar en la API.
+// - EDITAR una entrada ya existente (venga de la API o manual): se actualiza el payload/company_id
+//   de sus filas en `enertech_comisiones` SIN tocar `source`. Si la fila era de la API, sigue
+//   marcada `source = 'api'`, así que el siguiente sync la reconoce, la compara con el feed y la
+//   SOBREESCRIBE con el valor real de Enertech — la edición manual es solo temporal hasta el
+//   próximo sync, tal y como se pidió ("que prevalezca los datos de API").
+// - BORRAR una fila de la API: borrado blando (`removed_at`) — si sigue en el feed, el próximo
+//   sync la restaura igual que cualquier otra fila "desaparecida y reaparecida". BORRAR una fila
+//   manual: borrado físico (permitido solo para `source = 'manual'` por la política RLS).
+export async function resolveEnertechCompanyIdByName(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  name: string
+): Promise<number | null> {
+  const trimmed = name.trim()
+  if (!trimmed) return null
+  const { data } = await client
+    .from("enertech_comercializadoras")
+    .select("id")
+    .ilike("nombre", trimmed)
+    .limit(1)
+    .maybeSingle()
+  return (data as { id: number } | null)?.id ?? null
+}
+
+function comisionUnidadToTipoComision(unidad: MarcoComisionUnidad): string {
+  if (unidad === "eur_mwh") return "fijo_mwh"
+  return "fijo_contrato"
+}
+
+function buildManualComisionPayload(entry: {
+  tarifa: string
+  peaje: string
+  comision_base: number
+  comision_unidad: MarcoComisionUnidad
+}): Record<string, unknown> {
+  const tipoComision = comisionUnidadToTipoComision(entry.comision_unidad)
+  const payload: Record<string, unknown> = {
+    campania: entry.tarifa,
+    tarifa: entry.peaje,
+    tramo: "0-999999999 kWh",
+    tipo_comision: tipoComision,
+  }
+  if (tipoComision === "fijo_mwh") payload.comision_por_mw = entry.comision_base
+  else payload.comision_eur = entry.comision_base
+  return payload
+}
+
+function groupIdForCampaniaPeaje(campania: string, peaje: string): string {
+  return catalogSlugToUuid(`comision:${campania.trim().toLowerCase()}::${peaje.trim().toLowerCase()}`)
+}
+
+/** Las entradas agrupadas no tienen una fila 1:1 en `enertech_comisiones`: localiza las claves
+ *  reales (una por tramo) que componen el id de grupo que usa el resto del ERP. */
+async function findComisionClavesForGroupId(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  groupId: string
+): Promise<MarcoRetributivoResult<string[]>> {
+  const rowsResult = await fetchAllEnertechComisiones(client)
+  if (rowsResult.ok === false) return rowsResult
+
+  const claves: string[] = []
+  for (const row of rowsResult.data) {
+    const payload = row.payload ?? {}
+    const campania = String(payload.campania ?? "").trim()
+    const peaje = String(payload.tarifa ?? "").trim()
+    if (!campania || !peaje) continue
+    if (groupIdForCampaniaPeaje(campania, peaje) === groupId) claves.push(row.clave)
+  }
+  return { ok: true, data: claves }
+}
 
 export async function bulkDeactivateMarcoEntries(
   ids: string[],
@@ -513,121 +552,150 @@ export async function bulkDeactivateMarcoEntries(
   const unique = [...new Set(ids.filter(Boolean))]
   if (unique.length === 0) return { ok: true, data: 0 }
 
-  const clientOrError = requireClient()
-  if (isMarcoClientError(clientOrError)) {
-    return clientOrError
-  }
-
   let deactivated = 0
-  const stamp = new Date().toISOString()
-
-  for (let offset = 0; offset < unique.length; offset += MARCO_DEACTIVATE_BATCH) {
-    const batch = unique.slice(offset, offset + MARCO_DEACTIVATE_BATCH)
-    const { error } = await clientOrError
-      .from("marco_retributivo")
-      .update({
-        activo: false,
-        updated_at: stamp,
-        updated_by: updatedBy ?? null,
-      })
-      .in("id", batch)
-
-    if (error) {
-      if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
-      return mapError(error)
-    }
-    deactivated += batch.length
+  for (const id of unique) {
+    const result = await deleteMarcoEntry(id, updatedBy)
+    if (result.ok === false) return result
+    deactivated += 1
   }
-
   return { ok: true, data: deactivated }
 }
 
 export async function createMarcoEntry(
   entry: NewMarcoEntryInput,
-  updatedBy?: string | null
+  _updatedBy?: string | null
 ): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
   const clientOrError = requireClient()
   if (isMarcoClientError(clientOrError)) {
     return clientOrError
   }
 
-  const { data, error } = await clientOrError
-    .from("marco_retributivo")
-    .insert({
-      compania: entry.compania,
-      tarifa: entry.tarifa,
-      tipo: entry.tipo,
-      peaje: entry.peaje,
-      segmento: entry.segmento,
-      condicion_1: entry.condicion_1 ?? null,
-      condicion_2: entry.condicion_2 ?? null,
-      condiciones: entry.condiciones ?? null,
-      comision_tipo: entry.comision_tipo,
-      comision_base: entry.comision_base,
-      comision_unidad: entry.comision_unidad,
-      vigencia_meses: entry.vigencia_meses,
-      fecha_inicio: entry.fecha_inicio,
-      activo: entry.activo ?? true,
-      source: "manual",
-      at_marco_id: null,
-      updated_by: updatedBy ?? null,
-    })
-    .select(MARCO_SELECT)
-    .single()
+  const companyId = await resolveEnertechCompanyIdByName(clientOrError, entry.compania)
+  const clave = `manual:${crypto.randomUUID()}`
+  const payload = buildManualComisionPayload(entry)
+  const now = new Date().toISOString()
+
+  const { error } = await clientOrError.from("enertech_comisiones").insert({
+    clave,
+    company_id: companyId,
+    payload,
+    actualizado_en: now,
+    source: "manual",
+  })
 
   if (error) {
     if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
     return mapError(error)
   }
-  return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
+
+  return getMarcoRowById(groupIdForCampaniaPeaje(entry.tarifa, entry.peaje))
 }
 
 export async function updateMarcoEntry(
   id: string,
   patch: Partial<MarcoEntryInput>,
-  updatedBy?: string | null
+  _updatedBy?: string | null
 ): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
   const clientOrError = requireClient()
   if (isMarcoClientError(clientOrError)) {
     return clientOrError
   }
 
-  const { data, error } = await clientOrError
-    .from("marco_retributivo")
-    .update(toDbPatch(patch, updatedBy ?? null))
-    .eq("id", id)
-    .select(MARCO_SELECT)
-    .single()
-
-  if (error) {
-    if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
-    return mapError(error)
+  const clavesResult = await findComisionClavesForGroupId(clientOrError, id)
+  if (clavesResult.ok === false) return clavesResult
+  if (clavesResult.data.length === 0) {
+    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
   }
-  return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
+
+  const companyId =
+    patch.compania !== undefined
+      ? await resolveEnertechCompanyIdByName(clientOrError, patch.compania)
+      : undefined
+
+  const payloadPatch: Record<string, unknown> = {}
+  if (patch.tarifa !== undefined) payloadPatch.campania = patch.tarifa
+  if (patch.peaje !== undefined) payloadPatch.tarifa = patch.peaje
+  if (
+    patch.comision_base !== undefined ||
+    patch.comision_unidad !== undefined
+  ) {
+    // Se aplica el mismo importe/unidad a todos los tramos de la entrada agrupada: es una
+    // simplificación deliberada (igual que antes con `marco_retributivo`), no distingue tramo a
+    // tramo desde este formulario.
+    const unidad = patch.comision_unidad ?? "eur_cups"
+    const tipoComision = comisionUnidadToTipoComision(unidad)
+    payloadPatch.tipo_comision = tipoComision
+    if (tipoComision === "fijo_mwh") payloadPatch.comision_por_mw = patch.comision_base ?? 0
+    else payloadPatch.comision_eur = patch.comision_base ?? 0
+  }
+
+  for (const clave of clavesResult.data) {
+    const rowUpdate: Record<string, unknown> = {}
+    if (companyId !== undefined) rowUpdate.company_id = companyId
+    if (Object.keys(payloadPatch).length > 0) {
+      const { data: current } = await clientOrError
+        .from("enertech_comisiones")
+        .select("payload")
+        .eq("clave", clave)
+        .maybeSingle()
+      const currentPayload = (current as { payload: Record<string, unknown> } | null)?.payload ?? {}
+      rowUpdate.payload = { ...currentPayload, ...payloadPatch }
+    }
+    if (Object.keys(rowUpdate).length === 0) continue
+
+    const { error } = await clientOrError.from("enertech_comisiones").update(rowUpdate).eq("clave", clave)
+    if (error) {
+      if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
+      return mapError(error)
+    }
+  }
+
+  return getMarcoRowById(id)
 }
 
 export async function deleteMarcoEntry(
   id: string,
-  updatedBy?: string | null
+  _updatedBy?: string | null
 ): Promise<MarcoRetributivoResult<void>> {
   const clientOrError = requireClient()
   if (isMarcoClientError(clientOrError)) {
     return clientOrError
   }
 
-  const { error } = await clientOrError
-    .from("marco_retributivo")
-    .update({
-      activo: false,
-      updated_at: new Date().toISOString(),
-      updated_by: updatedBy ?? null,
-    })
-    .eq("id", id)
+  const { data: memberRows, error: readError } = await clientOrError
+    .from("enertech_comisiones")
+    .select("clave, source")
+    .is("removed_at", null)
 
-  if (error) {
-    if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
-    return mapError(error)
+  if (readError) {
+    if (isMarcoTableMissingError(readError)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
+    return mapError(readError)
   }
+
+  const clavesResult = await findComisionClavesForGroupId(clientOrError, id)
+  if (clavesResult.ok === false) return clavesResult
+  if (clavesResult.data.length === 0) {
+    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
+  }
+
+  const sourceByClave = new Map(
+    ((memberRows ?? []) as { clave: string; source: string }[]).map((r) => [r.clave, r.source])
+  )
+  const manualClaves = clavesResult.data.filter((clave) => sourceByClave.get(clave) === "manual")
+  const apiClaves = clavesResult.data.filter((clave) => sourceByClave.get(clave) !== "manual")
+
+  if (manualClaves.length > 0) {
+    const { error } = await clientOrError.from("enertech_comisiones").delete().in("clave", manualClaves)
+    if (error) return mapError(error)
+  }
+  if (apiClaves.length > 0) {
+    const { error } = await clientOrError
+      .from("enertech_comisiones")
+      .update({ removed_at: new Date().toISOString() })
+      .in("clave", apiClaves)
+    if (error) return mapError(error)
+  }
+
   return { ok: true, data: undefined }
 }
 
