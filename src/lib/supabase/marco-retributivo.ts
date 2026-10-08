@@ -1,6 +1,6 @@
 import type { MarcoRetributivoEntry } from "../../data/marco-retributivo-catalog"
 import { inferMarcoSegmentoFromText } from "../infer-erp-segment"
-import { parseMarcoTramosJson } from "../marco-consumo-tramo"
+import { parseMarcoTramosJson, type MarcoConsumoTramo } from "../marco-consumo-tramo"
 import { computeComisionBreakdown } from "../marco-commission"
 import { isMarcoGenericPlaceholderTariff } from "../marco-dedup"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
@@ -291,6 +291,183 @@ function isMarcoTableMissingError(error: { message?: string; code?: string }): b
   )
 }
 
+// --- Lectura desde enertech_comisiones ------------------------------------------------------
+//
+// `marco_retributivo` está archivada. Las comisiones viven ahora en `enertech_comisiones`: una
+// fila por tramo de consumo (`tramo`: "40000-50000 kWh") × campaña (`campania`, el nombre de
+// producto, p.ej. "TERRA SOLID 24h ZEN 8") × tarifa de acceso (`tarifa`, p.ej. "2.0TD").
+// `company_id` se rellenó por comparación con marco_retributivo_legacy_archive (coincidencia de
+// nombre de producto → compañía); solo cubre ~53% de las filas — el resto son productos que
+// nunca estuvieron en el marco manual, así que su compañía es desconocida (no es un bug).
+// Aquí se agrupan esas filas en una entrada por (campaña, tarifa de acceso), con un tramo por
+// fila agrupada, para mantener la forma MarcoRetributivoRow que ya consume el resto del ERP.
+
+const ENERTECH_COMISIONES_PAGE_SIZE = 1000
+
+interface EnertechComisionRow {
+  clave: string
+  company_id: number | null
+  payload: Record<string, unknown> | null
+  enertech_comercializadoras: { nombre: string | null } | { nombre: string | null }[] | null
+}
+
+const ENERTECH_COMISIONES_SELECT = `
+  clave,
+  company_id,
+  payload,
+  enertech_comercializadoras ( nombre )
+`
+
+function parseTramoRangeKwh(text: string): { desde: number; hasta: number } | null {
+  const normalized = text.trim().toLowerCase()
+  if (!normalized) return null
+
+  const mwhRange = normalized.match(/(\d+(?:[.,]\d+)?)\s*(?:–|-|a)\s*(\d+(?:[.,]\d+)?)\s*mwh/)
+  if (mwhRange) {
+    const desde = Number(mwhRange[1]!.replace(",", "."))
+    const hasta = Number(mwhRange[2]!.replace(",", "."))
+    if (Number.isFinite(desde) && Number.isFinite(hasta)) {
+      return { desde: desde * 1000, hasta: hasta * 1000 }
+    }
+  }
+
+  const kwhRange = normalized.match(/(\d+(?:[.,]\d+)?)\s*(?:–|-|a)\s*(\d+(?:[.,]\d+)?)/)
+  if (kwhRange) {
+    const desde = Number(kwhRange[1]!.replace(",", "."))
+    const hasta = Number(kwhRange[2]!.replace(",", "."))
+    if (Number.isFinite(desde) && Number.isFinite(hasta)) return { desde, hasta }
+  }
+
+  const upper = normalized.match(/(?:hasta|≤|<)\s*(\d+(?:[.,]\d+)?)/)
+  if (upper) {
+    const hasta = Number(upper[1]!.replace(",", "."))
+    if (Number.isFinite(hasta)) return { desde: 0, hasta }
+  }
+
+  return null
+}
+
+function tramoUnidadFromTipoComision(tipo: string): MarcoComisionUnidad {
+  if (tipo === "fijo_mwh") return "eur_mwh"
+  if (tipo === "fijo_kwh") return "eur_mwh" // normalizado ×1000 al leer el importe
+  return "eur_cups"
+}
+
+function tramoComisionBase(payload: Record<string, unknown>, tipo: string): number {
+  const eur = Number(payload.comision_eur)
+  const porMw = Number(payload.comision_por_mw)
+  if (tipo === "fijo_kwh" && Number.isFinite(eur)) return eur * 1000
+  if (tipo === "fijo_mwh" && Number.isFinite(porMw)) return porMw
+  if (Number.isFinite(eur)) return eur
+  return Number.isFinite(porMw) ? porMw : 0
+}
+
+async function fetchAllEnertechComisiones(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
+  const all: EnertechComisionRow[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await client
+      .from("enertech_comisiones")
+      .select(ENERTECH_COMISIONES_SELECT)
+      .is("removed_at", null)
+      .range(from, from + ENERTECH_COMISIONES_PAGE_SIZE - 1)
+
+    if (error) return mapError(error)
+
+    const batch = (data ?? []) as unknown as EnertechComisionRow[]
+    all.push(...batch)
+    if (batch.length < ENERTECH_COMISIONES_PAGE_SIZE) break
+    from += ENERTECH_COMISIONES_PAGE_SIZE
+  }
+
+  return { ok: true, data: all }
+}
+
+function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoRow[] {
+  const groups = new Map<string, { campania: string; peaje: string; rows: EnertechComisionRow[] }>()
+
+  for (const row of rows) {
+    const payload = row.payload ?? {}
+    const campania = String(payload.campania ?? "").trim()
+    const peaje = String(payload.tarifa ?? "").trim()
+    if (!campania || !peaje) continue
+    const key = `${campania.toLowerCase()}::${peaje.toLowerCase()}`
+    const group = groups.get(key) ?? { campania, peaje, rows: [] }
+    group.rows.push(row)
+    groups.set(key, group)
+  }
+
+  const now = new Date().toISOString()
+  const result: MarcoRetributivoRow[] = []
+
+  for (const { campania, peaje, rows: groupRows } of groups.values()) {
+    const first = groupRows[0]!
+    const nested = Array.isArray(first.enertech_comercializadoras)
+      ? first.enertech_comercializadoras[0]
+      : first.enertech_comercializadoras
+    const compania = nested?.nombre?.trim() ?? ""
+
+    const tramos: MarcoConsumoTramo[] = []
+    for (const row of groupRows) {
+      const payload = row.payload ?? {}
+      const tipoComision = String(payload.tipo_comision ?? "fijo_contrato")
+      const range = parseTramoRangeKwh(String(payload.tramo ?? ""))
+      tramos.push({
+        desde_kwh: range?.desde ?? 0,
+        hasta_kwh: range?.hasta ?? Number.MAX_SAFE_INTEGER,
+        comision_base: tramoComisionBase(payload, tipoComision),
+        unidad: tramoUnidadFromTipoComision(tipoComision),
+        condicion: String(payload.tramo ?? "") || undefined,
+      })
+    }
+    tramos.sort((a, b) => a.desde_kwh - b.desde_kwh)
+
+    const tipo: "luz" | "gas" = /gas/i.test(campania) || /rl\d/i.test(peaje) ? "gas" : "luz"
+    const segmento = inferSegmentoFromText(campania)
+    const baseComision = tramos[0]?.comision_base ?? 0
+
+    result.push({
+      id: catalogSlugToUuid(`comision:${campania.toLowerCase()}::${peaje.toLowerCase()}`),
+      compania,
+      tarifa: campania,
+      tipo,
+      peaje,
+      segmento,
+      condicion_1: null,
+      condicion_2: null,
+      condiciones: null,
+      comision_tipo: "fija",
+      comision_base: baseComision,
+      comision_unidad: tramos[0]?.unidad ?? "eur_cups",
+      vigencia_meses: 12,
+      fecha_inicio: now,
+      activo: true,
+      created_at: now,
+      updated_at: now,
+      updated_by: null,
+      energia_p1: null,
+      energia_p2: null,
+      energia_p3: null,
+      energia_p4: null,
+      energia_p5: null,
+      energia_p6: null,
+      potencia_p1: null,
+      potencia_p2: null,
+      potencia_p3: null,
+      potencia_p4: null,
+      potencia_p5: null,
+      potencia_p6: null,
+      tramos,
+      source: "manual",
+    })
+  }
+
+  return result
+}
+
 export async function listMarcoRetributivo(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
@@ -299,39 +476,17 @@ export async function listMarcoRetributivo(): Promise<
     return { ok: true, data: [] }
   }
 
-  const allRows: MarcoRetributivoRow[] = []
-  let from = 0
+  const rowsResult = await fetchAllEnertechComisiones(clientOrError)
+  if (rowsResult.ok === false) return rowsResult
 
-  while (true) {
-    const { data, error } = await clientOrError
-      .from("marco_retributivo")
-      .select(MARCO_SELECT)
-      .eq("activo", true)
-      .order("compania")
-      .order("tarifa")
-      .range(from, from + MARCO_LIST_PAGE_SIZE - 1)
+  const grouped = groupEnertechComisiones(rowsResult.data)
+    .map(mapRow)
+    .filter((row) => !isMarcoGenericPlaceholderTariff(row))
 
-    if (error) {
-      if (isMarcoTableMissingError(error)) {
-        return { ok: true, data: [] }
-      }
-      return mapError(error)
-    }
-
-    const rawBatch = (data ?? []) as MarcoRetributivoRow[]
-    const batch = rawBatch
-      .map(mapRow)
-      .filter((row) => !isMarcoGenericPlaceholderTariff(row))
-    allRows.push(...batch)
-
-    if (!marcoListShouldFetchNextPage(rawBatch.length)) break
-    from += MARCO_LIST_PAGE_SIZE
-  }
-
-  return { ok: true, data: allRows }
+  return { ok: true, data: grouped }
 }
 
-/** Todas las filas activas (incl. placeholders) para deduplicación persistente. */
+/** Todas las entradas (incl. placeholders) para deduplicación persistente. */
 export async function listMarcoRetributivoForDedup(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
@@ -340,34 +495,10 @@ export async function listMarcoRetributivoForDedup(): Promise<
     return { ok: true, data: [] }
   }
 
-  const allRows: MarcoRetributivoRow[] = []
-  let from = 0
+  const rowsResult = await fetchAllEnertechComisiones(clientOrError)
+  if (rowsResult.ok === false) return rowsResult
 
-  while (true) {
-    const { data, error } = await clientOrError
-      .from("marco_retributivo")
-      .select(MARCO_SELECT)
-      .eq("activo", true)
-      .order("compania")
-      .order("tarifa")
-      .range(from, from + MARCO_LIST_PAGE_SIZE - 1)
-
-    if (error) {
-      if (isMarcoTableMissingError(error)) {
-        return { ok: true, data: [] }
-      }
-      return mapError(error)
-    }
-
-    const rawBatch = (data ?? []) as MarcoRetributivoRow[]
-    const batch = rawBatch.map(mapRow)
-    allRows.push(...batch)
-
-    if (!marcoListShouldFetchNextPage(rawBatch.length)) break
-    from += MARCO_LIST_PAGE_SIZE
-  }
-
-  return { ok: true, data: allRows }
+  return { ok: true, data: groupEnertechComisiones(rowsResult.data).map(mapRow) }
 }
 
 const MARCO_DEACTIVATE_BATCH = 40
@@ -536,55 +667,21 @@ export async function getMarcoEntryById(
 export async function getMarcoRowById(
   marcoEntryId: string
 ): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
-  const clientOrError = requireClient()
-  if (isMarcoClientError(clientOrError)) {
-    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
-  }
-
-  const { data, error } = await clientOrError
-    .from("marco_retributivo")
-    .select(MARCO_SELECT)
-    .eq("id", marcoEntryId)
-    .maybeSingle()
-
-  if (error) {
-    if (isMarcoTableMissingError(error)) {
-      return { ok: false, message: "Entrada de marco retributivo no encontrada" }
-    }
-    return mapError(error)
-  }
-  if (!data) {
-    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
-  }
-
-  return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
+  const result = await listMarcoRetributivoForDedup()
+  if (result.ok === false) return result
+  const row = result.data.find((r) => r.id === marcoEntryId)
+  if (!row) return { ok: false, message: "Entrada de marco retributivo no encontrada" }
+  return { ok: true, data: row }
 }
 
-export async function getMarcoRowByAtIds(input: {
+/**
+ * @deprecated Los `at_marco_id`/`at_rate_id` eran claves de AT; Enertech no tiene equivalente,
+ * así que esto ya no puede resolver nada. Mantenido por compatibilidad con los llamadores.
+ */
+export async function getMarcoRowByAtIds(_input: {
   atMarcoId?: string
   atRateId?: string
 }): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
-  const clientOrError = requireClient()
-  if (isMarcoClientError(clientOrError)) {
-    return { ok: false, message: "Entrada de marco retributivo no encontrada" }
-  }
-
-  const ids = [...new Set([input.atMarcoId, input.atRateId].filter(Boolean))] as string[]
-  for (const id of ids) {
-    for (const column of ["at_marco_id", "at_rate_id"] as const) {
-      const { data, error } = await clientOrError
-        .from("marco_retributivo")
-        .select(MARCO_SELECT)
-        .eq(column, id)
-        .maybeSingle()
-      if (error) {
-        if (isMarcoTableMissingError(error)) break
-        return mapError(error)
-      }
-      if (data) return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
-    }
-  }
-
   return { ok: false, message: "Entrada de marco retributivo no encontrada" }
 }
 
