@@ -277,6 +277,10 @@ function toDbPatch(
   return row
 }
 
+// `marco_retributivo` fue archivada (renombrada a marco_retributivo_legacy_archive) tras la
+// consolidación en Enertech: ya no hay sustituto 1:1 (grano distinto a enertech_comisiones), así
+// que todo este módulo degrada a "vacío"/"no encontrado" en vez de propagar el error de Postgres.
+// Ver AGENTS.md §9.
 function isMarcoTableMissingError(error: { message?: string; code?: string }): boolean {
   return (
     Boolean(error.message?.includes("does not exist")) ||
@@ -368,6 +372,9 @@ export async function listMarcoRetributivoForDedup(): Promise<
 
 const MARCO_DEACTIVATE_BATCH = 40
 
+const MARCO_RETIRED_MESSAGE =
+  "Marco retributivo manual retirado: los precios y comisiones ahora vienen solo de Enertech."
+
 export async function bulkDeactivateMarcoEntries(
   ids: string[],
   updatedBy?: string | null
@@ -394,7 +401,10 @@ export async function bulkDeactivateMarcoEntries(
       })
       .in("id", batch)
 
-    if (error) return mapError(error)
+    if (error) {
+      if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
+      return mapError(error)
+    }
     deactivated += batch.length
   }
 
@@ -434,7 +444,10 @@ export async function createMarcoEntry(
     .select(MARCO_SELECT)
     .single()
 
-  if (error) return mapError(error)
+  if (error) {
+    if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
+    return mapError(error)
+  }
   return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
 }
 
@@ -455,7 +468,10 @@ export async function updateMarcoEntry(
     .select(MARCO_SELECT)
     .single()
 
-  if (error) return mapError(error)
+  if (error) {
+    if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
+    return mapError(error)
+  }
   return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
 }
 
@@ -477,7 +493,10 @@ export async function deleteMarcoEntry(
     })
     .eq("id", id)
 
-  if (error) return mapError(error)
+  if (error) {
+    if (isMarcoTableMissingError(error)) return { ok: false, message: MARCO_RETIRED_MESSAGE }
+    return mapError(error)
+  }
   return { ok: true, data: undefined }
 }
 
@@ -528,7 +547,12 @@ export async function getMarcoRowById(
     .eq("id", marcoEntryId)
     .maybeSingle()
 
-  if (error) return mapError(error)
+  if (error) {
+    if (isMarcoTableMissingError(error)) {
+      return { ok: false, message: "Entrada de marco retributivo no encontrada" }
+    }
+    return mapError(error)
+  }
   if (!data) {
     return { ok: false, message: "Entrada de marco retributivo no encontrada" }
   }
@@ -553,7 +577,10 @@ export async function getMarcoRowByAtIds(input: {
         .select(MARCO_SELECT)
         .eq(column, id)
         .maybeSingle()
-      if (error) return mapError(error)
+      if (error) {
+        if (isMarcoTableMissingError(error)) break
+        return mapError(error)
+      }
       if (data) return { ok: true, data: mapRow(data as MarcoRetributivoRow) }
     }
   }

@@ -26,46 +26,40 @@ export interface TariffConPrecios {
   precios: TariffPreciosPorPeriodo
 }
 
-interface TariffPriceDbRow {
-  period: string
-  energy_price_kwh: number | string | null
-  power_price_kw_day: number | string | null
+// `tariffs`/`tariff_prices`/`providers` fueron archivadas (consolidación Enertech-only, ver
+// AGENTS.md §8/§9). Este módulo lee directamente `enertech_precios` (una fila por tarifa,
+// con energía/potencia P1-P6 dentro de `payload`) junto a `enertech_comercializadoras`.
+
+interface EnertechComercializadoraRow {
+  id: number
+  nombre: string | null
+  logo_url: string | null
 }
 
-interface ProviderDbRow {
-  id?: string
-  name?: string
-  logo_url?: string | null
-}
-
-interface TariffDbRow {
-  id: string
-  name: string
-  supply_type: string
-  access_tariff: string
-  segment: string
+interface EnertechPrecioRow {
+  clave: string
+  company_id: number | null
+  payload: Record<string, unknown> | null
+  web_visible: boolean | null
+  erp_active: boolean | null
+  segment: string | null
   is_indexed: boolean | null
-  sva_price_monthly: number | string | null
   is_solar_rate: boolean | null
-  at_rate_id: string | null
-  provider_id: string | null
-  providers: ProviderDbRow | ProviderDbRow[] | null
-  tariff_prices: TariffPriceDbRow[] | null
+  sva_price_monthly: number | string | null
+  enertech_comercializadoras: EnertechComercializadoraRow | EnertechComercializadoraRow[] | null
 }
 
-const TARIFFS_WITH_PRICES_SELECT = `
-  id,
-  name,
-  supply_type,
-  access_tariff,
+const ENERTECH_PRECIOS_SELECT = `
+  clave,
+  company_id,
+  payload,
+  web_visible,
+  erp_active,
   segment,
   is_indexed,
-  sva_price_monthly,
   is_solar_rate,
-  at_rate_id,
-  provider_id,
-  providers ( id, name, logo_url ),
-  tariff_prices ( period, energy_price_kwh, power_price_kw_day )
+  sva_price_monthly,
+  enertech_comercializadoras ( id, nombre, logo_url )
 `
 
 function mapError(error: { message: string }): TariffsCatalogResult<never> {
@@ -84,8 +78,9 @@ function normalizePeriodKey(period: string): TariffPeriodKey | null {
   return `P${match[1]}` as TariffPeriodKey
 }
 
+/** @deprecated conservado por compatibilidad; usar directamente el payload de enertech_precios */
 export function groupTariffPrices(
-  rows: TariffPriceDbRow[] | null | undefined
+  rows: Array<{ period: string; energy_price_kwh: unknown; power_price_kw_day: unknown }> | null | undefined
 ): TariffPreciosPorPeriodo {
   const precios: TariffPreciosPorPeriodo = {}
   for (const row of rows ?? []) {
@@ -102,35 +97,58 @@ export function groupTariffPrices(
   return precios
 }
 
-function resolveProviderName(row: TariffDbRow): {
+function pricesFromPayload(payload: Record<string, unknown> | null): TariffPreciosPorPeriodo {
+  const precios: TariffPreciosPorPeriodo = {}
+  if (!payload) return precios
+  for (let n = 1; n <= 6; n++) {
+    const energy = asNumber(payload[`e${n}`])
+    const power = asNumber(payload[`p${n}`])
+    if (energy == null && power == null) continue
+    precios[`P${n}` as TariffPeriodKey] = {
+      energyPriceKwh: energy ?? 0,
+      powerPriceKwDay: power ?? 0,
+    }
+  }
+  return precios
+}
+
+function isGasTariff(payload: Record<string, unknown> | null): boolean {
+  return /gas/i.test(String(payload?.tarifa ?? ""))
+}
+
+function resolveProvider(row: EnertechPrecioRow): {
   providerId: string | null
   providerName: string
   providerLogoUrl: string | null
 } {
-  const nested = Array.isArray(row.providers) ? row.providers[0] : row.providers
+  const nested = Array.isArray(row.enertech_comercializadoras)
+    ? row.enertech_comercializadoras[0]
+    : row.enertech_comercializadoras
   return {
-    providerId: row.provider_id ?? nested?.id ?? null,
-    providerName: nested?.name?.trim() || "Sin compañía",
+    providerId: nested?.id != null ? String(nested.id) : row.company_id != null ? String(row.company_id) : null,
+    providerName: nested?.nombre?.trim() || String(row.payload?.comercializadora ?? "").trim() || "Sin compañía",
     providerLogoUrl: nested?.logo_url?.trim() || null,
   }
 }
 
-export function mapTariffRowToConPrecios(row: TariffDbRow): TariffConPrecios {
-  const { providerId, providerName, providerLogoUrl } = resolveProviderName(row)
+export function mapEnertechPrecioRowToConPrecios(row: EnertechPrecioRow): TariffConPrecios {
+  const { providerId, providerName, providerLogoUrl } = resolveProvider(row)
+  const payload = row.payload ?? {}
+  const accessTariff = String(payload.tarifa ?? "")
   return {
-    tariffId: row.id,
-    name: row.name,
+    tariffId: row.clave,
+    name: accessTariff,
     providerName,
     providerId,
     providerLogoUrl,
-    supplyType: row.supply_type,
-    accessTariff: row.access_tariff,
-    segment: row.segment,
+    supplyType: isGasTariff(payload) ? "gas" : "luz",
+    accessTariff,
+    segment: row.segment ?? "residencial",
     isIndexed: Boolean(row.is_indexed),
     svaPriceMonthly: asNumber(row.sva_price_monthly),
     isSolarRate: Boolean(row.is_solar_rate),
-    atRateId: row.at_rate_id,
-    precios: groupTariffPrices(row.tariff_prices),
+    atRateId: null,
+    precios: pricesFromPayload(payload),
   }
 }
 
@@ -146,21 +164,20 @@ export async function listTariffsConPrecios(
   if (!client) return { ok: false, message: "Cliente Supabase no disponible" }
 
   const { data, error } = await client
-    .from("tariffs")
-    .select(TARIFFS_WITH_PRICES_SELECT)
-    .eq("segment", segmento)
-    .ilike("access_tariff", comparadorAccessTariffDbIlikePattern(accessTariff))
-    .eq("is_active", true)
+    .from("enertech_precios")
+    .select(ENERTECH_PRECIOS_SELECT)
+    .is("removed_at", null)
     .eq("erp_active", true)
-    .eq("supply_type", "luz")
-    .order("name")
+    .ilike("payload->>tarifa", comparadorAccessTariffDbIlikePattern(accessTariff))
 
   if (error) return mapError(error)
 
-  const rows = ((data ?? []) as TariffDbRow[])
-    .filter((row) => tariffMatchesComparadorAccessTariff(row.access_tariff, accessTariff))
-    .filter((row) => tariffMatchesErpAudience(row.name, row.segment, segmento))
-    .map(mapTariffRowToConPrecios)
+  const rows = ((data ?? []) as unknown as EnertechPrecioRow[])
+    .filter((row) => !isGasTariff(row.payload))
+    .filter((row) => tariffMatchesComparadorAccessTariff(String(row.payload?.tarifa ?? ""), accessTariff))
+    .filter((row) => tariffMatchesErpAudience(String(row.payload?.tarifa ?? ""), row.segment ?? "residencial", segmento))
+    .map(mapEnertechPrecioRowToConPrecios)
+    .filter((row) => Object.keys(row.precios).length > 0)
 
   return { ok: true, data: rows }
 }
@@ -182,17 +199,17 @@ export async function listAllTariffsConPreciosForDedup(): Promise<
 
   while (true) {
     const { data, error } = await client
-      .from("tariffs")
-      .select(TARIFFS_WITH_PRICES_SELECT)
-      .eq("is_active", true)
+      .from("enertech_precios")
+      .select(ENERTECH_PRECIOS_SELECT)
+      .is("removed_at", null)
       .eq("erp_active", true)
-      .order("name")
+      .order("clave")
       .range(from, from + TARIFF_DEDUP_PAGE_SIZE - 1)
 
     if (error) return mapError(error)
 
-    const batch = ((data ?? []) as TariffDbRow[])
-      .map(mapTariffRowToConPrecios)
+    const batch = ((data ?? []) as unknown as EnertechPrecioRow[])
+      .map(mapEnertechPrecioRowToConPrecios)
       .filter((row) => Object.keys(row.precios).length > 0)
 
     all.push(...batch)
@@ -222,9 +239,9 @@ export async function bulkSetTariffsErpInactive(
   for (let offset = 0; offset < unique.length; offset += TARIFF_DEACTIVATE_BATCH) {
     const batch = unique.slice(offset, offset + TARIFF_DEACTIVATE_BATCH)
     const { error } = await client
-      .from("tariffs")
+      .from("enertech_precios")
       .update({ erp_active: false })
-      .in("id", batch)
+      .in("clave", batch)
 
     if (error) return mapError(error)
     count += batch.length

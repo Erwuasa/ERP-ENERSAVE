@@ -231,14 +231,15 @@ export async function updateTariffWebSettings(
   })
 
   if (error) {
+    // Fallback directo contra enertech_precios (clave = tariffId) si el RPC falla.
     const fallback = await client
-      .from("tariffs")
+      .from("enertech_precios")
       .update({
         web_visible: patch.web_visible,
         web_alias: patch.web_alias,
         erp_active: patch.erp_active,
       })
-      .eq("id", tariffId)
+      .eq("clave", tariffId)
       .select("web_visible, web_alias, erp_active")
       .maybeSingle()
 
@@ -270,6 +271,12 @@ export async function updateTariffWebSettings(
   }
 }
 
+function asNumber(value: unknown): number | null {
+  if (value == null || value === "") return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
 function normalizeRateKey(value: string): string {
   return value
     .toUpperCase()
@@ -280,52 +287,49 @@ function normalizeRateKey(value: string): string {
     .join(" ")
 }
 
+const PRICE_PERIOD_KEYS = ["P1", "P2", "P3", "P4", "P5", "P6"] as const
+
+/**
+ * @deprecated `atRateId` era la clave AT (`tariffs.at_rate_id`); esa tabla está archivada y
+ * Enertech no tiene un id equivalente, así que el campo se ignora. Mantenido en la firma por
+ * compatibilidad con los llamadores existentes.
+ */
 export async function getCatalogPricesForContract(input: {
   atRateId?: string
   rateName?: string
   peaje?: string
 }): Promise<Array<{ period: string; energy?: number; power?: number }>> {
   if (!isSupabaseConfigured()) return []
+  if (!input.rateName) return []
   const client = getSupabaseClient()
   if (!client) return []
 
-  let tariffId: string | null = null
-  if (input.atRateId) {
-    const { data } = await client
-      .from("tariffs")
-      .select("id")
-      .eq("at_rate_id", input.atRateId)
-      .maybeSingle()
-    tariffId = data?.id ?? null
-  }
+  const { data } = await client
+    .from("enertech_precios")
+    .select("payload")
+    .eq("erp_active", true)
+    .is("removed_at", null)
 
-  if (!tariffId && input.rateName) {
-    const { data } = await client
-      .from("tariffs")
-      .select("id, name, access_tariff, at_rate_id")
-      .not("at_rate_id", "is", null)
-    const key = normalizeRateKey(input.rateName)
-    const match =
-      data?.find(
-        (row) =>
-          normalizeRateKey(String(row.name ?? "")) === key &&
-          (!input.peaje || String(row.access_tariff ?? "") === input.peaje)
-      ) ?? data?.find((row) => normalizeRateKey(String(row.name ?? "")) === key)
-    tariffId = match?.id ?? null
-  }
+  const key = normalizeRateKey(input.rateName)
+  const rows = (data ?? []) as Array<{ payload: Record<string, unknown> | null }>
 
-  if (!tariffId) return []
-  const { data: prices } = await client
-    .from("tariff_prices")
-    .select("period, energy_price_kwh, power_price_kw_day")
-    .eq("tariff_id", tariffId)
-    .order("period")
+  const candidates = rows
+    .map((row) => row.payload ?? {})
+    .filter((payload) => normalizeRateKey(String(payload.tarifa ?? "")) === key)
 
-  return (prices ?? []).map((row) => ({
-    period: String(row.period ?? "P1"),
-    energy: Number(row.energy_price_kwh),
-    power: Number(row.power_price_kw_day),
-  }))
+  const match =
+    (input.peaje &&
+      candidates.find((payload) => String(payload.tarifa ?? "").includes(input.peaje!))) ??
+    candidates[0]
+
+  if (!match) return []
+
+  return PRICE_PERIOD_KEYS.map((period, index) => {
+    const n = index + 1
+    const energy = asNumber(match[`e${n}`])
+    const power = asNumber(match[`p${n}`])
+    return { period, energy: energy ?? undefined, power: power ?? undefined }
+  }).filter((row) => row.energy != null || row.power != null)
 }
 
 export { PAGE_SIZE as TARIFF_CATALOG_PAGE_SIZE }

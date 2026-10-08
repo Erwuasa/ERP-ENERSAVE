@@ -143,8 +143,11 @@ async function loadProviderByAtCompanyId(
 ): Promise<Map<string, string>> {
   if (providerByAtCompanyIdCache) return providerByAtCompanyIdCache
 
+  // `providers` fue archivada (renombrada a providers_legacy_archive) tras la consolidación en
+  // Enertech (ver AGENTS.md §9). Se consulta el archivo solo para resolver el nombre de
+  // compañía en contratos históricos sincronizados desde AT; no alimenta nada nuevo.
   const { data } = await client
-    .from("providers")
+    .from("providers_legacy_archive")
     .select("name, at_company_id")
     .not("at_company_id", "is", null)
 

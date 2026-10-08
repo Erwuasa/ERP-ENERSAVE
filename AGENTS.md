@@ -133,19 +133,22 @@ Reglas del cruce:
 
 ## 8. Tarifas y marco retributivo (modelo de datos)
 
-Detalle completo en `docs/sync-at-supabase.md`. Resumen:
+**ESTADO ACTUAL (2026-10-08): consolidado en Enertech, AT descartado por completo.** `providers`, `tariffs`, `tariff_prices` y `marco_retributivo` fueron **archivadas** (`RENAME TO ..._legacy_archive`, no borradas — siguen en BD por si hace falta recuperar algo, pero ningún código nuevo debe leerlas ni escribirlas salvo para mostrar datos históricos de contratos ya cerrados). Decisión del dueño: cero datos de AT, cero duplicación con Enertech, incluso datos manuales del ERP que no coincidan con Enertech quedan fuera de la app en vivo.
 
-| Pantalla | Tabla | Dueño del dato |
+| Pantalla | Tabla viva | Antes (archivado) |
 |---|---|---|
-| Tarifas | `providers` + `tariffs` + `tariff_prices` | AT si `at_rate_id` no es null; ERP si es null |
-| Marco retributivo | `marco_retributivo` (comisión, tramos kWh/año, permanencia) | **Siempre el ERP** |
+| Tarifas / Productos | `enertech_precios` (clave `clave`, precios P1-P6 en `payload`) + `enertech_comercializadoras` (`company_id → id`) | `tariffs` + `tariff_prices` + `providers` |
+| Marco retributivo (comisiones) | **sin sustituto aún** — pantalla retirada, ver nota abajo | `marco_retributivo` |
 
-- Enlace `marco_retributivo.tariff_id → tariffs.id`.
-- Precios para el comparador: **solo `tariff_prices`** (las columnas `energia_p*`/`potencia_p*` del marco están vaciadas por `20260928190000_marco_precios_no_fuente.sql`).
-- Altas manuales: `source='manual'`, `at_marco_id` null, `at_rate_id` null. **Nunca rellenes `at_*_id` a mano**: el sync hace match por esas claves.
-- Regla de oro de cualquier sync: solo toca filas con id externo; las altas del ERP (id externo null) no se actualizan ni se desactivan.
+- `enertech_precios` tiene columnas de curación propias del ERP, añadidas sobre el espejo de la API: `web_visible`, `erp_active`, `web_alias`, `web_sort_order`, `segment`, `pricing_model`, `is_indexed`, `is_solar_rate`, `sva_name`, `sva_price_monthly`, `permanence_text`, `legacy_tariff_name`. `enertech_comercializadoras` tiene `logo_url`, `is_active`. Estas columnas **no las toca el sync** (`enertech-sync-precios`/`enertech-sync-comercializadoras`); son edición manual del ERP sobre filas que siguen viniendo de Enertech.
+- RPC `list_tariffs_catalog_v1` y `update_tariff_web_settings_v1` (esta última reescrita con `p_tariff_id text`, antes `uuid`; las firmas `uuid` antiguas quedaron huérfanas, inofensivas, sin llamador) ya apuntan a `enertech_precios`/`enertech_comercializadoras`.
+- `src/lib/supabase/tariffs.ts` y `tariffs-catalog.ts` leen/escriben `enertech_precios` directamente (sin RPC) para el comparador en vivo, el panel de Productos y el dedup. `segment` llega siempre `residencial` desde el sync (Enertech no distingue segmento); el filtro por nombre (`tariffMatchesErpAudience`) sigue aplicando como heurística adicional, igual que antes.
+- **Marco retributivo (comisiones) no tiene sustituto Enertech todavía.** `enertech_comisiones` tiene un grano distinto (por `clave`/campaña fina de Enertech, no por compañía+tarifa+segmento como el `marco_retributivo` manual), así que no se migró automáticamente. `src/lib/supabase/marco-retributivo.ts` degrada todo a "vacío"/"no encontrado" en vez de lanzar error (la tabla ya no existe con ese nombre), así que la pantalla de Marco Retributivo y el desglose de comisión en contratos no crashean, pero no muestran nada hasta que se diseñe el reemplazo sobre `enertech_comisiones`. **Pendiente de decisión/diseño con el dueño.**
+- `providers_legacy_archive` se sigue consultando desde `contracts.ts` solo para mostrar el nombre de compañía en contratos históricos sincronizados desde AT (`at_company_id` en su `at_payload`); es lectura histórica, no alimenta nada nuevo.
 
-## 9. API AT Enterprise — ESTADO: PAUSADA, decisión pendiente
+## 9. API AT Enterprise — ESTADO: DESCARTADA (decisión del dueño, 2026-10-08)
+
+**Ya no es "pausada, decisión pendiente": el dueño decidió explícitamente no usar nada de AT nunca más.** `providers`/`tariffs`/`tariff_prices`/`marco_retributivo` están archivadas (§8). Las Edge Functions y el código de sync de AT listados en el inventario de abajo **siguen desplegados pero no se han retirado todavía** (quedan para un commit `refactor(at): …` separado, según la norma de abajo) — no añadas nada nuevo que dependa de ellos y no reactives `at_outbound_enabled`.
 
 **Nueva API:** Enertech/aenergetic (`https://intranet.enertechcore.com/v1`, guía en `docs/BIENVENIDA-NUEVA-API.md`). Análisis de diferencias, viabilidad del conmutador y estrategia de BD en **`docs/analisis-api-enertech-vs-at.md`** (léelo antes de tocar nada de integración). Resumen: se recomienda conmutador con proveedor activo único + migración aditiva (`external_provider`/`external_id` + tabla `external_refs`), sin borrar datos AT. La API nueva NO cubre incidencias, liquidaciones, comparativas, emails ni FTP.
 
@@ -241,6 +244,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-08 — Consolidación Enertech-only: `providers`/`tariffs`/`tariff_prices`/`marco_retributivo` archivadas (`*_legacy_archive`, no borradas); `enertech_comercializadoras`/`enertech_precios` ampliadas con columnas de curación del ERP (`logo_url`/`is_active`, `web_visible`/`erp_active`/`web_alias`/`segment`/etc.); RPC `list_tariffs_catalog_v1` y `update_tariff_web_settings_v1` reescritas sobre Enertech (`update_tariff_web_settings_v1` ahora con `p_tariff_id text`, no `uuid`); `src/lib/supabase/tariffs.ts`, `tariffs-catalog.ts` y `marco-retributivo.ts` reescritos/blindados para no depender de las tablas archivadas. Decisión del dueño: AT descartado por completo (§9), incluidos datos manuales del ERP que no coincidían con Enertech. **Pendiente**: sustituto de `marco_retributivo` sobre `enertech_comisiones` (grano distinto, sin diseñar aún — pantalla de Marco Retributivo queda vacía mientras tanto, sin crashear); retirar en commit `refactor(at):` separado el código de sync AT que ya no se usa; avisar/arreglar el catálogo de tarifas de la web pública (`EnerSave`), que lee las mismas tablas ahora archivadas.
 - 2026-10-06 — Espejo Enertech con prefijo `enertech_` (6 tablas + sips + sync/log/locks), 7 Edge Functions de sync con cron, flag `enertech_sync_enabled`, smoke script y tests con Supabase simulado. SIPS renombrada a `enertech_sips_consultas` / `enertech-sips-lookup`. Todo sin aplicar/desplegar.
 - 2026-10-06 — Pantalla SIPS implementada (lib + tests, Edge Function `enertech-sips-lookup`, migración `enertech_sips_consultas`, UI `/erp/sips`, sidebar y permisos). Pendiente: aplicar migración, secret, deploy y prueba con clave `devintranet`.
 - 2026-10-06 — Análisis API Enertech vs AT (`docs/analisis-api-enertech-vs-at.md`); §9 y §11 actualizados. Sin cambios de código ni de BD.
