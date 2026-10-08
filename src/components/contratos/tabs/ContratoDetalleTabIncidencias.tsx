@@ -1,5 +1,5 @@
 import type { Contract } from "@/types/contract"
-import type { AtContractNote } from "@/lib/supabase/at-contract-notes"
+import type { AtContractNote } from "@/types/at-contract-history"
 import { ContratoDetalleSection } from "@/components/contratos/contrato-detalle-ui"
 
 type Props = {

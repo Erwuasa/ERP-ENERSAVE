@@ -46,7 +46,7 @@ npm run db:apply   # scripts/apply-supabase-sql.mjs (aplica SQL a Supabase)
 ```
 src/
   App.tsx                 # solo monta <AppProviders/>
-  providers/              # AppProviders (router+tema), ErpDataProvider, AtApiSettingsProvider, ContractActionsProvider
+  providers/              # AppProviders (router+tema), ErpDataProvider, ContractActionsProvider
   lib/router.tsx          # definición de rutas (fuente de verdad del routing)
   constants/navigation.ts # tabs, slugs /erp/* y /ventas/*, módulos
   pages/
@@ -153,9 +153,28 @@ Reglas del cruce:
     - `resolveEnertechCompanyIdByName` resuelve `company_id` por nombre de compañía (`ilike` contra `enertech_comercializadoras.nombre`) al crear/editar; puede no encontrar coincidencia (compañía nueva o nombre distinto) y deja `company_id` en null sin fallar.
 - `providers_legacy_archive` se sigue consultando desde `contracts.ts` solo para mostrar el nombre de compañía en contratos históricos sincronizados desde AT (`at_company_id` en su `at_payload`); es lectura histórica, no alimenta nada nuevo.
 
-## 9. API AT Enterprise — ESTADO: DESCARTADA (decisión del dueño, 2026-10-08)
+## 9. API AT Enterprise — ESTADO: DESCARTADA Y CONGELADA CON CORTE LIMPIO (decisión del dueño, 2026-10-08)
 
-**Ya no es "pausada, decisión pendiente": el dueño decidió explícitamente no usar nada de AT nunca más.** `providers`/`tariffs`/`tariff_prices`/`marco_retributivo` están archivadas (§8). Las Edge Functions y el código de sync de AT listados en el inventario de abajo **siguen desplegados pero no se han retirado todavía** (quedan para un commit `refactor(at): …` separado, según la norma de abajo) — no añadas nada nuevo que dependa de ellos y no reactives `at_outbound_enabled`.
+**El dueño decidió explícitamente no usar nada de AT nunca más**, y eligió la opción 2 de las tres que este fichero dejaba abiertas: **"congelar con corte limpio"**. `providers`/`tariffs`/`tariff_prices`/`marco_retributivo` están archivadas (§8). El código de sync/outbound/reactivación de AT en el repo **ya se retiró** (commit `refactor(at): retire AT sync/outbound code and reactivation UI`, 2026-10-08) — ver qué queda y qué falta por retirar manualmente en Supabase más abajo.
+
+### Qué se retiró del repo (ya hecho)
+
+- Edge Functions completas: `at-contract-notes`, `push-contract-at`, `sync-{clients,comparisons,contracts,emails,incidents,liquidations,marcos,tariffs}-at`, `ate-webhooks`.
+- Helpers compartidos usados solo por esas funciones: `_shared/at-*.ts`, `_shared/sync-*.ts`, `_shared/marco-link.ts`, `_shared/sync-marco-settlements.ts`.
+- Cliente ERP: `lib/supabase/{push-contract-at,at-contract-notes,at-ftp,erp-settings}.ts`, `lib/at-api-toggle.ts`, `lib/at-outbound-map.ts`, `lib/at-api-disabled.ts`, `providers/AtApiSettingsProvider.tsx`, `hooks/use-at-outbound-settings.ts`, `hooks/use-at-contract-notes.ts`.
+- UI de reactivación: el switch "API AT activa/apagada" en `AppShell.tsx` y todo lo que lo montaba (`ErpWorkspace.tsx` ya no envuelve en `AtApiSettingsProvider`).
+- Rama AT del explorador de FTP: `useFtpExplorer.ts`/`ftp-sources.ts`/`FtpPanel.tsx` ya no tienen la carpeta virtual "Archivo AT" — nunca tuvo una Edge Function `at-ftp` en este repo que la respaldara (sí existe una `at-ftp` desplegada en Supabase, ver más abajo, pero sin código fuente aquí), así que esa rama solo mostraba una carpeta siempre vacía/con error. El explorador ahora solo tiene la raíz "FTP EnerSave".
+- Tipos `AtContractNote`/`AtContractEvent`/`AtContractDocument`/`AtContractEmail`/`AtContractPrice` movidos a `src/types/at-contract-history.ts` (puro, sin red) — las pestañas de Historial/Incidencias/Documentos/Notas de un contrato siguen mostrando esos campos `at_*` ya guardados en `contratos_equipo`, como histórico de solo lectura; ya no se refrescan contra AT en cada apertura del contrato.
+
+### Qué NO se tocó (histórico de solo lectura, sigue igual)
+
+- Columnas `at_*` en `tariffs_legacy_archive`/`providers_legacy_archive`/`clientes`/`contratos_equipo`/`marco_retributivo_legacy_archive` y las tablas `at_comparisons`/`at_email_logs`: se quedan como "legacy", sin código que las vuelva a sincronizar.
+- `lib/supabase/at-comparisons.ts`, `lib/supabase/at-emails.ts`, las pestañas que las leen: siguen igual, son solo `.select()` sobre lo ya guardado.
+- `erp_settings.at_outbound_enabled` (la columna/fila en BD): no se borró ni se tocó, simplemente ya no la lee nada en el repo.
+
+### Pendiente — requiere acción manual en Supabase (no hay orden explícita para ejecutarlo desde aquí)
+
+**Siguen ACTIVE y desplegadas en el proyecto estas Edge Functions, aunque ya no queda código fuente en el repo que las despliegue ni las llame:** `sync-tariffs-at`, `at-ftp`, `sync-marcos-at`, `ate-webhooks`, `sync-clients-at`, `sync-contracts-at`, `sync-liquidations-at`, `sync-incidents-at`, `sync-comparisons-at`, `at-contract-notes`, `push-contract-at`. Siguen respondiendo si alguien les llama directamente (aunque internamente ya no hagan nada útil porque `at_outbound_enabled=false` y, para varias, bloqueado también por el flag). Borrarlas de Supabase es una acción de despliegue/infra que AGENTS.md (§2) exige pedir explícitamente — no se ha hecho. Ningún cron las llama hoy (comprobado en `cron.job`: no hay ninguno con `at` en el nombre).
 
 **Nueva API:** Enertech/aenergetic (`https://intranet.enertechcore.com/v1`, guía en `docs/BIENVENIDA-NUEVA-API.md`). Análisis de diferencias, viabilidad del conmutador y estrategia de BD en **`docs/analisis-api-enertech-vs-at.md`** (léelo antes de tocar nada de integración). Resumen: se recomienda conmutador con proveedor activo único + migración aditiva (`external_provider`/`external_id` + tabla `external_refs`), sin borrar datos AT. La API nueva NO cubre incidencias, liquidaciones, comparativas, emails ni FTP.
 
@@ -182,39 +201,11 @@ Reglas del cruce:
 
 **Pantalla SIPS — código escrito, SIN desplegar ni probar contra la API real** (`/erp/sips`, consulta de CUPS vía `GET /sips` de Enertech). Independiente del conmutador AT/Enertech. Diseño y fases en §8 del análisis. Piezas: `src/lib/sips/` (validación CUPS, parseo, reintentos; con tests), `src/lib/supabase/sips.ts` (cliente), `src/pages/erp/sips/` (UI), `supabase/functions/enertech-sips-lookup` (+ `_shared/enertech-api.ts`, `sips-cups.ts` espejo de `lib/sips/cups.ts`: mantener sincronizados), migración `20261006120000_enertech_sips_consultas.sql` (NO aplicada). Para ponerla en marcha falta: aplicar la migración, definir `ENERTECH_API_KEY` (y opcional `ENERTECH_API_BASE_URL`, p. ej. `https://devintranet.enertechcore.com/v1`) en las variables de la función y desplegar `enertech-sips-lookup`. Reglas: la API key solo vive en esa Edge Function, usar siempre `resumen` (nunca `datos`), validar el CUPS antes de consultar, manejar `listo/procesando/sin_datos`. Permiso: reutiliza `comparatorAccess` (`canAccessSips` en `lib/staff-permissions.ts`); **tramitación lo tiene a `false` por defecto, así que no ve SIPS hasta que un superadmin se lo active** — decisión pendiente: crear `sipsAccess` propio.
 
-**Contexto:** AT (`https://api.at-enterprise.es/v1`) fue la fuente externa de tarifas, clientes, contratos, incidencias, liquidaciones, comparativas y emails, además de destino de altas de contrato. **Se va a usar otra API a partir de ahora.** Hoy AT está apagada con un interruptor y el ERP vive de la última copia local.
+**Contexto:** AT (`https://api.at-enterprise.es/v1`) fue la fuente externa de tarifas, clientes, contratos, incidencias, liquidaciones, comparativas y emails, además de destino de altas de contrato. Enertech la sustituye (§8). El interruptor `erp_settings.at_outbound_enabled` sigue en la tabla (nadie lo borró) pero **ya no lo lee ningún código del repo** — era él quien bloqueaba las llamadas salientes antes de que se retirara el código que las hacía.
 
-### Cómo está apagada
-
-- Flag `erp_settings.at_outbound_enabled` (fila `id=1`). Lo lee el ERP (`lib/supabase/erp-settings.ts`, `hooks/use-at-outbound-settings.ts`, `AtApiSettingsProvider`) y las Edge Functions (`_shared/at-api.ts → isAtApiEnabled`, caché 3 s). Con flag a `false`, cualquier llamada a AT lanza `AtApiDisabledError`, los webhooks responden ok sin escribir y `push-contract-at` no envía.
-- Solo puede conmutarlo el superadmin con email `AT_OUTBOUND_OWNER_EMAIL` (`lib/at-api-toggle.ts`, `lib/at-outbound-map.ts`).
-- Mensajes por pestaña en `lib/at-api-disabled.ts` (`resolveAtApiDisabledMessage`).
-- **No reactives el flag ni borres datos AT sin orden explícita.**
-
-### Inventario de superficie AT (para limpiar o congelar)
-
-| Zona | Dónde |
-|---|---|
-| Edge Functions de entrada | `supabase/functions/ate-webhooks`, `sync-{tariffs,marcos,clients,contracts,incidents,liquidations,comparisons,emails}-at`, `at-contract-notes` |
-| Edge Function de salida | `supabase/functions/push-contract-at` (ERP → AT) |
-| Compartido | `supabase/functions/_shared/at-*.ts`, `sync-*.ts`, `marco-link.ts`, `sync-marco-settlements.ts` |
-| Cliente ERP | `lib/supabase/{at-ftp,at-comparisons,at-emails,at-contract-notes,push-contract-at}.ts`, `lib/at-*.ts`, `hooks/use-at-*.ts`, `hooks/useFtpExplorer.ts`, `lib/ftp-sources.ts`, `components/FtpPanel.tsx`, pestañas Historial de Comparativas / Comunicaciones / FTP |
-| Columnas con id AT | `tariffs.at_rate_id`, `providers.at_company_id`, `clientes.at_client_id`, `contratos_equipo.at_contract_id`/`at_rate_id`/`at_marco_id`, `marco_retributivo.at_marco_id`/`at_synced_at`/`source='at'`, tablas `at_comparisons`, `at_email_logs`, `at_contract_notes`, `at_contract_prices` |
-| Infra BD | `try_acquire_at_sync_lock`, cron `sync-comparisons-at` (vault `at-sync-webhook-secret`; ver migraciones `20260901000002`, `20260903000001`, `20261001150000` — verifica en remoto si está activo) |
-| Último cleanup | commit `a990792` (catálogo AT del wizard de contrato) y migración `20261001150000_drop_at_catalog.sql` |
-
-### Opciones de decisión (a resolver con el dueño antes de borrar nada)
-
-1. **Pausar y conservar (estado actual, recomendado hasta tener la API nueva).** Dejar código, columnas y datos. Coste: ruido y deuda. Riesgo: ninguno.
-2. **Congelar con corte limpio.** Mantener columnas/datos AT como histórico de solo lectura; borrar sync functions, cron y UI de reactivación; `at_*_id` pasan a ser "legacy".
-3. **Abstraer proveedor.** Introducir una interfaz (`CatalogProvider`/`ContractGateway` en `_shared/`) e implementar la API nueva detrás; AT queda como un adaptador desactivado. Es lo que encaja con SOLID si la API nueva reemplaza varios dominios.
-
-Mientras no se decida:
-
-- **No** añadas funcionalidad nueva dependiente de AT.
-- **No** renombres/borres columnas `at_*` ni migres datos AT.
-- Código nuevo que necesite "origen externo" debe usar un nombre neutro (`external_id`, `source`) o esperar a la decisión.
-- Si limpias código muerto de AT, hazlo en commits separados (`refactor(at): …`), sin mezclar con features, y apunta lo retirado en §12.
+- **No reactives nada de AT ni borres sus datos/columnas `at_*` sin orden explícita** — siguen siendo histórico de solo lectura (ver arriba qué se conservó).
+- Código nuevo que necesite "origen externo" debe usar un nombre neutro (`external_id`, `source`), como ya hace `enertech_comisiones.source` (§8).
+- Decisión de las tres opciones que este fichero dejaba abiertas: **se eligió la 2 (congelar con corte limpio)**, ejecutada en el commit de arriba. Las opciones 1 y 3 quedan descartadas, no hace falta revisarlas de nuevo.
 
 ## 10. Protocolo de actualización de este fichero
 
@@ -251,6 +242,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-08 — AT: decisión del dueño por la opción "congelar con corte limpio" (§9). Retirado del repo todo el código de sync/outbound/reactivación de AT: 11 Edge Functions (`ate-webhooks`, `sync-{clients,comparisons,contracts,emails,incidents,liquidations,marcos,tariffs}-at`, `at-contract-notes`, `push-contract-at`) + sus helpers compartidos; cliente ERP (`at-api-toggle`, `at-outbound-map`, `at-api-disabled`, `AtApiSettingsProvider`, `use-at-outbound-settings`, `use-at-contract-notes`, `push-contract-at.ts`, `at-contract-notes.ts`, `at-ftp.ts`, `erp-settings.ts`); switch "API AT activa/apagada" del sidebar; rama AT del explorador de FTP (nunca tuvo backend propio en este repo — carpeta siempre vacía). Lo que queda: columnas/tablas `at_*` y las pantallas que solo las leen (Historial/Incidencias/Documentos/Notas, comparativas, emails) como histórico de solo lectura permanente, sin ningún refetch contra AT. **Pendiente manual en Supabase (no ejecutado, es acción de despliegue/infra):** las 11 Edge Functions de arriba siguen `ACTIVE` en el proyecto aunque ya no tengan código fuente en el repo ni nada que las llame (ningún cron las invoca hoy) — borrarlas requiere orden explícita.
 - 2026-10-08 — CRUD manual de Marco Retributivo contra `enertech_comisiones` (restringido a `superadmin`/`tramitacion` por RLS, migración `20261008120000_enertech_comisiones_manual_crud.sql`): nueva columna `source` (`'api'`/`'manual'`), motor de sync (`enertech-sync-engine.ts`) corregido para excluir filas `source='manual'` de su detección de "desaparecidas del feed" (si no, una fila creada a mano se habría borrado en el siguiente sync de comisiones). Edición/borrado de filas de la API siguen siendo sobreescritas/restauradas por el próximo sync — los datos de Enertech prevalecen siempre. Botones de crear/editar/borrar de la UI no necesitaron cambios: ya estaban condicionados a `canEdit` (ocultos, no solo deshabilitados), solo fallaban porque las mutaciones apuntaban a la tabla archivada.
 - 2026-10-08 — Marco retributivo pasa a leer `enertech_comisiones` (agrupado por campaña+tarifa, un tramo por fila) en vez de devolver vacío. `enertech_comisiones.company_id` rellenado por comparación con `marco_retributivo_legacy_archive` (~53% de cobertura, 16 compañías; el resto son productos sin histórico manual, compañía desconocida de verdad). Mutaciones (crear/editar/borrar) siguen retiradas. **Pendiente**: ocultar los botones de crear/editar/borrar en la UI de Marco Retributivo (siguen visibles, solo fallan al usarlos).
 - 2026-10-08 — Consolidación Enertech-only: `providers`/`tariffs`/`tariff_prices`/`marco_retributivo` archivadas (`*_legacy_archive`, no borradas); `enertech_comercializadoras`/`enertech_precios` ampliadas con columnas de curación del ERP (`logo_url`/`is_active`, `web_visible`/`erp_active`/`web_alias`/`segment`/etc.); RPC `list_tariffs_catalog_v1` y `update_tariff_web_settings_v1` reescritas sobre Enertech (`update_tariff_web_settings_v1` ahora con `p_tariff_id text`, no `uuid`); `src/lib/supabase/tariffs.ts`, `tariffs-catalog.ts` y `marco-retributivo.ts` reescritos/blindados para no depender de las tablas archivadas. Decisión del dueño: AT descartado por completo (§9), incluidos datos manuales del ERP que no coincidían con Enertech. **Pendiente**: sustituto de `marco_retributivo` sobre `enertech_comisiones` (grano distinto, sin diseñar aún — pantalla de Marco Retributivo queda vacía mientras tanto, sin crashear); retirar en commit `refactor(at):` separado el código de sync AT que ya no se usa; avisar/arreglar el catálogo de tarifas de la web pública (`EnerSave`), que lee las mismas tablas ahora archivadas.

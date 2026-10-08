@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { FileText, Pencil, X } from "lucide-react"
 import { CONTRACT_ESTADO_BORRADOR, normalizeContractEstado } from "@/lib/contract-estado"
@@ -22,13 +22,12 @@ import { ContratoDetalleTabComisiones } from "@/components/contratos/tabs/Contra
 import { ContratoDetalleTabFechas } from "@/components/contratos/tabs/ContratoDetalleTabFechas"
 import { ContratoDetalleTabDocumentos } from "@/components/contratos/tabs/ContratoDetalleTabDocumentos"
 import { ContratoDetalleTabHistorial } from "@/components/contratos/tabs/ContratoDetalleTabHistorial"
-import { useAtContractNotes } from "@/hooks/use-at-contract-notes"
 import type {
   AtContractDocument,
   AtContractEmail,
   AtContractEvent,
   AtContractNote,
-} from "@/lib/supabase/at-contract-notes"
+} from "@/types/at-contract-history"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 
 const SELF_TITLED_DETALLE_TABS = new Set<ContratoDetalleTab>([
@@ -166,41 +165,9 @@ export function ContratoDetallePanel({
   const displayId = resolveContractReferencia(contract)
   const technicalId = formatContractDisplayId(contract.id)
   const isDraft = normalizeContractEstado(contract.estado) === CONTRACT_ESTADO_BORRADOR
-  const atExtras = useAtContractNotes({
-    atContractId: contract.atContractId,
-    contratoId: contract.id,
-    initialNotes: contract.atNotes,
-    initialEvents: contract.atEvents,
-    initialDocuments: contract.atDocuments,
-    initialEmails: contract.atEmails,
-    initialStatusNote: contract.atStatusNote,
-    initialIncidentAt: contract.atIncidentAt,
-    initialPrices: contract.atPrices,
-    initialActivationDate: contract.fechaActivacion,
-  })
-  const liveContract = useMemo<Contract>(
-    () => ({
-      ...contract,
-      atPrices: atExtras.prices.length > 0 ? atExtras.prices : contract.atPrices,
-      fechaActivacion: atExtras.activationDate || contract.fechaActivacion,
-      estadoEfectivoDesde: atExtras.activationDate || contract.estadoEfectivoDesde,
-      atNotes: atExtras.notes,
-      atEvents: atExtras.events,
-      atDocuments: atExtras.documents,
-      atEmails: atExtras.emails,
-      atStatusNote: atExtras.statusNote || contract.atStatusNote,
-    }),
-    [
-      atExtras.activationDate,
-      atExtras.documents,
-      atExtras.emails,
-      atExtras.events,
-      atExtras.notes,
-      atExtras.prices,
-      atExtras.statusNote,
-      contract,
-    ]
-  )
+  // AT ya no se sincroniza en vivo (AGENTS.md §9, "congelar con corte limpio"): los campos
+  // at_* del contrato son historial ya guardado, no un refetch contra la API de AT.
+  const liveContract: Contract = contract
 
   useLayoutEffect(() => {
     const openFrame = requestAnimationFrame(() => setIsOpen(true))
@@ -402,13 +369,13 @@ export function ContratoDetallePanel({
                     activeUserId,
                     activeUserName,
                     onContractUpdated,
-                    atStatusNote: atExtras.statusNote,
-                    atIncidentAt: atExtras.incidentAt,
-                    atNotes: atExtras.notes,
-                    atEvents: atExtras.events,
-                    atDocuments: atExtras.documents,
-                    atEmails: atExtras.emails,
-                    atNotesLoading: atExtras.loading,
+                    atStatusNote: contract.atStatusNote ?? null,
+                    atIncidentAt: contract.atIncidentAt ?? null,
+                    atNotes: contract.atNotes ?? [],
+                    atEvents: contract.atEvents ?? [],
+                    atDocuments: contract.atDocuments ?? [],
+                    atEmails: contract.atEmails ?? [],
+                    atNotesLoading: false,
                     readOnly,
                   })}
                 </section>
@@ -421,8 +388,8 @@ export function ContratoDetallePanel({
               estadoContrato={contract.estado}
               activeUserId={activeUserId}
               activeUserName={activeUserName}
-              atNotes={atExtras.notes}
-              atNotesLoading={atExtras.loading}
+              atNotes={contract.atNotes ?? []}
+              atNotesLoading={false}
               contract={liveContract}
               renderCompaniaLogo={renderCompaniaLogo}
             />

@@ -5,20 +5,17 @@ import {
   FileSpreadsheet,
   FileText,
   Folder,
-  Globe,
   HardDrive,
   Home,
   Loader2,
   Plus,
   Search,
   Trash2,
-  Unplug,
   Upload,
   X,
 } from "lucide-react"
 import { FTP_ROOT_LABEL } from "../data/ftp-seed-catalog"
 import { useFtpExplorer } from "../hooks/useFtpExplorer"
-import { isAtFtpNode } from "../lib/ftp-sources"
 import { FtpExplorerSkeleton } from "./ui/skeletons/FtpSkeletons"
 import type { FtpNode } from "../types/ftp"
 
@@ -53,7 +50,6 @@ function FtpFolderCard({
   onDelete: () => void
   canEdit: boolean
 }) {
-  const fromAt = isAtFtpNode(node)
   return (
     <button
       type="button"
@@ -62,20 +58,15 @@ function FtpFolderCard({
     >
       <span className="relative shrink-0">
         <Folder className="h-10 w-10 text-amber-500/90" aria-hidden />
-        {fromAt && (
-          <Globe className="h-4 w-4 text-sky-600 absolute -bottom-0.5 -right-0.5 bg-brand-panel rounded-full" aria-hidden />
-        )}
       </span>
       <span className="flex-1 min-w-0">
         <span className="block text-xs font-bold text-brand-text uppercase tracking-tight truncate">
           {node.name}
         </span>
-        <span className="block text-[10px] text-brand-subtext mt-1">
-          {fromAt ? "Archivo AT · solo lectura" : "Abrir carpeta"}
-        </span>
+        <span className="block text-[10px] text-brand-subtext mt-1">Abrir carpeta</span>
       </span>
       <span className="flex items-center gap-1 shrink-0">
-        {canEdit && !fromAt && (
+        {canEdit && (
           <span
             role="button"
             tabIndex={0}
@@ -114,7 +105,6 @@ function FtpFileCard({
   canEdit: boolean
 }) {
   const Icon = fileIcon(node.mimeType)
-  const fromAt = isAtFtpNode(node)
   const uploading = node.status === "uploading"
   return (
     <div className="group bg-brand-panel border border-brand-border rounded-xl p-4 flex items-center gap-3 shadow-sm hover:border-cyan-500/35 transition-colors min-h-[88px]">
@@ -123,7 +113,6 @@ function FtpFileCard({
         <p className="text-xs font-semibold text-brand-text truncate">{node.name}</p>
         <p className="text-[10px] font-mono text-brand-subtext mt-0.5">
           {uploading ? "Subiendo…" : formatFileSize(node.sizeBytes)}
-          {fromAt ? " · AT" : ""}
         </p>
       </div>
       {uploading ? (
@@ -138,7 +127,7 @@ function FtpFileCard({
           >
             <Download className="h-3.5 w-3.5" />
           </button>
-          {canEdit && !fromAt && (
+          {canEdit && (
             <button
               type="button"
               onClick={onDelete}
@@ -177,9 +166,7 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
           <div>
             <h2 className="text-xl font-extrabold text-brand-text tracking-tight font-display">FTP</h2>
             <p className="text-xs text-brand-subtext mt-1">
-              {ftp.viewingAt
-                ? "Archivo común de AT Enterprise. Solo lectura, sin sincronizar."
-                : "FTP EnerSave para documentos propios. Subidas en Storage, independientes de AT."}
+              FTP EnerSave para documentos propios. Subidas en Storage, independientes de AT.
             </p>
           </div>
         </div>
@@ -358,26 +345,14 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
 
               {ftp.folders.length === 0 && ftp.files.length === 0 && (
                 <div className="text-center py-16 border border-dashed border-brand-border rounded-2xl bg-brand-surface/30">
-                  {ftp.viewingAt && !ftp.atApiEnabled ? (
-                    <Unplug className="h-10 w-10 mx-auto text-amber-500/80 mb-3" />
-                  ) : (
-                    <Folder className="h-10 w-10 mx-auto text-brand-subtext/60 mb-3" />
-                  )}
+                  <Folder className="h-10 w-10 mx-auto text-brand-subtext/60 mb-3" />
                   <p className="text-sm font-semibold text-brand-text">
-                    {ftp.search
-                      ? "Sin resultados en esta carpeta"
-                      : ftp.viewingAt && !ftp.atApiEnabled
-                        ? "Archivo AT pausado"
-                        : "Carpeta vacía"}
+                    {ftp.search ? "Sin resultados en esta carpeta" : "Carpeta vacía"}
                   </p>
                   <p className="text-xs text-brand-subtext mt-1">
-                    {ftp.viewingAt && !ftp.atApiEnabled
-                      ? "La API de AT está apagada. El archivo de AT no se consulta."
-                      : ftp.canMutateHere
-                        ? "Sube documentos PDF, Word, Excel o CSV desde aquí."
-                        : ftp.viewingAt
-                          ? "No hay documentos en esta carpeta de AT."
-                          : "No hay documentos en esta ubicación."}
+                    {ftp.canMutateHere
+                      ? "Sube documentos PDF, Word, Excel o CSV desde aquí."
+                      : "No hay documentos en esta ubicación."}
                   </p>
                 </div>
               )}
