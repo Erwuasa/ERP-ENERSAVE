@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react"
 import { toast } from "sonner"
 import type { Contract } from "@/types/contract"
-import type { AtContractDocument } from "@/lib/supabase/at-contract-notes"
+import type { AtContractDocument } from "@/types/at-contract-history"
 import { DocumentoSlotCard } from "@/components/contratos/DocumentoSlotCard"
 import { ContratoDocumentosUploadedList } from "@/components/contratos/ContratoDocumentosUploadedList"
 import { ContratoDetalleSection } from "@/components/contratos/contrato-detalle-ui"

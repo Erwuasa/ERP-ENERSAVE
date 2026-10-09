@@ -504,7 +504,7 @@ export function buildContractPatchFromForm(form: NewContractFormState): Partial<
     tipo: form.tipo,
     compania: form.compania,
     tarifa: form.tarifa,
-    tipoPrecio: tipoPrecio === "" ? undefined : tipoPrecio,
+    tipoPrecio,
     consumoAnual: input.consumoAnual,
     consumoAnualManual: form.consumoAnual === "" ? null : Number(form.consumoAnual),
     nif: form.nif || undefined,

@@ -67,7 +67,16 @@ describe("parseContractsFromExcel CRM Aenergetic", () => {
   it("asigna CUPS de Berni al comercial correcto", () => {
     const assigned = resolveImportComercialForCups(
       "ES0031105723137003LW",
-      [{ id: "cf1a0302-39e2-4ccd-a043-10cc0b386dd4", fullName: "Berni", role: "comercial", email: "", commissionPercentage: 50, managerId: null }],
+      [{
+        id: "cf1a0302-39e2-4ccd-a043-10cc0b386dd4",
+        fullName: "Berni",
+        role: "comercial",
+        email: "",
+        commissionPercentage: 50,
+        managerId: null,
+        status: "activo",
+        permissions: { contractsView: true, comparatorAccess: true, quickSettlement: true },
+      }],
       { id: "x", fullName: "Fallback" }
     )
     expect(assigned.comercialId).toBe("cf1a0302-39e2-4ccd-a043-10cc0b386dd4")

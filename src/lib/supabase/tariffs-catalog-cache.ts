@@ -4,28 +4,34 @@ import { readSwrCache, type SwrCacheEntry } from "./stale-while-revalidate-cache
 
 const CATALOG_SOFT_TTL_MS = 3 * 60 * 1000
 
+type TariffSegmento = "residencial" | "pyme"
+
 const catalogByKey = new Map<string, SwrCacheEntry<TariffConPrecios[]>>()
 const inflightByKey = new Map<string, Promise<TariffConPrecios[]>>()
 
-function catalogKey(segmento: string, peaje: string): string {
+function catalogKey(segmento: TariffSegmento, peaje: string): string {
   return `${segmento}|${peaje}`
 }
 
 export function peekTariffsCatalogCache(
-  segmento: string,
+  segmento: TariffSegmento,
   peaje: string
 ): TariffConPrecios[] | null {
   return readSwrCache(catalogByKey.get(catalogKey(segmento, peaje)) ?? null, CATALOG_SOFT_TTL_MS)
 }
 
 export function getTariffsCatalogCacheSnapshot(
-  segmento: string,
+  segmento: TariffSegmento,
   peaje: string
 ): TariffConPrecios[] | null {
   return catalogByKey.get(catalogKey(segmento, peaje))?.data ?? null
 }
 
-function setTariffsCatalogCache(segmento: string, peaje: string, data: TariffConPrecios[]): void {
+function setTariffsCatalogCache(
+  segmento: TariffSegmento,
+  peaje: string,
+  data: TariffConPrecios[]
+): void {
   catalogByKey.set(catalogKey(segmento, peaje), { data, fetchedAt: Date.now() })
 }
 
@@ -35,7 +41,7 @@ export function invalidateAllTariffsCatalogCache(): void {
 }
 
 export async function loadTariffsCatalogStaleWhileRevalidate(
-  segmento: string,
+  segmento: TariffSegmento,
   peaje: string,
   options?: { onRevalidated?: (rows: TariffConPrecios[]) => void }
 ): Promise<{ data: TariffConPrecios[]; error: string | null }> {

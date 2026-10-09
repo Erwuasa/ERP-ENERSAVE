@@ -235,3 +235,15 @@ export async function downloadFtpFileBlob(node: FtpNode): Promise<SupabaseResult
 }
 
 export const FTP_STORAGE_BUCKET = STORAGE_BUCKET
+
+export function triggerBlobDownload(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = objectUrl
+  link.download = fileName || "archivo"
+  link.rel = "noopener"
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}

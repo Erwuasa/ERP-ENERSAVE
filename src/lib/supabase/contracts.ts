@@ -1,4 +1,5 @@
 import type { Contract } from "../../types/contract"
+import type { Profile } from "../../types/profile"
 import { normalizeContractEstado } from "../contract-estado"
 import { resolveContractCompaniaForDisplay } from "../resolve-contract-compania"
 import {
@@ -14,7 +15,6 @@ import {
   type NewContractFormState,
 } from "../contract-registration"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
-import { pushContractToAt } from "./push-contract-at"
 import {
   num,
   resolveSupabaseClient,
@@ -69,7 +69,7 @@ export interface TeamContractInsert {
 export function buildTeamContractRow(
   contract: Contract,
   form: NewContractFormState,
-  sellerProfile?: { managerId?: string | null; fullName?: string } | null
+  sellerProfile?: Pick<Profile, "managerId" | "fullName"> | null
 ): TeamContractInsert {
   const comercial = resolveContractComercialDbFields({
     comercialId: contract.comercialId,
@@ -143,8 +143,11 @@ async function loadProviderByAtCompanyId(
 ): Promise<Map<string, string>> {
   if (providerByAtCompanyIdCache) return providerByAtCompanyIdCache
 
+  // `providers` fue archivada (renombrada a providers_legacy_archive) tras la consolidación en
+  // Enertech (ver AGENTS.md §9). Se consulta el archivo solo para resolver el nombre de
+  // compañía en contratos históricos sincronizados desde AT; no alimenta nada nuevo.
   const { data } = await client
-    .from("providers")
+    .from("providers_legacy_archive")
     .select("name, at_company_id")
     .not("at_company_id", "is", null)
 
@@ -698,7 +701,6 @@ export async function updateTeamContract(
   }
 
   const providers = await loadProviderByAtCompanyId(resolved.client)
-  void pushContractToAt(id)
   return { ok: true, data: mapRowToContract(data as Row, providers) }
 }
 
@@ -775,7 +777,7 @@ export async function insertTeamContractFromImport(
 export async function saveTeamContractToSupabase(
   contract: Contract,
   form: NewContractFormState,
-  sellerProfile?: { managerId?: string | null; fullName?: string } | null
+  sellerProfile?: Pick<Profile, "managerId" | "fullName"> | null
 ): Promise<SaveTeamContractResult> {
   if (!isSupabaseConfigured()) {
     return {
@@ -806,6 +808,5 @@ export async function saveTeamContractToSupabase(
   if (error) return toFailure(error)
 
   const id = String(data.id)
-  void pushContractToAt(id)
   return { ok: true, id }
 }

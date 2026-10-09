@@ -103,7 +103,14 @@ export const ENERTECH_ENTITIES: Record<string, EntityDefinition> = {
   },
   'enertech-sync-comisiones': {
     job: 'enertech-sync-comisiones',
-    table: { table: 'enertech_comisiones', keyColumn: 'clave', entity: 'comisiones', removeMissing: true },
+    table: {
+      table: 'enertech_comisiones',
+      keyColumn: 'clave',
+      entity: 'comisiones',
+      removeMissing: true,
+      // Marco Retributivo CRUD (ERP) can create manual rows here; keep them out of the removal diff.
+      manualSourceColumn: 'source',
+    },
     mapper: mapFeedRow,
     fetchRows: listFetcher('/comisiones', ['filas'], { todas: '1' }),
   },

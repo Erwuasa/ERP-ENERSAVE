@@ -110,7 +110,7 @@ export async function insertContratoHistorialCambioEstado(input: {
   })
 
   if (error) {
-    return { ok: false, reason: "error", message: error.message, table: HISTORIAL_TABLE }
+    return { ok: false, reason: "error", message: error.message }
   }
 
   return { ok: true, data: undefined }
@@ -143,7 +143,6 @@ export async function fetchContratoHistorial(
       ok: false,
       reason: "error",
       message: historialRes.error.message,
-      table: HISTORIAL_TABLE,
     }
   }
 

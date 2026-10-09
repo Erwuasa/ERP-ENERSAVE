@@ -3,8 +3,6 @@ import { AppShell } from "@/components/layout/AppShell"
 import { Outlet } from "react-router-dom"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/erp-workspace-context"
 import { StaffFeedsProvider } from "@/pages/erp/providers/StaffFeedsProvider"
-import { canToggleAtOutboundApi } from "@/lib/at-api-toggle"
-import { AtApiSettingsProvider } from "@/providers/AtApiSettingsProvider"
 import { ErpWorkspaceModals } from "@/pages/erp/workspace/ErpWorkspaceModals"
 import { VentasFichaOverlay } from "@/pages/ventas/overlays/VentasFichaOverlay"
 
@@ -26,29 +24,25 @@ export function ErpWorkspaceShell() {
   } = ws
 
   return (
-    <AtApiSettingsProvider
-      canToggle={canToggleAtOutboundApi(activeRole, activeUser.email)}
-    >
-      <StaffFeedsProvider>
-        <AppShell
-          activeModule={activeModule}
-          currentMenuTab={currentMenuTab}
-          activeRole={activeRole}
-          activeUser={activeUser}
-          superadminViewMode={superadminViewMode}
-          onNavigateToTab={navigateToTab}
-          onSwitchModule={switchAppModule}
-          onToggleSuperadminMode={handleToggleSuperadminMode}
-          onLogout={logout}
-          onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
-          fiscalProfileIncomplete={canEditFiscalProfile && !activeUserFiscalComplete}
-        >
-          <Outlet />
-          <VentasFichaOverlay />
-          <WorkspaceChrome />
-        </AppShell>
-        <ErpWorkspaceModals />
-      </StaffFeedsProvider>
-    </AtApiSettingsProvider>
+    <StaffFeedsProvider>
+      <AppShell
+        activeModule={activeModule}
+        currentMenuTab={currentMenuTab}
+        activeRole={activeRole}
+        activeUser={activeUser}
+        superadminViewMode={superadminViewMode}
+        onNavigateToTab={navigateToTab}
+        onSwitchModule={switchAppModule}
+        onToggleSuperadminMode={handleToggleSuperadminMode}
+        onLogout={logout}
+        onOpenFiscalProfile={canEditFiscalProfile ? openFiscalProfile : undefined}
+        fiscalProfileIncomplete={canEditFiscalProfile && !activeUserFiscalComplete}
+      >
+        <Outlet />
+        <VentasFichaOverlay />
+        <WorkspaceChrome />
+      </AppShell>
+      <ErpWorkspaceModals />
+    </StaffFeedsProvider>
   )
 }

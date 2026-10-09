@@ -12,10 +12,11 @@ import {
   normalizeSegmento,
   type MarcoRetributivoRow,
 } from "./supabase/marco-retributivo"
+import type { ComparadorPeriodSlot } from "./comparador-periods"
 
 export function resolveComparadorConsumoAnualKwh(input: {
   consumoAnualKwh: number | null | undefined
-  consumosMensuales: Record<string, number | null | undefined>
+  consumosMensuales: Partial<Record<ComparadorPeriodSlot, number | null | undefined>>
 }): number {
   const explicit = Number(input.consumoAnualKwh ?? 0)
   if (Number.isFinite(explicit) && explicit > 0) return explicit

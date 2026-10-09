@@ -1,13 +1,6 @@
 import type { FtpBreadcrumbItem, FtpNode } from "../types/ftp"
 import { FTP_ROOT_LABEL } from "../data/ftp-seed-catalog"
-import {
-  FTP_AT_ROOT_ID,
-  FTP_AT_ROOT_LABEL,
-  FTP_LOCAL_ROOT_ID,
-  FTP_LOCAL_ROOT_LABEL,
-  atRutaFromId,
-  isAtFtpId,
-} from "./ftp-sources"
+import { FTP_LOCAL_ROOT_ID, FTP_LOCAL_ROOT_LABEL } from "./ftp-sources"
 
 export function sortFtpNodes(nodes: FtpNode[]): FtpNode[] {
   return [...nodes].sort((a, b) => {
@@ -31,19 +24,6 @@ export function buildFtpBreadcrumb(
 ): FtpBreadcrumbItem[] {
   const crumbs: FtpBreadcrumbItem[] = [{ id: null, label: FTP_ROOT_LABEL }]
   if (!currentFolderId) return crumbs
-
-  if (isAtFtpId(currentFolderId)) {
-    crumbs.push({ id: FTP_AT_ROOT_ID, label: FTP_AT_ROOT_LABEL })
-    const ruta = atRutaFromId(currentFolderId)
-    if (!ruta) return crumbs
-    const parts = ruta.split(/[/\\]+/).filter(Boolean)
-    let acc = ""
-    for (const part of parts) {
-      acc = acc ? `${acc}/${part}` : part
-      crumbs.push({ id: `at:${acc}`, label: part })
-    }
-    return crumbs
-  }
 
   crumbs.push({ id: FTP_LOCAL_ROOT_ID, label: FTP_LOCAL_ROOT_LABEL })
   if (currentFolderId === FTP_LOCAL_ROOT_ID) return crumbs

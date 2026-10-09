@@ -8,7 +8,7 @@ import {
   subscribeContratoNotas,
   type ContratoNota,
 } from "@/lib/supabase/contrato-notas"
-import type { AtContractNote } from "@/lib/supabase/at-contract-notes"
+import type { AtContractNote } from "@/types/at-contract-history"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import type { Contract } from "@/types/contract"
 import { ContratoTarifaMarcoCard } from "@/components/contratos/ContratoTarifaMarcoCard"

@@ -1,14 +1,6 @@
 import { startTransition, useCallback, useEffect, useMemo, useOptimistic, useState } from "react"
 import { toast } from "sonner"
-import { downloadAtFtpFile, listAtFtpFolder, triggerBlobDownload } from "../lib/supabase/at-ftp"
-import {
-  canMutateFtpLocation,
-  FTP_AT_ROOT_ID,
-  FTP_LOCAL_ROOT_ID,
-  atRutaFromId,
-  isAtFtpId,
-  virtualFtpRoots,
-} from "../lib/ftp-sources"
+import { canMutateFtpLocation, FTP_LOCAL_ROOT_ID, virtualFtpRoots } from "../lib/ftp-sources"
 import {
   buildFtpBreadcrumb,
   collectFtpDescendantIds,
@@ -24,19 +16,17 @@ import {
   deleteFtpNode,
   downloadFtpFileBlob,
   listFtpNodes,
+  triggerBlobDownload,
   uploadFtpFile,
 } from "../lib/supabase/ftp-nodes"
-import { useAtApiSettings } from "@/providers/AtApiSettingsProvider"
 import type { FtpNode } from "@/types/ftp"
 
 export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
-  const { active: atApiEnabled } = useAtApiSettings()
   const [localNodes, setLocalNodes] = useState<FtpNode[]>([])
   const [optimisticNodes, addOptimisticFtpNode] = useOptimistic(
     localNodes,
     applyFtpOptimisticAction
   )
-  const [atChildren, setAtChildren] = useState<FtpNode[]>([])
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
@@ -47,25 +37,6 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     if (result.ok) setLocalNodes(result.data)
     else toast.error(result.message)
   }, [])
-
-  const loadAtFolder = useCallback(async (folderId: string) => {
-    if (!atApiEnabled) {
-      setAtChildren([])
-      return
-    }
-    const ruta = atRutaFromId(folderId)
-    const result = await listAtFtpFolder(ruta)
-    if (!result.ok) {
-      setAtChildren([])
-      toast.error(result.message)
-      return
-    }
-    setAtChildren(result.data)
-  }, [atApiEnabled])
-
-  useEffect(() => {
-    if (!atApiEnabled) setAtChildren([])
-  }, [atApiEnabled])
 
   useEffect(() => {
     let cancelled = false
@@ -81,15 +52,15 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   }, [loadLocalNodes])
 
   const children = useMemo(() => {
-    let base: FtpNode[]
-    if (currentFolderId === null) base = virtualFtpRoots()
-    else if (isAtFtpId(currentFolderId)) base = atChildren
-    else base = getFtpChildren(optimisticNodes, currentFolderId)
+    const base =
+      currentFolderId === null
+        ? virtualFtpRoots()
+        : getFtpChildren(optimisticNodes, currentFolderId)
 
     const q = search.trim().toLowerCase()
     if (!q) return base
     return base.filter((n) => n.name.toLowerCase().includes(q))
-  }, [atChildren, currentFolderId, optimisticNodes, search])
+  }, [currentFolderId, optimisticNodes, search])
 
   const folders = useMemo(
     () => children.filter((n) => n.nodeType === "folder"),
@@ -106,20 +77,10 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   )
 
   const canMutateHere = canEdit && canMutateFtpLocation(currentFolderId)
-  const viewingAt = isAtFtpId(currentFolderId)
 
-  async function navigateToFolder(folderId: string | null) {
+  function navigateToFolder(folderId: string | null) {
     setCurrentFolderId(folderId)
     setSearch("")
-    if (folderId && isAtFtpId(folderId)) {
-      if (!atApiEnabled) {
-        setAtChildren([])
-        return
-      }
-      setLoading(true)
-      await loadAtFolder(folderId)
-      setLoading(false)
-    }
   }
 
   function handleCreateFolder(name: string, onSuccess?: () => void) {
@@ -129,7 +90,7 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
       return
     }
     if (!canMutateHere || !currentFolderId) {
-      toast.error("Crea carpetas dentro del FTP EnerSave, no en el archivo AT.")
+      toast.error("Entra en una carpeta del FTP EnerSave para crear una subcarpeta.")
       return
     }
 
@@ -224,10 +185,7 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   }
 
   function handleDelete(node: FtpNode) {
-    if (node.source === "at" || node.id === FTP_AT_ROOT_ID || node.id === FTP_LOCAL_ROOT_ID) {
-      toast.error("El archivo AT es de solo lectura.")
-      return
-    }
+    if (node.id === FTP_LOCAL_ROOT_ID) return
     const label = node.nodeType === "folder" ? "carpeta" : "archivo"
     if (!confirm(`¿Eliminar ${label} «${node.name}»? Esta acción afectará a todos los usuarios.`)) {
       return
@@ -256,15 +214,6 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
   }
 
   async function handleDownload(node: FtpNode) {
-    if (node.source === "at" && node.atRuta) {
-      if (!atApiEnabled) {
-        toast.error("La API de AT está apagada. El archivo AT no se puede descargar.")
-        return
-      }
-      const result = await downloadAtFtpFile(node.atRuta, node.name)
-      if (!result.ok) toast.error(result.message)
-      return
-    }
     const result = await downloadFtpFileBlob(node)
     if (!result.ok) {
       toast.error(result.message)
@@ -284,8 +233,6 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     totals: countFtpFolderContents(children),
     breadcrumbs,
     canMutateHere,
-    viewingAt,
-    atApiEnabled,
     navigateToFolder,
     handleCreateFolder,
     handleUploadFiles,

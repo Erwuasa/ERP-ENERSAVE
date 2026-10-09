@@ -1,5 +1,5 @@
 import { format } from "date-fns"
-import type { EventProps } from "react-big-calendar"
+import type { Event as BigCalendarEvent, EventProps } from "react-big-calendar"
 import type { CalendarioEvento } from "../../types/calendario"
 
 export interface CalendarioUiEventResource {
@@ -9,7 +9,7 @@ export interface CalendarioUiEventResource {
 export function CalendarioEventBlock({
   event,
   title,
-}: EventProps<{ title: string; start: Date; end: Date; allDay?: boolean }>) {
+}: EventProps<BigCalendarEvent>) {
   const start = event.start
   const end = event.end
   const timeLabel =

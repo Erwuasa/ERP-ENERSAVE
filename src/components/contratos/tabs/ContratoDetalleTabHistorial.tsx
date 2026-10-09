@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import type { AtContractEmail, AtContractEvent } from "@/lib/supabase/at-contract-notes"
+import type { AtContractEmail, AtContractEvent } from "@/types/at-contract-history"
 import {
   fetchHistorialContrato,
   type HistorialCambio,

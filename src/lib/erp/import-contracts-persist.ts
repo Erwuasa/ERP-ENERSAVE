@@ -97,14 +97,14 @@ export async function persistImportedContractList(
     const saveResult = await insertTeamContractFromImport(withClientId)
 
     let saved: Contract
-    if (saveResult.ok) {
-      saved = { ...withClientId, id: saveResult.id }
-      persisted.push(saved)
-    } else {
+    if (saveResult.ok === false) {
       warnings.push(
         `${assignedDraft.clientName} (${assignedDraft.cups}): ${saveResult.message ?? "No se pudo guardar en Supabase"}`
       )
       saved = withClientId
+      persisted.push(saved)
+    } else {
+      saved = { ...withClientId, id: saveResult.id }
       persisted.push(saved)
     }
 
