@@ -1,8 +1,7 @@
 import { ScanSearch } from "lucide-react"
 import { AnimatePresence, motion } from "framer-motion"
-import { SIPS_USE_MOCK_DATA } from "@/lib/sips/mock-lookup"
+import { mapSipsListoToVisual, mapSipsQueryResultToVisual } from "@/lib/sips/to-visual"
 import { SipsLoadingAnimation } from "./components/SipsLoadingAnimation"
-import { SipsResultPanel } from "./components/SipsResultPanel"
 import { SipsResultsPanel } from "./components/SipsResultsPanel"
 import { SipsSearchForm } from "./components/SipsSearchForm"
 import { SipsStatusNotice } from "./components/SipsStatusNotice"
@@ -16,9 +15,12 @@ export function SipsPage() {
   const busy = lookup.state.phase === "loading" || lookup.state.phase === "waiting"
   const doneState = lookup.state.phase === "done" ? lookup.state : null
   const listo = doneState?.outcome.status === "listo" ? doneState.outcome : null
-  const demoCharts = doneState?.demoCharts ?? null
+  const visual = listo
+    ? doneState?.demoCharts
+      ? mapSipsQueryResultToVisual(doneState.demoCharts)
+      : mapSipsListoToVisual(listo)
+    : null
   const showStatusNotice =
-    (lookup.state.phase === "loading" && !SIPS_USE_MOCK_DATA) ||
     lookup.state.phase === "waiting" ||
     (lookup.state.phase === "done" &&
       (lookup.state.outcome.status === "error" || lookup.state.outcome.status === "sin_datos"))
@@ -34,9 +36,7 @@ export function SipsPage() {
             <div className="min-w-0">
               <h3 className="text-sm font-extrabold text-brand-text tracking-wide uppercase">Consulta SIPS</h3>
               <p className="text-[10px] font-mono text-brand-subtext mt-0.5 truncate">
-                {SIPS_USE_MOCK_DATA
-                  ? "Demo · gráficos y cifras de prueba"
-                  : "Punto de suministro por CUPS"}
+                Punto de suministro por CUPS
               </p>
             </div>
           </div>
@@ -55,26 +55,26 @@ export function SipsPage() {
           </div>
         </div>
 
-        {lookup.state.phase === "loading" && SIPS_USE_MOCK_DATA ? (
+        {lookup.state.phase === "loading" ? (
           <SipsLoadingAnimation />
         ) : showStatusNotice ? (
           <SipsStatusNotice state={lookup.state} />
         ) : null}
 
         <AnimatePresence mode="wait">
-          {listo && demoCharts ? (
+          {visual ? (
             <motion.div
-              key="demo-charts"
+              key={visual.cups}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
             >
-              <SipsResultsPanel data={demoCharts} onClose={lookup.cancel} />
-            </motion.div>
-          ) : listo ? (
-            <motion.div key="api-result" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <SipsResultPanel outcome={listo} onRefresh={() => lookup.submit({ force: true })} />
+              <SipsResultsPanel
+                data={visual}
+                onClose={lookup.cancel}
+                onRefresh={() => lookup.submit({ force: true })}
+              />
             </motion.div>
           ) : lookup.state.phase === "idle" ? (
             <motion.div
@@ -87,7 +87,7 @@ export function SipsPage() {
                 Introduce un CUPS y pulsa consultar
               </p>
               <p className="text-[10px] font-mono text-brand-subtext/80 mt-1 max-w-md mx-auto">
-                Los resultados aparecerán aquí en una tabla con el detalle del suministro.
+                Verás el suministro, el consumo anual y la potencia contratada por periodo.
               </p>
             </motion.div>
           ) : null}

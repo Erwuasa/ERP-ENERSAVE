@@ -9,6 +9,7 @@ import {
   type SipsQueryResult,
 } from "@/lib/sips-query"
 import { SipsLoadingAnimation } from "@/pages/erp/sips/components/SipsLoadingAnimation"
+import { mapSipsQueryResultToVisual } from "@/lib/sips/to-visual"
 import { SipsResultsPanel } from "@/pages/erp/sips/components/SipsResultsPanel"
 import { ENERSAVE_ACTION } from "@/lib/enersave-ui-theme"
 
@@ -124,7 +125,7 @@ export function SipsConsultaPage() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
           >
-            <SipsResultsPanel data={result} onClose={handleCloseResults} />
+            <SipsResultsPanel data={mapSipsQueryResultToVisual(result)} onClose={handleCloseResults} />
           </motion.div>
         ) : null}
       </AnimatePresence>
