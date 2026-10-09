@@ -238,6 +238,7 @@ export interface UpsertClientInput {
   email?: string
   codigoPostal?: string
   ciudad?: string
+  provincia?: string
   direccion?: string
   tipoCliente?: ClienteTipo
 }
@@ -263,6 +264,8 @@ export function upsertClient(
       email: input.email?.trim() || existing.email,
       codigoPostal: cp || existing.codigoPostal,
       ciudad: input.ciudad?.trim() || existing.ciudad,
+      provincia: input.provincia?.trim() || existing.provincia,
+      direccion: input.direccion?.trim() || existing.direccion,
       tipoCliente: input.tipoCliente || existing.tipoCliente,
     }
     return {
@@ -280,6 +283,8 @@ export function upsertClient(
     email: input.email?.trim(),
     codigoPostal: cp,
     ciudad: input.ciudad?.trim(),
+    provincia: input.provincia?.trim(),
+    direccion: input.direccion?.trim(),
     tipoCliente: input.tipoCliente || inferTipoCliente(input.nombre, input.documento),
     comercialId: input.comercialId,
     archivos: [],
