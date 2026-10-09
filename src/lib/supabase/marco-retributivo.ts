@@ -324,28 +324,97 @@ function tramoComisionBase(payload: Record<string, unknown>, tipo: string): numb
   return Number.isFinite(porMw) ? porMw : 0
 }
 
+async function fetchEnertechComisionesPage(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  from: number
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
+  const { data, error } = await client
+    .from("enertech_comisiones")
+    .select(ENERTECH_COMISIONES_SELECT)
+    .is("removed_at", null)
+    .range(from, from + ENERTECH_COMISIONES_PAGE_SIZE - 1)
+
+  if (error) return mapError(error)
+  return { ok: true, data: (data ?? []) as unknown as EnertechComisionRow[] }
+}
+
+/**
+ * ~19k filas → ~20 páginas de 1000. Pedir el `count` exacto primero permite lanzar todas las
+ * páginas en paralelo (en vez de una por una, que con el join a `enertech_comercializadoras`
+ * tardaba varios segundos de red en serie y hacía sentir la pantalla de Marco Retributivo
+ * "colgada"). Si el `count` falla por lo que sea, se cae al barrido secuencial de antes.
+ */
 async function fetchAllEnertechComisiones(
   client: NonNullable<ReturnType<typeof getSupabaseClient>>
 ): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
-  const all: EnertechComisionRow[] = []
-  let from = 0
+  const { count, error: countError } = await client
+    .from("enertech_comisiones")
+    .select("clave", { count: "exact", head: true })
+    .is("removed_at", null)
 
-  while (true) {
-    const { data, error } = await client
-      .from("enertech_comisiones")
-      .select(ENERTECH_COMISIONES_SELECT)
-      .is("removed_at", null)
-      .range(from, from + ENERTECH_COMISIONES_PAGE_SIZE - 1)
-
-    if (error) return mapError(error)
-
-    const batch = (data ?? []) as unknown as EnertechComisionRow[]
-    all.push(...batch)
-    if (batch.length < ENERTECH_COMISIONES_PAGE_SIZE) break
-    from += ENERTECH_COMISIONES_PAGE_SIZE
+  if (countError || count == null) {
+    // Fallback: barrido secuencial página a página (comportamiento anterior).
+    const all: EnertechComisionRow[] = []
+    let from = 0
+    while (true) {
+      const page = await fetchEnertechComisionesPage(client, from)
+      if (page.ok === false) return page
+      all.push(...page.data)
+      if (page.data.length < ENERTECH_COMISIONES_PAGE_SIZE) break
+      from += ENERTECH_COMISIONES_PAGE_SIZE
+    }
+    return { ok: true, data: all }
   }
 
+  const pageStarts: number[] = []
+  for (let from = 0; from < count; from += ENERTECH_COMISIONES_PAGE_SIZE) pageStarts.push(from)
+  if (pageStarts.length === 0) return { ok: true, data: [] }
+
+  const pages = await Promise.all(pageStarts.map((from) => fetchEnertechComisionesPage(client, from)))
+  const firstError = pages.find((p): p is { ok: false; message: string } => p.ok === false)
+  if (firstError) return firstError
+
+  const all: EnertechComisionRow[] = []
+  for (const page of pages) {
+    if (page.ok) all.push(...page.data)
+  }
   return { ok: true, data: all }
+}
+
+/**
+ * Las filas crudas de `enertech_comisiones` las usan `listMarcoRetributivo` (filtra placeholders)
+ * y `listMarcoRetributivoForDedup` (todas, incl. placeholders) — y además `listMarcoRetributivo`
+ * se llama dos veces seguidas en la práctica: una al montar la pantalla y otra desde la
+ * comprobación automática de duplicados (`shouldRunCatalogDedup`) que corre justo después. Sin
+ * esta caché de muy corta duración, eso eran dos barridos completos de ~19k filas por carga de
+ * pantalla. TTL corto a propósito: es solo para colapsar peticiones simultáneas, no para servir
+ * datos desactualizados.
+ */
+const RAW_COMISIONES_CACHE_TTL_MS = 15 * 1000
+let rawComisionesCache: { data: EnertechComisionRow[]; fetchedAt: number } | null = null
+let rawComisionesInflight: Promise<MarcoRetributivoResult<EnertechComisionRow[]>> | null = null
+
+async function fetchAllEnertechComisionesCached(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
+  if (rawComisionesCache && Date.now() - rawComisionesCache.fetchedAt < RAW_COMISIONES_CACHE_TTL_MS) {
+    return { ok: true, data: rawComisionesCache.data }
+  }
+  if (!rawComisionesInflight) {
+    rawComisionesInflight = fetchAllEnertechComisiones(client).then((result) => {
+      if (result.ok) rawComisionesCache = { data: result.data, fetchedAt: Date.now() }
+      return result
+    })
+    void rawComisionesInflight.finally(() => {
+      rawComisionesInflight = null
+    })
+  }
+  return rawComisionesInflight
+}
+
+function invalidateRawComisionesCache(): void {
+  rawComisionesCache = null
+  rawComisionesInflight = null
 }
 
 function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoRow[] {
@@ -438,7 +507,7 @@ export async function listMarcoRetributivo(): Promise<
     return { ok: true, data: [] }
   }
 
-  const rowsResult = await fetchAllEnertechComisiones(clientOrError)
+  const rowsResult = await fetchAllEnertechComisionesCached(clientOrError)
   if (rowsResult.ok === false) return rowsResult
 
   const grouped = groupEnertechComisiones(rowsResult.data)
@@ -457,7 +526,7 @@ export async function listMarcoRetributivoForDedup(): Promise<
     return { ok: true, data: [] }
   }
 
-  const rowsResult = await fetchAllEnertechComisiones(clientOrError)
+  const rowsResult = await fetchAllEnertechComisionesCached(clientOrError)
   if (rowsResult.ok === false) return rowsResult
 
   return { ok: true, data: groupEnertechComisiones(rowsResult.data).map(mapRow) }
@@ -588,6 +657,7 @@ export async function createMarcoEntry(
     return mapError(error)
   }
 
+  invalidateRawComisionesCache()
   return getMarcoRowById(groupIdForCampaniaPeaje(entry.tarifa, entry.peaje))
 }
 
@@ -650,6 +720,7 @@ export async function updateMarcoEntry(
     }
   }
 
+  invalidateRawComisionesCache()
   return getMarcoRowById(id)
 }
 
@@ -696,6 +767,7 @@ export async function deleteMarcoEntry(
     if (error) return mapError(error)
   }
 
+  invalidateRawComisionesCache()
   return { ok: true, data: undefined }
 }
 
