@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:apply": "node scripts/apply-supabase-sql.mjs",
-    "enertech:smoke": "node --env-file=.env scripts/enertech-smoke.mjs"
+    "enertech:smoke": "node --env-file=.env scripts/enertech-smoke.mjs",
+    "enertech:alta-prueba": "node scripts/enertech-alta-prueba.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

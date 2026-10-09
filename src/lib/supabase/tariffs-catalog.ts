@@ -116,6 +116,17 @@ function isGasTariff(payload: Record<string, unknown> | null): boolean {
   return /gas/i.test(String(payload?.tarifa ?? ""))
 }
 
+function textField(value: unknown): string {
+  return typeof value === "string" ? value.trim() : ""
+}
+
+/** Product name from the Enertech price row. `tarifa` is the access toll (2.0TD), not the offer. */
+export function enertechTariffDisplayName(payload: Record<string, unknown> | null | undefined): string {
+  const campania = textField(payload?.campania)
+  if (campania) return campania
+  return textField(payload?.tarifa)
+}
+
 function resolveProvider(row: EnertechPrecioRow): {
   providerId: string | null
   providerName: string
@@ -137,7 +148,7 @@ export function mapEnertechPrecioRowToConPrecios(row: EnertechPrecioRow): Tariff
   const accessTariff = String(payload.tarifa ?? "")
   return {
     tariffId: row.clave,
-    name: accessTariff,
+    name: enertechTariffDisplayName(payload),
     providerName,
     providerId,
     providerLogoUrl,
