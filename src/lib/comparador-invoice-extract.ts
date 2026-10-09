@@ -5,6 +5,10 @@ import {
   analyzeInvoiceWithAi,
   isInvoiceAiConfigured,
 } from "./comparador/invoice-ai-client"
+import {
+  analyzeInvoiceWithOpenAi,
+  isInvoiceAiOpenAiConfigured,
+} from "./comparador/invoice-ai-openai-client"
 import { mapInvoiceAiToComparadorExtraction } from "./comparador/invoice-ai-to-comparador"
 import { mergeComparadorBillingFromOcrText } from "./comparador-invoice-billing-merge"
 import {
@@ -44,6 +48,21 @@ export async function extractComparadorInvoiceFromFiles(
 
   const { text: ocrText } = await extractDocumentTextForOcr(files[0], onProgress)
   const localParsed = parseContractTextFromOcr(ocrText)
+
+  // Proveedor principal de IA: Edge Function propia sobre OpenAI (gpt-5.6-luna), más barata
+  // que el servicio de terceros de abajo. Si falla o no está configurada, cae al servicio
+  // de terceros y, si tampoco está disponible, al OCR local (comportamiento ya existente).
+  if (isInvoiceAiOpenAiConfigured()) {
+    try {
+      onProgress?.("Analizando con IA…")
+      const payload = await analyzeInvoiceWithOpenAi(files, { onProgress })
+      const aiMapped = mapInvoiceAiToComparadorExtraction(payload)
+      onProgress?.("Ajustando alquiler, total y SVA con lectura de factura…")
+      return mergeComparadorBillingFromOcrText(aiMapped, ocrText, localParsed)
+    } catch (err) {
+      console.warn("Invoice AI (OpenAI) falló, probando siguiente proveedor:", err)
+    }
+  }
 
   if (isInvoiceAiConfigured()) {
     try {

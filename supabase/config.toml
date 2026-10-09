@@ -72,3 +72,6 @@ verify_jwt = false
 
 [functions.enertech-contract-webhook]
 verify_jwt = false
+
+[functions.invoice-ai-openai]
+verify_jwt = false
