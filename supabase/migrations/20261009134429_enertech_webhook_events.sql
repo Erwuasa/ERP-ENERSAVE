@@ -32,7 +32,6 @@ alter table public.enertech_webhook_events enable row level security;
 
 -- Written only by the Edge Function via the service role key (bypasses RLS).
 -- Staff can read for audit/debugging; nobody else gets any access.
-drop policy if exists enertech_webhook_events_select_staff on public.enertech_webhook_events;
 create policy enertech_webhook_events_select_staff
   on public.enertech_webhook_events
   for select
