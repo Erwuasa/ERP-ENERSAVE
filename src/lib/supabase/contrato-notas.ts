@@ -62,7 +62,7 @@ export async function fetchContratoNotas(
     .order("created_at", { ascending: true })
 
   if (error) {
-    return { ok: false, reason: "error", message: error.message, table: "contrato_notas" }
+    return { ok: false, reason: "error", message: error.message }
   }
 
   return { ok: true, data: (data ?? []).map((row) => mapRow(row as Record<string, unknown>)) }
@@ -78,7 +78,6 @@ export async function uploadContratoNotaArchivo(input: {
       ok: false,
       reason: "not_configured",
       message: "Supabase no configurado.",
-      table: CONTRATO_NOTAS_BUCKET,
     }
   }
 
@@ -86,9 +85,8 @@ export async function uploadContratoNotaArchivo(input: {
   if (!client) {
     return {
       ok: false,
-      reason: "no_client",
+      reason: "not_configured",
       message: "Cliente Supabase no disponible.",
-      table: CONTRATO_NOTAS_BUCKET,
     }
   }
 
@@ -104,7 +102,6 @@ export async function uploadContratoNotaArchivo(input: {
       ok: false,
       reason: "error",
       message: error.message,
-      table: CONTRATO_NOTAS_BUCKET,
     }
   }
 
@@ -167,7 +164,6 @@ export async function createContratoNota(input: {
       ok: false,
       reason: "error",
       message: error?.message ?? "No se pudo guardar la nota.",
-      table: "contrato_notas",
     }
   }
 
@@ -228,7 +224,6 @@ export async function getContratoNotaArchivoUrl(
       ok: false,
       reason: "error",
       message: error?.message ?? "No se pudo abrir el archivo.",
-      table: CONTRATO_NOTAS_BUCKET,
     }
   }
 

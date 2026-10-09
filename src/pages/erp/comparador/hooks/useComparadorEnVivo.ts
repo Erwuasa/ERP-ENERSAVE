@@ -128,6 +128,7 @@ export function useComparadorEnVivo(
         companiaActual: form.companiaActual,
         peaje: form.peaje,
         consumoAnualKwh: form.consumoAnualKwh,
+        facturaMensual: form.facturaMensual,
       }),
       [
         form.potencias,
@@ -140,6 +141,7 @@ export function useComparadorEnVivo(
         form.otrosCostesSva,
         form.companiaActual,
         form.peaje,
+        form.facturaMensual,
       ]
     ),
     120

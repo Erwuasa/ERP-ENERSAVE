@@ -1,8 +1,8 @@
-import { COMPARADOR_PERIOD_SLOTS } from "./comparador-periods"
+import { COMPARADOR_PERIOD_SLOTS, type ComparadorPeriodSlot } from "./comparador-periods"
 
 export function hasComparadorUserProvidedData(input: {
-  potencias: Record<string, number | null | undefined>
-  consumos: Record<string, number | null | undefined>
+  potencias: Record<ComparadorPeriodSlot, number | null | undefined>
+  consumos: Record<ComparadorPeriodSlot, number | null | undefined>
   consumoAnualKwh?: number | null
   facturaMensual?: number | null
 }): boolean {

@@ -127,12 +127,8 @@ export async function listRetrocomisionSchedules(): Promise<
   }
 
   const clientOrError = resolveSupabaseClient()
-  if (!clientOrError.ok) {
-    return {
-      ok: false,
-      reason: clientOrError.reason,
-      message: clientOrError.message,
-    }
+  if (clientOrError.ok === false) {
+    return clientOrError
   }
 
   const { data, error } = await clientOrError.client

@@ -166,7 +166,6 @@ export async function syncWizardDocumentosToSupabase(input: {
       ok: false,
       reason: "error",
       message: warnings[0] ?? "No se pudieron subir los documentos del wizard.",
-      table: CONTRATO_DOCUMENTOS_BUCKET,
       warnings,
     }
   }
@@ -182,7 +181,6 @@ export async function uploadContratoDocumento(
       ok: false,
       reason: "not_configured",
       message: "Supabase no configurado.",
-      table: CONTRATO_DOCUMENTOS_BUCKET,
     }
   }
 
@@ -192,7 +190,6 @@ export async function uploadContratoDocumento(
       ok: false,
       reason: "not_configured",
       message: "Cliente Supabase no disponible.",
-      table: CONTRATO_DOCUMENTOS_BUCKET,
     }
   }
 
@@ -212,7 +209,6 @@ export async function uploadContratoDocumento(
       ok: false,
       reason: "error",
       message: upload.error.message || "No se pudo subir el documento.",
-      table: CONTRATO_DOCUMENTOS_BUCKET,
     }
   }
 
@@ -268,7 +264,6 @@ export async function getContratoDocumentoDownloadUrl(
       ok: false,
       reason: "error",
       message: error?.message ?? "No se pudo generar el enlace de descarga.",
-      table: CONTRATO_DOCUMENTOS_BUCKET,
     }
   }
 
@@ -307,7 +302,6 @@ export async function downloadContratoDocumentoBlob(
       ok: false,
       reason: "error",
       message: error?.message ?? "No se pudo descargar el documento.",
-      table: CONTRATO_DOCUMENTOS_BUCKET,
     }
   }
 
