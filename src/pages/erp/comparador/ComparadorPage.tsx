@@ -393,6 +393,7 @@ export function ComparadorPage() {
                     key={opt.id}
                     option={opt}
                     segment={compSegment}
+                    accessTariff={compAccessTariff}
                     sortMode={compSortMode}
                     savedToHistory={savedToHistory}
                     renderCompaniaLogo={(brandName, logoUrl) =>

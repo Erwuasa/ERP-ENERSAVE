@@ -40,6 +40,7 @@ export interface ComparadorOfferOption {
 interface ComparadorOfferCardProps {
   option: ComparadorOfferOption
   segment: "residencial" | "pyme"
+  accessTariff?: string
   sortMode?: ComparadorSortMode
   savedToHistory?: boolean
   renderCompaniaLogo: (brandName: string, logoUrl?: string | null) => ReactNode
@@ -66,6 +67,7 @@ function savingsTone(savingsAnnual: number): "positive" | "neutral" | "negative"
 export function ComparadorOfferCard({
   option,
   segment,
+  accessTariff,
   sortMode = "ahorro",
   savedToHistory = false,
   renderCompaniaLogo,
@@ -181,6 +183,11 @@ export function ComparadorOfferCard({
         <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand-surface text-brand-subtext border border-brand-border">
           {pricingLabelText}
         </span>
+        {accessTariff ? (
+          <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-brand-surface text-brand-subtext border border-brand-border">
+            {accessTariff}
+          </span>
+        ) : null}
       </div>
 
       <div className="mt-4 space-y-1.5 text-sm">
