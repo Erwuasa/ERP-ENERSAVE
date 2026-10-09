@@ -127,8 +127,9 @@ export function resolveContractCompaniaForDisplay(input: {
   }
 
   const fromMarco = resolveFromTarifaCatalog({
-    ...input,
-    compania: null,
+    tarifa: input.tarifa,
+    oferta: input.oferta,
+    marcoRows: input.marcoRows,
   })
   if (fromMarco) return fromMarco
 

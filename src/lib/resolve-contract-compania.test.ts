@@ -3,6 +3,43 @@ import {
   inferCompaniaFromTarifaOffer,
   resolveContractCompaniaForDisplay,
 } from "./resolve-contract-compania"
+import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+
+function sampleMarcoRow(overrides: Partial<MarcoRetributivoRow>): MarcoRetributivoRow {
+  return {
+    id: overrides.id ?? "1",
+    compania: overrides.compania ?? "Endesa",
+    tarifa: overrides.tarifa ?? "TEST",
+    tipo: "luz",
+    peaje: "2.0TD",
+    segmento: "residencial",
+    condicion_1: null,
+    condicion_2: null,
+    condiciones: null,
+    comision_tipo: "fija",
+    comision_base: 1,
+    comision_unidad: "eur_cups",
+    vigencia_meses: 12,
+    fecha_inicio: "2026-01-01",
+    activo: true,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+    updated_by: null,
+    energia_p1: null,
+    energia_p2: null,
+    energia_p3: null,
+    energia_p4: null,
+    energia_p5: null,
+    energia_p6: null,
+    potencia_p1: null,
+    potencia_p2: null,
+    potencia_p3: null,
+    potencia_p4: null,
+    potencia_p5: null,
+    potencia_p6: null,
+    ...overrides,
+  }
+}
 
 describe("inferCompaniaFromTarifaOffer", () => {
   it("mapea Luz One a Naturgy", () => {
@@ -62,18 +99,11 @@ describe("resolveContractCompaniaForDisplay", () => {
         compania: "Gana Energía",
         tarifa: "Precio de Mercado",
         marcoRows: [
-          {
+          sampleMarcoRow({
             id: "nordy",
             compania: "Nordy",
             tarifa: "Tarifa Mercado",
-            tipo: "luz",
-            peaje: "2.0TD",
-            condiciones: "",
-            comisionTipo: "fija",
-            comisionBase: 1,
-            comisionUnidad: "eur_cups",
-            vigenciaMeses: 12,
-          },
+          }),
         ],
       })
     ).toBe("Gana Energía")
@@ -85,18 +115,11 @@ describe("resolveContractCompaniaForDisplay", () => {
         compania: "Repsol",
         tarifa: "PRECIO FIJO CDR TA24HPLUS 12M V29",
         marcoRows: [
-          {
+          sampleMarcoRow({
             id: "bad",
             compania: "Axpo",
             tarifa: "V29",
-            tipo: "luz",
-            peaje: "2.0TD",
-            condiciones: "",
-            comisionTipo: "fija",
-            comisionBase: 1,
-            comisionUnidad: "eur_cups",
-            vigenciaMeses: 12,
-          },
+          }),
         ],
       })
     ).toBe("Repsol")

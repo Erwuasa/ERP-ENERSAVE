@@ -1,4 +1,5 @@
 import type { Contract } from "../../types/contract"
+import type { Profile } from "../../types/profile"
 import { normalizeContractEstado } from "../contract-estado"
 import { resolveContractCompaniaForDisplay } from "../resolve-contract-compania"
 import {
@@ -68,7 +69,7 @@ export interface TeamContractInsert {
 export function buildTeamContractRow(
   contract: Contract,
   form: NewContractFormState,
-  sellerProfile?: { managerId?: string | null; fullName?: string } | null
+  sellerProfile?: Pick<Profile, "managerId" | "fullName"> | null
 ): TeamContractInsert {
   const comercial = resolveContractComercialDbFields({
     comercialId: contract.comercialId,
@@ -776,7 +777,7 @@ export async function insertTeamContractFromImport(
 export async function saveTeamContractToSupabase(
   contract: Contract,
   form: NewContractFormState,
-  sellerProfile?: { managerId?: string | null; fullName?: string } | null
+  sellerProfile?: Pick<Profile, "managerId" | "fullName"> | null
 ): Promise<SaveTeamContractResult> {
   if (!isSupabaseConfigured()) {
     return {

@@ -18,6 +18,7 @@ describe("buildComparadorDesgloseTable", () => {
       },
       alquilerMensual: 0,
       totalMensualOferta: 50,
+      totalMensualActual: null,
       diasFacturacion: 30,
     })
 
@@ -40,6 +41,7 @@ describe("buildComparadorDesgloseTable", () => {
       energiaReactivaMensual: 3,
       ieeMensualOferta: 4,
       totalMensualOferta: 20,
+      totalMensualActual: null,
       diasFacturacion: 30,
     })
 
@@ -66,6 +68,7 @@ describe("buildComparadorDesgloseTable", () => {
       },
       alquilerMensual: 0,
       totalMensualOferta: 100,
+      totalMensualActual: null,
       diasFacturacion: 30,
     })
 
