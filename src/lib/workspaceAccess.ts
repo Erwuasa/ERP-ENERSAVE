@@ -1,6 +1,7 @@
 import type { AppModule } from "@/constants/navigation"
 import { pathToMenuTab } from "@/constants/navigation"
 import { getVisibleSidebarItems } from "@/lib/navigation/sidebar-items"
+import { canAccessEnertechWebhookAudit, isEnertechWebhookAuditSegment } from "@/lib/enertech-webhook-audit-access"
 import {
   canAccessComparator,
   canAccessSips,
@@ -31,6 +32,12 @@ export function canAccessWorkspaceSegment(
     if (isSipsWorkspaceSegment(segment) && !canAccessSips(ws.activeRole, permissions)) {
       return false
     }
+    if (
+      isEnertechWebhookAuditSegment(segment) &&
+      !canAccessEnertechWebhookAudit(ws.activeRole, ws.activeUser.email)
+    ) {
+      return false
+    }
   }
 
   if (module === "ventas" && isContractsWorkspaceSegment(segment)) {
@@ -47,6 +54,7 @@ export function canAccessWorkspaceSegment(
     activeRole: ws.activeRole,
     superadminViewMode: ws.superadminViewMode,
     staffPermissions: permissions,
+    staffEmail: ws.activeUser.email,
   })
 
   return visible.some((item) => item.name === tabForAccess)

@@ -75,6 +75,8 @@ scripts/                  # import CRM Excel, apply SQL
 
 Rutas: `/erp/<slug>` y `/ventas/<slug>`. Para añadir una pantalla: tab en `constants/navigation.ts` → ruta lazy en `pages/<modulo>/routes/` → registrar en `lib/router.tsx` y `lib/workspaceModuleRegistry.ts` → permisos en `lib/workspaceAccess.ts`.
 
+- **Auditoría webhooks Enertech:** `/erp/enertech-webhooks` (`pages/erp/enertech-webhooks/`, `lib/supabase/enertech-webhook-events.ts`, tabla `enertech_webhook_events`). Solo lectura. Visible para tramitación y superadmin dueño (`AT_OUTBOUND_OWNER_EMAIL`, hoy `germanbayonr@gmail.com`); acceso en `lib/enertech-webhook-audit-access.ts`.
+
 ### Convenciones de código
 
 - Alias `@/` → `src/`. `tsconfig` sin `strict`; aun así escribe tipos explícitos.
@@ -162,6 +164,8 @@ Detalle completo en `docs/sync-at-supabase.md`. Resumen:
 | `GET /sips` | `enertech_sips_consultas` | `enertech-sips-lookup` | — (bajo demanda) |
 | `GET /perfil` | — | `enertech-perfil` (valida la clave) | — |
 
+- **Auditoría webhooks (ERP):** tabla `enertech_webhook_events` (lectura staff vía RLS). Pantalla `/erp/enertech-webhooks` lista eventos recibidos (firma, resumen de payload); no sustituye la Edge Function de verificación.
+
 - Migraciones: `20261006120000_enertech_sips_consultas.sql` y `20261006130000_enertech_mirror_tables.sql` (tablas, RLS, locks, cron, flag). **Ninguna aplicada.**
 - Cada tabla espejo guarda `payload` (fila cruda completa), `content_hash`, `actualizado_en`, `first_seen_at/last_seen_at/changed_at/removed_at`. Una fila cuenta como cambiada si `actualizado_en` difiere **o** el hash difiere (`_shared/enertech-diff.ts`). Los cambios quedan en `enertech_catalog_changes` (base para avisos). Las filas que desaparecen de un feed completo se marcan `removed_at`, nunca se borran; protección: no se aplican bajas tras una respuesta vacía o con menos de la mitad de filas. Contratos es incremental: nunca marca bajas; el cursor vive en `enertech_sync_state` (último `fecha_actualizacion` − 120 s).
 - Motor: `_shared/enertech-sync-runner.ts` (auth, explore/sync, flag, lock, log de ejecuciones en `enertech_sync_runs`), `enertech-sync-engine.ts` (upsert + diff), `enertech-entities.ts` (una definición por endpoint), `enertech-mappers.ts` (fila cruda → columnas; **nombres de campo de comercializadoras/precios/comisiones son suposiciones tolerantes: el OpenAPI no los fija**).
@@ -241,6 +245,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-09 — Pantalla auditoría webhooks Enertech (`/erp/enertech-webhooks`, `enertech_webhook_events`, acceso superadmin dueño + tramitación).
 - 2026-10-06 — Espejo Enertech con prefijo `enertech_` (6 tablas + sips + sync/log/locks), 7 Edge Functions de sync con cron, flag `enertech_sync_enabled`, smoke script y tests con Supabase simulado. SIPS renombrada a `enertech_sips_consultas` / `enertech-sips-lookup`. Todo sin aplicar/desplegar.
 - 2026-10-06 — Pantalla SIPS implementada (lib + tests, Edge Function `enertech-sips-lookup`, migración `enertech_sips_consultas`, UI `/erp/sips`, sidebar y permisos). Pendiente: aplicar migración, secret, deploy y prueba con clave `devintranet`.
 - 2026-10-06 — Análisis API Enertech vs AT (`docs/analisis-api-enertech-vs-at.md`); §9 y §11 actualizados. Sin cambios de código ni de BD.
