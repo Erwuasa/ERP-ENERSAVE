@@ -43,11 +43,11 @@ export function MarcoRetributivoToolbar({
   return (
     <>
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-brand-border pb-2.5">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto">
           <span className="p-1.5 rounded-lg bg-blue-600/10 text-blue-600 shrink-0">
             <Coins className="w-5 h-5" aria-hidden />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1 lg:flex-none">
             <CompaniaFilterSelect
               value={companiaFilter}
               onChange={setCompaniaFilter}
@@ -58,6 +58,7 @@ export function MarcoRetributivoToolbar({
               fieldLabel="Marco retributivo"
               accent="blue"
               size="compact"
+              className="max-w-full"
             />
             {!supabaseConfigured && (
               <p className="text-[9px] font-mono text-amber-600 mt-1 pl-0.5">
@@ -67,13 +68,13 @@ export function MarcoRetributivoToolbar({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           {canDedup && onDedupDuplicates ? (
             <button
               type="button"
               onClick={onDedupDuplicates}
               disabled={deduping}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/15 cursor-pointer disabled:opacity-50"
+              className="inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/15 cursor-pointer disabled:opacity-50"
             >
               {deduping ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -87,7 +88,7 @@ export function MarcoRetributivoToolbar({
             <button
               type="button"
               onClick={onCreate}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-cyan-600 bg-cyan-600 text-white hover:bg-cyan-500 cursor-pointer"
+              className="inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-cyan-600 bg-cyan-600 text-white hover:bg-cyan-500 cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               Nueva entrada
@@ -102,7 +103,7 @@ export function MarcoRetributivoToolbar({
               key={tipo}
               type="button"
               onClick={() => setTipoFilter(tipo)}
-              className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
+              className={`max-w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
                 tipoFilter === tipo
                   ? "bg-blue-600 text-white border-blue-600"
                   : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
@@ -124,7 +125,7 @@ export function MarcoRetributivoToolbar({
               key={segmento.id}
               type="button"
               onClick={() => setSegmentoFilter(segmento.id)}
-              className={`px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
+              className={`max-w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
                 segmentoFilter === segmento.id
                   ? segmento.id === "residencial"
                     ? "bg-emerald-600 text-white border-emerald-600"
@@ -141,7 +142,7 @@ export function MarcoRetributivoToolbar({
       </div>
 
       {peajeOptions.length > 2 && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <span className="text-[9px] font-mono uppercase text-slate-500 w-full sm:w-auto">
             Peaje / ATR
           </span>
@@ -150,7 +151,7 @@ export function MarcoRetributivoToolbar({
               key={peaje}
               type="button"
               onClick={() => setPeajeFilter(peaje)}
-              className={`px-2.5 py-1 text-[9px] font-mono rounded-md border cursor-pointer ${
+              className={`max-w-full shrink-0 whitespace-nowrap px-2.5 py-1 text-[9px] font-mono rounded-md border cursor-pointer ${
                 peajeFilter === peaje
                   ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-700"
                   : "border-brand-border text-brand-subtext"
