@@ -339,11 +339,44 @@ async function fetchEnertechComisionesPage(
 }
 
 /**
- * ~19k filas → ~20 páginas de 1000. Pedir el `count` exacto primero permite lanzar todas las
- * páginas en paralelo (en vez de una por una, que con el join a `enertech_comercializadoras`
- * tardaba varios segundos de red en serie y hacía sentir la pantalla de Marco Retributivo
- * "colgada"). Si el `count` falla por lo que sea, se cae al barrido secuencial de antes.
+ * Lanzar las ~20 páginas TODAS a la vez saturaba Postgres (varias acababan en `57014`, timeout
+ * de sentencia, bajo esa carga simultánea) y una sola página fallida tiraba el resultado entero
+ * — la pantalla volvía a quedarse en 0 filas. Un pool con concurrencia limitada da casi todo el
+ * beneficio del paralelismo sin ahogar la BD. Cada página lleva además un reintento: un 57014
+ * puntual bajo carga no debería tirar toda la carga de la pantalla.
  */
+const ENERTECH_COMISIONES_MAX_CONCURRENCY = 4
+
+async function fetchEnertechComisionesPageWithRetry(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  from: number
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
+  const first = await fetchEnertechComisionesPage(client, from)
+  if (first.ok) return first
+  // Un único reintento: cubre un timeout puntual por contención momentánea, no un fallo real.
+  return fetchEnertechComisionesPage(client, from)
+}
+
+async function runWithConcurrencyLimit<T>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<MarcoRetributivoResult<EnertechComisionRow[]>>
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>[]> {
+  const results: MarcoRetributivoResult<EnertechComisionRow[]>[] = new Array(items.length)
+  let next = 0
+
+  async function worker() {
+    while (true) {
+      const index = next++
+      if (index >= items.length) return
+      results[index] = await task(items[index]!)
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return results
+}
+
 async function fetchAllEnertechComisiones(
   client: NonNullable<ReturnType<typeof getSupabaseClient>>
 ): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
@@ -357,7 +390,7 @@ async function fetchAllEnertechComisiones(
     const all: EnertechComisionRow[] = []
     let from = 0
     while (true) {
-      const page = await fetchEnertechComisionesPage(client, from)
+      const page = await fetchEnertechComisionesPageWithRetry(client, from)
       if (page.ok === false) return page
       all.push(...page.data)
       if (page.data.length < ENERTECH_COMISIONES_PAGE_SIZE) break
@@ -370,7 +403,11 @@ async function fetchAllEnertechComisiones(
   for (let from = 0; from < count; from += ENERTECH_COMISIONES_PAGE_SIZE) pageStarts.push(from)
   if (pageStarts.length === 0) return { ok: true, data: [] }
 
-  const pages = await Promise.all(pageStarts.map((from) => fetchEnertechComisionesPage(client, from)))
+  const pages = await runWithConcurrencyLimit(
+    pageStarts,
+    ENERTECH_COMISIONES_MAX_CONCURRENCY,
+    (from) => fetchEnertechComisionesPageWithRetry(client, from)
+  )
   const firstError = pages.find((p): p is { ok: false; message: string } => p.ok === false)
   if (firstError) return firstError
 
