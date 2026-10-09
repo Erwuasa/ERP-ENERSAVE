@@ -1,8 +1,8 @@
 import { fetchSipsByCups, type SipsQueryResult } from "@/lib/sips-query"
 import type { SipsOutcome, SipsProducto } from "@/lib/sips/types"
 
-/** Mientras no haya respuesta estable del proveedor, las consultas usan datos demo. */
-export const SIPS_USE_MOCK_DATA = true
+/** enertech-sips-lookup ya está desplegada (2026-10-09): las consultas usan la API real. */
+export const SIPS_USE_MOCK_DATA = false
 
 export function mapSipsQueryToListoOutcome(data: SipsQueryResult): Extract<SipsOutcome, { status: "listo" }> {
   const potenciasKw: Record<string, number> = {}
