@@ -11,6 +11,7 @@ function sampleRow(compania: string, id: string): MarcoRetributivoRow {
   return {
     id,
     compania,
+    companiaLogoUrl: null,
     tarifa: "TEST",
     tipo: "luz",
     peaje: "2.0TD",

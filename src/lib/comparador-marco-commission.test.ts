@@ -51,6 +51,7 @@ function marcoRow(partial: Partial<MarcoRetributivoRow> & Pick<MarcoRetributivoR
       },
     ],
     ...partial,
+    companiaLogoUrl: partial.companiaLogoUrl ?? null,
   }
 }
 

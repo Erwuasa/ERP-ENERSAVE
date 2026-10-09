@@ -39,6 +39,7 @@ export function useMarcoRetributivoEditModal({
   const comisionPreview = useMemo(() => {
     const draft: MarcoRetributivoRow = {
       id: entry?.id ?? "draft",
+      companiaLogoUrl: entry?.companiaLogoUrl ?? null,
       ...form,
       condicion_1: form.condicion_1 || null,
       condicion_2: form.condicion_2 || null,

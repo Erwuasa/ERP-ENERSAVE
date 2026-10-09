@@ -30,6 +30,7 @@ export function MarcoEditModalComisionesSection({
   const condicion2Label =
     resolveMarcoCondicion2Label({
       id: "modal",
+      companiaLogoUrl: null,
       ...form,
       condicion_1: form.condicion_1 || null,
       condicion_2: form.condicion_2 || null,

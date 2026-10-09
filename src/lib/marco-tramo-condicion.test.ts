@@ -20,6 +20,7 @@ describe("marco-tramo-condicion", () => {
       resolveMarcoCondicion2Label({
         id: "1",
         compania: "Naturgy",
+        companiaLogoUrl: null,
         tarifa: "BASE",
         tipo: "luz",
         peaje: "Todas",
@@ -74,6 +75,7 @@ describe("marco-tramo-condicion", () => {
       resolveMarcoCondicion2Label({
         id: "1",
         compania: "Neon",
+        companiaLogoUrl: null,
         tarifa: "FIJA AIRE",
         tipo: "luz",
         peaje: "6.1TD",

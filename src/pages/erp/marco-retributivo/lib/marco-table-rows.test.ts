@@ -45,6 +45,7 @@ function makeRow(overrides: Partial<MarcoRetributivoRow>): MarcoRetributivoRow {
       { desde_kwh: 30001, hasta_kwh: 999999999, comision_base: 184, unidad: "eur_cups" },
     ],
     ...overrides,
+    companiaLogoUrl: overrides.companiaLogoUrl ?? null,
   }
 }
 

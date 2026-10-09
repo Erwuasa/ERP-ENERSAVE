@@ -14,7 +14,7 @@ export interface MarcoRetributivoPanelProps {
   superadminViewMode?: "tramitacion" | "comercial"
   commissionPercentage: number
   formatCurrency: (val: number) => string
-  renderCompaniaLogo: (brandName: string) => ReactNode
+  renderCompaniaLogo: (brandName: string, logoUrl: string | null) => ReactNode
 }
 
 export function MarcoRetributivoPanel({

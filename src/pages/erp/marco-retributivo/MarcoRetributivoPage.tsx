@@ -18,8 +18,8 @@ export function MarcoRetributivoPage() {
         superadminViewMode={superadminViewMode}
         commissionPercentage={activeUser.commissionPercentage}
         formatCurrency={formatCurrency}
-        renderCompaniaLogo={(brandName) =>
-          renderCompaniaLogo(brandName, null, "md")
+        renderCompaniaLogo={(brandName, logoUrl) =>
+          renderCompaniaLogo(brandName, logoUrl, "md")
         }
       />
     </div>

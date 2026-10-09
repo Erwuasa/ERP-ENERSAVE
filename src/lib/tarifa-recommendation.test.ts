@@ -66,6 +66,7 @@ function marcoRow(
     potencia_p6: null,
     incluye_sva: false,
     ...overrides,
+    companiaLogoUrl: overrides.companiaLogoUrl ?? null,
   }
 }
 

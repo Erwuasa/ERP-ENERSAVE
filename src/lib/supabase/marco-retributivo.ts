@@ -39,6 +39,7 @@ export function formatMarcoSegmentoLabel(segmento: MarcoSegmento): string {
 export interface MarcoRetributivoRow {
   id: string
   compania: string
+  companiaLogoUrl: string | null
   tarifa: string
   tipo: "luz" | "gas"
   peaje: string
@@ -183,6 +184,7 @@ export function catalogEntryToRow(entry: MarcoRetributivoEntry): MarcoRetributiv
   return {
     id: catalogSlugToUuid(entry.id),
     compania: entry.compania,
+    companiaLogoUrl: null,
     tarifa: entry.tarifa,
     tipo: entry.tipo,
     peaje: entry.peaje,
@@ -266,19 +268,34 @@ function isMarcoTableMissingError(error: { message?: string; code?: string }): b
 
 const ENERTECH_COMISIONES_PAGE_SIZE = 1000
 
+export interface EnertechComercializadoraEmbed {
+  nombre: string | null
+  logo_url: string | null
+}
+
 interface EnertechComisionRow {
   clave: string
   company_id: number | null
   payload: Record<string, unknown> | null
-  enertech_comercializadoras: { nombre: string | null } | { nombre: string | null }[] | null
+  enertech_comercializadoras: EnertechComercializadoraEmbed | EnertechComercializadoraEmbed[] | null
 }
 
 const ENERTECH_COMISIONES_SELECT = `
   clave,
   company_id,
   payload,
-  enertech_comercializadoras ( nombre )
+  enertech_comercializadoras ( nombre, logo_url )
 `
+
+/** Nombre y logo que vienen del embed de `enertech_comercializadoras`. */
+export function readEnertechComercializadora(
+  nested: EnertechComercializadoraEmbed | EnertechComercializadoraEmbed[] | null
+): { nombre: string; logoUrl: string | null } {
+  const row = Array.isArray(nested) ? nested[0] : nested
+  const nombre = row?.nombre?.trim() ?? ""
+  const rawLogo = typeof row?.logo_url === "string" ? row.logo_url.trim() : ""
+  return { nombre, logoUrl: rawLogo || null }
+}
 
 function parseTramoRangeKwh(text: string): { desde: number; hasta: number } | null {
   const normalized = text.trim().toLowerCase()
@@ -473,10 +490,9 @@ function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoR
 
   for (const { campania, peaje, rows: groupRows } of groups.values()) {
     const first = groupRows[0]!
-    const nested = Array.isArray(first.enertech_comercializadoras)
-      ? first.enertech_comercializadoras[0]
-      : first.enertech_comercializadoras
-    const compania = nested?.nombre?.trim() ?? ""
+    const { nombre: compania, logoUrl: companiaLogoUrl } = readEnertechComercializadora(
+      first.enertech_comercializadoras
+    )
 
     const tramos: MarcoConsumoTramo[] = []
     for (const row of groupRows) {
@@ -500,6 +516,7 @@ function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoR
     result.push({
       id: catalogSlugToUuid(`comision:${campania.toLowerCase()}::${peaje.toLowerCase()}`),
       compania,
+      companiaLogoUrl,
       tarifa: campania,
       tipo,
       peaje,

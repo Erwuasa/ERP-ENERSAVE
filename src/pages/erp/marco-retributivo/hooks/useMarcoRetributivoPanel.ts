@@ -250,6 +250,7 @@ export function useMarcoRetributivoPanel({
       toast.message("Supabase no configurado: entrada añadida en memoria local.")
       const local: MarcoRetributivoRow = {
         id: `local-${Date.now()}`,
+        companiaLogoUrl: null,
         ...input,
         condicion_1: input.condicion_1 ?? null,
         condicion_2: input.condicion_2 ?? null,
@@ -277,6 +278,7 @@ export function useMarcoRetributivoPanel({
     const tempId = `optimistic-marco-${crypto.randomUUID()}`
     const optimistic: MarcoRetributivoRow = {
       id: tempId,
+      companiaLogoUrl: null,
       ...input,
       condicion_1: input.condicion_1 ?? null,
       condicion_2: input.condicion_2 ?? null,

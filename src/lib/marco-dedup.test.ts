@@ -41,6 +41,7 @@ function sampleRow(overrides: Partial<MarcoRetributivoRow>): MarcoRetributivoRow
     potencia_p5: null,
     potencia_p6: null,
     ...overrides,
+    companiaLogoUrl: overrides.companiaLogoUrl ?? null,
   }
 }
 

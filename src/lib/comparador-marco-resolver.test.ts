@@ -36,6 +36,7 @@ function marco(partial: Partial<MarcoRetributivoRow> & Pick<MarcoRetributivoRow,
     potencia_p5: null,
     potencia_p6: null,
     ...partial,
+    companiaLogoUrl: partial.companiaLogoUrl ?? null,
   }
 }
 

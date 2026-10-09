@@ -33,6 +33,7 @@ export function MarcoEditModalReadOnlyView({
 
   const draftEntry = marcoRowToCatalogEntry({
     id: "readonly",
+    companiaLogoUrl: null,
     ...form,
     condicion_1: form.condicion_1 || null,
     condicion_2: form.condicion_2 || null,
@@ -92,6 +93,7 @@ export function MarcoEditModalReadOnlyView({
             value={
               resolveMarcoCondicion2Label({
                 id: "readonly",
+                companiaLogoUrl: null,
                 ...form,
                 condicion_1: form.condicion_1 || null,
                 condicion_2: form.condicion_2 || null,

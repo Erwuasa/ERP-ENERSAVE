@@ -25,7 +25,7 @@ type Props = {
   canEdit: boolean
   commissionPercentage: number
   formatCurrency: (val: number) => string
-  renderCompaniaLogo: (brandName: string) => ReactNode
+  renderCompaniaLogo: (brandName: string, logoUrl: string | null) => ReactNode
   onOpenEntry: (row: MarcoRetributivoRow) => void
   onDeactivate: (id: string, e: MouseEvent) => void
 }
@@ -156,7 +156,7 @@ export function MarcoRetributivoTable({
                   >
                     <td className={MARCO_TD_LOGO}>
                       <div className="flex items-center justify-center min-h-[2.5rem]">
-                        {renderCompaniaLogo(row.compania)}
+                        {renderCompaniaLogo(row.compania, row.companiaLogoUrl)}
                         <span className="sr-only">{formatCompaniaLabel(row.compania)}</span>
                       </div>
                     </td>
@@ -280,7 +280,7 @@ function MarcoRetributivoCardList({
   canEdit: boolean
   commissionPercentage: number
   formatCurrency: (val: number) => string
-  renderCompaniaLogo: (brandName: string) => ReactNode
+  renderCompaniaLogo: (brandName: string, logoUrl: string | null) => ReactNode
   onOpenEntry: (row: MarcoRetributivoRow) => void
   onDeactivate: (id: string, e: MouseEvent) => void
 }) {
@@ -316,7 +316,7 @@ function MarcoRetributivoCardList({
                   className="cursor-pointer rounded-xl border border-brand-border bg-brand-surface p-3"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="shrink-0">{renderCompaniaLogo(row.compania)}</div>
+                    <div className="shrink-0">{renderCompaniaLogo(row.compania, row.companiaLogoUrl)}</div>
                     <p className="min-w-0 text-xs font-extrabold uppercase tracking-wide text-brand-text break-words">
                       {companyLabel || "Sin compañía"}
                     </p>

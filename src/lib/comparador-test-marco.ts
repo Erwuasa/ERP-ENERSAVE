@@ -6,6 +6,7 @@ export function marcoRowsForCatalog(catalog: TariffConPrecios[]): MarcoRetributi
   return catalog.map((tariff, index) => ({
     id: `test-marco-${tariff.tariffId}-${index}`,
     compania: tariff.providerName,
+    companiaLogoUrl: null,
     tarifa: tariff.name,
     tipo: "luz",
     peaje: tariff.accessTariff,
