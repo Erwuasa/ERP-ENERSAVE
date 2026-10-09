@@ -47,12 +47,21 @@ export function inferErpAudienceFromPeaje(peaje: string): ErpAudienceSegment | n
   return null
 }
 
-/** Comparador / wizard / tarifas: encaja la fila con el segmento pedido. */
+/**
+ * Comparador / wizard / tarifas: encaja la fila con el segmento pedido.
+ *
+ * Prioridad: nombre comercial (si distingue pyme/residencial) > tarifa de acceso
+ * (2.0TD = residencial, 3.0TD/6.1TD/6.2TD = pyme) > columna `segment` guardada > se deja pasar.
+ * La columna `segment` va la última porque el sync de Enertech la escribe siempre como
+ * "residencial" (no distingue segmento en origen, ver AGENTS.md §8) — confiar en ella antes
+ * que en la tarifa de acceso escondía filas de pyme (p.ej. "NATURGY PYMES" en 3.0TD).
+ */
 export function tariffMatchesErpAudience(
   name: string,
   storedSegment: string,
   requested: ErpAudienceSegment,
-  condiciones = ""
+  condiciones = "",
+  accessTariff = ""
 ): boolean {
   const stored =
     storedSegment === "pyme" || storedSegment === "residencial"
@@ -60,6 +69,8 @@ export function tariffMatchesErpAudience(
       : null
   const fromName = inferErpAudienceFromText(name, condiciones)
   if (fromName) return fromName === requested
+  const fromPeaje = accessTariff ? inferErpAudienceFromPeaje(accessTariff) : null
+  if (fromPeaje) return fromPeaje === requested
   if (stored) return stored === requested
   return true
 }

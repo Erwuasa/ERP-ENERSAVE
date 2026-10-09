@@ -33,13 +33,37 @@ describe("tariffMatchesErpAudience", () => {
     ).toBe(true)
   })
 
-  it("usa segment si el nombre es ambiguo", () => {
+  it("usa segment si el nombre es ambiguo y no hay tarifa de acceso", () => {
     expect(
       tariffMatchesErpAudience("PRESENCIALES SBC REPOS2", "pyme", "pyme")
     ).toBe(true)
     expect(
       tariffMatchesErpAudience("PRESENCIALES SBC REPOS2", "residencial", "pyme")
     ).toBe(false)
+  })
+
+  it("usa la tarifa de acceso antes que el segment guardado (bug Naturgy Pymes)", () => {
+    // enertech_precios.segment llega siempre "residencial" del sync (AGENTS.md §8); sin la
+    // tarifa de acceso como respaldo, cualquier fila pyme sin "pyme"/"empresa" en el nombre
+    // desaparecía del filtro "pyme" aunque fuera una 3.0TD/6.1TD real.
+    expect(
+      tariffMatchesErpAudience("ENDESA", "residencial", "pyme", "", "3.0TD")
+    ).toBe(true)
+    expect(
+      tariffMatchesErpAudience("ENDESA", "residencial", "residencial", "", "2.0TD")
+    ).toBe(true)
+    expect(
+      tariffMatchesErpAudience("ENDESA", "residencial", "pyme", "", "2.0TD")
+    ).toBe(false)
+  })
+
+  it("el nombre comercial sigue ganando aunque la tarifa de acceso diga lo contrario", () => {
+    expect(
+      tariffMatchesErpAudience("NATURGY PYMES", "residencial", "pyme", "", "2.0TD")
+    ).toBe(true)
+    expect(
+      tariffMatchesErpAudience("NATURGY RESIDENCIAL", "residencial", "residencial", "", "3.0TD")
+    ).toBe(true)
   })
 })
 

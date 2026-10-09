@@ -186,7 +186,15 @@ export async function listTariffsConPrecios(
   const rows = ((data ?? []) as unknown as EnertechPrecioRow[])
     .filter((row) => !isGasTariff(row.payload))
     .filter((row) => tariffMatchesComparadorAccessTariff(String(row.payload?.tarifa ?? ""), accessTariff))
-    .filter((row) => tariffMatchesErpAudience(String(row.payload?.tarifa ?? ""), row.segment ?? "residencial", segmento))
+    .filter((row) =>
+      tariffMatchesErpAudience(
+        String(row.payload?.comercializadora ?? ""),
+        row.segment ?? "residencial",
+        segmento,
+        "",
+        String(row.payload?.tarifa ?? "")
+      )
+    )
     .map(mapEnertechPrecioRowToConPrecios)
     .filter((row) => Object.keys(row.precios).length > 0)
 
