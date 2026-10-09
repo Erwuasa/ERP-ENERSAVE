@@ -86,6 +86,7 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        // Lazy pages: pages/erp/routes/<segment>.tsx (see ROUTES.erp.* in constants/navigation.ts)
         path: "/erp",
         element: <ProtectedWorkspaceLayout />,
         errorElement: <WorkspaceRouteErrorPage />,

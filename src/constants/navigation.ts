@@ -24,6 +24,7 @@ export type ErpTabId =
   | "FTP"
   | "Base de Datos"
   | "Comunicaciones"
+  | "Webhooks Enertech"
   | "Nuevo contrato"
 
 export type VentasTabId =
@@ -57,6 +58,7 @@ const ERP_TAB_SLUGS: Record<string, string> = {
   FTP: "ftp",
   "Base de Datos": "base-datos",
   Comunicaciones: "comunicaciones",
+  "Webhooks Enertech": "enertech-webhooks",
   "Mi Equipo": "mi-equipo",
   "Nuevo contrato": "contratos/nuevo",
 }
@@ -138,6 +140,7 @@ export const ERP_TABS: readonly ErpTabId[] = [
   "FTP",
   "Base de Datos",
   "Comunicaciones",
+  "Webhooks Enertech",
 ] as const
 
 export const VENTAS_TABS: readonly VentasTabId[] = [
@@ -175,6 +178,7 @@ export const ROUTES = {
     ftp: "/erp/ftp",
     baseDatos: "/erp/base-datos",
     comunicaciones: "/erp/comunicaciones",
+    enertechWebhooks: "/erp/enertech-webhooks",
     nuevoContrato: "/erp/contratos/nuevo",
   },
   ventas: {

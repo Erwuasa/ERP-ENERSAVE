@@ -21,7 +21,9 @@ import {
   UserSquare2,
   Users,
   WalletCards,
+  Webhook,
 } from "lucide-react"
+import { canAccessEnertechWebhookAudit } from "@/lib/enertech-webhook-audit-access"
 import { defaultPermissionsForRole, type Profile, type UserRole } from "@/types/profile"
 import type { AppModule } from "@/constants/navigation"
 import {
@@ -57,6 +59,7 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Base de Datos", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: BookUser },
   { name: "FTP", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: HardDrive },
   { name: "Comunicaciones", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Megaphone },
+  { name: "Webhooks Enertech", allowedRoles: ["superadmin", "tramitacion"], icon: Webhook },
 ]
 
 export const VENTAS_SIDEBAR_ITEMS: SidebarMenuItem[] = [
@@ -96,13 +99,18 @@ export interface SidebarVisibilityOptions {
   activeRole: UserRole
   superadminViewMode: "tramitacion" | "comercial"
   staffPermissions?: Profile["permissions"]
+  staffEmail?: string
 }
 
 function isSidebarItemAllowedByPermissions(
   itemName: string,
   activeRole: UserRole,
-  staffPermissions?: Profile["permissions"]
+  staffPermissions?: Profile["permissions"],
+  staffEmail?: string
 ): boolean {
+  if (itemName === "Webhooks Enertech") {
+    return canAccessEnertechWebhookAudit(activeRole, staffEmail)
+  }
   if (!staffPermissions) return true
   if (itemName === "Contratos" && !canViewContracts(activeRole, staffPermissions)) return false
   if (
@@ -120,6 +128,7 @@ export function getVisibleSidebarItems({
   activeRole,
   superadminViewMode,
   staffPermissions,
+  staffEmail,
 }: SidebarVisibilityOptions): SidebarMenuItem[] {
   const canViewMarcoRetributivo =
     activeRole === "jefe_comercial" ||
@@ -173,8 +182,10 @@ export function getVisibleSidebarItems({
         "Base de Datos",
         "FTP",
         "Comunicaciones",
+        "Webhooks Enertech",
       ]
-      return superadminTramitacionTabs.includes(item.name)
+      if (!superadminTramitacionTabs.includes(item.name)) return false
+      return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions, staffEmail)
     }
 
     if (activeRole === "tramitacion") {
@@ -190,13 +201,14 @@ export function getVisibleSidebarItems({
         "Base de Datos",
         "FTP",
         "Comunicaciones",
+        "Webhooks Enertech",
       ]
       if (!tramitacionTabs.includes(item.name)) return false
-      return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions)
+      return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions, staffEmail)
     }
 
     if (!item.allowedRoles.includes(activeRole)) return false
-    return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions)
+    return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions, staffEmail)
   })
 }
 

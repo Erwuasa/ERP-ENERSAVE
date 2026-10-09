@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { AT_OUTBOUND_OWNER_EMAIL } from "@/lib/at-outbound-map"
 import { defaultPermissionsForRole } from "@/types/profile"
 import { getVisibleSidebarItems } from "./sidebar-items"
 
@@ -81,5 +82,30 @@ describe("getVisibleSidebarItems", () => {
       staffPermissions: { ...defaultPermissionsForRole("comercial"), comparatorAccess: false },
     })
     expect(withoutPermission.some((item) => item.name === "SIPS")).toBe(false)
+  })
+
+  it("muestra Webhooks Enertech solo al superadmin dueño y a tramitación", () => {
+    const owner = getVisibleSidebarItems({
+      activeModule: "erp",
+      activeRole: "superadmin",
+      superadminViewMode: "tramitacion",
+      staffEmail: AT_OUTBOUND_OWNER_EMAIL,
+    })
+    const otherSuperadmin = getVisibleSidebarItems({
+      activeModule: "erp",
+      activeRole: "superadmin",
+      superadminViewMode: "tramitacion",
+      staffEmail: "other@example.com",
+    })
+    const tramitacion = getVisibleSidebarItems({
+      activeModule: "erp",
+      activeRole: "tramitacion",
+      superadminViewMode: "tramitacion",
+      staffEmail: "ops@example.com",
+    })
+
+    expect(owner.some((item) => item.name === "Webhooks Enertech")).toBe(true)
+    expect(otherSuperadmin.some((item) => item.name === "Webhooks Enertech")).toBe(false)
+    expect(tramitacion.some((item) => item.name === "Webhooks Enertech")).toBe(true)
   })
 })
