@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { AT_OUTBOUND_OWNER_EMAIL } from "@/lib/at-outbound-map"
+import { OWNER_EMAIL } from "@/lib/owner-access"
 import { defaultPermissionsForRole } from "@/types/profile"
 import { getVisibleSidebarItems } from "./sidebar-items"
 
@@ -89,7 +89,7 @@ describe("getVisibleSidebarItems", () => {
       activeModule: "erp",
       activeRole: "superadmin",
       superadminViewMode: "tramitacion",
-      staffEmail: AT_OUTBOUND_OWNER_EMAIL,
+      staffEmail: OWNER_EMAIL,
     })
     const otherSuperadmin = getVisibleSidebarItems({
       activeModule: "erp",

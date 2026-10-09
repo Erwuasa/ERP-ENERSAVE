@@ -1,4 +1,4 @@
-import { canToggleAtOutboundApi } from "@/lib/at-api-toggle"
+import { isOwnerSuperadmin } from "@/lib/owner-access"
 import type { UserRole } from "@/types/profile"
 
 /** ERP audit UI for Enertech webhook inbox (RLS still enforces staff read). */
@@ -7,7 +7,7 @@ export function canAccessEnertechWebhookAudit(
   email: string | null | undefined
 ): boolean {
   if (role === "tramitacion") return true
-  if (role === "superadmin") return canToggleAtOutboundApi(role, email)
+  if (role === "superadmin") return isOwnerSuperadmin(role, email)
   return false
 }
 
