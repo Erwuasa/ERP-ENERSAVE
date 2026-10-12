@@ -90,4 +90,39 @@ describe("resolveMarcoForComparadorTariff", () => {
     expect(resolved?.id).toBe("m-match")
     expect(index.fallbackBySegmentCompany.get("pyme|niba")).toHaveLength(1)
   })
+
+  it("elige Plan Fijo Luz y no el ONE cuando los dos existen", () => {
+    const base = marco({
+      id: "base",
+      compania: "NATURGY PYMES",
+      tarifa: "Plan Fijo Luz",
+      segmento: "pyme",
+      peaje: "6.1TD",
+      comision_base: 14,
+    })
+    const one = marco({
+      id: "one",
+      compania: "NATURGY PYMES",
+      tarifa: "Plan Fijo Luz ONE",
+      segmento: "pyme",
+      peaje: "6.1TD",
+      comision_base: 6,
+    })
+    const rows = [one, base]
+    const index = buildMarcoRetributivoIndex(rows)
+    const resolved = resolveMarcoForComparadorTariff(
+      {
+        ...tariff,
+        name: "Plan Fijo Luz",
+        providerName: "NATURGY PYMES",
+        segment: "pyme",
+        accessTariff: "6.1TD",
+      },
+      index,
+      rows,
+      "6.1TD",
+      "pyme"
+    )
+    expect(resolved?.id).toBe("base")
+  })
 })

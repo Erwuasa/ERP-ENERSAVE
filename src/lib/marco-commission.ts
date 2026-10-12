@@ -3,6 +3,7 @@ import { formatMarcoComisionUsuario } from "../data/marco-retributivo-catalog"
 import {
   computeTramoCommissionEur,
   parseMarcoConsumoTramos,
+  selectMarcoTramoForConsumo,
   type MarcoConsumoTramo,
 } from "./marco-consumo-tramo"
 
@@ -22,19 +23,11 @@ export interface ComisionBreakdown {
   detalle: string
 }
 
-function tramoMatchesConsumo(tramo: MarcoConsumoTramo, consumoKwh: number): boolean {
-  const min = tramo.desde_kwh ?? 0
-  const max = tramo.hasta_kwh ?? Number.MAX_SAFE_INTEGER
-  return consumoKwh >= min && consumoKwh <= max
-}
-
 function resolveActiveTramo(
   entry: MarcoRetributivoEntry,
   consumoAnual: number
 ): MarcoConsumoTramo | null {
-  const tramos = parseMarcoConsumoTramos(entry)
-  if (tramos.length <= 1) return tramos[0] ?? null
-  return tramos.find((tramo) => tramoMatchesConsumo(tramo, consumoAnual)) ?? null
+  return selectMarcoTramoForConsumo(parseMarcoConsumoTramos(entry), consumoAnual)
 }
 
 function formatTramoDetail(

@@ -1,68 +1,58 @@
-import { areMarcoTarifaNamesSimilar, normalizeMarcoTarifaName } from "./marco-dedup"
+import { normalizeCompaniaKey } from "@/lib/erp/compania-logos"
+import { normalizeMarcoTarifaName } from "./marco-dedup"
+import type { TariffPeriodKey } from "./tarifa-cost-calculator"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
 
-function preferAtTariff(current: TariffConPrecios, incoming: TariffConPrecios): TariffConPrecios {
-  const currentAt = Boolean(current.atRateId)
-  const incomingAt = Boolean(incoming.atRateId)
-  if (currentAt !== incomingAt) return incomingAt ? incoming : current
-  return current
+const PERIODS: TariffPeriodKey[] = ["P1", "P2", "P3", "P4", "P5", "P6"]
+
+function priceToken(value: number | undefined): string {
+  if (value == null || !Number.isFinite(value)) return ""
+  return value.toFixed(6)
 }
 
-function dedupeKey(tariff: TariffConPrecios): string {
-  const company = normalizeMarcoTarifaName(tariff.providerName)
-  const name = normalizeMarcoTarifaName(tariff.name)
-  return `${company}|${name}|${tariff.segment}|${tariff.accessTariff}|${tariff.supplyType}`
+function territoryRank(territorio: string | null | undefined): number {
+  const value = (territorio ?? "").trim().toLowerCase()
+  if (value === "peninsula" || value === "península") return 0
+  if (value === "baleares") return 1
+  if (value === "canarias") return 2
+  return 3
 }
 
-function pickTariffWinners(catalog: TariffConPrecios[]): TariffConPrecios[] {
-  const groups = new Map<string, TariffConPrecios[]>()
-  for (const tariff of catalog) {
-    const key = dedupeKey(tariff)
-    const list = groups.get(key) ?? []
-    list.push(tariff)
-    groups.set(key, list)
-  }
+/** Misma compañía, nombre, peaje, segmento y precios de energía/potencia. */
+export function tariffPriceIdentity(tariff: TariffConPrecios): string {
+  const energy = PERIODS.map((period) => priceToken(tariff.precios[period]?.energyPriceKwh))
+  const power = PERIODS.map((period) => priceToken(tariff.precios[period]?.powerPriceKwDay))
+  return [
+    normalizeCompaniaKey(tariff.providerName),
+    normalizeMarcoTarifaName(tariff.name),
+    tariff.accessTariff.trim().toLowerCase(),
+    tariff.segment.trim().toLowerCase(),
+    tariff.supplyType.trim().toLowerCase(),
+    energy.join(","),
+    power.join(","),
+  ].join("|")
+}
 
-  const out: TariffConPrecios[] = []
-
-  for (const candidates of groups.values()) {
-    if (candidates.length === 1) {
-      out.push(candidates[0]!)
-      continue
+/**
+ * Una sola fila cuando Enertech repite la oferta por territorio (península, Baleares,
+ * Canarias) con los mismos precios. Si el precio cambia, se conservan las dos.
+ * Gana península.
+ */
+export function collapseTariffsWithSamePrices<T extends TariffConPrecios>(rows: T[]): T[] {
+  const best = new Map<string, T>()
+  for (const row of rows) {
+    const key = tariffPriceIdentity(row)
+    const current = best.get(key)
+    if (!current || territoryRank(row.territorio) < territoryRank(current.territorio)) {
+      best.set(key, row)
     }
-
-    const winner = candidates.reduce((current, incoming) => preferAtTariff(current, incoming))
-    out.push(winner)
   }
-
-  const merged: TariffConPrecios[] = []
-  for (const tariff of out) {
-    const similarIdx = merged.findIndex(
-      (existing) =>
-        normalizeMarcoTarifaName(existing.providerName) ===
-          normalizeMarcoTarifaName(tariff.providerName) &&
-        existing.segment === tariff.segment &&
-        existing.accessTariff === tariff.accessTariff &&
-        existing.supplyType === tariff.supplyType &&
-        areMarcoTarifaNamesSimilar(existing.name, tariff.name)
-    )
-    if (similarIdx < 0) {
-      merged.push(tariff)
-      continue
-    }
-
-    const existing = merged[similarIdx]!
-    merged[similarIdx] = preferAtTariff(existing, tariff)
-  }
-
-  return merged
+  return [...best.values()]
 }
 
-/** Desactiva la copia manual cuando ya existe la tarifa AT del mismo producto. */
+/** Ids que sobran cuando ya hay otra fila con la misma identidad de precio. */
 export function listTariffIdsToDeactivate(catalog: TariffConPrecios[]): string[] {
   const eligible = catalog.filter((row) => Object.keys(row.precios).length > 0)
-  const winners = new Set(pickTariffWinners(eligible).map((row) => row.tariffId))
-  return eligible
-    .filter((row) => !winners.has(row.tariffId) && !row.atRateId)
-    .map((row) => row.tariffId)
+  const winners = new Set(collapseTariffsWithSamePrices(eligible).map((row) => row.tariffId))
+  return eligible.filter((row) => !winners.has(row.tariffId)).map((row) => row.tariffId)
 }

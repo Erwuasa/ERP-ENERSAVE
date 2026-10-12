@@ -1,9 +1,19 @@
 import type { MarcoRetributivoEntry } from "../../data/marco-retributivo-catalog"
 import { inferMarcoSegmentoFromText } from "../infer-erp-segment"
-import { parseMarcoTramosJson, type MarcoConsumoTramo } from "../marco-consumo-tramo"
+import { parseConsumoTramoRange, parseMarcoTramosJson, type MarcoConsumoTramo } from "../marco-consumo-tramo"
 import { computeComisionBreakdown } from "../marco-commission"
 import { isMarcoGenericPlaceholderTariff } from "../marco-dedup"
+import {
+  commissionSliceFromPayload,
+  marcoOfferSegment,
+  marcoOfferTipo,
+  weaveMarcoTariffsWithCommissions,
+  type MarcoTariffOffer,
+  type WovenMarcoTariff,
+} from "../marco-tariff-commission"
+import { collapseTariffsWithSamePrices } from "../tariff-catalog-dedup"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
+import { listAllTariffsConPreciosForDedup, type TariffConPrecios } from "./tariffs-catalog"
 
 export type MarcoComisionUnidad =
   | "eur_cups"
@@ -298,32 +308,7 @@ export function readEnertechComercializadora(
 }
 
 function parseTramoRangeKwh(text: string): { desde: number; hasta: number } | null {
-  const normalized = text.trim().toLowerCase()
-  if (!normalized) return null
-
-  const mwhRange = normalized.match(/(\d+(?:[.,]\d+)?)\s*(?:–|-|a)\s*(\d+(?:[.,]\d+)?)\s*mwh/)
-  if (mwhRange) {
-    const desde = Number(mwhRange[1]!.replace(",", "."))
-    const hasta = Number(mwhRange[2]!.replace(",", "."))
-    if (Number.isFinite(desde) && Number.isFinite(hasta)) {
-      return { desde: desde * 1000, hasta: hasta * 1000 }
-    }
-  }
-
-  const kwhRange = normalized.match(/(\d+(?:[.,]\d+)?)\s*(?:–|-|a)\s*(\d+(?:[.,]\d+)?)/)
-  if (kwhRange) {
-    const desde = Number(kwhRange[1]!.replace(",", "."))
-    const hasta = Number(kwhRange[2]!.replace(",", "."))
-    if (Number.isFinite(desde) && Number.isFinite(hasta)) return { desde, hasta }
-  }
-
-  const upper = normalized.match(/(?:hasta|≤|<)\s*(\d+(?:[.,]\d+)?)/)
-  if (upper) {
-    const hasta = Number(upper[1]!.replace(",", "."))
-    if (Number.isFinite(hasta)) return { desde: 0, hasta }
-  }
-
-  return null
+  return parseConsumoTramoRange(text)
 }
 
 function tramoUnidadFromTipoComision(tipo: string): MarcoComisionUnidad {
@@ -553,6 +538,77 @@ function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoR
   return result
 }
 
+function periodValue(
+  precios: TariffConPrecios["precios"],
+  period: "P1" | "P2" | "P3" | "P4" | "P5" | "P6",
+  field: "energyPriceKwh" | "powerPriceKwDay"
+): number | null {
+  const value = precios[period]?.[field]
+  return value == null || !Number.isFinite(value) ? null : value
+}
+
+function tariffToMarcoOffer(row: TariffConPrecios): MarcoTariffOffer {
+  const periods = ["P1", "P2", "P3", "P4", "P5", "P6"] as const
+  return {
+    id: row.tariffId,
+    compania: row.providerName,
+    companiaLogoUrl: row.providerLogoUrl,
+    tarifa: row.name,
+    peaje: row.accessTariff,
+    tipo: marcoOfferTipo(row.name, row.accessTariff),
+    segmento: marcoOfferSegment(row.providerName, row.name, row.accessTariff),
+    energia: periods.map((period) => periodValue(row.precios, period, "energyPriceKwh")),
+    potencia: periods.map((period) => periodValue(row.precios, period, "powerPriceKwDay")),
+  }
+}
+
+function wovenToMarcoRow(woven: WovenMarcoTariff): MarcoRetributivoRow {
+  const now = new Date().toISOString()
+  const first = woven.tramos[0]
+  const energia = woven.energia
+  const potencia = woven.potencia
+  return {
+    id: catalogSlugToUuid(`oferta:${woven.compania}:${woven.tarifa}:${woven.peaje}`),
+    compania: woven.compania,
+    companiaLogoUrl: woven.companiaLogoUrl,
+    tarifa: woven.tarifa,
+    tipo: woven.tipo,
+    peaje: woven.peaje,
+    segmento: woven.segmento,
+    condicion_1: null,
+    condicion_2: !woven.hasCommission
+      ? "Sin comisión Enertech"
+      : woven.tramos.length === 1
+        ? (woven.tramos[0]?.condicion ?? null)
+        : null,
+    condiciones: null,
+    comision_tipo: "fija",
+    comision_base: first?.comision_base ?? 0,
+    comision_unidad: first?.unidad ?? "eur_cups",
+    vigencia_meses: 12,
+    fecha_inicio: now,
+    activo: true,
+    created_at: now,
+    updated_at: now,
+    updated_by: null,
+    energia_p1: energia[0] ?? null,
+    energia_p2: energia[1] ?? null,
+    energia_p3: energia[2] ?? null,
+    energia_p4: energia[3] ?? null,
+    energia_p5: energia[4] ?? null,
+    energia_p6: energia[5] ?? null,
+    potencia_p1: potencia[0] ?? null,
+    potencia_p2: potencia[1] ?? null,
+    potencia_p3: potencia[2] ?? null,
+    potencia_p4: potencia[3] ?? null,
+    potencia_p5: potencia[4] ?? null,
+    potencia_p6: potencia[5] ?? null,
+    tramos: woven.tramos.length > 0 ? woven.tramos : undefined,
+    tariff_id: woven.id,
+    source: "manual",
+  }
+}
+
 export async function listMarcoRetributivo(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
@@ -561,29 +617,39 @@ export async function listMarcoRetributivo(): Promise<
     return { ok: true, data: [] }
   }
 
-  const rowsResult = await fetchAllEnertechComisionesCached(clientOrError)
+  const [pricesResult, rowsResult] = await Promise.all([
+    listAllTariffsConPreciosForDedup({ includeInactive: true }),
+    fetchAllEnertechComisionesCached(clientOrError),
+  ])
+  if (pricesResult.ok === false) return pricesResult
   if (rowsResult.ok === false) return rowsResult
 
-  const grouped = groupEnertechComisiones(rowsResult.data)
+  const offers = collapseTariffsWithSamePrices(pricesResult.data).map(tariffToMarcoOffer)
+  const slices = rowsResult.data
+    .map((row) =>
+      commissionSliceFromPayload({
+        compania: readEnertechComercializadora(row.enertech_comercializadoras).nombre,
+        payload: row.payload,
+      })
+    )
+    .filter((slice): slice is NonNullable<typeof slice> => slice != null)
+
+  const woven = weaveMarcoTariffsWithCommissions(offers, slices)
+    .map(wovenToMarcoRow)
     .map(mapRow)
     .filter((row) => !isMarcoGenericPlaceholderTariff(row))
 
-  return { ok: true, data: grouped }
+  return { ok: true, data: woven }
 }
 
-/** Todas las entradas (incl. placeholders) para deduplicación persistente. */
+/**
+ * La limpieza persistente de duplicados borraba filas reales de Enertech (el siguiente sync
+ * las restauraba). El listado ya no repite la misma tarifa: los tramos distintos se quedan.
+ */
 export async function listMarcoRetributivoForDedup(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
-  const clientOrError = requireClient()
-  if (isMarcoClientError(clientOrError)) {
-    return { ok: true, data: [] }
-  }
-
-  const rowsResult = await fetchAllEnertechComisionesCached(clientOrError)
-  if (rowsResult.ok === false) return rowsResult
-
-  return { ok: true, data: groupEnertechComisiones(rowsResult.data).map(mapRow) }
+  return { ok: true, data: [] }
 }
 
 const MARCO_RETIRED_MESSAGE =
@@ -861,7 +927,7 @@ export async function getMarcoEntryById(
 export async function getMarcoRowById(
   marcoEntryId: string
 ): Promise<MarcoRetributivoResult<MarcoRetributivoRow>> {
-  const result = await listMarcoRetributivoForDedup()
+  const result = await listMarcoRetributivo()
   if (result.ok === false) return result
   const row = result.data.find((r) => r.id === marcoEntryId)
   if (!row) return { ok: false, message: "Entrada de marco retributivo no encontrada" }

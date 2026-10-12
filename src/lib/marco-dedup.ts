@@ -142,7 +142,16 @@ export function pickMarcoRowToKeep(rows: MarcoRetributivoRow[]): MarcoRetributiv
 }
 
 function buildMarcoDedupScopeKey(row: MarcoRetributivoRow): string {
-  return [row.compania, row.peaje, row.segmento, row.tipo].join("|")
+  return [
+    normalizeCompaniaKey(row.compania),
+    String(row.peaje ?? "").trim().toLowerCase(),
+    normalizeMarcoTarifaName(row.segmento),
+    row.tipo,
+    normalizeMarcoTarifaName(row.tarifa),
+    String(row.condicion_2 ?? "").trim().toLowerCase(),
+    String(row.at_kwh_min ?? ""),
+    String(row.at_kwh_max ?? ""),
+  ].join("|")
 }
 
 export function findMarcoSimilarDuplicateGroups(
@@ -172,8 +181,8 @@ export function findMarcoSimilarDuplicateGroups(
       for (let j = i + 1; j < candidates.length; j++) {
         const other = candidates[j]!
         if (used.has(other.id)) continue
-        const similarToCluster = cluster.some((member) =>
-          areMarcoTarifaNamesSimilar(member.tarifa, other.tarifa)
+        const similarToCluster = cluster.some(
+          (member) => normalizeMarcoTarifaName(member.tarifa) === normalizeMarcoTarifaName(other.tarifa)
         )
         if (similarToCluster) cluster.push(other)
       }

@@ -174,9 +174,9 @@ export function buildComparadorOfferBreakdown(
       id: "otros-sva",
       kind: "extras",
       labelLeft: "Otros costes / SVA",
-      amountOffer: otrosSva,
+      amountOffer: 0,
       amountCurrent: otrosSva,
-      savings: 0,
+      savings: otrosSva,
     })
   }
 

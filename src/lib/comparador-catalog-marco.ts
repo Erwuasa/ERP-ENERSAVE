@@ -1,4 +1,4 @@
-import { areMarcoTarifaNamesSimilar, normalizeMarcoTarifaName } from "./marco-dedup"
+import { normalizeMarcoTarifaName } from "./marco-dedup"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import { normalizeSegmento } from "./supabase/marco-retributivo"
 import type { TariffConPrecios } from "./supabase/tariffs-catalog"
@@ -33,8 +33,9 @@ function dedupeKey(tariff: TariffConPrecios): string {
 
 /**
  * Catálogo del comparador para el segmento elegido.
- * Entra la tarifa del propio segmento (aunque no tenga marco) y la de otro segmento
- * si un marco de este segmento coincide en compañía, nombre y peaje.
+ * Cada tarifa del tarifario entra con sus propios precios. El filtro es segmento,
+ * peaje y características de esa fila. No se funden productos distintos
+ * (Plan Fijo Luz y Plan Fijo Luz 24h siguen siendo dos ofertas).
  */
 export function filterCatalogForComparador(
   catalog: TariffConPrecios[],
@@ -72,23 +73,5 @@ export function filterCatalogForComparador(
     )
   }
 
-  // Fusionar nombres similares (variantes AT) dentro de la misma compañía y peaje.
-  const mergedGroups = new Map<string, TariffConPrecios[]>()
-  for (const tariff of out) {
-    const key = `${normalizeMarcoTarifaName(tariff.providerName)}|${tariff.accessTariff}|${tariff.supplyType}`
-    const group = mergedGroups.get(key) ?? []
-    const similarIdx = group.findIndex((existing) =>
-      areMarcoTarifaNamesSimilar(existing.name, tariff.name)
-    )
-    if (similarIdx < 0) {
-      group.push(tariff)
-    } else {
-      group[similarIdx] = preferCatalogTariff(group[similarIdx]!, tariff, segmento)
-    }
-    if (!mergedGroups.has(key)) mergedGroups.set(key, group)
-  }
-
-  const merged: TariffConPrecios[] = []
-  for (const group of mergedGroups.values()) merged.push(...group)
-  return merged
+  return out
 }

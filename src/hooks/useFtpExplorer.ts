@@ -14,6 +14,7 @@ import {
 import {
   createFtpFolder,
   deleteFtpNode,
+  createFtpFileViewUrl,
   downloadFtpFileBlob,
   listFtpNodes,
   triggerBlobDownload,
@@ -213,13 +214,32 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     })
   }
 
-  async function handleDownload(node: FtpNode) {
+  async function loadFtpFileBlob(node: FtpNode) {
     const result = await downloadFtpFileBlob(node)
+    if (!result.ok) {
+      toast.error(result.message)
+      return null
+    }
+    return result.data
+  }
+
+  async function handleView(node: FtpNode) {
+    if (!node.storagePath) {
+      toast.error("Archivo no disponible para visualizar.")
+      return
+    }
+    const result = await createFtpFileViewUrl(node.storagePath)
     if (!result.ok) {
       toast.error(result.message)
       return
     }
-    triggerBlobDownload(result.data, node.name)
+    window.open(result.data, "_blank", "noopener,noreferrer")
+  }
+
+  async function handleDownload(node: FtpNode) {
+    const blob = await loadFtpFileBlob(node)
+    if (!blob) return
+    triggerBlobDownload(blob, node.name)
   }
 
   return {
@@ -237,6 +257,7 @@ export function useFtpExplorer(activeUserId: string, canEdit: boolean) {
     handleCreateFolder,
     handleUploadFiles,
     handleDelete,
+    handleView,
     handleDownload,
   }
 }

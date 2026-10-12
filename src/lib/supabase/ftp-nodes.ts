@@ -236,6 +236,24 @@ export async function downloadFtpFileBlob(node: FtpNode): Promise<SupabaseResult
 
 export const FTP_STORAGE_BUCKET = STORAGE_BUCKET
 
+export async function createFtpFileViewUrl(storagePath: string): Promise<SupabaseResult<string>> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return resolved
+
+  const { data, error } = await resolved.client.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(storagePath, 60 * 10)
+
+  if (error || !data?.signedUrl) {
+    return {
+      ok: false,
+      reason: "error",
+      message: error?.message ?? "No se pudo abrir el archivo.",
+    }
+  }
+  return { ok: true, data: data.signedUrl }
+}
+
 export function triggerBlobDownload(blob: Blob, fileName: string) {
   const objectUrl = URL.createObjectURL(blob)
   const link = document.createElement("a")

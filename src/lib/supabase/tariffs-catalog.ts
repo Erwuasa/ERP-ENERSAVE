@@ -2,6 +2,7 @@ import {
   comparadorAccessTariffDbIlikePattern,
   tariffMatchesComparadorAccessTariff,
 } from "../comparador-access-tariff"
+import { collapseTariffsWithSamePrices } from "../tariff-catalog-dedup"
 import { tariffMatchesErpAudience } from "../infer-erp-segment"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import type { TariffPeriodKey, TariffPeriodPrices, TariffPreciosPorPeriodo } from "../tarifa-cost-calculator"
@@ -23,6 +24,8 @@ export interface TariffConPrecios {
   isSolarRate: boolean
   atRateId: string | null
   providerLogoUrl: string | null
+  /** Territorio Enertech (`peninsula`, `baleares`, `canarias`). No se pinta; sirve para dedup. */
+  territorio?: string | null
   precios: TariffPreciosPorPeriodo
 }
 
@@ -159,6 +162,7 @@ export function mapEnertechPrecioRowToConPrecios(row: EnertechPrecioRow): Tariff
     svaPriceMonthly: asNumber(row.sva_price_monthly),
     isSolarRate: Boolean(row.is_solar_rate),
     atRateId: null,
+    territorio: textField(payload.territorio) || null,
     precios: pricesFromPayload(payload),
   }
 }
@@ -198,14 +202,14 @@ export async function listTariffsConPrecios(
     .map(mapEnertechPrecioRowToConPrecios)
     .filter((row) => Object.keys(row.precios).length > 0)
 
-  return { ok: true, data: rows }
+  return { ok: true, data: collapseTariffsWithSamePrices(rows) }
 }
 
 const TARIFF_DEDUP_PAGE_SIZE = 250
 
-export async function listAllTariffsConPreciosForDedup(): Promise<
-  TariffsCatalogResult<TariffConPrecios[]>
-> {
+export async function listAllTariffsConPreciosForDedup(options?: {
+  includeInactive?: boolean
+}): Promise<TariffsCatalogResult<TariffConPrecios[]>> {
   if (!isSupabaseConfigured()) {
     return { ok: false, message: "Supabase no configurado" }
   }
@@ -217,11 +221,13 @@ export async function listAllTariffsConPreciosForDedup(): Promise<
   let from = 0
 
   while (true) {
-    const { data, error } = await client
+    let request = client
       .from("enertech_precios")
       .select(ENERTECH_PRECIOS_SELECT)
       .is("removed_at", null)
-      .eq("erp_active", true)
+    if (!options?.includeInactive) request = request.eq("erp_active", true)
+
+    const { data, error } = await request
       .order("clave")
       .range(from, from + TARIFF_DEDUP_PAGE_SIZE - 1)
 

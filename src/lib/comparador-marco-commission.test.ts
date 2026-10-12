@@ -80,6 +80,40 @@ describe("resolveComparadorOfferCommission", () => {
     expect(result.comisionPercibidaEur).toBe(120)
   })
 
+  it("multiplica 14 €/MWh por los MWh anuales cuando el consumo pasa de 10 MWh", () => {
+    const marco = marcoRow({
+      id: "plan-fijo",
+      tarifa: "Plan Fijo Luz",
+      comision_base: 14,
+      comision_unidad: "eur_mwh",
+      tramos: [
+        {
+          desde_kwh: 10000,
+          hasta_kwh: Number.MAX_SAFE_INTEGER,
+          comision_base: 14,
+          condicion: "10000- kWh",
+          unidad: "eur_mwh",
+        },
+        {
+          desde_kwh: Number.NaN,
+          hasta_kwh: Number.NaN,
+          comision_base: 120,
+          condicion: "Por contrato",
+          unidad: "eur_cups",
+        },
+      ],
+    })
+    const result = resolveComparadorOfferCommission({
+      marco,
+      marcoRows: [marco],
+      consumoAnualKwh: 23000,
+      commissionPercentage: 100,
+      formatCurrency: (v) => `${v} €`,
+    })
+    expect(result.comisionPercibidaEur).toBe(322)
+    expect(result.precision).toBe("exacto")
+  })
+
   it("escala comisión con el porcentaje del comercial", () => {
     const marco = marcoRow({ id: "m1" })
     const result = resolveComparadorOfferCommission({

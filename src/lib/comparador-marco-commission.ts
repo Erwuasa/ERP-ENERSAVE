@@ -1,5 +1,5 @@
 import { normalizeCompaniaKey } from "./erp/compania-logos"
-import { areMarcoTarifaNamesSimilar } from "./marco-dedup"
+import { normalizeMarcoTarifaName } from "./marco-dedup"
 import {
   computeTramoCommissionEur,
   resolveMarcoTramoForConsumo,
@@ -52,10 +52,7 @@ function listMarcoCandidatesForCommission(
       if (!row.activo || row.tipo !== anchor.tipo) return false
       if (normalizeCompaniaKey(row.compania) !== companiaKey) return false
       if (normalizeSegmento(row.segmento) !== normalizeSegmento(anchor.segmento)) return false
-      return (
-        row.tarifa === anchor.tarifa ||
-        areMarcoTarifaNamesSimilar(row.tarifa, anchor.tarifa)
-      )
+      return normalizeMarcoTarifaName(row.tarifa) === normalizeMarcoTarifaName(anchor.tarifa)
     })
     .map(marcoRowToCatalogEntry)
 }

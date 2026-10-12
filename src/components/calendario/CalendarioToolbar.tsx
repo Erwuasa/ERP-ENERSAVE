@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import type { ToolbarProps, View } from "react-big-calendar"
 import { Views } from "react-big-calendar"
+import { calendarViewContainsToday } from "@/lib/calendar-view-today"
 
 const VIEW_LABELS: Partial<Record<View, string>> = {
   [Views.DAY]: "Día",
@@ -11,6 +12,7 @@ const VIEW_LABELS: Partial<Record<View, string>> = {
 
 export function CalendarioToolbar({
   label,
+  date,
   onNavigate,
   onView,
   view,
@@ -19,6 +21,7 @@ export function CalendarioToolbar({
   const viewList: View[] = Array.isArray(views)
     ? views
     : ([Views.DAY, Views.WEEK, Views.MONTH, Views.AGENDA] as View[])
+  const showingToday = calendarViewContainsToday(date, String(view))
 
   return (
     <div className="calendario-toolbar flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
@@ -34,13 +37,6 @@ export function CalendarioToolbar({
           </button>
           <button
             type="button"
-            onClick={() => onNavigate("TODAY")}
-            className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-brand-text hover:bg-brand-panel rounded-lg cursor-pointer transition-colors duration-200"
-          >
-            Hoy
-          </button>
-          <button
-            type="button"
             onClick={() => onNavigate("NEXT")}
             className="p-2 rounded-lg text-brand-subtext hover:text-brand-text hover:bg-brand-panel cursor-pointer transition-colors duration-200"
             aria-label="Siguiente"
@@ -49,6 +45,19 @@ export function CalendarioToolbar({
           </button>
         </div>
         <p className="text-sm font-semibold text-brand-text truncate">{label}</p>
+        {showingToday ? (
+          <span className="shrink-0 rounded-lg bg-brand-accent/15 px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-brand-text">
+            Hoy
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onNavigate("TODAY")}
+            className="shrink-0 rounded-lg border border-brand-border px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext hover:border-brand-accent/40 hover:text-brand-text cursor-pointer transition-colors duration-200"
+          >
+            Ir a hoy
+          </button>
+        )}
       </div>
 
       <div

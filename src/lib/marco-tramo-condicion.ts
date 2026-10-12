@@ -116,6 +116,8 @@ export function resolveMarcoCondicion2Label(row: MarcoRetributivoRow): string | 
   if (tramos.length === 1) {
     const fromTramo = formatTramoCondicionMwh(tramos[0]!)
     if (fromTramo) return fromTramo
+    const condicion = tramos[0]?.condicion?.trim()
+    if (condicion) return condicion
   }
 
   const migrated = migrateMarcoCondicionesFields(row.condicion_1, row.condicion_2)

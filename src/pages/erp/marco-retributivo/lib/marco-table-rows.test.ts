@@ -60,6 +60,37 @@ describe("expandMarcoRowsByTramos", () => {
     expect(expanded[3]?.condicion_2).toBe("30-∞ MWh")
   })
 
+  it("separa la comisión por contrato del tramo con rango", () => {
+    const expanded = expandMarcoRowsByTramos([
+      makeRow({
+        tarifa: "Plan Fijo Luz",
+        comision_base: 14,
+        tramos: [
+          {
+            desde_kwh: 10000,
+            hasta_kwh: Number.MAX_SAFE_INTEGER,
+            comision_base: 14,
+            condicion: "10000- kWh",
+            unidad: "eur_mwh",
+          },
+          {
+            desde_kwh: Number.NaN,
+            hasta_kwh: Number.NaN,
+            comision_base: 120,
+            condicion: "Por contrato",
+            unidad: "eur_cups",
+          },
+        ],
+      }),
+    ])
+    expect(expanded).toHaveLength(2)
+    expect(expanded.map((row) => row.comision_base)).toEqual([14, 120])
+    expect(expanded[0]?.condicion_2).toBe("10-∞ MWh")
+    expect(expanded[1]?.condicion_2).toBe("Por contrato")
+    expect(expanded[1]?.at_kwh_min).toBeNull()
+    expect(resolveMarcoParentRowId(expanded[1]!.id)).toBe("parent-id")
+  })
+
   it("resuelve id padre desde fila expandida", () => {
     const tramoId = buildMarcoTramoRowId("parent-id", 0, 5000)
     expect(resolveMarcoParentRowId(tramoId)).toBe("parent-id")

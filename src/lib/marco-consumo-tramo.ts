@@ -57,7 +57,31 @@ function parseRangeFromText(text: string): { desde: number; hasta: number } | nu
     if (hasta != null) return { desde: 0, hasta }
   }
 
+  // Enertech: "-5000 kWh" = hasta 5000; "10000- kWh" = desde 10000 sin tope.
+  const openLower = normalized.match(/^(?:–|-)\s*(\d+(?:[.,]\d+)?)\s*(mwh|kwh)?$/i)
+  if (openLower) {
+    const hasta = parseNumericToken(openLower[1] ?? "")
+    if (hasta != null) {
+      const scale = openLower[2]?.toLowerCase() === "mwh" ? 1000 : 1
+      return { desde: 0, hasta: hasta * scale }
+    }
+  }
+
+  const openUpper = normalized.match(/^(\d+(?:[.,]\d+)?)\s*(?:–|-)\s*(mwh|kwh)?$/i)
+  if (openUpper) {
+    const desde = parseNumericToken(openUpper[1] ?? "")
+    if (desde != null) {
+      const scale = openUpper[2]?.toLowerCase() === "mwh" ? 1000 : 1
+      return { desde: desde * scale, hasta: Number.MAX_SAFE_INTEGER }
+    }
+  }
+
   return null
+}
+
+/** Rango kWh de un tramo Enertech (`5000-10000 kWh`, `-5000 kWh`, `10000- kWh`). */
+export function parseConsumoTramoRange(text: string): { desde: number; hasta: number } | null {
+  return parseRangeFromText(text)
 }
 
 export function parseMarcoConsumoTramos(entry: MarcoRetributivoEntry): MarcoConsumoTramo[] {
@@ -118,10 +142,32 @@ export function formatTramoCondicionMwh(tramo: MarcoConsumoTramo): string | null
   return `${formatValue(desdeMwh)}-${formatValue(hastaMwh)} MWh`
 }
 
+function tramoHasConsumoRange(tramo: MarcoConsumoTramo): boolean {
+  return Number.isFinite(tramo.desde_kwh) && Number.isFinite(tramo.hasta_kwh)
+}
+
 function tramoMatchesConsumo(tramo: MarcoConsumoTramo, consumoKwh: number): boolean {
-  const min = tramo.desde_kwh ?? 0
-  const max = tramo.hasta_kwh ?? Number.MAX_SAFE_INTEGER
+  if (!tramoHasConsumoRange(tramo)) return false
+  const min = tramo.desde_kwh
+  const max = tramo.hasta_kwh
   return consumoKwh >= min && consumoKwh <= max
+}
+
+/**
+ * El tramo con rango que contiene el consumo manda.
+ * Si el consumo no cae en ninguno, vale el tramo sin rango (comisión fija por contrato).
+ */
+export function selectMarcoTramoForConsumo(
+  tramos: MarcoConsumoTramo[],
+  consumoKwh: number
+): MarcoConsumoTramo | null {
+  if (tramos.length === 0) return null
+  if (tramos.length === 1) return tramos[0] ?? null
+  const ranged = tramos.find(
+    (tramo) => tramoHasConsumoRange(tramo) && tramoMatchesConsumo(tramo, consumoKwh)
+  )
+  if (ranged) return ranged
+  return tramos.find((tramo) => !tramoHasConsumoRange(tramo)) ?? null
 }
 
 export function computeTramoCommissionEur(
@@ -270,7 +316,11 @@ export function resolveMarcoTramoForConsumo(
     }
   }
 
-  const exact = expanded.find(({ tramo }) => tramoMatchesConsumo(tramo, consumoKwh))
+  const exactRanged = expanded.find(
+    ({ tramo }) => tramoHasConsumoRange(tramo) && tramoMatchesConsumo(tramo, consumoKwh)
+  )
+  const contract = expanded.find(({ tramo }) => !tramoHasConsumoRange(tramo))
+  const exact = exactRanged ?? contract
   if (exact) {
     const condicion =
       exact.tramo.condicion?.trim() ||
@@ -324,17 +374,18 @@ export function parseMarcoTramosJson(raw: unknown): MarcoConsumoTramo[] {
       if (!item || typeof item !== "object") return null
       const row = item as Record<string, unknown>
       const bounds = tramoBoundsFromRow(row)
-      if (!bounds) return null
       const comisionBaseRaw =
         row.comision_base ?? row.comision ?? row.comisionBase ?? null
       const comisionBase =
         comisionBaseRaw == null ? undefined : Number(comisionBaseRaw)
+      const condicion = typeof row.condicion === "string" ? row.condicion.trim() : ""
+      if (!bounds && !Number.isFinite(comisionBase) && !condicion) return null
       const unidad = row.unidad
       return {
-        desde_kwh: bounds.desde,
-        hasta_kwh: bounds.hasta,
+        desde_kwh: bounds?.desde ?? Number.NaN,
+        hasta_kwh: bounds?.hasta ?? Number.NaN,
         comision_base: Number.isFinite(comisionBase) ? comisionBase : undefined,
-        condicion: typeof row.condicion === "string" ? row.condicion : undefined,
+        condicion: condicion || undefined,
         unidad:
           unidad === "eur_cups" ||
           unidad === "eur_mwh" ||

@@ -1,9 +1,14 @@
 import { motion } from "motion/react"
 import { CheckCircle, Zap } from "lucide-react"
 import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
+import { useContratoMarcoRow } from "@/components/contratos/hooks/useContratoMarcoRow"
+import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
 import type { Contract } from "@/types/contract"
 import type { Profile } from "@/types/profile"
-import { computeActivationSplitPreview } from "@/lib/erp/contract-activation"
+
+function formatEuros(value: number): string {
+  return value.toLocaleString("es-ES", { style: "currency", currency: "EUR" })
+}
 
 export interface ContractActivateModalProps {
   contract: Contract
@@ -28,12 +33,15 @@ export function ContractActivateModal({
   onClose,
   onConfirm,
 }: ContractActivateModalProps) {
-  const preview = computeActivationSplitPreview(
-    contract,
-    activateConsumoKwh,
-    activatePowerKw,
-    profiles
-  )
+  const { entry, isLoading: marcoLoading } = useContratoMarcoRow(contract)
+  const comercial = profiles.find((profile) => profile.id === contract.comercialId)
+  const commissionPercentage = comercial?.commissionPercentage ?? 0
+  const marcoTotal = entry
+    ? estimateMarcoCommissionEur(entry, 100, activateConsumoKwh, formatEuros)
+    : null
+  const percibida = entry
+    ? estimateMarcoCommissionEur(entry, commissionPercentage, activateConsumoKwh, formatEuros)
+    : null
 
   return (
     <AppFullScreenModal
@@ -56,25 +64,10 @@ export function ContractActivateModal({
 
         <div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Se calcula la liquidación contable inmediata procediendo a la activación del
-            suministro energético y aplicando la regla retributiva:
+            Al activar se liquida la comisión percibida: el {commissionPercentage}% que tiene
+            guardado {contract.comercialName} en Usuarios, aplicado sobre el total del marco
+            retributivo de esta tarifa.
           </p>
-          <div className="p-2 bg-slate-950 rounded border border-white/5 text-[10px] font-mono text-slate-500 mt-2 space-y-1">
-            <span className="text-emerald-500 font-bold block uppercase text-[8px]">
-              Reparticiones Reguladas:
-            </span>
-            <span>
-              • Comercial Individual (Comisión Directa): <strong className="text-white">50%</strong>
-            </span>
-            <span>
-              • Jefe Comercial (Override de Supervisión):{" "}
-              <strong className="text-white">20%</strong>
-            </span>
-            <span>
-              • Superadmin/Empresa (Retenido Base del ERP):{" "}
-              <strong className="text-white">30%</strong>
-            </span>
-          </div>
         </div>
 
         <div className="p-3 bg-slate-950/50 border border-white/5 rounded-xl text-xs space-y-1">
@@ -124,32 +117,25 @@ export function ContractActivateModal({
 
         <div className="p-4 bg-slate-950 border border-emerald-500/20 rounded-xl space-y-2 text-xs font-mono">
           <div className="flex justify-between text-white border-b border-white/5 pb-1.5 text-[10px]">
-            <span>COMISIÓN BRUTA GLOBAL (100%):</span>
-            <span className="font-extrabold text-emerald-400">{preview.totalCom} €</span>
+            <span>MARCO RETRIBUTIVO (100%):</span>
+            <span className="font-extrabold text-emerald-400">
+              {marcoLoading ? "…" : marcoTotal ? formatEuros(marcoTotal.amountEur) : "—"}
+            </span>
           </div>
-          <div className="space-y-1 text-[10px] pt-1">
-            <div className="flex justify-between text-yellow-400/90 font-semibold">
-              <span>↳ Comercial (50% Split):</span>
-              <span>{preview.comercialShare} €</span>
-            </div>
-            <p className="text-[8px] text-slate-500 pl-3">
-              Destinatario: {contract.comercialName}
-            </p>
-            <div className="flex justify-between text-cyan-400/90 font-semibold">
-              <span>↳ Jefe Comercial (20% Override):</span>
-              <span>{preview.jefeShare} €</span>
-            </div>
-            <p className="text-[8px] text-slate-500 pl-3">
-              Supervisor:{" "}
-              {preview.managerProfile
-                ? preview.managerProfile.fullName
-                : "Sin manager (Rolls up to company)"}
-            </p>
-            <div className="flex justify-between text-emerald-400/90 font-semibold">
-              <span>↳ Empresa Plataforma (30% Retención):</span>
-              <span>{preview.superadminShare} €</span>
-            </div>
+          <div className="flex justify-between text-yellow-400/90 font-semibold text-[10px] pt-1">
+            <span>
+              Comisión percibida ({commissionPercentage}%):
+            </span>
+            <span>{marcoLoading ? "…" : percibida ? formatEuros(percibida.amountEur) : "—"}</span>
           </div>
+          <p className="text-[8px] text-slate-500">
+            Destinatario: {contract.comercialName}
+          </p>
+          {!marcoLoading && !entry ? (
+            <p className="text-[8px] text-amber-300">
+              Esta tarifa no tiene marco vinculado. La activación no podrá calcular la comisión.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex justify-end gap-3 text-xs pt-2">

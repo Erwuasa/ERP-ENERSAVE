@@ -16,6 +16,14 @@ import {
 
 export const COMPARADOR_DIAS_FACTURACION_MENSUAL = 30
 
+/**
+ * La oferta nueva no arrastra «otros costes / SVA»: es un coste de la factura actual.
+ * Alquiler, bono social y reactiva sí viajan en `extras`.
+ */
+export function comparadorOfferCostExtras(extras: ComparadorCostExtras): ComparadorCostExtras {
+  return { ...extras, otrosCostesSva: null }
+}
+
 /** Redondeo monetario a céntimos (evita Math.round entero en totales). */
 export function roundComparadorMoney(value: number): number {
   if (!Number.isFinite(value)) return 0
@@ -167,7 +175,7 @@ export function calcularCosteComparadorDesdeTariffPrecios(
     energiaRates,
     peaje,
     rentMeterMonthly,
-    extras
+    comparadorOfferCostExtras(extras)
   )
   return { breakdown, precision: resolved.precision }
 }

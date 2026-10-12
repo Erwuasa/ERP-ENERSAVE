@@ -23,7 +23,8 @@ export interface ComparadorOfferTaxesResult {
 
 /**
  * Total mensual/anual de la nueva oferta con IEE + IVA.
- * Base imponible = potencia + energía + extras (reactiva, SVA, bono) + alquiler − descuentos.
+ * Base imponible = potencia + energía + extras comunes (reactiva, bono) + alquiler − descuentos.
+ * «Otros costes / SVA» no entra: es un coste de la factura actual, no de la oferta.
  * IEE sobre energía neta; IVA sobre (base + IEE).
  */
 export function resolveComparadorOfferTaxes(

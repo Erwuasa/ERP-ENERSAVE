@@ -1,4 +1,4 @@
-import { Lock } from "lucide-react"
+import { Lock, Users } from "lucide-react"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 import type { AppUser } from "@/lib/supabase/app-users"
 import { UsuariosTable } from "@/pages/erp/usuarios/UsuariosTable"
@@ -93,9 +93,31 @@ export function UsuariosPage() {
     })
   }
 
+  const countLabel = filtered.length === 1 ? "usuario" : "usuarios"
+
   return (
-    <div className="space-y-5 animate-fade-in font-sans">
-      {appUsersError ? <p className="text-xs text-rose-500">{appUsersError}</p> : null}
+    <div className="animate-fade-in font-sans">
+      {appUsersError ? <p className="mb-3 text-xs text-rose-500">{appUsersError}</p> : null}
+
+      <section className="rounded-3xl border border-brand-border bg-brand-panel p-4 shadow-sm sm:p-6 space-y-4">
+        <div className="flex flex-col gap-3 border-b border-brand-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600">
+              <Users className="w-5 h-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-sm font-extrabold uppercase tracking-wide text-brand-text">
+                Usuarios
+              </h2>
+              <p className="text-[10px] font-mono text-brand-subtext mt-0.5">
+                {filtered.length} {countLabel}
+                {isSyncingErpUsers && directory.length > 0 ? " · sincronizando" : ""}
+                {" · "}
+                el % de comisión se aplica sobre el marco
+              </p>
+            </div>
+          </div>
+        </div>
 
       <UsuariosToolbar
         searchText={userSearchText}
@@ -104,9 +126,7 @@ export function UsuariosPage() {
         onRoleFilterChange={setUserRoleFilter}
         statusFilter={userStatusFilter}
         onStatusFilterChange={setUserStatusFilter}
-        visibleCount={filtered.length}
         onCreate={() => setIsCreateOpen(true)}
-        syncing={isSyncingErpUsers && directory.length > 0}
       />
 
       <UsuariosTable
@@ -117,6 +137,7 @@ export function UsuariosPage() {
         loading={isSyncingErpUsers}
         onOpen={openStaffSheet}
       />
+      </section>
     </div>
   )
 }

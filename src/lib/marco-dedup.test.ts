@@ -87,6 +87,15 @@ describe("marco-dedup", () => {
     expect(isMarcoGenericPlaceholderTariff({ tarifa: "LIBRE CON PERMANENCIA" })).toBe(false)
   })
 
+  it("conserva tarifas distintas y tramos distintos de la misma tarifa", () => {
+    const rows = [
+      sampleRow({ id: "luz", tarifa: "Plan Fijo Luz", condicion_2: "0-10 MWh", comision_base: 14 }),
+      sampleRow({ id: "24h", tarifa: "Plan Fijo Luz 24h", condicion_2: "0-10 MWh", comision_base: 14 }),
+      sampleRow({ id: "alto", tarifa: "Plan Fijo Luz", condicion_2: "10-∞ MWh", comision_base: 120 }),
+    ]
+    expect(listMarcoRowsToDeactivate(rows)).toEqual([])
+  })
+
   it("propone desactivar duplicados similares con misma comisión", () => {
     const rows = [
       sampleRow({ id: "a", tarifa: "LIBRE + PERMANENCIA" }),

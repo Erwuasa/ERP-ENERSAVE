@@ -1,5 +1,5 @@
 import { marcoPeajeMatchesFilter } from "@/pages/erp/marco-retributivo/lib/marco-panel-filters"
-import { pickMarcoRowToKeep } from "./marco-dedup"
+import { normalizeMarcoTarifaName, pickMarcoRowToKeep } from "./marco-dedup"
 import { tarifaNamesMatchForComparador } from "./comparador-marco-name-match"
 import { normalizeCompaniaKey, resolveCompaniaLogoKey } from "./erp/compania-logos"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
@@ -19,6 +19,15 @@ function companiaKeysMatch(marcoCompania: string, providerName: string): boolean
 
 function tarifaNamesMatch(marcoTarifa: string, tariffName: string): boolean {
   return tarifaNamesMatchForComparador(marcoTarifa, tariffName)
+}
+
+function preferExactTarifaName(
+  rows: MarcoRetributivoRow[],
+  tariffName: string
+): MarcoRetributivoRow[] {
+  const wanted = normalizeMarcoTarifaName(tariffName)
+  const exact = rows.filter((row) => normalizeMarcoTarifaName(row.tarifa) === wanted)
+  return exact.length > 0 ? exact : rows
 }
 
 function marcoMatchesTariffContext(
@@ -91,8 +100,11 @@ export function resolveMarcoForComparadorTariff(
     return byRate!
   }
 
-  const candidates = fallbackMarcoRows(tariff, index, wanted).filter((row) =>
-    marcoMatchesTariffContext(row, tariff, peaje, wanted)
+  const candidates = preferExactTarifaName(
+    fallbackMarcoRows(tariff, index, wanted).filter((row) =>
+      marcoMatchesTariffContext(row, tariff, peaje, wanted)
+    ),
+    tariff.name
   )
   if (candidates.length === 0) return null
   if (candidates.length === 1) return candidates[0]!
@@ -141,7 +153,10 @@ export function resolveMarcoForComparadorCommission(
     }
   }
 
-  const byName = companyCandidates.filter((row) => tarifaNamesMatch(row.tarifa, tariff.name))
+  const byName = preferExactTarifaName(
+    companyCandidates.filter((row) => tarifaNamesMatch(row.tarifa, tariff.name)),
+    tariff.name
+  )
   if (byName.length === 0) return null
   if (byName.length === 1) return byName[0]!
 

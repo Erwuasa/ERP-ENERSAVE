@@ -2,7 +2,6 @@ import { useEffect, useState } from "react"
 import type { Contract } from "@/types/contract"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
-  getMarcoRowByAtIds,
   getMarcoRowById,
   listMarcoRetributivo,
   marcoRowToCatalogEntry,
@@ -64,22 +63,6 @@ export function useContratoMarcoRow(contract?: Contract | null): UseContratoMarc
           setIsLoading(false)
           return
         }
-      }
-
-      if (contract.atMarcoId || contract.atRateId) {
-        const byAt = await getMarcoRowByAtIds({
-          atMarcoId: contract.atMarcoId,
-          atRateId: contract.atRateId,
-        })
-        if (cancelled) return
-        if (byAt.ok) {
-          setRow(byAt.data)
-          setIsLoading(false)
-          return
-        }
-        setRow(null)
-        setIsLoading(false)
-        return
       }
 
       const listed = await listMarcoRetributivo()

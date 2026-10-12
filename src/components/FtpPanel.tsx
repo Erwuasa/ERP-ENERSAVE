@@ -2,6 +2,7 @@ import { useRef, useState } from "react"
 import {
   ChevronRight,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   Folder,
@@ -95,11 +96,13 @@ function FtpFolderCard({
 
 function FtpFileCard({
   node,
+  onView,
   onDownload,
   onDelete,
   canEdit,
 }: {
   node: FtpNode
+  onView: () => void
   onDownload: () => void
   onDelete: () => void
   canEdit: boolean
@@ -109,16 +112,29 @@ function FtpFileCard({
   return (
     <div className="group bg-brand-panel border border-brand-border rounded-xl p-4 flex items-center gap-3 shadow-sm hover:border-cyan-500/35 transition-colors min-h-[88px]">
       <Icon className="h-9 w-9 text-cyan-600 shrink-0" aria-hidden />
-      <div className="flex-1 min-w-0">
+      <button
+        type="button"
+        onClick={onView}
+        disabled={uploading}
+        className="flex-1 min-w-0 text-left cursor-pointer disabled:cursor-default"
+      >
         <p className="text-xs font-semibold text-brand-text truncate">{node.name}</p>
         <p className="text-[10px] font-mono text-brand-subtext mt-0.5">
           {uploading ? "Subiendo…" : formatFileSize(node.sizeBytes)}
         </p>
-      </div>
+      </button>
       {uploading ? (
         <Loader2 className="h-4 w-4 text-cyan-600 animate-spin shrink-0" aria-hidden />
       ) : (
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onView}
+            className="p-1.5 rounded-lg border border-brand-border text-brand-subtext hover:text-cyan-600 hover:border-cyan-500/30 cursor-pointer"
+            aria-label={`Ver ${node.name}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             onClick={onDownload}
@@ -166,7 +182,7 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
           <div>
             <h2 className="text-xl font-extrabold text-brand-text tracking-tight font-display">FTP</h2>
             <p className="text-xs text-brand-subtext mt-1">
-              FTP EnerSave para documentos propios. Subidas en Storage, independientes de AT.
+              Los documentos que sube un superadmin quedan guardados y los puede abrir cualquier usuario.
             </p>
           </div>
         </div>
@@ -335,6 +351,7 @@ export function FtpPanel({ canEdit, activeUserId }: FtpPanelProps) {
                         key={file.id}
                         node={file}
                         canEdit={ftp.canMutateHere}
+                        onView={() => void ftp.handleView(file)}
                         onDownload={() => void ftp.handleDownload(file)}
                         onDelete={() => void ftp.handleDelete(file)}
                       />

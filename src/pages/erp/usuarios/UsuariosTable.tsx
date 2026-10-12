@@ -51,6 +51,20 @@ function ManagerCell({ user, manager }: { user: AppUser; manager?: { fullName: s
   )
 }
 
+function CommissionCell({ user, profiles }: { user: AppUser; profiles: Profile[] }) {
+  if (user.role === "customer") {
+    return <span className="text-brand-subtext italic text-[10px]">N/A</span>
+  }
+  const profile = profiles.find((item) => item.id === user.id)
+  const pct = profile?.commissionPercentage
+  if (pct == null) return <span className="text-brand-subtext">—</span>
+  return (
+    <span className="inline-flex items-center rounded bg-cyan-500/10 px-2 py-0.5 text-[10px] font-mono font-bold text-cyan-700 dark:text-cyan-300">
+      {pct}%
+    </span>
+  )
+}
+
 function StatusPill({ ok, okLabel, pendingLabel }: { ok: boolean; okLabel: string; pendingLabel: string }) {
   return (
     <span
@@ -81,13 +95,14 @@ export function UsuariosTable({
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-brand-border bg-brand-panel shadow-sm dark:shadow-none">
-      <table className="w-full min-w-[920px] text-left border-collapse text-xs">
+      <table className="w-full text-left border-collapse text-xs">
         <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-brand-surface/90">
           <tr className="text-brand-subtext font-mono">
             <th className={USUARIOS_TH}>Usuario</th>
             <th className={USUARIOS_TH}>Rol</th>
             <th className={USUARIOS_TH}>Email</th>
             <th className={USUARIOS_TH}>Jefe / origen</th>
+            <th className={USUARIOS_TH}>Comisión</th>
             <th className={USUARIOS_TH}>Acceso</th>
             <th className={USUARIOS_TH}>MFA</th>
             <th className={`${USUARIOS_TH} text-right`}>Ficha</th>
@@ -122,20 +137,22 @@ export function UsuariosTable({
                       <p className="font-bold text-brand-text truncate group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
                         {user.fullName}
                       </p>
-                      <p className="text-[10px] font-mono text-brand-subtext truncate">{user.id}</p>
                     </div>
                   </div>
                 </td>
                 <td className={USUARIOS_TD}>
                   <span
-                    className={`inline-flex px-2 py-0.5 rounded-md text-[9px] font-bold font-mono uppercase ${userRoleBadgeClass(user.role)}`}
+                    className={`inline-flex whitespace-nowrap px-2 py-0.5 rounded-md text-[9px] font-bold font-mono uppercase ${userRoleBadgeClass(user.role)}`}
                   >
                     {userRoleLabel(user.role)}
                   </span>
                 </td>
-                <td className={`${USUARIOS_TD} text-brand-subtext font-mono`}>{user.email || "—"}</td>
+                <td className={`${USUARIOS_TD} max-w-[16rem] truncate text-brand-subtext font-mono`}>{user.email || "—"}</td>
                 <td className={USUARIOS_TD}>
                   <ManagerCell user={user} manager={manager} />
+                </td>
+                <td className={USUARIOS_TD}>
+                  <CommissionCell user={user} profiles={profiles} />
                 </td>
                 <td className={USUARIOS_TD}>
                   <StatusPill ok={user.hasAuth} okLabel="cuenta" pendingLabel="sin cuenta" />
@@ -158,7 +175,7 @@ export function UsuariosTable({
                       e.stopPropagation()
                       onOpen(user)
                     }}
-                    className={`inline-flex items-center gap-1.5 h-8 px-2.5 text-[10px] font-mono font-bold rounded-lg ${ENERSAVE_ACTION.secondary}`}
+                    className={`inline-flex items-center gap-1.5 h-8 px-2.5 text-[10px] font-mono font-bold rounded-lg whitespace-nowrap ${ENERSAVE_ACTION.secondary}`}
                   >
                     {user.role === "customer" ? "Asignar rol" : "Ver permisos"}
                     <ChevronRight className="w-3.5 h-3.5" />

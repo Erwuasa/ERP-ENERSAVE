@@ -307,7 +307,7 @@ export function mapComparadorToEstudioAhorro(
     proposedBreakdown,
     peaje,
     otrosInput,
-    { includeOtrosCostes: true, ...descuentos }
+    { includeOtrosCostes: false, ...descuentos }
   )
 
   const ahorroPorFacturaEur = tarifaActual.totalFactura - tarifaPropuesta.totalFactura

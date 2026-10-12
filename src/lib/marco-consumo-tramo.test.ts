@@ -66,6 +66,40 @@ describe("resolveMarcoTramoForConsumo", () => {
     expect(result.entry?.id).toBe("d")
   })
 
+  it("aplica €/MWh sobre el consumo anual entero y, por debajo del tramo, la comisión por contrato", () => {
+    const entry = makeEntry({
+      id: "plan-fijo",
+      tarifa: "Plan Fijo Luz",
+      comisionBase: 14,
+      comisionUnidad: "eur_mwh",
+      tramos: [
+        {
+          desde_kwh: 10000,
+          hasta_kwh: Number.MAX_SAFE_INTEGER,
+          comision_base: 14,
+          condicion: "10000- kWh",
+          unidad: "eur_mwh",
+        },
+        {
+          desde_kwh: Number.NaN,
+          hasta_kwh: Number.NaN,
+          comision_base: 120,
+          condicion: "Por contrato",
+          unidad: "eur_cups",
+        },
+      ],
+    })
+
+    const alto = resolveMarcoTramoForConsumo([entry], 23000)
+    expect(alto.precision).toBe("exacto")
+    expect(alto.comisionMin).toBe(322)
+
+    const bajo = resolveMarcoTramoForConsumo([entry], 8000)
+    expect(bajo.precision).toBe("exacto")
+    expect(bajo.comisionMin).toBe(120)
+    expect(bajo.condicionLabel).toBe("Por contrato")
+  })
+
   it("returns estimated range when consumo is missing", () => {
     const result = resolveMarcoTramoForConsumo(candidates, null)
     expect(result.precision).toBe("estimado")
@@ -97,5 +131,28 @@ describe("parseMarcoTramosJson", () => {
     expect(tramos[0]?.desde_kwh).toBe(0)
     expect(tramos[0]?.hasta_kwh).toBe(5000)
     expect(tramos[0]?.comision_base).toBe(64.8)
+  })
+
+  it("conserva el tramo sin rango kWh como comisión por contrato", () => {
+    const tramos = parseMarcoTramosJson([
+      {
+        desde_kwh: Number.NaN,
+        hasta_kwh: Number.NaN,
+        comision_base: 120,
+        condicion: "Por contrato",
+        unidad: "eur_cups",
+      },
+      {
+        desde_kwh: 10000,
+        hasta_kwh: Number.MAX_SAFE_INTEGER,
+        comision_base: 14,
+        condicion: "10000- kWh",
+        unidad: "eur_mwh",
+      },
+    ])
+    expect(tramos).toHaveLength(2)
+    expect(tramos[0]?.comision_base).toBe(120)
+    expect(tramos[0]?.condicion).toBe("Por contrato")
+    expect(Number.isFinite(tramos[0]?.desde_kwh)).toBe(false)
   })
 })
