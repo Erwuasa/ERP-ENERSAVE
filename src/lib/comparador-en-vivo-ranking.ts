@@ -13,7 +13,10 @@ import {
 } from "./comparador-tariff-pricing"
 import type { ComparadorCostExtras, ComparadorPeriodInputs } from "./tarifa-cost-calculator"
 import { tariffMatchesComparadorAccessTariff } from "./comparador-access-tariff"
-import { filterCatalogForComparador } from "./comparador-catalog-marco"
+import {
+  filterCatalogForComparador,
+  tariffMatchesComparadorSegment,
+} from "./comparador-catalog-marco"
 import {
   inferIncluyeSvaFromMarcoText,
   inferPotenciaBoeFromMarcoText,
@@ -258,8 +261,7 @@ export function buildComparadorEnVivoRanking(
       formWithFallbacks.peaje,
       formWithFallbacks.segmento
     )
-    const ownSegment =
-      normalizeSegmento(tariff.segment) === normalizeSegmento(formWithFallbacks.segmento)
+    const ownSegment = tariffMatchesComparadorSegment(tariff, formWithFallbacks.segmento)
     if (!marco && !ownSegment) continue
     if (!matchesSinSvaFilter(tariff, marco, formWithFallbacks.sinSva)) continue
     if (!matchesPotenciaBoeFilter(marco, tariff, formWithFallbacks.soloPotenciaBoe)) continue

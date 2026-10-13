@@ -19,12 +19,17 @@ import "react-big-calendar/lib/css/react-big-calendar.css"
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css"
 import { colorForCalendarioUsuario } from "../../lib/calendario-colors"
 import {
+  calendarioMentionCandidates,
+  calendarioMentionHandle,
   calendarioSubtitleForRole,
+  eventoMatchesCalendarioUsers,
+  normalizeCalendarioMenciones,
   resolveCalendarioFilterUsers,
   resolveCalendarioScopeUserIds,
   showCalendarioUserFilter,
   type CalendarioAccessRole,
 } from "../../lib/calendario-visibility"
+import { CalendarioMentionPicker } from "./CalendarioMentionPicker"
 import { CalendarioEventBlock } from "./CalendarioEventBlock"
 import { CalendarioToolbar } from "./CalendarioToolbar"
 import {
@@ -107,6 +112,7 @@ interface EventFormState {
   fechaFin: string
   todoElDia: boolean
   usuarioId: string
+  menciones: string[]
 }
 
 function toDatetimeLocalValue(iso: string): string {
@@ -158,6 +164,7 @@ function emptyForm(usuarioId: string): EventFormState {
     fechaFin: later.toISOString(),
     todoElDia: false,
     usuarioId,
+    menciones: [],
   }
 }
 
@@ -206,6 +213,14 @@ export function CalendarioPanel({
     [activeRole, activeUserId, profiles]
   )
 
+  const mentionCandidates = useMemo(
+    () => calendarioMentionCandidates(profiles, form.usuarioId),
+    [profiles, form.usuarioId]
+  )
+
+  const canEditEvent =
+    !form.id || form.usuarioId === activeUserId || activeRole === "superadmin"
+
   const showEventOwnerInTitle =
     activeRole === "superadmin" || activeRole === "jefe_comercial"
 
@@ -219,7 +234,8 @@ export function CalendarioPanel({
     () =>
       eventos.filter(
         (evento) =>
-          scopeUserIds.has(evento.usuarioId) && effectiveSelectedIds.has(evento.usuarioId)
+          eventoMatchesCalendarioUsers(evento, scopeUserIds) &&
+          eventoMatchesCalendarioUsers(evento, effectiveSelectedIds)
       ),
     [eventos, effectiveSelectedIds, scopeUserIds]
   )
@@ -252,6 +268,7 @@ export function CalendarioPanel({
       fechaFin: evento.fechaFin,
       todoElDia: evento.todoElDia,
       usuarioId: evento.usuarioId,
+      menciones: evento.menciones ?? [],
     })
     setFormOpen(true)
   }
@@ -271,6 +288,11 @@ export function CalendarioPanel({
       fechaFin: form.fechaFin,
       todoElDia: form.todoElDia,
       usuarioId: form.usuarioId,
+      menciones: normalizeCalendarioMenciones(
+        form.menciones,
+        form.usuarioId,
+        new Set(calendarioMentionCandidates(profiles, form.usuarioId).map((user) => user.id))
+      ),
     }
 
     setSaving(true)
@@ -279,6 +301,7 @@ export function CalendarioPanel({
         const local: CalendarioEvento = {
           id: form.id ?? crypto.randomUUID(),
           ...payload,
+          menciones: payload.menciones ?? [],
           descripcion: payload.descripcion,
           creadoEn: new Date().toISOString(),
         }
@@ -516,7 +539,10 @@ export function CalendarioPanel({
               toolbar: CalendarioToolbar,
               event: CalendarioEventBlock,
             }}
-            draggableAccessor={() => true}
+            draggableAccessor={(event) => {
+              const resource = (event as CalendarUiEvent).resource
+              return resource.usuarioId === activeUserId || activeRole === "superadmin"
+            }}
             onEventDrop={handleEventInteraction}
             onEventResize={handleEventInteraction}
             onSelectSlot={openCreate}
@@ -546,8 +572,12 @@ export function CalendarioPanel({
             }}
             titleAccessor={(event) => {
               const resource = (event as CalendarUiEvent).resource
-              if (!showEventOwnerInTitle) return resource.titulo
-              return `${resource.titulo} · ${resolveUserName(resource.usuarioId)}`
+              const mentions = (resource.menciones ?? [])
+                .map((id) => `@${calendarioMentionHandle(resolveUserName(id))}`)
+                .join(" ")
+              const owner =
+                resource.usuarioId !== activeUserId ? resolveUserName(resource.usuarioId) : ""
+              return [resource.titulo, owner, mentions].filter(Boolean).join(" · ")
             }}
             style={{ height: calendarHeight }}
           />
@@ -607,6 +637,7 @@ export function CalendarioPanel({
                 <input
                   type="text"
                   value={form.titulo}
+                  disabled={!canEditEvent}
                   onChange={(e) => setForm({ ...form, titulo: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-brand-border bg-brand-surface text-sm"
                   required
@@ -619,6 +650,7 @@ export function CalendarioPanel({
                 </span>
                 <textarea
                   value={form.descripcion}
+                  disabled={!canEditEvent}
                   onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
                   rows={2}
                   className="w-full px-3 py-2 rounded-lg border border-brand-border bg-brand-surface text-sm resize-y"
@@ -632,6 +664,7 @@ export function CalendarioPanel({
                   </span>
                   <select
                     value={form.tipo}
+                    disabled={!canEditEvent}
                     onChange={(e) =>
                       setForm({ ...form, tipo: e.target.value as CalendarioEventoTipo })
                     }
@@ -652,7 +685,14 @@ export function CalendarioPanel({
                     </span>
                     <select
                       value={form.usuarioId}
-                      onChange={(e) => setForm({ ...form, usuarioId: e.target.value })}
+                      disabled={!canEditEvent}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          usuarioId: e.target.value,
+                          menciones: form.menciones.filter((id) => id !== e.target.value),
+                        })
+                      }
                       className="w-full px-3 py-2 rounded-lg border border-brand-border bg-brand-surface text-sm"
                     >
                       {filterUsers.map((user) => (
@@ -665,10 +705,24 @@ export function CalendarioPanel({
                 )}
               </div>
 
+              <CalendarioMentionPicker
+                users={mentionCandidates}
+                selectedIds={form.menciones}
+                disabled={!canEditEvent}
+                onChange={(menciones) => setForm({ ...form, menciones })}
+              />
+
+              {!canEditEvent ? (
+                <p className="text-[11px] text-brand-subtext">
+                  Te han mencionado. El evento lo edita quien lo creó.
+                </p>
+              ) : null}
+
               <label className="inline-flex items-center gap-2 text-xs text-brand-text cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.todoElDia}
+                  disabled={!canEditEvent}
                   onChange={(e) => setForm({ ...form, todoElDia: e.target.checked })}
                 />
                 Todo el día
@@ -682,6 +736,7 @@ export function CalendarioPanel({
                     </span>
                     <input
                       type="date"
+                      disabled={!canEditEvent}
                       value={toDateInputValue(form.fechaInicio)}
                       onChange={(e) =>
                         setForm({
@@ -698,6 +753,7 @@ export function CalendarioPanel({
                     </span>
                     <input
                       type="date"
+                      disabled={!canEditEvent}
                       value={toDateInputValue(form.fechaFin)}
                       onChange={(e) =>
                         setForm({
@@ -717,6 +773,7 @@ export function CalendarioPanel({
                     </span>
                     <input
                       type="datetime-local"
+                      disabled={!canEditEvent}
                       value={toDatetimeLocalValue(form.fechaInicio)}
                       onChange={(e) =>
                         setForm({ ...form, fechaInicio: fromDatetimeLocalValue(e.target.value) })
@@ -730,6 +787,7 @@ export function CalendarioPanel({
                     </span>
                     <input
                       type="datetime-local"
+                      disabled={!canEditEvent}
                       value={toDatetimeLocalValue(form.fechaFin)}
                       onChange={(e) =>
                         setForm({ ...form, fechaFin: fromDatetimeLocalValue(e.target.value) })
@@ -741,7 +799,7 @@ export function CalendarioPanel({
               )}
 
               <div className="flex gap-2 pt-2">
-                {form.id ? (
+                {form.id && canEditEvent ? (
                   <button
                     type="button"
                     onClick={() => void handleDelete()}
@@ -761,7 +819,7 @@ export function CalendarioPanel({
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || !canEditEvent}
                   className="flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold cursor-pointer hover:bg-emerald-500 disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}

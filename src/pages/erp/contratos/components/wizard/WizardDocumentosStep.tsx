@@ -31,7 +31,7 @@ export function WizardDocumentosStep({
   postComment,
 }: Props) {
   return (
-    <div className="h-full flex flex-col gap-3 min-h-0">
+    <div className="flex flex-col gap-3 min-h-0">
       <div className="flex flex-wrap items-center gap-2 shrink-0">
         <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 text-[10px] font-mono font-bold">
           {tarifaChipLabel}

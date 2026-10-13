@@ -40,13 +40,15 @@ export function AppFullScreenModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 flex items-center justify-center p-4 ${backdropClassName}`}
+      className={`fixed inset-0 overflow-y-auto ${backdropClassName}`}
       style={{ zIndex }}
       role="presentation"
       onClick={closeOnBackdrop ? onClose : undefined}
     >
-      <div className={panelClassName} onClick={(e) => e.stopPropagation()}>
-        {children}
+      <div className="flex min-h-full items-center justify-center p-4">
+        <div className={panelClassName} onClick={(e) => e.stopPropagation()}>
+          {children}
+        </div>
       </div>
     </div>,
     document.body

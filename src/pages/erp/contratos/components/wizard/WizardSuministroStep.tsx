@@ -8,6 +8,7 @@ import type { Contract } from "@/types/contract"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
   FORMA_PAGO_LABELS,
+  WIZARD_ENERTECH_MARK_CLASS,
   WIZARD_INPUT_CLASS,
   WIZARD_LABEL_CLASS,
   WIZARD_READ_ONLY_FIELD_CLASS,
@@ -80,7 +81,7 @@ export function WizardSuministroStep({
     form.tarifa && catalogTarifaValues.has(form.tarifa) ? form.tarifa : ""
 
   return (
-    <div className="h-full flex flex-col gap-2.5 min-h-0">
+    <div className="flex flex-col gap-2.5 min-h-0">
       <div className="space-y-0.5 shrink-0 min-w-0">
         <label className={WIZARD_LABEL_CLASS}>Tarifa de acceso</label>
         <WizardAccessTariffChips
@@ -90,7 +91,7 @@ export function WizardSuministroStep({
         />
       </div>
 
-      <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 flex-1 min-h-0 content-start overflow-y-auto pr-0.5">
+      <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 content-start">
         <div className="col-span-12">
           <label className={WIZARD_LABEL_CLASS}>Tarifa {form.compania}</label>
           <div className="flex items-stretch gap-2">
@@ -215,7 +216,10 @@ export function WizardSuministroStep({
         </div>
 
         <div className="col-span-6 sm:col-span-4">
-          <label className={WIZARD_LABEL_CLASS}>CUPS</label>
+          <label className={WIZARD_LABEL_CLASS}>
+            CUPS
+            <span className={WIZARD_ENERTECH_MARK_CLASS}>Enertech</span>
+          </label>
           <input
             type="text"
             value={form.cups}

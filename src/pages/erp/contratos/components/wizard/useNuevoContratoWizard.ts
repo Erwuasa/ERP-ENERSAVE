@@ -48,6 +48,7 @@ import {
   findMarcoTramoCandidates,
   resolveMarcoTramoForConsumo,
 } from "@/lib/marco-consumo-tramo"
+import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
 import { lookupSpainPostalCode } from "@/lib/spain-postal-code"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wizard-ui"
@@ -55,6 +56,7 @@ import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wi
 export function useNuevoContratoWizard({
   open,
   onClose,
+  onDiscard,
   form,
   onChange,
   onSubmit,
@@ -75,6 +77,7 @@ export function useNuevoContratoWizard({
   const [newComment, setNewComment] = useState("")
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
   const [priceCatalog, setPriceCatalog] = useState<MarcoRetributivoEntry[]>([])
@@ -434,14 +437,28 @@ export function useNuevoContratoWizard({
     onSubmit({ preventDefault: () => {} } as FormEvent, { incomplete: true })
   }
 
-  function handleClose() {
+  function resetLocalWizardUi() {
     setTariffSearch("")
     setEmpresaOpen(false)
     setIncompleteConfirmOpen(false)
     setIncompleteMissing([])
+    setDiscardConfirmOpen(false)
     setNewComment("")
     setCustomTariffExpanded(false)
+  }
+
+  function handleClose() {
+    if (hasContractWizardDraft(form)) {
+      setDiscardConfirmOpen(true)
+      return
+    }
+    resetLocalWizardUi()
     onClose()
+  }
+
+  function confirmDiscardWizard() {
+    resetLocalWizardUi()
+    onDiscard()
   }
 
   function selectCompany(compania: string) {
@@ -551,6 +568,9 @@ export function useNuevoContratoWizard({
     cpLookupLoading,
     incompleteConfirmOpen,
     setIncompleteConfirmOpen,
+    discardConfirmOpen,
+    setDiscardConfirmOpen,
+    confirmDiscardWizard,
     incompleteMissing,
     featuredCompanies,
     companySupplyTypes,

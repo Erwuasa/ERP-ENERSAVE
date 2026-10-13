@@ -13,6 +13,7 @@ export interface WizardProfileOption {
 export interface NuevoContratoWizardProps {
   open: boolean
   onClose: () => void
+  onDiscard: () => void
   form: NewContractFormState
   onChange: (patch: Partial<NewContractFormState>) => void
   onSubmit: (e: FormEvent, options?: { incomplete?: boolean }) => void

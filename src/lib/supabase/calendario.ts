@@ -17,7 +17,7 @@ import {
 const TABLE = "calendario_eventos"
 
 const EVENTO_SELECT =
-  "id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, usuario_id, created_at"
+  "id, titulo, descripcion, tipo, fecha_inicio, fecha_fin, todo_el_dia, usuario_id, menciones, created_at"
 
 const TIPOS: CalendarioEventoTipo[] = ["evento", "vacaciones", "ausencia", "reunion"]
 
@@ -29,6 +29,12 @@ const PATCH_COLUMNS: Partial<Record<keyof CalendarioEvento, string>> = {
   fechaFin: "fecha_fin",
   todoElDia: "todo_el_dia",
   usuarioId: "usuario_id",
+  menciones: "menciones",
+}
+
+function readMenciones(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0)
 }
 
 function toFailure(error: { code?: string; message: string }) {
@@ -47,6 +53,7 @@ export function mapRowToCalendarioEvento(row: Row): CalendarioEvento {
     fechaFin: str(row.fecha_fin) ?? new Date().toISOString(),
     todoElDia: bool(row.todo_el_dia),
     usuarioId: str(row.usuario_id) ?? "",
+    menciones: readMenciones(row.menciones),
     creadoEn: str(row.created_at) ?? new Date().toISOString(),
   }
 }
@@ -60,6 +67,7 @@ function buildInsertRow(input: CreateCalendarioEventoInput): Row {
     fecha_fin: input.fechaFin,
     todo_el_dia: input.todoElDia,
     usuario_id: input.usuarioId,
+    menciones: input.menciones ?? [],
   }
 }
 
@@ -145,7 +153,11 @@ export function getProximosEventosUsuario(
   const now = hoy.getTime()
 
   return eventos
-    .filter((evento) => evento.usuarioId === usuarioId && new Date(evento.fechaFin).getTime() >= now)
+    .filter(
+      (evento) =>
+        (evento.usuarioId === usuarioId || (evento.menciones ?? []).includes(usuarioId)) &&
+        new Date(evento.fechaFin).getTime() >= now
+    )
     .sort(
       (a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime()
     )

@@ -9,6 +9,7 @@ export interface CalendarioEvento {
   fechaFin: string
   todoElDia: boolean
   usuarioId: string
+  menciones: string[]
   creadoEn: string
 }
 
@@ -20,6 +21,7 @@ export interface CreateCalendarioEventoInput {
   fechaFin: string
   todoElDia: boolean
   usuarioId: string
+  menciones?: string[]
 }
 
 export type UpdateCalendarioEventoInput = Partial<CreateCalendarioEventoInput>

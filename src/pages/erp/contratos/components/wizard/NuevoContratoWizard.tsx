@@ -6,6 +6,7 @@ import { WizardClienteStep } from "@/pages/erp/contratos/components/wizard/Wizar
 import { WizardSuministroStep } from "@/pages/erp/contratos/components/wizard/WizardSuministroStep"
 import { WizardDocumentosStep } from "@/pages/erp/contratos/components/wizard/WizardDocumentosStep"
 import { WizardIncompleteConfirmModal } from "@/pages/erp/contratos/components/wizard/WizardIncompleteConfirmModal"
+import { WizardDiscardConfirmModal } from "@/pages/erp/contratos/components/wizard/WizardDiscardConfirmModal"
 import { formatCompaniaLabel } from "@/lib/erp/compania-logos"
 import { WIZARD_TABS } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
@@ -14,7 +15,7 @@ import { onFormEnterNavigationKeyDown } from "@/lib/form-enter-navigation"
 export type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 
 const WIZARD_PANEL_CLASS =
-  "bg-brand-panel border border-brand-border rounded-2xl shadow-2xl w-[960px] max-w-[calc(100vw-2rem)] h-[740px] max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden"
+  "bg-brand-panel border border-brand-border rounded-2xl shadow-2xl w-[960px] max-w-[calc(100vw-2rem)] h-[min(740px,calc(100dvh-2rem))] max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden"
 
 export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
   const {
@@ -136,7 +137,14 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               onSubmit={vm.handleFormSubmit}
               className="flex flex-col flex-1 min-h-0"
             >
-              <div className="px-6 py-4 flex-1 min-h-0 overflow-hidden">
+              <p className="px-6 py-2 border-b border-brand-border shrink-0 text-[10px] leading-relaxed text-brand-subtext">
+                El alta se guarda en el ERP. La marca{" "}
+                <span className="font-bold text-cyan-700 dark:text-cyan-300">Enertech</span> marca
+                lo que la API exige y este formulario ya recoge. Para subir el contrato faltan el
+                CNAE, la clave de tarifa (tf_…) y, si el documento es NIE o CIF, la nacionalidad o
+                el apoderado.
+              </p>
+              <div className="px-6 py-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
                 {vm.activeTab === "cliente" && (
                   <WizardClienteStep
                     form={form}
@@ -232,6 +240,12 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
           )}
         </div>
       </AppFullScreenModal>
+
+      <WizardDiscardConfirmModal
+        open={vm.discardConfirmOpen}
+        onKeepEditing={() => vm.setDiscardConfirmOpen(false)}
+        onDiscard={vm.confirmDiscardWizard}
+      />
 
       <WizardIncompleteConfirmModal
         open={vm.incompleteConfirmOpen}

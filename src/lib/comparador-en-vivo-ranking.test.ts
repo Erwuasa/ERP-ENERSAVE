@@ -150,6 +150,35 @@ describe("buildComparadorEnVivoRanking", () => {
     expect(sinSva.resultados.map((r) => r.tariffId)).not.toContain("sva")
   })
 
+  it("compara un 3.0TD con su precio de Enertech aunque segment diga residencial", () => {
+    const endesa = makeTariff({
+      tariffId: "endesa-30",
+      atRateId: null,
+      name: "TEMPO OPEN",
+      providerName: "ENDESA",
+      segment: "residencial",
+      accessTariff: "3.0TD",
+      precios: {
+        P1: { energyPriceKwh: 0.21, powerPriceKwDay: 0.08 },
+      },
+    })
+
+    const result = buildComparadorEnVivoRanking({
+      catalog: [endesa],
+      marcoRows: [],
+      form: {
+        ...baseForm,
+        segmento: "pyme",
+        peaje: "3.0TD",
+        potencias: { p1: 15, p2: null, p3: null, p4: null, p5: null, p6: null },
+        consumos: { p1: 400, p2: null, p3: null, p4: null, p5: null, p6: null },
+      },
+    })
+
+    expect(result.resultados.map((row) => row.tariffId)).toEqual(["endesa-30"])
+    expect(result.resultados[0]?.precios.P1?.energyPriceKwh).toBe(0.21)
+  })
+
   it("muestra la tarifa residencial con precio aunque no tenga marco", () => {
     const marco = marcoRow({ id: "m1", at_rate_id: "at1", tariff_id: "t1", potencia_boe: true })
     const index = buildMarcoRetributivoIndex([marco])
@@ -187,6 +216,7 @@ describe("buildComparadorEnVivoRanking", () => {
       segment: "pyme",
       name: "SOLO EMPRESA",
       providerName: "Endesa",
+      accessTariff: "3.0TD",
     })
     const marco = marcoRow({
       id: "m-res",

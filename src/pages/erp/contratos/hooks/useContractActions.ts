@@ -250,6 +250,14 @@ export function useContractActions(options: UseContractActionsOptions = {}) {
     setContractWizardDraftNoticeVisible(false)
   }, [resetNewContractForm])
 
+  const discardAndCloseContractWizard = useCallback(() => {
+    resetNewContractForm()
+    setContractWizardProspectoId(null)
+    setEditingContractId(null)
+    setContractWizardDraftNoticeVisible(false)
+    setContractWizardOpen(false)
+  }, [resetNewContractForm])
+
   const finishContractWizard = useCallback(() => {
     setContractWizardOpen(false)
     setContractWizardProspectoId(null)
@@ -784,6 +792,7 @@ export function useContractActions(options: UseContractActionsOptions = {}) {
     dismissContractWizard,
     finishContractWizard,
     discardContractWizardDraft,
+    discardAndCloseContractWizard,
     hideContractWizardDraftNotice,
     openContractWizardBlank,
     openContractWizardFromProducto,

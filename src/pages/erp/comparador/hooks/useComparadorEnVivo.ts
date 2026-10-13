@@ -50,7 +50,6 @@ export function useComparadorEnVivo(
   const [catalog, setCatalog] = useState<TariffConPrecios[]>([])
   const [marcoRows, setMarcoRows] = useState<MarcoRetributivoRow[]>([])
   const [catalogLoading, setCatalogLoading] = useState(false)
-  const [marcoLoading, setMarcoLoading] = useState(true)
   const [catalogError, setCatalogError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -95,18 +94,15 @@ export function useComparadorEnVivo(
 
   useEffect(() => {
     let cancelled = false
-    setMarcoLoading(true)
 
     void loadMarcoRetributivoStaleWhileRevalidate({
       onRevalidated: (fresh) => {
         if (cancelled) return
         setMarcoRows(fresh)
-        setMarcoLoading(false)
       },
     }).then((rows) => {
       if (cancelled) return
       setMarcoRows(rows)
-      setMarcoLoading(false)
     })
 
     return () => {
@@ -191,7 +187,6 @@ export function useComparadorEnVivo(
     precision: ranking.precision,
     calculando:
       (catalogLoading && catalog.length === 0) ||
-      (marcoLoading && marcoRows.length === 0) ||
       deferredRankingSource !== rankingSource,
     catalogError,
     catalogCount: catalog.length,

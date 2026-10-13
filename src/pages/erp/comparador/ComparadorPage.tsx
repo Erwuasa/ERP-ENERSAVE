@@ -375,7 +375,7 @@ export function ComparadorPage() {
                           ? "Prueba quitando algún filtro o cambia la tarifa de acceso."
                           : catalogCount === 0
                             ? "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."
-                            : "Hay tarifas en catálogo pero ninguna encaja con marco retributivo y los datos introducidos. Revisa precios por periodo o quita filtros."}
+                            : "Hay tarifas de Enertech para este peaje, pero ninguna tiene precio en todos los periodos que has rellenado. Revisa la potencia y el consumo, o quita filtros."}
                   </p>
                 </div>
               </div>

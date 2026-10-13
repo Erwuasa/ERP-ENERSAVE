@@ -25,6 +25,7 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
     newContractForm,
     patchNewContractForm,
     dismissContractWizard,
+    discardAndCloseContractWizard,
     finishContractWizard,
     contractWizardDraftNoticeVisible,
     discardContractWizardDraft,
@@ -93,6 +94,7 @@ export function ContractActionsHost({ actions }: { actions: ContractActionsValue
         <NuevoContratoWizard
           open={contractWizardOpen}
           onClose={dismissContractWizard}
+          onDiscard={discardAndCloseContractWizard}
           form={newContractForm}
           onChange={patchNewContractForm}
           onSubmit={(e, opts) =>
