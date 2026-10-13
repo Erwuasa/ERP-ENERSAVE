@@ -3,7 +3,9 @@ import {
   marcoEntryMatchesPeajeSegment,
   type ContractPeajeSegment,
 } from "./contract-peaje-segment"
+import { companiaMatchesSelectorFilter, companiaSelectorMergeKey } from "./erp/compania-logos"
 import { inferErpAudienceFromText } from "./infer-erp-segment"
+import { marcoOfferSegment, marcoOfferTipo } from "./marco-tariff-commission"
 import { isWizardCompaniaAllowedForSegment } from "./wizard-compania-segment"
 
 export type ContractWizardSegment = "residencial" | "pyme"
@@ -100,12 +102,13 @@ export function filterMarcoTariffs(params: {
   const catalog = params.catalog ?? []
 
   return catalog.filter((entry) => {
-    if (entry.compania !== params.compania) return false
-    if (!isWizardCompaniaAllowedForSegment(entry.compania, segment)) return false
+    if (!companiaMatchesSelectorFilter(entry.compania, params.compania)) return false
     if (entry.tipo !== params.tipo) return false
-    if (!isMarcoEntryForSegment(entry, segment)) return false
     if (params.peajeSegment) {
       if (!marcoEntryMatchesPeajeSegment(entry.peaje, params.peajeSegment)) return false
+    } else {
+      if (!isWizardCompaniaAllowedForSegment(entry.compania, segment)) return false
+      if (!isMarcoEntryForSegment(entry, segment)) return false
     }
     if (q && !entry.tarifa.toLowerCase().includes(q) && !entry.peaje.toLowerCase().includes(q)) {
       return false
@@ -137,7 +140,7 @@ export function getWizardCompanySupplyTypes(
 ): Array<"luz" | "gas"> {
   const tipos = new Set<"luz" | "gas">()
   for (const entry of catalog) {
-    if (entry.compania !== compania) continue
+    if (!companiaMatchesSelectorFilter(entry.compania, compania)) continue
     if (!isWizardCompaniaAllowedForSegment(entry.compania, segment)) continue
     if (!isMarcoEntryForSegment(entry, segment)) continue
     tipos.add(entry.tipo)
@@ -152,6 +155,52 @@ export function findMarcoEntryByTarifa(
   catalog: MarcoRetributivoEntry[] = []
 ): MarcoRetributivoEntry | undefined {
   return catalog.find(
-    (e) => e.compania === compania && e.tarifa === tarifa && e.tipo === tipo
+    (e) =>
+      companiaMatchesSelectorFilter(e.compania, compania) && e.tarifa === tarifa && e.tipo === tipo
   )
+}
+
+function wizardTariffKey(entry: MarcoRetributivoEntry): string {
+  return [
+    companiaSelectorMergeKey(entry.compania),
+    entry.tipo,
+    entry.peaje.trim().toLowerCase(),
+    entry.tarifa.trim().toLowerCase(),
+  ].join("|")
+}
+
+/** Una oferta del tarifario (`enertech_precios`) lista para el selector del contrato. */
+export function priceOfferToWizardEntry(input: {
+  id: string
+  compania: string
+  tarifa: string
+  peaje: string
+}): MarcoRetributivoEntry {
+  return {
+    id: input.id,
+    compania: input.compania,
+    tarifa: input.tarifa,
+    tipo: marcoOfferTipo(input.tarifa, input.peaje),
+    peaje: input.peaje,
+    segmento: marcoOfferSegment(input.compania, input.tarifa, input.peaje),
+    condiciones: "",
+    comisionTipo: "fija",
+    comisionBase: 0,
+    comisionUnidad: "eur_cups",
+    vigenciaMeses: 12,
+  }
+}
+
+/**
+ * El marco (con tramos) gana si ya llegó. Las tarifas del precio rellenan las que el
+ * barrido de comisiones todavía no ha traído, o las que no tienen fila de comisión.
+ */
+export function mergeWizardTariffCatalog(
+  marcoEntries: MarcoRetributivoEntry[],
+  priceEntries: MarcoRetributivoEntry[]
+): MarcoRetributivoEntry[] {
+  const byKey = new Map<string, MarcoRetributivoEntry>()
+  for (const entry of priceEntries) byKey.set(wizardTariffKey(entry), entry)
+  for (const entry of marcoEntries) byKey.set(wizardTariffKey(entry), entry)
+  return [...byKey.values()]
 }

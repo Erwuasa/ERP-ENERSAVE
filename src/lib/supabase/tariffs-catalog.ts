@@ -274,3 +274,51 @@ export async function bulkSetTariffsErpInactive(
 
   return { ok: true, data: count }
 }
+
+async function listPrecioRows(
+  apply: (
+    query: ReturnType<NonNullable<ReturnType<typeof getSupabaseClient>>["from"]>
+  ) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>
+): Promise<TariffsCatalogResult<TariffConPrecios[]>> {
+  if (!isSupabaseConfigured()) return { ok: false, message: "Supabase no configurado" }
+  const client = getSupabaseClient()
+  if (!client) return { ok: false, message: "Cliente Supabase no disponible" }
+
+  const { data, error } = await apply(client.from("enertech_precios"))
+  if (error) return mapError(error)
+  const rows = ((data ?? []) as EnertechPrecioRow[])
+    .map(mapEnertechPrecioRowToConPrecios)
+    .filter((row) => Object.keys(row.precios).length > 0)
+  return { ok: true, data: rows }
+}
+
+/** Precios de una compañía. El patrón ya lleva `%` y no distingue tildes. */
+export async function listTariffsMatchingComercializadora(
+  pattern: string,
+  limit = 400
+): Promise<TariffsCatalogResult<TariffConPrecios[]>> {
+  return listPrecioRows((query) =>
+    query
+      .select(ENERTECH_PRECIOS_SELECT)
+      .is("removed_at", null)
+      .ilike("payload->>comercializadora", pattern)
+      .limit(limit)
+  )
+}
+
+/** Búsqueda de tarifa o compañía, acotada. No recorre las comisiones. */
+export async function listTariffsMatchingSearch(
+  search: string
+): Promise<TariffsCatalogResult<TariffConPrecios[]>> {
+  const safe = search.replace(/[%_,*()]/g, " ").trim()
+  if (!safe) return { ok: true, data: [] }
+  return listPrecioRows((query) =>
+    query
+      .select(ENERTECH_PRECIOS_SELECT)
+      .is("removed_at", null)
+      .or(
+        `payload->>campania.ilike."%${safe}%",payload->>comercializadora.ilike."%${safe}%"`
+      )
+      .limit(300)
+  )
+}

@@ -1,4 +1,4 @@
-import { Coins, Filter, Loader2, Plus, Sparkles } from "lucide-react"
+import { Coins, Filter, Loader2, Plus, Search, Sparkles } from "lucide-react"
 import { CompaniaFilterSelect } from "@/components/erp/CompaniaFilterSelect"
 
 type Props = {
@@ -19,6 +19,8 @@ type Props = {
   peajeOptions: string[]
   peajeFilter: string
   setPeajeFilter: (value: string) => void
+  search: string
+  setSearch: (value: string) => void
 }
 
 export function MarcoRetributivoToolbar({
@@ -39,6 +41,8 @@ export function MarcoRetributivoToolbar({
   peajeOptions,
   peajeFilter,
   setPeajeFilter,
+  search,
+  setSearch,
 }: Props) {
   return (
     <>
@@ -58,6 +62,8 @@ export function MarcoRetributivoToolbar({
               fieldLabel="Marco retributivo"
               accent="blue"
               size="compact"
+              showCounts
+              hideEmpty={false}
               className="max-w-full"
             />
             {!supabaseConfigured && (
@@ -141,7 +147,18 @@ export function MarcoRetributivoToolbar({
         </div>
       </div>
 
-      {peajeOptions.length > 2 && (
+      <label className="flex min-w-0 max-w-md items-center gap-2 rounded-xl border border-brand-border bg-brand-surface px-3 py-2 transition-colors duration-200 focus-within:border-blue-500">
+        <Search className="h-3.5 w-3.5 shrink-0 text-brand-subtext" aria-hidden />
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar tarifa o compañía"
+          aria-label="Buscar tarifa o compañía"
+          className="min-w-0 flex-1 bg-transparent text-xs text-brand-text outline-none placeholder:text-brand-subtext"
+        />
+      </label>
+
+      {peajeOptions.length > 1 && (
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <span className="text-[9px] font-mono uppercase text-slate-500 w-full sm:w-auto">
             Peaje / ATR
@@ -151,7 +168,7 @@ export function MarcoRetributivoToolbar({
               key={peaje}
               type="button"
               onClick={() => setPeajeFilter(peaje)}
-              className={`max-w-full shrink-0 whitespace-nowrap px-2.5 py-1 text-[9px] font-mono rounded-md border cursor-pointer ${
+              className={`max-w-full shrink-0 whitespace-nowrap px-2.5 py-1 text-[9px] font-mono rounded-md border cursor-pointer transition-colors duration-200 ${
                 peajeFilter === peaje
                   ? "bg-slate-800 text-white border-slate-800 dark:bg-slate-700"
                   : "border-brand-border text-brand-subtext"

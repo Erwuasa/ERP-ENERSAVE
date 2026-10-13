@@ -6,6 +6,7 @@ import {
   selectMarcoTramoForConsumo,
   type MarcoConsumoTramo,
 } from "./marco-consumo-tramo"
+import { marcoComisionTipoForUnidad } from "./marco-tariff-commission"
 
 const DEFAULT_KWH_PRICE = 0.15
 const DEFAULT_ANNUAL_BILL_FACTOR = 1
@@ -74,6 +75,21 @@ export function estimateMarcoCommissionEur(
   let detail = ""
 
   const activeTramo = consumoAnual > 0 ? resolveActiveTramo(entry, consumoAnual) : null
+  if (activeTramo && marcoComisionTipoForUnidad(activeTramo.unidad) === "porcentaje") {
+    const pct = Math.round((activeTramo.comision_base ?? 0) * rate * 100) / 100
+    const kind =
+      activeTramo.unidad === "porcentaje_consumo"
+        ? "energía"
+        : activeTramo.unidad === "porcentaje_termino"
+          ? "potencia"
+          : "facturado"
+    return {
+      entry,
+      label: `${pct.toFixed(2)}% ${kind}`,
+      amountEur: 0,
+      detail: `Comisión fee ${activeTramo.comision_base?.toFixed(2)}% ${kind} × ${commissionPercentage}% del comercial.`,
+    }
+  }
   if (activeTramo) {
     amountEur = computeTramoCommissionEur(activeTramo, commissionPercentage, consumoAnual)
     detail = formatTramoDetail(activeTramo, consumoAnual, commissionPercentage)

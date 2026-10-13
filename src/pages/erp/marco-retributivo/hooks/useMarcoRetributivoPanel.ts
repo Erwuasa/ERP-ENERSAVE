@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react"
 import { toast } from "sonner"
 import { isSupabaseConfigured } from "@/lib/supabase/client"
 import { canEditMarcoRetributivo } from "@/lib/marco-retributivo-permissions"
 import {
+  MARCO_COMPANIES_PER_PAGE,
+  MARCO_DEFAULT_PEAJES,
+  MARCO_TARIFF_PAGE_SIZE,
+  toggleChipFilter,
+} from "@/lib/marco-screen-query"
+import { loadMarcoScreenPage } from "@/lib/supabase/marco-screen-page"
+import {
   createMarcoEntry,
   deleteMarcoEntry,
-  listMarcoRetributivo,
   updateMarcoEntry,
   type MarcoEntryInput,
   type MarcoRetributivoRow,
@@ -25,7 +31,6 @@ import {
 } from "@/lib/catalog-dedup-persist"
 import {
   invalidateMarcoRetributivoCache,
-  loadMarcoRetributivoStaleWhileRevalidate,
   patchMarcoRetributivoCacheRow,
   prependMarcoRetributivoCacheRow,
   removeMarcoRetributivoCacheRow,
@@ -47,6 +52,16 @@ export function useMarcoRetributivoPanel({
 }: Options) {
   const [rows, setRows] = useState<MarcoRetributivoRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [companies, setCompanies] = useState<string[]>([])
+  const [countsByCompania, setCountsByCompania] = useState<Record<string, number>>({ Todos: 0 })
+  const [search, setSearch] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  const [page, setPage] = useState(0)
+  const [pageCount, setPageCount] = useState(1)
+  const [pageMode, setPageMode] = useState<"companies" | "tariffs">("companies")
+  const [tariffTotal, setTariffTotal] = useState(0)
+  const [reloadToken, setReloadToken] = useState(0)
+  const requestRef = useRef(0)
   const [companiaFilter, setCompaniaFilter] = useState<string>("Todos")
   const [tipoFilter, setTipoFilter] = useState<"luz" | "gas" | "todos">("luz")
   const [segmentoFilter, setSegmentoFilter] = useState<MarcoSegmentoFilter>("todos")
@@ -62,26 +77,74 @@ export function useMarcoRetributivoPanel({
   const canEditComision = canEdit && activeRole === "superadmin"
   const supabaseConfigured = isSupabaseConfigured()
 
-  const loadRows = useCallback(async (options?: { bustCache?: boolean }) => {
-    if (options?.bustCache) invalidateMarcoRetributivoCache()
-    setLoading(true)
-    try {
-      const data = await loadMarcoRetributivoStaleWhileRevalidate({
-        onRevalidated: (fresh) => setRows(fresh),
-      })
-      setRows(data)
-    } catch (err) {
-      const result = await listMarcoRetributivo()
-      if (result.ok) setRows(result.data)
-      else if (result.ok === false) toast.error(result.message)
-      else toast.error(err instanceof Error ? err.message : "Error al cargar marco")
-    }
-    setLoading(false)
+  const loadRows = useCallback(() => {
+    setReloadToken((current) => current + 1)
   }, [])
 
   useEffect(() => {
-    void loadRows({ bustCache: true })
-  }, [loadRows])
+    const timer = window.setTimeout(() => {
+      const next = search.trim()
+      setDebouncedSearch((current) => {
+        if (current === next) return current
+        setPage(0)
+        return next
+      })
+    }, 280)
+    return () => window.clearTimeout(timer)
+  }, [search])
+
+  useEffect(() => {
+    const request = ++requestRef.current
+    setLoading(true)
+    setRows([])
+    void loadMarcoScreenPage(
+      {
+        page,
+        tipo: tipoFilter,
+        segmento: segmentoFilter,
+        peaje: peajeFilter,
+        compania: companiaFilter,
+        search: debouncedSearch,
+      },
+      {
+        onCompanies(names, counts) {
+          if (request !== requestRef.current) return
+          setCompanies(names)
+          setCountsByCompania(counts)
+        },
+        onRows(chunk) {
+          if (request !== requestRef.current) return
+          setRows((prev) => {
+            const byId = new Map(prev.map((row) => [row.id, row]))
+            for (const row of chunk) byId.set(row.id, row)
+            return [...byId.values()].sort(
+              (a, b) =>
+                a.compania.localeCompare(b.compania, "es") || a.tarifa.localeCompare(b.tarifa, "es")
+            )
+          })
+        },
+      }
+    ).then((result) => {
+      if (request !== requestRef.current) return
+      if (result.ok === false) {
+        toast.error(result.message)
+        setLoading(false)
+        return
+      }
+      setPageMode(result.data.mode)
+      if (result.data.mode === "tariffs") setPageCount(result.data.pageCount)
+      setTariffTotal(result.data.total)
+      setLoading(false)
+    })
+  }, [
+    page,
+    tipoFilter,
+    segmentoFilter,
+    peajeFilter,
+    companiaFilter,
+    debouncedSearch,
+    reloadToken,
+  ])
 
   const runMarcoDedup = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -124,16 +187,15 @@ export function useMarcoRetributivoPanel({
     })
   }, [canEditComision, supabaseConfigured, loading, runMarcoDedup])
 
-  const peajeOptions = useMemo(() => {
-    const byTipoSegmento = rows.filter((entry) => {
-      if (tipoFilter !== "todos" && entry.tipo !== tipoFilter) return false
-      if (segmentoFilter !== "todos" && marcoRowAudience(entry) !== segmentoFilter) {
-        return false
-      }
-      return true
-    })
-    return buildMarcoPeajeFilterOptions(byTipoSegmento.map((entry) => entry.peaje))
-  }, [rows, tipoFilter, segmentoFilter])
+  const peajeOptions = useMemo(
+    () => buildMarcoPeajeFilterOptions([...MARCO_DEFAULT_PEAJES, ...rows.map((entry) => entry.peaje)]),
+    [rows]
+  )
+
+  const resolvedPageCount =
+    pageMode === "companies"
+      ? Math.max(1, Math.ceil(companies.length / MARCO_COMPANIES_PER_PAGE))
+      : Math.max(1, pageCount)
 
   const tableViewFilters = useMemo(
     () => ({
@@ -161,20 +223,7 @@ export function useMarcoRetributivoPanel({
     return buildCanonicalCompaniaCounts(scoped)
   }, [rows, tipoFilter, segmentoFilter])
 
-  const countsByCompania = useMemo(() => {
-    const visibleForCounts = buildMarcoVisibleTableRows(rows, {
-      ...tableViewFilters,
-      companiaFilter: "Todos",
-    })
-    const byLabel = buildCanonicalCompaniaCounts(
-      visibleForCounts.map((row) => ({ compania: row.compania }))
-    ).countsByLabel
-    return { Todos: visibleForCounts.length, ...byLabel }
-  }, [rows, tableViewFilters])
-
-  const companyTabs = useMemo(() => {
-    return ["Todos", ...marcoCompaniaAggregation.labels]
-  }, [marcoCompaniaAggregation.labels])
+  const companyTabs = useMemo(() => ["Todos", ...companies], [companies])
 
   const marcoCompaniaLabels = marcoCompaniaAggregation.labels
 
@@ -363,18 +412,34 @@ export function useMarcoRetributivoPanel({
   }
 
   function setTipoFilterWithReset(tipo: "luz" | "gas" | "todos") {
-    setTipoFilter(tipo)
+    setTipoFilter((current) => toggleChipFilter(current, tipo, "todos") as "luz" | "gas" | "todos")
     setPeajeFilter("todos")
+    setPage(0)
   }
 
   function setSegmentoFilterWithReset(segmento: MarcoSegmentoFilter) {
-    setSegmentoFilter(segmento)
+    setSegmentoFilter(
+      (current) => toggleChipFilter(current, segmento, "todos") as MarcoSegmentoFilter
+    )
     setPeajeFilter("todos")
+    setPage(0)
   }
 
   function setCompaniaFilterWithReset(compania: string) {
-    setCompaniaFilter(compania)
+    setCompaniaFilter((current) => toggleChipFilter(current, compania, "Todos"))
+    setSearch("")
+    setDebouncedSearch("")
     setPeajeFilter("todos")
+    setPage(0)
+  }
+
+  function setPeajeFilterWithReset(peaje: string) {
+    setPeajeFilter((current) => toggleChipFilter(current, peaje, "todos"))
+    setPage(0)
+  }
+
+  function goToPage(next: number) {
+    setPage(Math.min(Math.max(0, next), resolvedPageCount - 1))
   }
 
   return {
@@ -387,7 +452,15 @@ export function useMarcoRetributivoPanel({
     segmentoFilter,
     setSegmentoFilter: setSegmentoFilterWithReset,
     peajeFilter,
-    setPeajeFilter,
+    setPeajeFilter: setPeajeFilterWithReset,
+    search,
+    setSearch,
+    page,
+    pageCount: resolvedPageCount,
+    pageMode,
+    tariffTotal,
+    companyCount: companies.length,
+    goToPage,
     modalOpen,
     modalEntry,
     isCreateMode,

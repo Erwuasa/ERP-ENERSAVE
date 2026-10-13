@@ -46,6 +46,7 @@ export interface WovenMarcoTariff {
 }
 
 const TIER_NOISE = new Set(["luz", "gas", "tarifa", "fija", "fijo", "plan", "energy", "energia"])
+const COMPANY_TAILS = ["pymes", "residencial", "empresa", "hogar"]
 
 function companyKey(name: string): string {
   return normalizeCompaniaKey(name).replace(/energia|energy/g, "")
@@ -53,6 +54,40 @@ function companyKey(name: string): string {
 
 function peajeKey(peaje: string): string {
   return peaje.trim().toLowerCase()
+}
+
+/**
+ * Misma campaña aunque el precio lleve un código de año (`20269`) o guiones bajos
+ * (`T1_INTEGRAL_24H_20269` y `T1_INTEGRAL_24H`).
+ */
+export function marcoCommissionNameKey(name: string): string {
+  const stripped = name
+    .trim()
+    .replace(/^\++\s*/, "")
+    .replace(/\([^)]*\)/g, " ")
+  return normalizeMarcoTarifaName(stripped)
+    .replace(/_/g, " ")
+    .replace(/\b20\d{3}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/** Palabras de la tarifa que pueden ser el nombre entero de una comisión más corta. */
+export function marcoCommissionExtraLookups(name: string): string[] {
+  return marcoCommissionNameKey(name)
+    .split(" ")
+    .filter((token) => isCommissionCode(token) || (token.length >= 6 && !TIER_NOISE.has(token)))
+}
+
+/** Nombres con los que buscar la comisión de una tarifa: el suyo y, si cambia, el de sin año. */
+export function marcoCommissionLookupNames(name: string): string[] {
+  const trimmed = name.trim()
+  if (!trimmed) return []
+  const withoutYear = trimmed
+    .replace(/[_\s]+20\d{3}\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  return [...new Set([trimmed, withoutYear].filter((value) => value.length >= 3))]
 }
 
 function isTierToken(campania: string): boolean {
@@ -63,12 +98,29 @@ function isTierToken(campania: string): boolean {
   return true
 }
 
+function companyLookupKeys(name: string): string[] {
+  const key = companyKey(name)
+  if (!key) return [""]
+  const keys = [key, ""]
+  for (const tail of COMPANY_TAILS) {
+    if (key.endsWith(tail) && key.length > tail.length) keys.push(key.slice(0, -tail.length))
+  }
+  return keys
+}
+
 function companiesMatch(commissionCompany: string, tariffCompany: string): boolean {
   if (!commissionCompany.trim()) return true
   const left = companyKey(commissionCompany)
   const right = companyKey(tariffCompany)
   if (!left || !right) return false
-  return left === right
+  if (left === right) return true
+  return right.startsWith(left) && COMPANY_TAILS.includes(right.slice(left.length))
+}
+
+function isCommissionCode(name: string): boolean {
+  const key = marcoCommissionNameKey(name)
+  if (!/^(?=.*[a-z])(?=.*\d)[a-z0-9]+$/.test(key)) return false
+  return key.length >= 2 && key.length <= 8
 }
 
 function sliceIdentity(slice: MarcoCommissionSlice): string {
@@ -93,18 +145,53 @@ function dedupeSlices(slices: MarcoCommissionSlice[]): MarcoCommissionSlice[] {
   return out
 }
 
-function amountFromPayload(payload: Record<string, unknown>, tipo: string): number {
-  const eur = Number(payload.comision_eur)
-  const porMw = Number(payload.comision_por_mw)
-  if (tipo === "fijo_kwh" && Number.isFinite(eur)) return eur * 1000
-  if (tipo === "fijo_mwh" && Number.isFinite(porMw)) return porMw
-  if (Number.isFinite(eur)) return eur
-  return Number.isFinite(porMw) ? porMw : 0
+function readAmount(value: unknown): number | null {
+  if (value == null || value === "") return null
+  const num = Number(value)
+  return Number.isFinite(num) ? num : null
+}
+
+function isFeeTipo(tipo: string): boolean {
+  return tipo === "fee_energia" || tipo === "fee_potencia"
+}
+
+/** «1,25 % fee energía» → 1.25. El euro de estas filas llega null a propósito. */
+function readFeePercent(value: unknown): number | null {
+  if (typeof value !== "string") return null
+  const match = value.trim().match(/^(-?\d+(?:[.,]\d+)?)\s*%/)
+  if (!match?.[1]) return null
+  const num = Number(match[1].replace(",", "."))
+  return Number.isFinite(num) ? num : null
+}
+
+function amountFromPayload(payload: Record<string, unknown>, tipo: string): number | null {
+  if (isFeeTipo(tipo)) return readFeePercent(payload.importe_comercial)
+  const eur = readAmount(payload.comision_eur)
+  const porMw = readAmount(payload.comision_por_mw)
+  if (tipo === "fijo_kwh" && eur != null) return eur * 1000
+  if (tipo === "fijo_mwh" && porMw != null) return porMw
+  if (eur != null) return eur
+  return porMw
 }
 
 function unidadFromTipo(tipo: string): MarcoComisionUnidad {
   if (tipo === "fijo_mwh" || tipo === "fijo_kwh") return "eur_mwh"
+  if (tipo === "fee_energia") return "porcentaje_consumo"
+  if (tipo === "fee_potencia") return "porcentaje_termino"
   return "eur_cups"
+}
+
+export function marcoComisionTipoForUnidad(
+  unidad: MarcoComisionUnidad | null | undefined
+): "fija" | "porcentaje" {
+  if (
+    unidad === "porcentaje_facturado" ||
+    unidad === "porcentaje_consumo" ||
+    unidad === "porcentaje_termino"
+  ) {
+    return "porcentaje"
+  }
+  return "fija"
 }
 
 /** Una fila de `enertech_comisiones` → tramo de comisión, o null si no hay campaña. */
@@ -117,6 +204,8 @@ export function commissionSliceFromPayload(input: {
   if (!campania) return null
 
   const tipo = String(payload.tipo_comision ?? "fijo_contrato")
+  const comision = amountFromPayload(payload, tipo)
+  if (comision == null) return null
   const tramo = String(payload.tramo ?? "").trim()
   const range = tramo ? parseConsumoTramoRange(tramo) : null
   const open = !tramo || !range
@@ -129,7 +218,7 @@ export function commissionSliceFromPayload(input: {
     tramo,
     desdeKwh: open ? Number.NaN : range.desde,
     hastaKwh: open ? Number.NaN : range.hasta,
-    comision: amountFromPayload(payload, tipo),
+    comision,
     unidad: unidadFromTipo(tipo),
     condicion,
   }
@@ -187,7 +276,7 @@ export function weaveMarcoTariffsWithCommissions(
   }
 
   for (const slice of slices) {
-    const name = normalizeMarcoTarifaName(slice.campania)
+    const name = marcoCommissionNameKey(slice.campania)
     const peaje = peajeKey(slice.peaje)
     const company = slice.compania.trim() ? companyKey(slice.compania) : ""
     push(exact, `${name}|${peaje}|${company}`, slice)
@@ -204,23 +293,27 @@ export function weaveMarcoTariffsWithCommissions(
   }
 
   const tariffNames = new Set(offers.map((offer) => normalizeMarcoTarifaName(offer.tarifa)))
+  const offerNameKeys = new Set(offers.map((offer) => marcoCommissionNameKey(offer.tarifa)))
+
+  function slicesFor(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
+    return companyLookupKeys(offer.compania).flatMap((company) => [
+      ...(byCompanyPeaje.get(`${company}|${peaje}`) ?? []),
+      ...(peaje ? (byCompanyPeaje.get(`${company}|`) ?? []) : []),
+    ])
+  }
 
   function exactSlices(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
-    const name = normalizeMarcoTarifaName(offer.tarifa)
-    const company = companyKey(offer.compania)
-    return [
-      ...(exact.get(`${name}|${peaje}|${company}`) ?? []),
-      ...(exact.get(`${name}|${peaje}|`) ?? []),
-    ]
+    const name = marcoCommissionNameKey(offer.tarifa)
+    return companyLookupKeys(offer.compania).flatMap(
+      (company) => exact.get(`${name}|${peaje}|${company}`) ?? []
+    )
   }
 
   function prefixSlices(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
     const name = normalizeMarcoTarifaName(offer.tarifa)
-    const company = companyKey(offer.compania)
-    const pool = [
-      ...(byCompanyPeaje.get(`${company}|${peaje}`) ?? []),
-      ...(byCompanyPeaje.get(`|${peaje}`) ?? []),
-    ]
+    const pool = companyLookupKeys(offer.compania).flatMap(
+      (company) => byCompanyPeaje.get(`${company}|${peaje}`) ?? []
+    )
     return pool.filter((slice) => {
       if (!companiesMatch(slice.compania, offer.compania)) return false
       const commissionName = normalizeMarcoTarifaName(slice.campania)
@@ -231,10 +324,57 @@ export function weaveMarcoTariffsWithCommissions(
     })
   }
 
+  function codeSlices(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
+    const tokens = new Set(marcoCommissionNameKey(offer.tarifa).split(" ").filter(Boolean))
+    return slicesFor(offer, peaje).filter((slice) => {
+      if (!companiesMatch(slice.compania, offer.compania)) return false
+      const code = marcoCommissionNameKey(slice.campania)
+      if (!isCommissionCode(code)) return false
+      if (offerNameKeys.has(code)) return false
+      return tokens.has(code)
+    })
+  }
+
+  function extendsSlices(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
+    const name = marcoCommissionNameKey(offer.tarifa)
+    return slicesFor(offer, peaje).filter((slice) => {
+      if (!companiesMatch(slice.compania, offer.compania)) return false
+      const commissionName = marcoCommissionNameKey(slice.campania)
+      if (!commissionName || !name.startsWith(`${commissionName} `)) return false
+      if (offerNameKeys.has(commissionName)) return false
+      const extra = name.slice(commissionName.length + 1).split(" ").filter(Boolean)
+      return extra.length > 0 && extra.length <= 4
+    })
+  }
+
+  function wordSlices(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
+    const tokens = new Set(
+      marcoCommissionNameKey(offer.tarifa)
+        .split(" ")
+        .filter((token) => token.length >= 5 && !TIER_NOISE.has(token))
+    )
+    return slicesFor(offer, peaje).filter((slice) => {
+      if (!companiesMatch(slice.compania, offer.compania)) return false
+      const commissionName = marcoCommissionNameKey(slice.campania)
+      if (!commissionName || commissionName.includes(" ")) return false
+      if (commissionName.length < 5 || TIER_NOISE.has(commissionName)) return false
+      if (offerNameKeys.has(commissionName)) return false
+      return tokens.has(commissionName)
+    })
+  }
+
   function tierSlices(offer: MarcoTariffOffer): MarcoCommissionSlice[] {
-    const company = companyKey(offer.compania)
-    const bucket = tiers.get(company)
-    if (!bucket) return []
+    const bucket = new Map<string, MarcoCommissionSlice[]>()
+    for (const company of companyLookupKeys(offer.compania)) {
+      const found = tiers.get(company)
+      if (!found) continue
+      for (const [token, list] of found) {
+        const current = bucket.get(token) ?? []
+        current.push(...list)
+        bucket.set(token, current)
+      }
+    }
+    if (bucket.size === 0) return []
     const name = normalizeMarcoTarifaName(offer.tarifa)
     const tokens = [...bucket.keys()]
     const matched = tokens.find((token) => token !== "base" && name.endsWith(` ${token}`))
@@ -249,6 +389,9 @@ export function weaveMarcoTariffsWithCommissions(
     const specific = dedupeSlices(exactSlices(offer, peaje))
     const generic = dedupeSlices(exactSlices(offer, ""))
     const prefixed = dedupeSlices(prefixSlices(offer, peaje))
+    const extended = dedupeSlices(extendsSlices(offer, peaje))
+    const coded = dedupeSlices(codeSlices(offer, peaje))
+    const worded = dedupeSlices(wordSlices(offer, peaje))
     const tier = dedupeSlices(tierSlices(offer))
     const chosen = specific.length
       ? specific
@@ -256,7 +399,13 @@ export function weaveMarcoTariffsWithCommissions(
         ? generic
         : prefixed.length
           ? prefixed
-          : tier
+          : extended.length
+            ? extended
+            : coded.length
+              ? coded
+              : worded.length
+                ? worded
+                : tier
 
     const tramos = sortTramos(chosen.map(toConsumoTramo))
     return {

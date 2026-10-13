@@ -18,6 +18,10 @@ export interface CompaniaFilterSelectProps {
   accent?: CompaniaFilterAccent
   /** compact: cabecera de módulo (marco), menos ancho y una sola fila visual */
   size?: "default" | "compact"
+  /** Sin badge numérico: el listado enseña todas las compañías, no solo las de la página. */
+  showCounts?: boolean
+  /** Con el badge visible, una compañía a 0 sigue en la lista. */
+  hideEmpty?: boolean
   className?: string
   maxWidthClass?: string
   widthClass?: string
@@ -65,6 +69,8 @@ export function CompaniaFilterSelect({
   fieldLabel = "Comercializadora",
   accent = "emerald",
   size = "default",
+  showCounts = true,
+  hideEmpty = true,
   className = "",
   maxWidthClass = "max-w-md",
   widthClass,
@@ -85,14 +91,14 @@ export function CompaniaFilterSelect({
     return [
       { id: allOptionValue, label: allOptionLabel, count: totalCount },
       ...companias
-        .filter((c) => (countsByCompania[c] ?? 0) > 0)
+        .filter((c) => !hideEmpty || (countsByCompania[c] ?? 0) > 0)
         .map((c) => ({
           id: c,
           label: formatCompaniaLabel(c),
           count: countsByCompania[c] ?? 0,
         })),
     ]
-  }, [allOptionLabel, allOptionValue, companias, countsByCompania, totalCount])
+  }, [allOptionLabel, allOptionValue, companias, countsByCompania, hideEmpty, totalCount])
 
   function select(id: string) {
     onChange(id)
@@ -111,7 +117,11 @@ export function CompaniaFilterSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={`${fieldLabel}-filter-listbox`}
-        aria-label={`${fieldLabel}: ${selectedLabel}, ${selectedCount} entradas`}
+        aria-label={
+          showCounts
+            ? `${fieldLabel}: ${selectedLabel}, ${selectedCount} entradas`
+            : `${fieldLabel}: ${selectedLabel}`
+        }
         className={`w-full inline-flex items-center gap-1.5 ${
           isCompact ? "px-2 py-1.5 rounded-lg" : "px-3 py-2 rounded-xl"
         } border bg-brand-surface text-left cursor-pointer transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
@@ -147,7 +157,7 @@ export function CompaniaFilterSelect({
             {selectedLabel}
           </span>
         </span>
-        <CountBadge count={selectedCount} />
+        {showCounts ? <CountBadge count={selectedCount} /> : null}
         <ChevronDown
           className={`${isCompact ? "h-3.5 w-3.5" : "h-4 w-4"} text-brand-subtext shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
           aria-hidden
@@ -191,7 +201,7 @@ export function CompaniaFilterSelect({
                     <CompaniaLogo name={option.id} size="sm" />
                   )}
                   <span className="flex-1 min-w-0 text-xs font-semibold truncate">{option.label}</span>
-                  <CountBadge count={option.count} />
+                  {showCounts ? <CountBadge count={option.count} /> : null}
                   {selected ? (
                     <Check className={`h-4 w-4 shrink-0 ${styles.check}`} aria-hidden />
                   ) : null}

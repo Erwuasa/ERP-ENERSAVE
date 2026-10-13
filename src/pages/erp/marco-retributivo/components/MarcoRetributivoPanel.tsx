@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { ConfirmModal } from "@/components/common/ConfirmModal"
 import { MarcoRetributivoEditModal } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoEditModal"
 import { MarcoRetributivoTable } from "@/pages/erp/marco-retributivo/components/MarcoRetributivoTable"
@@ -26,12 +27,23 @@ export function MarcoRetributivoPanel({
   renderCompaniaLogo,
 }: MarcoRetributivoPanelProps) {
   const vm = useMarcoRetributivoPanel({ activeRole, activeUserId, superadminViewMode })
-  const tableScopeKey = buildMarcoTableScopeKey({
-    compania: vm.companiaFilter,
-    tipo: vm.tipoFilter,
-    segmento: vm.segmentoFilter,
-    peaje: vm.peajeFilter,
-  })
+  const tableScopeKey = [
+    buildMarcoTableScopeKey({
+      compania: vm.companiaFilter,
+      tipo: vm.tipoFilter,
+      segmento: vm.segmentoFilter,
+      peaje: vm.peajeFilter,
+    }),
+    vm.page,
+    vm.search,
+  ].join("|")
+  const pageSize = vm.pageMode === "companies" ? 4 : 12
+  const rangeStart = vm.page * pageSize + (vm.pageMode === "companies" ? (vm.companyCount > 0 ? 1 : 0) : vm.tariffTotal > 0 ? 1 : 0)
+  const rangeEnd =
+    vm.pageMode === "companies"
+      ? Math.min(vm.companyCount, (vm.page + 1) * pageSize)
+      : Math.min(vm.tariffTotal, (vm.page + 1) * pageSize)
+  const rangeTotal = vm.pageMode === "companies" ? vm.companyCount : vm.tariffTotal
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
@@ -55,13 +67,15 @@ export function MarcoRetributivoPanel({
             peajeOptions={vm.peajeOptions}
             peajeFilter={vm.peajeFilter}
             setPeajeFilter={vm.setPeajeFilter}
+            search={vm.search}
+            setSearch={vm.setSearch}
           />
         </div>
 
         <div className="min-h-0 flex-1">
           <MarcoRetributivoTable
             key={tableScopeKey}
-            loading={vm.loading}
+            loading={vm.loading && vm.filteredRows.length === 0}
             filteredRows={vm.filteredRows}
             canEdit={vm.canEdit}
             commissionPercentage={commissionPercentage}
@@ -72,10 +86,39 @@ export function MarcoRetributivoPanel({
           />
         </div>
 
-        <p className="shrink-0 pt-2 text-right text-[10px] font-mono text-brand-subtext">
-          {vm.filteredRows.length} fila{vm.filteredRows.length !== 1 ? "s" : ""} visible
-          {vm.loading ? " · …" : " · marco retributivo (Supabase)"}
-        </p>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-2">
+          <p className="text-[10px] font-mono text-brand-subtext">
+            {vm.pageMode === "companies"
+              ? `Compañías ${rangeStart}–${rangeEnd} de ${rangeTotal}. Primeras 6 tarifas de cada una.`
+              : `Tarifas ${rangeStart}–${rangeEnd} de ${rangeTotal}.`}
+            {vm.loading ? " Cargando…" : ""}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => vm.goToPage(vm.page - 1)}
+              disabled={vm.page <= 0 || vm.loading}
+              aria-label="Página anterior"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-brand-border bg-brand-surface px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-brand-text transition-colors duration-200 hover:border-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
+              Anterior
+            </button>
+            <span className="px-1 text-[10px] font-mono text-brand-subtext">
+              {vm.page + 1} / {vm.pageCount}
+            </span>
+            <button
+              type="button"
+              onClick={() => vm.goToPage(vm.page + 1)}
+              disabled={vm.page + 1 >= vm.pageCount || vm.loading}
+              aria-label="Página siguiente"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-brand-border bg-brand-surface px-2.5 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-brand-text transition-colors duration-200 hover:border-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Siguiente
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+            </button>
+          </div>
+        </div>
       </div>
 
       <ConfirmModal

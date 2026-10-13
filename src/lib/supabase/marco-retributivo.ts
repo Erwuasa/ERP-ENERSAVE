@@ -5,9 +5,11 @@ import { computeComisionBreakdown } from "../marco-commission"
 import { isMarcoGenericPlaceholderTariff } from "../marco-dedup"
 import {
   commissionSliceFromPayload,
+  marcoComisionTipoForUnidad,
   marcoOfferSegment,
   marcoOfferTipo,
   weaveMarcoTariffsWithCommissions,
+  type MarcoCommissionSlice,
   type MarcoTariffOffer,
   type WovenMarcoTariff,
 } from "../marco-tariff-commission"
@@ -582,7 +584,7 @@ function wovenToMarcoRow(woven: WovenMarcoTariff): MarcoRetributivoRow {
         ? (woven.tramos[0]?.condicion ?? null)
         : null,
     condiciones: null,
-    comision_tipo: "fija",
+    comision_tipo: marcoComisionTipoForUnidad(first?.unidad),
     comision_base: first?.comision_base ?? 0,
     comision_unidad: first?.unidad ?? "eur_cups",
     vigencia_meses: 12,
@@ -609,6 +611,20 @@ function wovenToMarcoRow(woven: WovenMarcoTariff): MarcoRetributivoRow {
   }
 }
 
+export function offersAndSlicesToMarcoRows(
+  offers: MarcoTariffOffer[],
+  slices: MarcoCommissionSlice[]
+): MarcoRetributivoRow[] {
+  return weaveMarcoTariffsWithCommissions(offers, slices)
+    .map(wovenToMarcoRow)
+    .map(mapRow)
+    .filter((row) => !isMarcoGenericPlaceholderTariff(row))
+}
+
+export function tariffsToMarcoOffers(tariffs: TariffConPrecios[]): MarcoTariffOffer[] {
+  return collapseTariffsWithSamePrices(tariffs).map(tariffToMarcoOffer)
+}
+
 export async function listMarcoRetributivo(): Promise<
   MarcoRetributivoResult<MarcoRetributivoRow[]>
 > {
@@ -624,7 +640,7 @@ export async function listMarcoRetributivo(): Promise<
   if (pricesResult.ok === false) return pricesResult
   if (rowsResult.ok === false) return rowsResult
 
-  const offers = collapseTariffsWithSamePrices(pricesResult.data).map(tariffToMarcoOffer)
+  const offers = tariffsToMarcoOffers(pricesResult.data)
   const slices = rowsResult.data
     .map((row) =>
       commissionSliceFromPayload({
@@ -634,12 +650,7 @@ export async function listMarcoRetributivo(): Promise<
     )
     .filter((slice): slice is NonNullable<typeof slice> => slice != null)
 
-  const woven = weaveMarcoTariffsWithCommissions(offers, slices)
-    .map(wovenToMarcoRow)
-    .map(mapRow)
-    .filter((row) => !isMarcoGenericPlaceholderTariff(row))
-
-  return { ok: true, data: woven }
+  return { ok: true, data: offersAndSlicesToMarcoRows(offers, slices) }
 }
 
 /**

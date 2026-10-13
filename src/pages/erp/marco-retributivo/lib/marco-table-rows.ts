@@ -1,4 +1,5 @@
 import { filterMarcoRowsForDisplay } from "@/lib/marco-dedup"
+import { marcoComisionTipoForUnidad } from "@/lib/marco-tariff-commission"
 import { formatTramoCondicionMwh, parseMarcoTramosJson } from "@/lib/marco-consumo-tramo"
 import {
   inferErpAudienceFromText,
@@ -60,6 +61,8 @@ export function expandMarcoRowsByTramos(rows: MarcoRetributivoRow[]): MarcoRetri
         ...row,
         id: buildMarcoTramoRowId(row.id, tramo.desde_kwh, tramo.hasta_kwh),
         comision_base: tramo.comision_base ?? row.comision_base,
+        comision_unidad: tramo.unidad ?? row.comision_unidad,
+        comision_tipo: marcoComisionTipoForUnidad(tramo.unidad ?? row.comision_unidad),
         condicion_2: condicion2,
         at_kwh_min: desde,
         at_kwh_max: hasta,

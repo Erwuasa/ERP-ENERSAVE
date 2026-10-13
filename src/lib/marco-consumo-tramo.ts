@@ -1,4 +1,5 @@
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
+import { companiaMatchesSelectorFilter } from "@/lib/erp/compania-logos"
 
 export interface MarcoConsumoTramo {
   desde_kwh: number
@@ -235,7 +236,7 @@ export function findMarcoTramoCandidates(
 ): MarcoRetributivoEntry[] {
   return catalog.filter(
     (entry) =>
-      entry.compania === params.compania &&
+      companiaMatchesSelectorFilter(entry.compania, params.compania) &&
       entry.tarifa === params.tarifa &&
       entry.tipo === params.tipo
   )

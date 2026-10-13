@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
+  filterMarcoTariffs,
   getWizardCompanies,
   getWizardCompanySupplyTypes,
   isMarcoEntryForSegment,
+  mergeWizardTariffCatalog,
+  priceOfferToWizardEntry,
 } from "./contract-tariff-filter"
 import type { MarcoRetributivoEntry } from "../data/marco-retributivo-catalog"
 
@@ -89,6 +92,58 @@ describe("contract-tariff-filter wizard companies", () => {
     })
     expect(getWizardCompanies("pyme", [ganaPymeMislabeled], "luz")).toEqual([])
     expect(getWizardCompanies("residencial", [ganaRes], "luz")).toEqual(["Gana Energía"])
+  })
+
+  it("acepta la etiqueta del asistente aunque el tarifario venga en mayúsculas", () => {
+    const acciona = priceOfferToWizardEntry({
+      id: "tf-aire",
+      compania: "ACCIONA",
+      tarifa: "A TU AIRE",
+      peaje: "2.0TD",
+    })
+    const accionaPyme = priceOfferToWizardEntry({
+      id: "tf-pyme",
+      compania: "ACCIONA",
+      tarifa: "Empresa",
+      peaje: "3.0TD",
+    })
+    const listed = filterMarcoTariffs({
+      compania: "Acciona",
+      segment: "residencial",
+      tipo: "luz",
+      peajeSegment: "2.0",
+      catalog: [acciona, accionaPyme],
+    })
+    expect(listed.map((entry) => entry.tarifa)).toEqual(["A TU AIRE"])
+    const on30 = filterMarcoTariffs({
+      compania: "Acciona",
+      segment: "residencial",
+      tipo: "luz",
+      peajeSegment: "3.0",
+      catalog: [acciona, accionaPyme],
+    })
+    expect(on30.map((entry) => entry.tarifa)).toEqual(["Empresa"])
+  })
+
+  it("el marco con tramo sustituye a la misma tarifa del precio", () => {
+    const price = priceOfferToWizardEntry({
+      id: "precio",
+      compania: "ACCIONA",
+      tarifa: "Calma",
+      peaje: "2.0TD",
+    })
+    const marco = entry({
+      compania: "Acciona",
+      tipo: "luz",
+      segmento: "residencial",
+      peaje: "2.0TD",
+    })
+    marco.tarifa = "Calma"
+    marco.tramos = [{ desde_kwh: 0, hasta_kwh: 5000, comision_base: 40 }]
+    const merged = mergeWizardTariffCatalog([marco], [price])
+    expect(merged).toHaveLength(1)
+    expect(merged[0]?.id).toBe(marco.id)
+    expect(merged[0]?.tramos?.[0]?.comision_base).toBe(40)
   })
 
   it("filters luz vs gas inside the same segment", () => {

@@ -74,7 +74,17 @@ export function MarcoRetributivoTable({
     return (
       <div className="flex h-full min-h-0 items-center justify-center gap-2 rounded-xl border border-brand-border/60 bg-brand-surface/30 text-brand-subtext">
         <Loader2 className="h-5 w-5 animate-spin" />
-        <span className="text-xs font-mono">Cargando marco retributivo…</span>
+        <span className="text-xs font-mono">Cargando las primeras tarifas…</span>
+      </div>
+    )
+  }
+
+  if (filteredRows.length === 0) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center rounded-xl border border-dashed border-brand-border bg-brand-surface/30 px-4 text-center">
+        <p className="text-xs text-brand-subtext">
+          Ninguna tarifa coincide. Prueba con otro nombre o quita un filtro pulsándolo otra vez.
+        </p>
       </div>
     )
   }
@@ -145,7 +155,7 @@ export function MarcoRetributivoTable({
               )}
               {virtualItems.map((virtualRow) => {
                 const row = filteredRows[virtualRow.index]
-                const entry = marcoRowToCatalogEntry(row)
+                if (!row) return null
                 return (
                   <tr
                     key={buildMarcoTableRowKey(row, virtualRow.index)}
@@ -187,17 +197,7 @@ export function MarcoRetributivoTable({
                       {formatMarcoPermanenciaFromRow(row)}
                     </td>
                     <td className={`${MARCO_TD} text-right font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-500`}>
-                      {entry.comisionTipo === "fija" ? (
-                        <span>
-                          {formatMarcoComisionFijaUsuario(
-                            entry,
-                            commissionPercentage,
-                            formatCurrency
-                          )}
-                        </span>
-                      ) : (
-                        formatMarcoComisionUsuario(entry, commissionPercentage, formatCurrency)
-                      )}
+                      {formatRowComision(row, commissionPercentage, formatCurrency)}
                     </td>
                     <td className={`${MARCO_TD} text-right`}>
                       <div className="flex items-center justify-end gap-1">
@@ -256,6 +256,8 @@ function formatRowComision(
   commissionPercentage: number,
   formatCurrency: (val: number) => string
 ): string {
+  const hasTramo = Array.isArray(row.tramos) && row.tramos.length > 0
+  if (!hasTramo && row.comision_base === 0) return "—"
   const entry = marcoRowToCatalogEntry(row)
   if (entry.comisionTipo === "fija") {
     return formatMarcoComisionFijaUsuario(entry, commissionPercentage, formatCurrency)
