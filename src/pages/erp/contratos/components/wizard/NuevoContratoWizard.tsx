@@ -137,13 +137,6 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
               onSubmit={vm.handleFormSubmit}
               className="flex flex-col flex-1 min-h-0"
             >
-              <p className="px-6 py-2 border-b border-brand-border shrink-0 text-[10px] leading-relaxed text-brand-subtext">
-                El alta se guarda en el ERP. La marca{" "}
-                <span className="font-bold text-cyan-700 dark:text-cyan-300">Enertech</span> marca
-                lo que la API exige y este formulario ya recoge. Para subir el contrato faltan el
-                CNAE, la clave de tarifa (tf_…) y, si el documento es NIE o CIF, la nacionalidad o
-                el apoderado.
-              </p>
               <div className="px-6 py-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
                 {vm.activeTab === "cliente" && (
                   <WizardClienteStep

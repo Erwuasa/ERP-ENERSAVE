@@ -470,6 +470,14 @@ export function mapRowToContract(
       str(payload.titular_actual_nombre),
     titularActualDni:
       metadataString(metadata, "titular_actual_dni") ?? str(payload.titular_actual_dni),
+    razonSocial: metadataString(metadata, "razon_social"),
+    contactNombre: metadataString(metadata, "contact_nombre"),
+    contactApellidos: metadataString(metadata, "contact_apellidos"),
+    nacionalidad: metadataString(metadata, "nacionalidad"),
+    apoderadoNombre: metadataString(metadata, "apoderado_nombre"),
+    apoderadoDni: metadataString(metadata, "apoderado_dni"),
+    cnae: metadataString(metadata, "cnae"),
+    claveTarifa: metadataString(metadata, "clave_tarifa"),
     potenciaContratada:
       num(row.potencia_contratada_kw) ??
       str(row.potencia_contratada) ??

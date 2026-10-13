@@ -5,6 +5,7 @@ import {
   type ContractPeajeSegment,
 } from "./contract-peaje-segment"
 import { normalizeContractEstado, type ContractEstado } from "./contract-estado"
+import { classifySpanishTaxId } from "./enertech/contract-alta"
 
 export type FormaPago =
   | "al_contado"
@@ -46,6 +47,15 @@ export interface NewContractFormState {
   clientNombre: string
   clientApellidos: string
   razonSocial: string
+  /** País del titular cuando el documento es un NIE. */
+  nacionalidad: string
+  /** Persona que firma por la empresa en el alta de Enertech. */
+  apoderadoNombre: string
+  apoderadoDni: string
+  /** Actividad del suministro. Enertech lo exige en el POST del contrato. */
+  cnae: string
+  /** Clave `tf_…` de `enertech_precios`, la que pide el POST. */
+  claveTarifa: string
   cups: string
   tipo: "luz" | "gas"
   compania: string
@@ -98,6 +108,11 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   clientNombre: "",
   clientApellidos: "",
   razonSocial: "",
+  nacionalidad: "",
+  apoderadoNombre: "",
+  apoderadoDni: "",
+  cnae: "",
+  claveTarifa: "",
   cups: "",
   tipo: "luz",
   compania: "",
@@ -136,6 +151,25 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   selectedServiciosExtras: [],
   comentariosInternos: [],
   documentosPorTipo: {},
+}
+
+/** Pyme o comunidad: el alta lleva razón social y representante. */
+export function isWizardCompanyClient(
+  form: Pick<NewContractFormState, "wizardSegment" | "tipoCliente">
+): boolean {
+  return (
+    form.wizardSegment === "pyme" ||
+    form.tipoCliente === "pyme" ||
+    form.tipoCliente === "comunidad_vecinos"
+  )
+}
+
+/** El NIE pide nacionalidad en cuanto el documento empieza por X, Y o Z. */
+export function wizardShowsNacionalidad(nif: string): boolean {
+  const kind = classifySpanishTaxId(nif)?.kind
+  if (kind === "nie") return true
+  if (kind === "dni" || kind === "cif") return false
+  return /^[XYZ]/i.test(nif.trim())
 }
 
 export function buildClientNameFromForm(form: NewContractFormState): string {
@@ -268,9 +302,14 @@ export function contractToNewContractForm(
   return {
     ...EMPTY_NEW_CONTRACT_FORM,
     clientName: contract.clientName,
-    clientNombre: isCompany ? "" : clientNombre,
-    clientApellidos: isCompany ? "" : clientApellidos,
-    razonSocial: isCompany ? contract.clientName : "",
+    clientNombre: isCompany ? (contract.contactNombre ?? "") : clientNombre,
+    clientApellidos: isCompany ? (contract.contactApellidos ?? "") : clientApellidos,
+    razonSocial: isCompany ? (contract.razonSocial ?? contract.clientName) : "",
+    nacionalidad: contract.nacionalidad ?? "",
+    apoderadoNombre: contract.apoderadoNombre ?? "",
+    apoderadoDni: contract.apoderadoDni ?? "",
+    cnae: contract.cnae ?? "",
+    claveTarifa: contract.claveTarifa ?? "",
     cups: contract.cups,
     tipo: contract.tipo,
     compania: contract.compania,
@@ -490,6 +529,14 @@ export function buildContractWizardMetadata(
     ...(form.esCambioTitular && form.titularActualDni.trim()
       ? { titular_actual_dni: form.titularActualDni.trim().toUpperCase() }
       : {}),
+    cnae: form.cnae.trim(),
+    nacionalidad: form.nacionalidad.trim(),
+    apoderado_nombre: form.apoderadoNombre.trim(),
+    apoderado_dni: form.apoderadoDni.trim().toUpperCase(),
+    clave_tarifa: form.claveTarifa.trim(),
+    contact_nombre: form.clientNombre.trim(),
+    contact_apellidos: form.clientApellidos.trim(),
+    razon_social: form.razonSocial.trim(),
   }
 }
 

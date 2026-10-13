@@ -170,6 +170,21 @@ function wizardTariffKey(entry: MarcoRetributivoEntry): string {
 }
 
 /** Una oferta del tarifario (`enertech_precios`) lista para el selector del contrato. */
+/** La clave de `enertech_precios` de la oferta elegida, preferiendo el peaje activo. */
+export function resolveWizardTariffClave(
+  catalog: Array<Pick<MarcoRetributivoEntry, "id" | "tarifa" | "peaje">>,
+  tarifa: string,
+  peajeSegment: ContractPeajeSegment
+): string {
+  const name = tarifa.trim()
+  if (!name) return ""
+  const matches = catalog.filter((entry) => entry.tarifa === name)
+  const byPeaje = matches.find((entry) =>
+    marcoEntryMatchesPeajeSegment(entry.peaje, peajeSegment)
+  )
+  return (byPeaje ?? matches[0])?.id ?? ""
+}
+
 export function priceOfferToWizardEntry(input: {
   id: string
   compania: string

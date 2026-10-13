@@ -8,11 +8,12 @@ import type { Contract } from "@/types/contract"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
   FORMA_PAGO_LABELS,
-  WIZARD_ENERTECH_MARK_CLASS,
+  WIZARD_REQUIRED_MARK_CLASS,
   WIZARD_INPUT_CLASS,
   WIZARD_LABEL_CLASS,
   WIZARD_READ_ONLY_FIELD_CLASS,
 } from "@/pages/erp/contratos/components/wizard/wizard-ui"
+import { WizardRequiredMark } from "@/pages/erp/contratos/components/wizard/WizardRequiredMark"
 import {
   getVisiblePotenciaPeriods,
   peajeSegmentToTariffPeajeType,
@@ -93,7 +94,11 @@ export function WizardSuministroStep({
 
       <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 content-start">
         <div className="col-span-12">
-          <label className={WIZARD_LABEL_CLASS}>Tarifa {form.compania}</label>
+          <label className={WIZARD_LABEL_CLASS}>
+            Tarifa {form.compania}
+            <span className={WIZARD_REQUIRED_MARK_CLASS} aria-hidden> *</span>
+            <span className="sr-only"> obligatorio</span>
+          </label>
           <div className="flex items-stretch gap-2">
             <select
               value={selectTarifaValue}
@@ -141,6 +146,25 @@ export function WizardSuministroStep({
             >
               <Layers className="w-4 h-4" />
             </button>
+          </div>
+
+          <div className="mt-2">
+            <label htmlFor="wizard-clave-tarifa" className={WIZARD_LABEL_CLASS}>
+              Clave de tarifa
+              <WizardRequiredMark />
+            </label>
+            <input
+              id="wizard-clave-tarifa"
+              type="text"
+              value={form.claveTarifa}
+              onChange={(e) => onChange({ claveTarifa: e.target.value.trim() })}
+              className={`${WIZARD_INPUT_CLASS} font-mono py-1.5`}
+              placeholder="tf_…"
+              autoComplete="off"
+            />
+            <p className="text-[9px] font-mono text-brand-subtext mt-0.5">
+              Se rellena al elegir una tarifa del catálogo. Enertech la usa en el alta.
+            </p>
           </div>
 
           {customTariffExpanded ? (
@@ -216,21 +240,42 @@ export function WizardSuministroStep({
         </div>
 
         <div className="col-span-6 sm:col-span-4">
-          <label className={WIZARD_LABEL_CLASS}>
+          <label htmlFor="wizard-cups" className={WIZARD_LABEL_CLASS}>
             CUPS
-            <span className={WIZARD_ENERTECH_MARK_CLASS}>Enertech</span>
+            <span className={WIZARD_REQUIRED_MARK_CLASS} aria-hidden> *</span>
+            <span className="sr-only"> obligatorio</span>
           </label>
           <input
+            id="wizard-cups"
             type="text"
             value={form.cups}
             onChange={(e) => onChange({ cups: e.target.value.toUpperCase() })}
             className={`${WIZARD_INPUT_CLASS} font-mono py-1.5`}
+            autoComplete="off"
           />
           {duplicateCups ? (
             <p className="text-[9px] text-amber-600 font-mono mt-0.5 truncate">
               Ya registrado: {duplicateCups.clientName}
             </p>
           ) : null}
+        </div>
+
+        <div className="col-span-6 sm:col-span-4">
+          <label htmlFor="wizard-cnae" className={WIZARD_LABEL_CLASS}>
+            CNAE
+            <WizardRequiredMark />
+          </label>
+          <input
+            id="wizard-cnae"
+            type="text"
+            inputMode="numeric"
+            maxLength={5}
+            value={form.cnae}
+            onChange={(e) => onChange({ cnae: e.target.value.replace(/\D/g, "").slice(0, 5) })}
+            className={`${WIZARD_INPUT_CLASS} font-mono py-1.5`}
+            placeholder="4711"
+            autoComplete="off"
+          />
         </div>
 
         <div className="col-span-6 sm:col-span-4">

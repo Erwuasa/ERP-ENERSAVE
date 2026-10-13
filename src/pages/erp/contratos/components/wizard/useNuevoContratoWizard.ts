@@ -21,6 +21,7 @@ import {
   getWizardCompanySupplyTypes,
   mergeWizardTariffCatalog,
   priceOfferToWizardEntry,
+  resolveWizardTariffClave,
   type ContractWizardSegment,
 } from "@/lib/contract-tariff-filter"
 import type { NewContractFormState, WizardStep } from "@/lib/contract-registration"
@@ -158,7 +159,9 @@ export function useNuevoContratoWizard({
     const peajeChanged = form.peajeSegment !== next
     onChange({
       peajeSegment: next,
-      ...(peajeChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", selectedServiciosExtras: [] } : {}),
+      ...(peajeChanged
+        ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "", selectedServiciosExtras: [] }
+        : {}),
     })
   }
 
@@ -166,7 +169,7 @@ export function useNuevoContratoWizard({
     const segmentChanged = form.wizardSegment !== next
     onChange({
       wizardSegment: next,
-      ...(segmentChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
+      ...(segmentChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "" } : {}),
     })
   }
 
@@ -174,7 +177,7 @@ export function useNuevoContratoWizard({
     const tipoChanged = form.tipo !== next
     onChange({
       tipo: next,
-      ...(tipoChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
+      ...(tipoChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "" } : {}),
     })
   }
 
@@ -468,7 +471,7 @@ export function useNuevoContratoWizard({
       wizardSegment: segment,
       wizardStep: "cliente",
       tipoCliente: segment === "pyme" ? "pyme" : "autonomo",
-      ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "" } : {}),
+      ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "" } : {}),
     })
   }
 
@@ -487,6 +490,7 @@ export function useNuevoContratoWizard({
     onChange({
       marcoEntryId: entry?.id ?? "",
       tarifa,
+      claveTarifa: resolveWizardTariffClave(priceCatalog, tarifa, form.peajeSegment),
       tipoPrecio: inferTipoPrecioFromTarifa(tarifa),
       tipo: entry?.tipo ?? form.tipo,
       selectedServiciosExtras: [],
@@ -501,6 +505,7 @@ export function useNuevoContratoWizard({
     onChange({
       marcoEntryId: "",
       tarifa,
+      claveTarifa: "",
       tipoPrecio: tarifa.trim() ? inferTipoPrecioFromTarifa(tarifa) : "",
       selectedServiciosExtras: [],
     })

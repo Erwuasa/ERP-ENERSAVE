@@ -66,6 +66,15 @@ export interface Contract {
   isOwnershipChange?: boolean
   titularActualNombre?: string
   titularActualDni?: string
+  /** Razón social cuando el alta es de empresa. En pyme también vive en `clientName`. */
+  razonSocial?: string
+  contactNombre?: string
+  contactApellidos?: string
+  nacionalidad?: string
+  apoderadoNombre?: string
+  apoderadoDni?: string
+  cnae?: string
+  claveTarifa?: string
   nombreComercial?: string
   jefeEquipo?: string
   comentariosInternos?: Array<{

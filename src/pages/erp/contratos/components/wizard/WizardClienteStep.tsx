@@ -1,6 +1,12 @@
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { useMemo, useState } from "react"
-import { buildClientNameFromForm, type NewContractFormState, type TipoClienteContrato } from "@/lib/contract-registration"
+import {
+  buildClientNameFromForm,
+  isWizardCompanyClient,
+  wizardShowsNacionalidad,
+  type NewContractFormState,
+  type TipoClienteContrato,
+} from "@/lib/contract-registration"
 import type { Client } from "@/types/client"
 import { ClientPortfolioSearch, ClientSuggestList } from "@/components/contratos/ClientPortfolioSearch"
 import {
@@ -11,10 +17,10 @@ import {
 import {
   TIPO_CLIENTE_OPTIONS,
   TIPO_OPERACION_OPTIONS,
-  WIZARD_ENERTECH_MARK_CLASS,
   WIZARD_INPUT_CLASS,
   WIZARD_LABEL_CLASS,
 } from "@/pages/erp/contratos/components/wizard/wizard-ui"
+import { WizardRequiredMark } from "@/pages/erp/contratos/components/wizard/WizardRequiredMark"
 
 type Props = {
   form: NewContractFormState
@@ -61,6 +67,8 @@ export function WizardClienteStep({
     [portfolio, form.clientNombre]
   )
   const showNombreSuggest = nombreFocused && form.clientNombre.trim().length >= 1 && nombreMatches.length > 0
+  const isCompany = isWizardCompanyClient(form)
+  const showNacionalidad = wizardShowsNacionalidad(form.nif)
 
   function selectExistingClient(client: Client) {
     onChange(clientToContractFormPatch(client))
@@ -81,12 +89,76 @@ export function WizardClienteStep({
       </div>
 
       <div className="grid grid-cols-12 gap-x-2.5 gap-y-2 flex-1 min-h-0 content-start">
+        {isCompany ? (
+          <div className="col-span-12">
+            <label htmlFor="wizard-razon-social" className={WIZARD_LABEL_CLASS}>
+              Razón social
+              <WizardRequiredMark />
+            </label>
+            <input
+              id="wizard-razon-social"
+              type="text"
+              value={form.razonSocial}
+              onChange={(e) =>
+                onChange({
+                  razonSocial: e.target.value,
+                  clientName: e.target.value || buildClientNameFromForm(form),
+                })
+              }
+              className={`${WIZARD_INPUT_CLASS} py-1.5`}
+              placeholder="Empresa S.L."
+              autoComplete="organization"
+            />
+          </div>
+        ) : null}
+
+        {isCompany ? (
+          <div className="col-span-12 rounded-xl border border-brand-border bg-brand-surface/40 p-3 space-y-2">
+            <p className={WIZARD_LABEL_CLASS}>Representante</p>
+            <p className="text-[10px] text-brand-subtext leading-snug">
+              Enertech pide el nombre y el DNI de quien firma por la empresa.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="wizard-apoderado-nombre" className={WIZARD_LABEL_CLASS}>
+                  Nombre del representante
+                  <WizardRequiredMark />
+                </label>
+                <input
+                  id="wizard-apoderado-nombre"
+                  type="text"
+                  value={form.apoderadoNombre}
+                  onChange={(e) => onChange({ apoderadoNombre: e.target.value })}
+                  className={`${WIZARD_INPUT_CLASS} py-1.5`}
+                  autoComplete="name"
+                />
+              </div>
+              <div>
+                <label htmlFor="wizard-apoderado-dni" className={WIZARD_LABEL_CLASS}>
+                  DNI del representante
+                  <WizardRequiredMark />
+                </label>
+                <input
+                  id="wizard-apoderado-dni"
+                  type="text"
+                  value={form.apoderadoDni}
+                  onChange={(e) => onChange({ apoderadoDni: e.target.value.toUpperCase() })}
+                  className={`${WIZARD_INPUT_CLASS} font-mono uppercase py-1.5`}
+                  placeholder="12345678A"
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="col-span-12 sm:col-span-4 relative">
-          <label className={WIZARD_LABEL_CLASS}>
+          <label htmlFor="wizard-nombre" className={WIZARD_LABEL_CLASS}>
             Nombre
-            <span className={WIZARD_ENERTECH_MARK_CLASS}>Enertech</span>
+            {isCompany ? null : <WizardRequiredMark />}
           </label>
           <input
+            id="wizard-nombre"
             type="text"
             value={form.clientNombre}
             onChange={(e) => handleNombreChange(e.target.value)}
@@ -100,11 +172,12 @@ export function WizardClienteStep({
           ) : null}
         </div>
         <div className="col-span-12 sm:col-span-4">
-          <label className={WIZARD_LABEL_CLASS}>
+          <label htmlFor="wizard-apellidos" className={WIZARD_LABEL_CLASS}>
             Apellidos
-            <span className={WIZARD_ENERTECH_MARK_CLASS}>Enertech</span>
+            {isCompany ? null : <WizardRequiredMark />}
           </label>
           <input
+            id="wizard-apellidos"
             type="text"
             value={form.clientApellidos}
             onChange={(e) => handleApellidosChange(e.target.value)}
@@ -112,17 +185,37 @@ export function WizardClienteStep({
           />
         </div>
         <div className="col-span-12 sm:col-span-4">
-          <label className={WIZARD_LABEL_CLASS}>
-            DNI-NIE
-            <span className={WIZARD_ENERTECH_MARK_CLASS}>Enertech</span>
+          <label htmlFor="wizard-nif" className={WIZARD_LABEL_CLASS}>
+            {isCompany ? "CIF" : "DNI-NIE"}
+            <WizardRequiredMark />
           </label>
           <input
+            id="wizard-nif"
             type="text"
             value={form.nif}
             onChange={(e) => onChange({ nif: e.target.value.toUpperCase() })}
             className={`${WIZARD_INPUT_CLASS} font-mono uppercase py-1.5`}
+            autoComplete="off"
           />
         </div>
+
+        {showNacionalidad ? (
+          <div className="col-span-12 sm:col-span-4">
+            <label htmlFor="wizard-nacionalidad" className={WIZARD_LABEL_CLASS}>
+              Nacionalidad
+              <WizardRequiredMark />
+            </label>
+            <input
+              id="wizard-nacionalidad"
+              type="text"
+              value={form.nacionalidad}
+              onChange={(e) => onChange({ nacionalidad: e.target.value })}
+              className={`${WIZARD_INPUT_CLASS} py-1.5`}
+              placeholder="País de origen"
+              autoComplete="country-name"
+            />
+          </div>
+        ) : null}
 
         <div className="col-span-12 sm:col-span-6">
           <label className={WIZARD_LABEL_CLASS}>Teléfono</label>
@@ -199,7 +292,7 @@ export function WizardClienteStep({
             ) : (
               <ChevronRight className="w-3.5 h-3.5 text-brand-subtext" />
             )}
-            Empresa / Pyme (opcional)
+            {isCompany ? "Tipo de cliente" : "Empresa / Pyme (opcional)"}
           </button>
           {empresaOpen && (
             <div className="px-3 pb-3 grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-brand-border pt-2">
@@ -223,21 +316,27 @@ export function WizardClienteStep({
                   ))}
                 </select>
               </div>
-              <div>
-                <label className={WIZARD_LABEL_CLASS}>Razón social / CIF</label>
-                <input
-                  type="text"
-                  value={form.razonSocial}
-                  onChange={(e) =>
-                    onChange({
-                      razonSocial: e.target.value,
-                      clientName: e.target.value || buildClientNameFromForm(form),
-                    })
-                  }
-                  className={`${WIZARD_INPUT_CLASS} py-1.5`}
-                  placeholder="Empresa S.L."
-                />
-              </div>
+              {isCompany ? null : (
+                <div>
+                  <label htmlFor="wizard-razon-social-opcional" className={WIZARD_LABEL_CLASS}>
+                    Razón social
+                  </label>
+                  <input
+                    id="wizard-razon-social-opcional"
+                    type="text"
+                    value={form.razonSocial}
+                    onChange={(e) =>
+                      onChange({
+                        razonSocial: e.target.value,
+                        clientName: e.target.value || buildClientNameFromForm(form),
+                      })
+                    }
+                    className={`${WIZARD_INPUT_CLASS} py-1.5`}
+                    placeholder="Empresa S.L."
+                    autoComplete="organization"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

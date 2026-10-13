@@ -5,8 +5,7 @@ export const WIZARD_INPUT_CLASS =
 
 export const WIZARD_LABEL_CLASS = "block text-[10px] font-mono text-brand-subtext uppercase mb-1"
 
-export const WIZARD_ENERTECH_MARK_CLASS =
-  "ml-1.5 text-[8px] font-bold normal-case tracking-normal text-cyan-700 dark:text-cyan-300"
+export const WIZARD_REQUIRED_MARK_CLASS = "text-rose-500"
 
 export const WIZARD_READ_ONLY_FIELD_CLASS =
   "w-full px-3 py-2 bg-slate-100 dark:bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text font-medium cursor-default"
