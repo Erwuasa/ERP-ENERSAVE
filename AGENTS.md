@@ -265,6 +265,8 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-14 — Comparador: el panel del formulario hace scroll en vez de recortar (`overflow-hidden` + flex encogía a 0 el bloque de la IA al reducir la altura de la ventana). El bloque de subida de factura es `shrink-0`.
+
 - 2026-10-13 — La especificación de cada pantalla vive en `docs/modulos/`. §8 ya no repite comparador, contratos, marco ni liquidaciones. Ver §11.
 - 2026-10-13 — Alta de contrato: en pyme la razón social va delante y debajo el representante. CNAE, nacionalidad (NIE) y clave `tf_…` entran en el formulario y se guardan en metadata. Ver §8.
 - 2026-10-13 — Alta de contrato: asterisco en nombre, apellidos, DNI/NIE, tarifa y CUPS, los campos que el POST de Enertech ya puede leer. Ver §8.

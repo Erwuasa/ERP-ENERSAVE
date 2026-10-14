@@ -240,7 +240,7 @@ export function ComparadorPage() {
           <div
             data-enter-navigation
             onKeyDown={onFormEnterNavigationKeyDown}
-            className={`bg-brand-panel rounded-2xl border border-brand-border shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a] lg:h-full lg:flex lg:flex-col lg:overflow-hidden ${
+            className={`bg-brand-panel rounded-2xl border border-brand-border shadow-sm dark:shadow-none bg-white dark:bg-[#0f172a] lg:h-full lg:overflow-y-auto lg:scrollbar-overlay lg:overscroll-contain ${
               isCompactForm ? "p-3.5 space-y-3" : "p-4 space-y-4"
             }`}
           >
