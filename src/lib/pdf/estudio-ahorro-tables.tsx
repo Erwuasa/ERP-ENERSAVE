@@ -20,11 +20,24 @@ export function buildMetricRows<T extends { periodo: PeriodoTarifa; total: numbe
   pickCantidad: (row: T) => number,
   pickPrecio: (row: T) => number
 ): MetricRow[] {
-  return PERIODOS.map((periodo) => {
-    const found = rows.find((r) => r.periodo === periodo)
-    if (!found) return { periodo, cantidad: 0, precio: 0, total: 0 }
-    return { periodo, cantidad: pickCantidad(found), precio: pickPrecio(found), total: found.total }
-  })
+  return rows.map((row) => ({
+    periodo: row.periodo,
+    cantidad: pickCantidad(row),
+    precio: pickPrecio(row),
+    total: row.total,
+  }))
+}
+
+function periodsInTable(actualRows: MetricRow[], propuestaRows: MetricRow[]): PeriodoTarifa[] {
+  return PERIODOS.filter(
+    (periodo) =>
+      actualRows.some((row) => row.periodo === periodo) ||
+      propuestaRows.some((row) => row.periodo === periodo)
+  )
+}
+
+function rowForPeriod(rows: MetricRow[], periodo: PeriodoTarifa): MetricRow {
+  return rows.find((row) => row.periodo === periodo) ?? { periodo, cantidad: 0, precio: 0, total: 0 }
 }
 
 // Each cell owns its right/bottom hairline and the table owns the top/left one, so every shared
@@ -195,11 +208,11 @@ export function MetricTable({
           </tr>
         </thead>
         <tbody>
-          {PERIODOS.map((periodo, idx) => (
+          {periodsInTable(actualRows, propuestaRows).map((periodo) => (
             <tr key={periodo}>
               <Td align="left">{periodo}</Td>
-              <SideCells row={actualRows[idx]} tint={COLORS.tintBlue} />
-              <SideCells row={propuestaRows[idx]} tint={COLORS.tintGreen} />
+              <SideCells row={rowForPeriod(actualRows, periodo)} tint={COLORS.tintBlue} />
+              <SideCells row={rowForPeriod(propuestaRows, periodo)} tint={COLORS.tintGreen} />
             </tr>
           ))}
           {hasDescuento ? (

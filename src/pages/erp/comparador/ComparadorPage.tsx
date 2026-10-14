@@ -75,9 +75,6 @@ export function ComparadorPage() {
     compTipo,
   } = ws
 
-  const [showAdvancedPotencia, setShowAdvancedPotencia] = useState(false)
-  const [showAdvancedConsumo, setShowAdvancedConsumo] = useState(false)
-
   const { handlePotenciaP1Change, handlePotenciaManualChange } =
     usePotenciaP1Autofill(setCompPotencias)
 
@@ -303,10 +300,6 @@ export function ComparadorPage() {
               consumos={compConsumos}
               preciosPotencia={compPreciosPotenciaActual}
               preciosEnergia={compPreciosEnergiaActual}
-              showAdvancedPotencia={showAdvancedPotencia}
-              showAdvancedConsumo={showAdvancedConsumo}
-              onToggleAdvancedPotencia={() => setShowAdvancedPotencia((p) => !p)}
-              onToggleAdvancedConsumo={() => setShowAdvancedConsumo((p) => !p)}
               onPotenciaChange={handlePotenciaValueChange}
               onPotenciaPriceChange={handlePotenciaPriceChange}
               onConsumoChange={handleConsumoValueChange}

@@ -49,17 +49,18 @@ export function resolveComparadorPeriodGridLayout(
   const inputClass = comparadorNumericInputClass(density)
   const labelClass = comparadorFieldLabelClass(density)
 
+  const priceLabelClass = `${labelClass} block min-w-0 leading-tight truncate`
+
   if (density === "compact") {
     return {
       density,
       gridClass: count === 2 ? "grid-cols-2" : "grid-cols-3",
       gapClass: "gap-2.5",
-      fieldClass: "flex flex-col gap-1",
+      fieldClass: "flex min-w-0 flex-col gap-1",
       labelClass,
       inputClass,
-      priceLabelClass: "text-[9px] font-mono uppercase text-brand-subtext",
-      priceInputClass:
-        "w-full px-2.5 py-2 bg-brand-surface border border-brand-border rounded-lg text-sm font-mono focus:border-blue-500 text-brand-text",
+      priceLabelClass,
+      priceInputClass: inputClass,
     }
   }
 
@@ -67,11 +68,10 @@ export function resolveComparadorPeriodGridLayout(
     density,
     gridClass: "grid-cols-3",
     gapClass: "gap-2",
-    fieldClass: "flex flex-col gap-1",
+    fieldClass: "flex min-w-0 flex-col gap-1",
     labelClass,
     inputClass,
-    priceLabelClass: "text-[7px] font-mono uppercase text-brand-subtext truncate",
-    priceInputClass:
-      "w-full px-2 py-1 bg-brand-surface border border-brand-border rounded-md text-[11px] font-mono focus:border-blue-500 text-brand-text",
+    priceLabelClass,
+    priceInputClass: inputClass,
   }
 }

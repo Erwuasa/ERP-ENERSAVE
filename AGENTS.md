@@ -266,6 +266,10 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-14 — Comparador: la etiqueta de precio por periodo queda en €/kW·día o €/kWh, y el consumo del formulario pasa de kWh/mes a kWh/día. Ver `docs/modulos/comparador.md`.
+- 2026-10-14 — Comparador: al abrir los precios por periodo usan el mismo tamaño de input y de rejilla que las cantidades de ese peaje. El bloque crece hacia abajo y el panel hace scroll, sin montarse sobre el siguiente. Ver `docs/modulos/comparador.md`.
+- 2026-10-14 — Comparador: los precios por periodo de la factura actual vuelven a ir plegados. Se abren y se rellenan cuando la lectura de la factura (OCR o IA) trae importes, solo de los periodos del peaje. `invoice-ai-openai` sigue sin `OPENAI_API_KEY`. Ver `docs/modulos/comparador.md`.
+- 2026-10-14 — Comparador: el PDF de la oferta usa el mismo total, IEE e IVA que la tarjeta. La factura actual muestra cantidad y precio solo de los periodos del peaje (2.0: potencia P1–P2 y energía P1–P3; 3.0 en adelante: P1–P6). Ver `docs/modulos/comparador.md`.
 - 2026-10-14 — Marco retributivo: timeouts 57014 en `enertech_comisiones`. Migración `20261014141025_enertech_select_policies_initplan.sql` (**aplicada**): políticas SELECT de `enertech_comisiones`/`enertech_precios`/`enertech_comercializadoras` con `(select private."current_role"())`, índice `enertech_comisiones_campania_lower_idx` y RPC `list_marco_commissions_v1(p_prefixes, p_exact)`. La pantalla lee comisiones con ese RPC (una llamada por compañía, caché 5 min) y las tarjetas móviles pasan a `lg`. `enertech_comisiones.company_id` es NULL en todas las filas (el sync no lo rellena). Ver `docs/modulos/marco-retributivo.md` §6.
 - 2026-10-14 — Comparador: el panel del formulario hace scroll en vez de recortar (`overflow-hidden` + flex encogía a 0 el bloque de la IA al reducir la altura de la ventana). El bloque de subida de factura es `shrink-0`.
 

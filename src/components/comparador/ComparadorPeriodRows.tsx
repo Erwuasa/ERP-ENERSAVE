@@ -1,4 +1,3 @@
-import { AnimatePresence, motion } from "motion/react"
 import { DecimalComaInput } from "@/components/comparador/DecimalComaInput"
 import {
   activeConsumoPeriodSlots,
@@ -14,14 +13,14 @@ interface ComparadorPeriodRowsProps {
   peaje: string
   values: ComparadorPeriodValues
   priceValues: ComparadorPeriodValues
-  showAdvanced: boolean
+  showPrices: boolean
   onValueChange: (slot: ComparadorPeriodSlot, value: number) => void
   onPriceChange: (slot: ComparadorPeriodSlot, value: number) => void
 }
 
 function periodHeading(mode: "potencia" | "consumo", slot: ComparadorPeriodSlot): string {
   const label = getComparadorPeriodLabel(slot)
-  return mode === "potencia" ? `${label} (kW)` : `${label} (kWh/mes)`
+  return mode === "potencia" ? `${label} (kW)` : `${label} (kWh/día)`
 }
 
 function activeSlotsForMode(peaje: string, mode: "potencia" | "consumo") {
@@ -35,17 +34,16 @@ export function ComparadorPeriodRows({
   peaje,
   values,
   priceValues,
-  showAdvanced,
+  showPrices,
   onValueChange,
   onPriceChange,
 }: ComparadorPeriodRowsProps) {
   const periods = activeSlotsForMode(peaje, mode)
   const layout = resolveComparadorPeriodGridLayout(peaje, mode)
-  const priceLabel =
-    mode === "potencia" ? "Precio actual €/kW·día" : "Precio actual €/kWh"
+  const priceLabel = mode === "potencia" ? "€/kW·día" : "€/kWh"
 
   return (
-    <div className="space-y-2">
+    <div>
       <div className={`grid ${layout.gridClass} ${layout.gapClass}`}>
         {periods.map((slot) => (
           <div key={slot} className={layout.fieldClass}>
@@ -60,31 +58,21 @@ export function ComparadorPeriodRows({
         ))}
       </div>
 
-      <AnimatePresence initial={false}>
-        {showAdvanced ? (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="overflow-hidden"
-          >
-            <div className={`grid ${layout.gridClass} ${layout.gapClass} pt-0.5`}>
-              {periods.map((slot) => (
-                <div key={`${slot}-price`} className={layout.fieldClass}>
-                  <span className={layout.priceLabelClass}>{priceLabel}</span>
-                  <DecimalComaInput
-                    value={priceValues[slot] || 0}
-                    onChange={(value) => onPriceChange(slot, value)}
-                    showZeroAsEmpty
-                    className={layout.priceInputClass}
-                  />
-                </div>
-              ))}
+      {showPrices ? (
+        <div className={`grid ${layout.gridClass} ${layout.gapClass} pt-2`}>
+          {periods.map((slot) => (
+            <div key={`${slot}-price`} className={layout.fieldClass}>
+              <span className={layout.priceLabelClass}>{priceLabel}</span>
+              <DecimalComaInput
+                value={priceValues[slot] || 0}
+                onChange={(value) => onPriceChange(slot, value)}
+                showZeroAsEmpty
+                className={layout.priceInputClass}
+              />
             </div>
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }

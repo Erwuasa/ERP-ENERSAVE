@@ -1,3 +1,4 @@
+import { roundComparadorMoney } from "./comparador-billing"
 import {
   calcBaseImponible,
   calcIva,
@@ -18,30 +19,39 @@ export function calcComparadorIeeMensual(tarifa: TarifaEstudioAhorro): number {
   return energiaNeta * (COMPARADOR_IEE_PCT / 100)
 }
 
+function tarifaSinLineasDeImpuesto(tarifa: TarifaEstudioAhorro): TarifaEstudioAhorro {
+  return {
+    ...tarifa,
+    otrosConceptos: tarifa.otrosConceptos.filter(
+      (row) => row.concepto !== "IEE" && row.concepto !== "IVA"
+    ),
+  }
+}
+
 export function calcComparadorIvaMensual(tarifa: TarifaEstudioAhorro, iee: number): number {
-  const base = calcBaseImponible(tarifa) + iee
+  const base = calcBaseImponible(tarifaSinLineasDeImpuesto(tarifa)) + iee
   return calcIva(base, COMPARADOR_IVA_PCT)
 }
 
 export function calcComparadorTotalConImpuestos(tarifa: TarifaEstudioAhorro): number {
-  const iee = calcComparadorIeeMensual(tarifa)
-  const iva = calcComparadorIvaMensual(tarifa, iee)
-  return calcBaseImponible(tarifa) + iee + iva
+  const baseTarifa = tarifaSinLineasDeImpuesto(tarifa)
+  const iee = calcComparadorIeeMensual(baseTarifa)
+  const iva = calcComparadorIvaMensual(baseTarifa, iee)
+  return calcBaseImponible(baseTarifa) + iee + iva
 }
 
 export function appendIeeIvaOtrosConceptos(
   tarifa: TarifaEstudioAhorro
 ): { tarifa: TarifaEstudioAhorro; iee: number; iva: number } {
-  const iee = calcComparadorIeeMensual(tarifa)
-  const iva = calcComparadorIvaMensual(tarifa, iee)
-  const otros = [...tarifa.otrosConceptos.filter((row) => row.concepto !== "IEE" && row.concepto !== "IVA")]
+  const baseTarifa = tarifaSinLineasDeImpuesto(tarifa)
+  const ieeRaw = calcComparadorIeeMensual(baseTarifa)
+  const ivaRaw = calcComparadorIvaMensual(baseTarifa, ieeRaw)
+  const iee = roundComparadorMoney(ieeRaw)
+  const iva = roundComparadorMoney(ivaRaw)
+  const otros = [...baseTarifa.otrosConceptos]
 
-  if (iee > 0) {
-    otros.push({ concepto: "IEE", precio: iee, total: iee })
-  }
-  if (iva > 0) {
-    otros.push({ concepto: "IVA", precio: iva, total: iva })
-  }
+  if (iee > 0) otros.push({ concepto: "IEE", precio: iee, total: iee })
+  if (iva > 0) otros.push({ concepto: "IVA", precio: iva, total: iva })
 
   return {
     iee,
@@ -50,7 +60,7 @@ export function appendIeeIvaOtrosConceptos(
       ...tarifa,
       otrosConceptos: otros,
       ivaPct: COMPARADOR_IVA_PCT,
-      totalFactura: calcComparadorTotalConImpuestos({ ...tarifa, otrosConceptos: otros }),
+      totalFactura: roundComparadorMoney(calcBaseImponible(baseTarifa) + ieeRaw + ivaRaw),
     },
   }
 }

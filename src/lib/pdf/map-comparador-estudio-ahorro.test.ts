@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+import { buildComparadorDesgloseTable } from "@/lib/comparador-offer-breakdown"
+import { resolveComparadorOfferTaxes } from "@/lib/comparador-offer-totals"
 import { mapComparadorToEstudioAhorro } from "./map-comparador-estudio-ahorro"
 
 describe("mapComparadorToEstudioAhorro", () => {
@@ -52,6 +54,100 @@ describe("mapComparadorToEstudioAhorro", () => {
       4.6 * 0.08 * 30 + 4.6 * 0.04 * 30 + 120 * 0.12 + 90 * 0.11 + 150 * 0.1 + 1.84
     )
     expect(input.ahorroAnualEur).toBeCloseTo(input.ahorroPorFacturaEur * 12, 4)
+
+    const potencia = 4.6 * 0.08 * 30 + 4.6 * 0.04 * 30
+    const energia = 120 * 0.12 + 90 * 0.11 + 150 * 0.1
+    const taxes = resolveComparadorOfferTaxes({
+      costeAnual: (potencia + energia + 1.84) * 12,
+      potenciaAnual: potencia * 12,
+      energiaAnual: energia * 12,
+      alquilerAnual: 1.84 * 12,
+    })
+    expect(input.tarifaPropuesta.totalFactura).toBe(taxes.totalMensual)
+    expect(input.tarifaPropuesta.otrosConceptos.find((row) => row.concepto === "IEE")?.total).toBe(
+      taxes.ieeMensual
+    )
+    expect(input.tarifaPropuesta.otrosConceptos.find((row) => row.concepto === "IVA")?.total).toBe(
+      taxes.ivaMensual
+    )
+
+    const desglose = buildComparadorDesgloseTable({
+      peaje: "2.0TD",
+      potencias: { p1: 4.6, p2: 4.6, p3: 0, p4: 0, p5: 0, p6: 0 },
+      consumos: { p1: 120, p2: 90, p3: 150, p4: 0, p5: 0, p6: 0 },
+      preciosPotenciaActual: { p1: 0.1, p2: 0.05, p3: 0, p4: 0, p5: 0, p6: 0 },
+      preciosEnergiaActual: { p1: 0.2, p2: 0.18, p3: 0.15, p4: 0, p5: 0, p6: 0 },
+      preciosOferta: {
+        P1: { energyPriceKwh: 0.12, powerPriceKwDay: 0.08 },
+        P2: { energyPriceKwh: 0.11, powerPriceKwDay: 0.04 },
+        P3: { energyPriceKwh: 0.1, powerPriceKwDay: 0 },
+      },
+      alquilerMensual: 1.84,
+      totalMensualOferta: taxes.totalMensual,
+      totalMensualActual: null,
+      ieeMensualOferta: taxes.ieeMensual,
+      ivaMensualOferta: taxes.ivaMensual,
+      baseImponibleMensualOferta: taxes.baseImponibleMensual,
+      diasFacturacion: 30,
+    })
+    const p1Pdf = input.tarifaPropuesta.terminoPotencia.find((row) => row.periodo === "P1")
+    const p1Tabla = desglose.find((row) => row.termLabel === "POTENCIA P1")
+    expect(p1Pdf?.precioEurDia).toBe(p1Tabla?.rateEur)
+    expect(p1Pdf?.total).toBe(p1Tabla?.costEur)
+    expect(desglose.find((row) => row.kind === "total")?.costEur).toBe(taxes.totalMensual)
+  })
+
+  it("en 3.0TD la factura actual y la oferta usan P1-P6", () => {
+    const periodos = { p1: 1, p2: 1, p3: 1, p4: 1, p5: 1, p6: 1 }
+    const input = mapComparadorToEstudioAhorro({
+      clienteNombre: "Cliente",
+      cups: "ES0000000000000000AA",
+      accessTariff: "3.0TD",
+      potencias: periodos,
+      consumos: periodos,
+      preciosPotenciaActual: periodos,
+      preciosEnergiaActual: periodos,
+      diasFacturacion: 30,
+      rentMeterMonthly: 0,
+      currentBillMonthly: 0,
+      bestOption: {
+        companyName: "Endesa",
+        tariffName: "Pyme",
+        annualCost: 0,
+        potenciaBreakdown: 0,
+        consumoBreakdown: 0,
+        rentCostAnnual: 0,
+        savingsAnnual: 0,
+        savingsPercentage: 0,
+        precios: {
+          P1: { energyPriceKwh: 0.1, powerPriceKwDay: 0.02 },
+          P2: { energyPriceKwh: 0.1, powerPriceKwDay: 0.02 },
+          P3: { energyPriceKwh: 0.1, powerPriceKwDay: 0.02 },
+          P4: { energyPriceKwh: 0.1, powerPriceKwDay: 0.02 },
+          P5: { energyPriceKwh: 0.1, powerPriceKwDay: 0.02 },
+          P6: { energyPriceKwh: 0.1, powerPriceKwDay: 0.02 },
+        },
+      },
+      summary: {
+        bestTariffName: "Pyme",
+        bestTariffCompany: "Endesa",
+        maxAnnualSavings: 0,
+        maxSavingsPercentage: 0,
+        currentAnnualExpense: 0,
+      },
+    })
+
+    expect(input.tarifaActual.terminoPotencia.map((row) => row.periodo)).toEqual([
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+    ])
+    expect(input.tarifaActual.terminoEnergia).toHaveLength(6)
+    expect(input.tarifaPropuesta.terminoPotencia).toHaveLength(6)
+    expect(input.tarifaActual.terminoPotencia[0]?.total).toBeCloseTo(1 * 1 * 30, 6)
   })
 
   it("mapea otros conceptos del comparador a las filas del PDF", () => {

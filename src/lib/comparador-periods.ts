@@ -51,3 +51,14 @@ export function emptyComparadorPeriodValues(): ComparadorPeriodValues {
 export function periodValuesToArrays(values: ComparadorPeriodValues): number[] {
   return COMPARADOR_PERIOD_SLOTS.map((slot) => Number(values[slot] || 0))
 }
+
+/** True when an active period of that peaje already has a unit price. */
+export function hasComparadorPeriodPrices(
+  peaje: string,
+  mode: "potencia" | "consumo",
+  prices: ComparadorPeriodValues
+): boolean {
+  const slots =
+    mode === "potencia" ? activePotenciaPeriodSlots(peaje) : activeConsumoPeriodSlots(peaje)
+  return slots.some((slot) => Number(prices[slot] ?? 0) > 0)
+}

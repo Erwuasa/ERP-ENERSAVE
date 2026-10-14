@@ -15,16 +15,18 @@ La pantalla opera con dos paneles sincronizados: el panel izquierdo para la capt
 
 ### 2.2. Tarifa de Acceso (ATR) y Adaptación Dinámica del Grid
 * **Opciones:** `2.0` (2.0TD), `3.0` (3.0TD), `6.1`, `6.2`, `6.3`, `6.4`.
-* **Reglas de estructura visual:**
-  * **Peaje 2.0:** Renderiza 2 inputs de potencia (`P1`, `P2`) y 3 inputs de consumo (`P1`, `P2`, `P3`).
-  * **Peajes 3.0 a 6.4:** Renderiza 6 inputs de potencia (`P1` a `P6`) y 6 inputs de consumo (`P1` a `P6`).
+* **Reglas de estructura visual.** A la vista solo está la cantidad de cada periodo. El precio unitario de la factura actual va plegado, detrás del icono de cada bloque. Si la lectura de la factura trae precios, ese bloque se abre y se rellena solo con los periodos del peaje. El bloque abierto usa la misma rejilla, el mismo tamaño de etiqueta y el mismo tamaño de input que las cantidades de ese peaje (2.0 más holgado; 3.0 en adelante, tres columnas). Crece hacia abajo y el panel hace scroll. No se encoge ni se monta sobre Consumo ni sobre Otros conceptos.
+  * **Peaje 2.0:** Potencia `P1` y `P2` (kW y, si hay precio, €/kW·día). Consumo `P1`, `P2` y `P3` (kWh/día y, si hay precio, €/kWh). La etiqueta del precio es solo la unidad, sin el texto «Precio actual».
+  * **Peajes 3.0 a 6.4:** Potencia `P1` a `P6` y consumo `P1` a `P6`, con el mismo par cantidad/precio.
 * **Saneamiento de estado:** Al cambiar a una tarifa con menor número de periodos, los valores en periodos inactivos se limpian automáticamente a `0` para no falsear los cálculos en segundo plano.
 
-### 2.3. Modal de Ajuste de Precios de Factura Actual (Botones ⚙️)
-Situados junto a los encabezados de Potencia y Consumo:
-* **Potencia actual:** Permite registrar los precios unitarios en €/kW·día (conmutables a €/kW·año).
-* **Consumo actual:** Registra los precios en €/kWh para cada periodo activo.
-* **Propósito:** Reconstruir el coste de la factura original y contrastar precios unitarios directos periodo a periodo contra las ofertas recomendadas.
+### 2.3. Precios de la factura actual
+Empiezan ocultos. El icono junto a Potencia o Consumo los despliega a mano.
+* **Potencia:** precio en €/kW·día de cada periodo activo.
+* **Consumo:** precio en €/kWh de cada periodo activo.
+* **Factura adjunta:** al leer un PDF o una imagen, si la extracción trae precios de potencia o de energía, esos campos se rellenan y se muestran. El número de huecos sigue el peaje de la factura (2.0 o 3.0 en adelante).
+* **IA:** el lector principal es la Edge Function `invoice-ai-openai`. Todavía no tiene `OPENAI_API_KEY`, así que esa vía no está activa. Si falla o no está configurada, se usa el servicio de respaldo y, si tampoco, el OCR local. Cuando cualquiera de las tres devuelve precios, el formulario se comporta igual.
+* **Uso:** reconstruyen el coste de la factura original con las mismas fórmulas que la oferta (`kW × €/kW·día × días` y `kWh × €/kWh`) y rellenan la columna «Tarifa actual» del estudio PDF.
 
 ### 2.4. Mapeo de Precios de Catálogo
 * **Tarifas Monómicas (Precio fijo 24h, ej. TotalEnergies 2.0TD):** Poseen un único precio para potencia y otro para energía. El sistema replica dicho valor a todos los periodos activos: Precio Potencia $P_1 = \dots = P_n$ y Precio Energía $P_1 = \dots = P_m$.
@@ -54,13 +56,14 @@ Para cada tarifa evaluada:
    $$TE_{\text{oferta}} = \sum_{j=1}^{m} \left( \text{Consumo}_j \, (\text{kWh}) \times \text{Precio Energía Oferta}_j \, (€/\text{kWh}) \right)$$  
    *(En tarifas monómicas 1P: el precio es uniforme para todo $j$).*
 
-3. **Base Imponible e Impuestos Regulados:**  
-   $$\text{Conceptos Persistentes} = \text{Alquiler Contador} + \text{Bono Social} + \text{Energía Reactiva}$$  
-   $$\text{Base IEE} = TP_{\text{oferta}} + TE_{\text{oferta}}$$  
-   $$\text{IEE} = \text{Base IEE} \times 0.0511269632$$  
-   $$\text{Base IVA} = \text{Base IEE} + \text{IEE} + \text{Conceptos Persistentes}$$  
-   $$\text{IVA} = \text{Base IVA} \times 0.21$$  
-   $$\text{Total Factura Oferta} = \text{Base IVA} + \text{IVA}$$
+3. **Base imponible e impuestos.** El IEE grava solo la energía neta. Alquiler, bono social y reactiva entran en la base del IVA y no en la del IEE. «Otros costes / SVA» no entra en la oferta.  
+   $$\text{Conceptos persistentes} = \text{Alquiler} + \text{Bono social} + \text{Reactiva}$$  
+   $$\text{Base} = TP + TE + \text{Conceptos persistentes} - \text{descuentos}$$  
+   $$\text{Energía neta} = TE - \text{descuento energía}$$  
+   $$\text{IEE} = \text{Energía neta} \times 0.051126963$$  
+   $$\text{IVA} = (\text{Base} + \text{IEE}) \times 0.21$$  
+   $$\text{Total} = \text{Base} + \text{IEE} + \text{IVA}$$  
+   El desglose de la tarjeta agrupa alquiler, bono, reactiva e IEE en «Otros costes comunes con I.E.» y muestra aparte la base, el IVA y el total.
 
 4. **Ahorro Económico y Porcentual:**  
    $$\text{Ahorro Mensual (€)} = \text{Total Factura Actual} - \text{Total Factura Oferta}$$  
@@ -91,7 +94,15 @@ Para cada tarifa evaluada:
 
 ---
 
-## 5. Directivas de Implementación Técnica
+## 5. Estudio PDF
+El PDF de una oferta usa las mismas fórmulas y los mismos precios que el desglose de esa tarjeta. El total de la columna «Tarifa propuesta» es el total mensual de la oferta (IEE e IVA incluidos, una sola vez). El IEE y el IVA no vuelven a sumarse dentro de la base.
+
+* **2.0:** la tabla de potencia lista `P1` y `P2`. La de energía lista `P1`, `P2` y `P3`.
+* **3.0 a 6.4:** potencia y energía listan `P1` a `P6`.
+* **Tarifa actual:** cada fila lleva la cantidad, el precio unitario y el importe del periodo, tomados de los campos de la factura actual. Si no hay precios de la factura actual, el total de esa columna es el importe introducido en «Total factura €».
+* **Tarifa propuesta:** no incluye «Otros costes / SVA». Sí incluye alquiler, bono social y reactiva.
+
+## 6. Directivas de Implementación Técnica
 * **Precisión Numérica:** Operaciones internas con coma flotante de precisión completa (mínimo 6 decimales). El redondeo a 2 decimales (`0.01 €`) aplica exclusivamente en renderizado de UI y generación de PDFs.
 * **Debounce:** Recálculo del ranking con debounce de 250 a 300 ms en inputs numéricos para mantener la fluidez de la interfaz.
 * **Tolerancia a Nulos:** Inputs vacíos o borrados deben resolverse internamente como `0`, impidiendo estados `NaN`.

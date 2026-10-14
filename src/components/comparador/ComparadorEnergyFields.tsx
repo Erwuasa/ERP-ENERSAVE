@@ -1,9 +1,9 @@
-import type { ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Coins, Zap } from "lucide-react"
-import { resolveComparadorFormDensity } from "@/lib/comparador-period-layout"
 import { ComparadorAdvancedToggle } from "@/components/comparador/ComparadorAdvancedToggle"
 import { ComparadorPeriodRows } from "@/components/comparador/ComparadorPeriodRows"
-import type { ComparadorPeriodSlot } from "@/lib/comparador-periods"
+import { resolveComparadorFormDensity } from "@/lib/comparador-period-layout"
+import { hasComparadorPeriodPrices, type ComparadorPeriodSlot } from "@/lib/comparador-periods"
 import type { ComparadorPeriodValues } from "@/lib/erp/comparador-rates"
 
 interface ComparadorEnergyFieldsProps {
@@ -12,10 +12,6 @@ interface ComparadorEnergyFieldsProps {
   consumos: ComparadorPeriodValues
   preciosPotencia: ComparadorPeriodValues
   preciosEnergia: ComparadorPeriodValues
-  showAdvancedPotencia: boolean
-  showAdvancedConsumo: boolean
-  onToggleAdvancedPotencia: () => void
-  onToggleAdvancedConsumo: () => void
   onPotenciaChange: (slot: ComparadorPeriodSlot, value: number) => void
   onPotenciaPriceChange: (slot: ComparadorPeriodSlot, value: number) => void
   onConsumoChange: (slot: ComparadorPeriodSlot, value: number) => void
@@ -42,16 +38,24 @@ function SectionHeader({
   )
 }
 
+function useRevealPricesWhenFilled(hasPrices: boolean): [boolean, () => void] {
+  const [open, setOpen] = useState(false)
+  const hadPrices = useRef(false)
+
+  useEffect(() => {
+    if (hasPrices && !hadPrices.current) setOpen(true)
+    hadPrices.current = hasPrices
+  }, [hasPrices])
+
+  return [open, () => setOpen((current) => !current)]
+}
+
 export function ComparadorEnergyFields({
   peaje,
   potencias,
   consumos,
   preciosPotencia,
   preciosEnergia,
-  showAdvancedPotencia,
-  showAdvancedConsumo,
-  onToggleAdvancedPotencia,
-  onToggleAdvancedConsumo,
   onPotenciaChange,
   onPotenciaPriceChange,
   onConsumoChange,
@@ -59,6 +63,12 @@ export function ComparadorEnergyFields({
 }: ComparadorEnergyFieldsProps) {
   const density = resolveComparadorFormDensity(peaje)
   const isCompact = density === "compact"
+  const [showPotenciaPrices, togglePotenciaPrices] = useRevealPricesWhenFilled(
+    hasComparadorPeriodPrices(peaje, "potencia", preciosPotencia)
+  )
+  const [showConsumoPrices, toggleConsumoPrices] = useRevealPricesWhenFilled(
+    hasComparadorPeriodPrices(peaje, "consumo", preciosEnergia)
+  )
 
   return (
     <div className={isCompact ? "space-y-3" : "space-y-4"}>
@@ -68,8 +78,9 @@ export function ComparadorEnergyFields({
           icon={<Zap className="w-3.5 h-3.5" />}
           action={
             <ComparadorAdvancedToggle
-              active={showAdvancedPotencia}
-              onToggle={onToggleAdvancedPotencia}
+              active={showPotenciaPrices}
+              onToggle={togglePotenciaPrices}
+              label="Precios de potencia de la factura actual"
             />
           }
         />
@@ -78,7 +89,7 @@ export function ComparadorEnergyFields({
           peaje={peaje}
           values={potencias}
           priceValues={preciosPotencia}
-          showAdvanced={showAdvancedPotencia}
+          showPrices={showPotenciaPrices}
           onValueChange={onPotenciaChange}
           onPriceChange={onPotenciaPriceChange}
         />
@@ -90,8 +101,9 @@ export function ComparadorEnergyFields({
           icon={<Coins className="w-3.5 h-3.5" />}
           action={
             <ComparadorAdvancedToggle
-              active={showAdvancedConsumo}
-              onToggle={onToggleAdvancedConsumo}
+              active={showConsumoPrices}
+              onToggle={toggleConsumoPrices}
+              label="Precios de consumo de la factura actual"
             />
           }
         />
@@ -100,7 +112,7 @@ export function ComparadorEnergyFields({
           peaje={peaje}
           values={consumos}
           priceValues={preciosEnergia}
-          showAdvanced={showAdvancedConsumo}
+          showPrices={showConsumoPrices}
           onValueChange={onConsumoChange}
           onPriceChange={onConsumoPriceChange}
         />
