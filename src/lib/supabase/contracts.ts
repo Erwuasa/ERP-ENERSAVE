@@ -398,6 +398,16 @@ function metadataString(metadata: Record<string, unknown>, ...keys: string[]): s
   return undefined
 }
 
+function metadataPositiveInt(metadata: Record<string, unknown>, key: string): number | undefined {
+  const value = Number(metadata[key])
+  return Number.isInteger(value) && value > 0 ? value : undefined
+}
+
+function metadataNonNegativeInt(metadata: Record<string, unknown>, key: string): number | undefined {
+  const value = Number(metadata[key])
+  return Number.isInteger(value) && value >= 0 ? value : undefined
+}
+
 export function mapRowToContract(
   row: Row,
   providerByAtCompanyId: Map<string, string> = new Map()
@@ -475,9 +485,18 @@ export function mapRowToContract(
     contactApellidos: metadataString(metadata, "contact_apellidos"),
     nacionalidad: metadataString(metadata, "nacionalidad"),
     apoderadoNombre: metadataString(metadata, "apoderado_nombre"),
+    apoderadoApellidos: metadataString(metadata, "apoderado_apellidos"),
     apoderadoDni: metadataString(metadata, "apoderado_dni"),
     cnae: metadataString(metadata, "cnae"),
     claveTarifa: metadataString(metadata, "clave_tarifa"),
+    idTarifa: metadataPositiveInt(metadata, "id_tarifa"),
+    apellido2: metadataString(metadata, "apellido2"),
+    enertechCustomerId: metadataPositiveInt(metadata, "enertech_customer_id"),
+    enertechRgpd: metadataString(metadata, "enertech_rgpd"),
+    enertechContractId: metadataPositiveInt(metadata, "enertech_contract_id"),
+    enertechEstadoId: metadataPositiveInt(metadata, "enertech_estado_id"),
+    enertechEstado: metadataString(metadata, "enertech_estado"),
+    enertechDocumentosGuardados: metadataNonNegativeInt(metadata, "enertech_documentos_guardados"),
     potenciaContratada:
       num(row.potencia_contratada_kw) ??
       str(row.potencia_contratada) ??

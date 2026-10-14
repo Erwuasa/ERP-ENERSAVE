@@ -30,6 +30,10 @@ import {
   type ContractOcrResult,
 } from "@/lib/contract-ocr"
 import { useEditableCell } from "@/hooks/use-editable-cell"
+import { canUploadContractToEnertech } from "@/lib/enertech/alta-gate"
+import { contractToEnertechAltaSource } from "@/lib/enertech/from-contract-form"
+import { enertechDocumentosFromContract } from "@/lib/supabase/contrato-documentos-storage"
+import { uploadSavedContractToEnertech } from "@/lib/supabase/enertech-alta"
 import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
 import {
   CONTRACT_ESTADOS,
@@ -218,6 +222,26 @@ export function useContratosPanel({
       }
 
       setContracts((prev) => prev.map((item) => (item.id === contract.id ? result.data : item)))
+
+      if (
+        canUploadContractToEnertech({ estado: result.data.estado, contractId: result.data.id }) &&
+        !result.data.enertechContractId
+      ) {
+        const documentos = await enertechDocumentosFromContract(result.data)
+        const upload = await uploadSavedContractToEnertech({
+          contractId: result.data.id,
+          estado: result.data.estado,
+          source: contractToEnertechAltaSource(result.data),
+          documentos,
+        })
+        if (upload.ok === false) {
+          toast.error(upload.message)
+          return
+        }
+        toast.success(
+          `Contrato subido a Enertech. id_contract ${upload.idContract}, estado_id ${upload.estadoId ?? "—"}, estado ${upload.estado ?? "—"}, documentos ${upload.documentosGuardados ?? 0}.`
+        )
+      }
     })
   }
 

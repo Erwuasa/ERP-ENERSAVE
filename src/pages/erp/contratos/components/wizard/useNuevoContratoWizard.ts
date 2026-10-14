@@ -11,10 +11,13 @@ import {
   type MarcoRetributivoEntry,
 } from "@/data/marco-retributivo-catalog"
 import { estimateMarcoCommissionEur } from "@/lib/marco-commission"
+import { validateRequiredDocumentos } from "@/lib/contrato-documentos"
 import {
-  getDocumentosObligatoriosForMarco,
-  validateRequiredDocumentos,
-} from "@/lib/contrato-documentos"
+  documentacionConsultaFromForm,
+  mensajeDocumentacion,
+  type DocumentacionFase,
+} from "@/lib/enertech/documentacion"
+import { lookupEnertechDocumentacion } from "@/lib/supabase/enertech-documentacion"
 import {
   filterMarcoTariffs,
   getWizardCompanies,
@@ -22,6 +25,7 @@ import {
   mergeWizardTariffCatalog,
   priceOfferToWizardEntry,
   resolveWizardTariffClave,
+  resolveWizardTariffPriceId,
   type ContractWizardSegment,
 } from "@/lib/contract-tariff-filter"
 import type { NewContractFormState, WizardStep } from "@/lib/contract-registration"
@@ -51,6 +55,9 @@ import {
 } from "@/lib/marco-consumo-tramo"
 import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
 import { lookupSpainPostalCode } from "@/lib/spain-postal-code"
+import { contractFieldsFromSipsResumen } from "@/lib/enertech/sips-contract-fields"
+import { validateCups } from "@/lib/sips/cups"
+import { lookupSips } from "@/lib/supabase/sips"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 
@@ -77,14 +84,22 @@ export function useNuevoContratoWizard({
   const [empresaOpen, setEmpresaOpen] = useState(false)
   const [newComment, setNewComment] = useState("")
   const [cpLookupLoading, setCpLookupLoading] = useState(false)
+  const [sipsHint, setSipsHint] = useState<string | null>(null)
+  const sipsRequestRef = useRef("")
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
   const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
-  const [priceCatalog, setPriceCatalog] = useState<MarcoRetributivoEntry[]>([])
+  const [priceCatalog, setPriceCatalog] = useState<Array<MarcoRetributivoEntry & { enertechPriceId?: number }>>([])
   const [serviciosExtrasExpanded, setServiciosExtrasExpanded] = useState(false)
   const [customTariffExpanded, setCustomTariffExpanded] = useState(false)
   const [tariffCompanies, setTariffCompanies] = useState<string[]>([])
+  const [documentacionFase, setDocumentacionFase] = useState<"idle" | "cargando" | DocumentacionFase>(
+    "idle"
+  )
+  const [documentosObligatorios, setDocumentosObligatorios] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
 
   useEffect(() => {
@@ -105,14 +120,15 @@ export function useNuevoContratoWizard({
     void listTariffsMatchingComercializadora(companyIlikePattern(form.compania), 1000).then((result) => {
       if (cancelled || !result.ok) return
       setPriceCatalog(
-        collapseTariffsWithSamePrices(result.data).map((row) =>
-          priceOfferToWizardEntry({
+        collapseTariffsWithSamePrices(result.data).map((row) => ({
+          ...priceOfferToWizardEntry({
             id: row.tariffId,
             compania: row.providerName,
             tarifa: row.name,
             peaje: row.accessTariff,
-          })
-        )
+          }),
+          enertechPriceId: row.enertechPriceId ?? undefined,
+        }))
       )
     })
     return () => {
@@ -160,7 +176,7 @@ export function useNuevoContratoWizard({
     onChange({
       peajeSegment: next,
       ...(peajeChanged
-        ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "", selectedServiciosExtras: [] }
+        ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "", idTarifa: "", selectedServiciosExtras: [] }
         : {}),
     })
   }
@@ -169,7 +185,7 @@ export function useNuevoContratoWizard({
     const segmentChanged = form.wizardSegment !== next
     onChange({
       wizardSegment: next,
-      ...(segmentChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "" } : {}),
+      ...(segmentChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "", idTarifa: "" } : {}),
     })
   }
 
@@ -177,7 +193,7 @@ export function useNuevoContratoWizard({
     const tipoChanged = form.tipo !== next
     onChange({
       tipo: next,
-      ...(tipoChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "" } : {}),
+      ...(tipoChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "", idTarifa: "" } : {}),
     })
   }
 
@@ -266,10 +282,39 @@ export function useNuevoContratoWizard({
     onChange({ marcoEntryId: resolvedId })
   }, [open, marcoTramoResolution.entry?.id, form.marcoEntryId, onChange])
 
-  const documentosObligatorios = useMemo(
-    () => getDocumentosObligatoriosForMarco(selectedMarcoEntry, form.tipoCliente),
-    [selectedMarcoEntry, form.tipoCliente]
-  )
+  useEffect(() => {
+    if (!open) {
+      setDocumentacionFase("idle")
+      setDocumentosObligatorios([])
+      return
+    }
+    const consulta = documentacionConsultaFromForm(form)
+    if (!consulta) {
+      setDocumentacionFase("idle")
+      setDocumentosObligatorios([])
+      return
+    }
+    let cancelled = false
+    setDocumentacionFase("cargando")
+    setDocumentosObligatorios([])
+    void lookupEnertechDocumentacion(consulta).then((resultado) => {
+      if (cancelled) return
+      setDocumentacionFase(resultado.fase)
+      setDocumentosObligatorios(resultado.fase === "listo" ? resultado.obligatorios : [])
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    open,
+    form.compania,
+    form.tipoCliente,
+    form.tipo,
+    form.tipoOperacion,
+    form.esCambioTitular,
+  ])
+
+  const documentacionMensaje = mensajeDocumentacion(documentacionFase)
 
   const commissionEstimate = useMemo(() => {
     const consumo = consumoAnualKwh ?? 0
@@ -353,6 +398,48 @@ export function useNuevoContratoWizard({
     peajeType ??
     inferPeajeTypeFromSegment(form.wizardSegment)
 
+  useEffect(() => {
+    if (!open) {
+      sipsRequestRef.current = ""
+      return
+    }
+    const checked = validateCups(form.cups)
+    if (!checked.ok) {
+      setSipsHint(null)
+      return
+    }
+    if (sipsRequestRef.current === checked.cups) return
+    sipsRequestRef.current = checked.cups
+    let cancelled = false
+    setSipsHint("Consultando SIPS…")
+    const producto = form.tipo === "gas" ? "gas" : "luz"
+    void (async () => {
+      let outcome = await lookupSips(checked.cups, producto)
+      if (cancelled) return
+      if (outcome.status === "procesando") {
+        const waitMs = Math.min(Math.max(outcome.reintentarEnSegundos, 1), 15) * 1000
+        await new Promise((resolve) => setTimeout(resolve, waitMs))
+        if (cancelled) return
+        outcome = await lookupSips(checked.cups, producto)
+      }
+      if (cancelled) return
+      if (outcome.status !== "listo") {
+        setSipsHint("SIPS no tiene datos para este CUPS.")
+        return
+      }
+      const patch = contractFieldsFromSipsResumen(outcome.resumen)
+      if (!patch.cnae && patch.consumoAnual == null) {
+        setSipsHint("SIPS no trae CNAE ni consumo anual.")
+        return
+      }
+      onChangeRef.current(patch)
+      setSipsHint("CNAE y consumo anual rellenados desde SIPS.")
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [open, form.cups, form.tipo])
+
   const duplicateCups = useMemo(() => {
     const cups = form.cups.trim().toUpperCase()
     if (!cups || cups === "PENDIENTE") return null
@@ -424,7 +511,10 @@ export function useNuevoContratoWizard({
     const validation = validateContractRegistration(newContractFormToRegistrationInput(form), {
       requireConsumoAnual: consumoAnualRequired,
     })
-    const docValidation = validateRequiredDocumentos(form, documentosObligatorios)
+    const docValidation =
+      documentacionFase === "listo"
+        ? validateRequiredDocumentos(form, documentosObligatorios)
+        : { valid: true, missingLabels: [] as string[] }
     const missing = [...validation.missingLabels, ...docValidation.missingLabels]
 
     if (!validation.valid || !docValidation.valid) {
@@ -471,7 +561,7 @@ export function useNuevoContratoWizard({
       wizardSegment: segment,
       wizardStep: "cliente",
       tipoCliente: segment === "pyme" ? "pyme" : "autonomo",
-      ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "" } : {}),
+      ...(companiaChanged ? { tarifa: "", marcoEntryId: "", tipoPrecio: "", claveTarifa: "", idTarifa: "" } : {}),
     })
   }
 
@@ -491,6 +581,7 @@ export function useNuevoContratoWizard({
       marcoEntryId: entry?.id ?? "",
       tarifa,
       claveTarifa: resolveWizardTariffClave(priceCatalog, tarifa, form.peajeSegment),
+      idTarifa: resolveWizardTariffPriceId(priceCatalog, tarifa, form.peajeSegment),
       tipoPrecio: inferTipoPrecioFromTarifa(tarifa),
       tipo: entry?.tipo ?? form.tipo,
       selectedServiciosExtras: [],
@@ -505,7 +596,7 @@ export function useNuevoContratoWizard({
     onChange({
       marcoEntryId: "",
       tarifa,
-      claveTarifa: "",
+      claveTarifa: "", idTarifa: "",
       tipoPrecio: tarifa.trim() ? inferTipoPrecioFromTarifa(tarifa) : "",
       selectedServiciosExtras: [],
     })
@@ -581,8 +672,10 @@ export function useNuevoContratoWizard({
     companySupplyTypes,
     filteredTariffs,
     documentosObligatorios,
+    documentacionMensaje,
     commissionEstimate,
     duplicateCups,
+    sipsHint,
     tarifaChipLabel,
     goToTab,
     setSegment,

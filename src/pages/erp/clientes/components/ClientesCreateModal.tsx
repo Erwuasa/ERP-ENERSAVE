@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, UserPlus, X } from "lucide-react"
+import { toast } from "sonner"
 import { AppFullScreenModal } from "@/components/ui/AppFullScreenModal"
 import { ENERSAVE_ACTION, clientTypeBadgeClass } from "@/lib/enersave-ui-theme"
 import type { ClienteEstado, ClienteTipo } from "@/types/client"
@@ -12,6 +13,9 @@ import {
   type ClientesCreateRole,
 } from "@/pages/erp/clientes/lib/clientes-create-form"
 import type { ClientesProfileOption } from "@/pages/erp/clientes/components/clientes-panel-utils"
+import { wizardShowsNacionalidad } from "@/lib/contract-registration"
+import { uploadClienteToEnertech } from "@/lib/supabase/enertech-alta"
+import { WizardRequiredMark } from "@/pages/erp/contratos/components/wizard/WizardRequiredMark"
 
 const INPUT =
   "w-full px-3 py-2 bg-brand-surface border border-brand-border rounded-lg text-xs text-brand-text placeholder:text-brand-subtext focus:outline-none focus:ring-2 focus:ring-cyan-500/25 focus:border-cyan-500/50 transition-colors"
@@ -37,6 +41,8 @@ export function ClientesCreateModal({
   const [form, setForm] = useState(() => emptyClientesCreateForm(activeUserId))
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [enertechNote, setEnertechNote] = useState<string | null>(null)
 
   const comercialOptions = useMemo(
     () =>
@@ -58,6 +64,8 @@ export function ClientesCreateModal({
     )
     setError(null)
     setSaving(false)
+    setUploading(false)
+    setEnertechNote(null)
   }, [open, activeUserId, activeRole])
 
   useEffect(() => {
@@ -89,6 +97,37 @@ export function ClientesCreateModal({
     const ok = await onSubmit(form)
     setSaving(false)
     if (ok) onClose()
+  }
+
+  const isCompany = form.tipoCliente === "empresa"
+  const showNacionalidad = wizardShowsNacionalidad(form.documento)
+
+  async function uploadCliente() {
+    setUploading(true)
+    setEnertechNote(null)
+    const result = await uploadClienteToEnertech({
+      nombre: form.nombre,
+      apellido1: isCompany ? undefined : form.apellidos,
+      apellido2: isCompany ? undefined : form.apellido2,
+      dni: form.documento,
+      email: form.email,
+      movil: form.telefono,
+      nacionalidad: form.nacionalidad,
+      apoderadoNombre: form.apoderadoNombre,
+      apoderadoApellidos: form.apoderadoApellidos,
+      apoderadoDni: form.apoderadoDni,
+    })
+    setUploading(false)
+    if (result.ok === false) {
+      setError(result.message)
+      toast.error(result.message)
+      return
+    }
+    const note = result.alreadyExisted
+      ? `El documento ya estaba en Enertech. id_customer ${result.idCustomer}.`
+      : `Cliente creado. id_customer ${result.idCustomer}. RGPD: ${result.rgpd ?? "—"}.`
+    setEnertechNote(note)
+    toast.success(note)
   }
 
   if (!open) return null
@@ -153,9 +192,10 @@ export function ClientesCreateModal({
             ) : null}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className={form.tipoCliente === "empresa" ? "sm:col-span-2" : ""}>
+              <div className={isCompany ? "sm:col-span-2" : ""}>
                 <label className={LABEL} htmlFor="cliente-nombre">
-                  {form.tipoCliente === "empresa" ? "Razón social" : "Nombre"}
+                  {isCompany ? "Razón social" : "Nombre"}
+                  <WizardRequiredMark />
                 </label>
                 <input
                   id="cliente-nombre"
@@ -163,26 +203,42 @@ export function ClientesCreateModal({
                   onChange={(e) => patch("nombre", e.target.value)}
                   className={INPUT}
                   autoFocus
-                  placeholder={form.tipoCliente === "empresa" ? "Empresa S.L." : "Nombre"}
+                  placeholder={isCompany ? "Empresa S.L." : "Nombre"}
                 />
               </div>
-              {form.tipoCliente === "particular" ? (
+              {isCompany ? null : (
                 <div>
                   <label className={LABEL} htmlFor="cliente-apellidos">
-                    Apellidos
+                    Apellido 1
+                    <WizardRequiredMark />
                   </label>
                   <input
                     id="cliente-apellidos"
                     value={form.apellidos}
                     onChange={(e) => patch("apellidos", e.target.value)}
                     className={INPUT}
-                    placeholder="Apellidos"
+                    placeholder="Primer apellido"
                   />
                 </div>
-              ) : null}
+              )}
+              {isCompany ? null : (
+                <div>
+                  <label className={LABEL} htmlFor="cliente-apellido2">
+                    Apellido 2
+                  </label>
+                  <input
+                    id="cliente-apellido2"
+                    value={form.apellido2}
+                    onChange={(e) => patch("apellido2", e.target.value)}
+                    className={INPUT}
+                    placeholder="Segundo apellido"
+                  />
+                </div>
+              )}
               <div>
                 <label className={LABEL} htmlFor="cliente-documento">
-                  DNI / CIF
+                  {isCompany ? "CIF" : "DNI / NIE"}
+                  <WizardRequiredMark />
                 </label>
                 <input
                   id="cliente-documento"
@@ -207,7 +263,70 @@ export function ClientesCreateModal({
                   <option value="inactivo">Inactivo</option>
                 </select>
               </div>
+              {showNacionalidad ? (
+                <div className="sm:col-span-2">
+                  <label className={LABEL} htmlFor="cliente-nacionalidad">
+                    Nacionalidad
+                    <WizardRequiredMark />
+                  </label>
+                  <input
+                    id="cliente-nacionalidad"
+                    value={form.nacionalidad}
+                    onChange={(e) => patch("nacionalidad", e.target.value)}
+                    className={INPUT}
+                    placeholder="País de origen"
+                    autoComplete="country-name"
+                  />
+                </div>
+              ) : null}
             </div>
+
+            {isCompany ? (
+              <div className="rounded-xl border border-brand-border bg-brand-surface/40 p-3 space-y-2">
+                <p className={LABEL}>Representante</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className={LABEL} htmlFor="cliente-apoderado-nombre">
+                      Nombre del representante
+                      <WizardRequiredMark />
+                    </label>
+                    <input
+                      id="cliente-apoderado-nombre"
+                      value={form.apoderadoNombre}
+                      onChange={(e) => patch("apoderadoNombre", e.target.value)}
+                      className={INPUT}
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div>
+                    <label className={LABEL} htmlFor="cliente-apoderado-apellidos">
+                      Apellidos del representante
+                    </label>
+                    <input
+                      id="cliente-apoderado-apellidos"
+                      value={form.apoderadoApellidos}
+                      onChange={(e) => patch("apoderadoApellidos", e.target.value)}
+                      className={INPUT}
+                      autoComplete="family-name"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={LABEL} htmlFor="cliente-apoderado-dni">
+                      DNI del representante
+                      <WizardRequiredMark />
+                    </label>
+                    <input
+                      id="cliente-apoderado-dni"
+                      value={form.apoderadoDni}
+                      onChange={(e) => patch("apoderadoDni", e.target.value.toUpperCase())}
+                      className={`${INPUT} font-mono uppercase`}
+                      placeholder="12345678Z"
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -299,6 +418,7 @@ export function ClientesCreateModal({
               <span className="text-[11px] text-brand-subtext">RGPD aceptado</span>
             </label>
 
+            {enertechNote ? <p className="text-xs text-cyan-700 dark:text-cyan-300">{enertechNote}</p> : null}
             {error ? <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p> : null}
           </div>
 
@@ -310,6 +430,14 @@ export function ClientesCreateModal({
               className={`h-9 px-4 text-[11px] font-bold rounded-lg cursor-pointer disabled:opacity-50 ${ENERSAVE_ACTION.secondary}`}
             >
               Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={uploading || saving}
+              onClick={() => void uploadCliente()}
+              className="h-9 px-4 text-[11px] font-bold rounded-lg border border-cyan-600 text-cyan-700 dark:text-cyan-300 cursor-pointer disabled:opacity-50"
+            >
+              {uploading ? "Subiendo…" : "Subir cliente a Enertech"}
             </button>
             <button
               type="submit"

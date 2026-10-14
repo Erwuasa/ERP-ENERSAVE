@@ -51,11 +51,15 @@ export interface NewContractFormState {
   nacionalidad: string
   /** Persona que firma por la empresa en el alta de Enertech. */
   apoderadoNombre: string
+  apoderadoApellidos: string
   apoderadoDni: string
   /** Actividad del suministro. Enertech lo exige en el POST del contrato. */
   cnae: string
   /** Clave `tf_…` de `enertech_precios`, la que pide el POST. */
   claveTarifa: string
+  /** Id numérico de la fila de precios. Vacío si solo se usa la clave `tf_…`. */
+  idTarifa: string
+  apellido2: string
   cups: string
   tipo: "luz" | "gas"
   compania: string
@@ -110,9 +114,12 @@ export const EMPTY_NEW_CONTRACT_FORM: NewContractFormState = {
   razonSocial: "",
   nacionalidad: "",
   apoderadoNombre: "",
+  apoderadoApellidos: "",
   apoderadoDni: "",
   cnae: "",
   claveTarifa: "",
+  idTarifa: "",
+  apellido2: "",
   cups: "",
   tipo: "luz",
   compania: "",
@@ -307,9 +314,12 @@ export function contractToNewContractForm(
     razonSocial: isCompany ? (contract.razonSocial ?? contract.clientName) : "",
     nacionalidad: contract.nacionalidad ?? "",
     apoderadoNombre: contract.apoderadoNombre ?? "",
+    apoderadoApellidos: contract.apoderadoApellidos ?? "",
     apoderadoDni: contract.apoderadoDni ?? "",
     cnae: contract.cnae ?? "",
     claveTarifa: contract.claveTarifa ?? "",
+    idTarifa: contract.idTarifa ? String(contract.idTarifa) : "",
+    apellido2: contract.apellido2 ?? "",
     cups: contract.cups,
     tipo: contract.tipo,
     compania: contract.compania,
@@ -532,8 +542,11 @@ export function buildContractWizardMetadata(
     cnae: form.cnae.trim(),
     nacionalidad: form.nacionalidad.trim(),
     apoderado_nombre: form.apoderadoNombre.trim(),
+    apoderado_apellidos: form.apoderadoApellidos.trim(),
     apoderado_dni: form.apoderadoDni.trim().toUpperCase(),
     clave_tarifa: form.claveTarifa.trim(),
+    id_tarifa: form.idTarifa.trim(),
+    apellido2: form.apellido2.trim(),
     contact_nombre: form.clientNombre.trim(),
     contact_apellidos: form.clientApellidos.trim(),
     razon_social: form.razonSocial.trim(),

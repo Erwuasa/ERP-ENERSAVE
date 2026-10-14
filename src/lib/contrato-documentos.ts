@@ -6,8 +6,8 @@ import type {
   TipoClienteContrato,
 } from "./contract-registration"
 
-export const CONTRATO_DOCUMENTO_TIPOS = [
-  { id: "dni_nie_titular", label: "DNI o NIE del titular" },
+/** Huecos que el alta siempre enseña, haya o no lista de Enertech. */
+export const CONTRATO_DOCUMENTO_TIPOS_BASE = [
   { id: "cif_empresa", label: "CIF de la empresa" },
   { id: "factura_luz", label: "Factura de la luz actual" },
   { id: "justo_titulo", label: "Justo título" },
@@ -18,12 +18,35 @@ export const CONTRATO_DOCUMENTO_TIPOS = [
   { id: "otros", label: "Otros documentos" },
 ] as const
 
+/**
+ * Documentos del diccionario de `GET /documentacion` que no cabían en los huecos de siempre.
+ * En el alta se pintan siempre. El borde rojo lo pone la respuesta de Enertech.
+ */
+export const CONTRATO_DOCUMENTO_TIPOS_EXTRA = [
+  { id: "certificado_iban", label: "Certificado de IBAN" },
+  { id: "anexo_visita_comercial", label: "Anexo de visita comercial" },
+  { id: "autoconsumo_boletin_placas", label: "Boletín de placas" },
+  { id: "autoconsumo_anexo_autoconsumo", label: "Anexo de autoconsumo" },
+  { id: "recibo_autonomo", label: "Recibo de autónomo" },
+  { id: "carta_poder", label: "Carta de poder" },
+  { id: "dni_firmante", label: "DNI del firmante" },
+  { id: "acta_junta", label: "Acta de la junta" },
+  { id: "carta_certificacion", label: "Carta de certificación" },
+  { id: "escrituras", label: "Escrituras" },
+] as const
+
+export const CONTRATO_DOCUMENTO_TIPOS = [
+  ...CONTRATO_DOCUMENTO_TIPOS_BASE,
+  ...CONTRATO_DOCUMENTO_TIPOS_EXTRA,
+] as const
+
 export type ContratoDocumentoTipoId = (typeof CONTRATO_DOCUMENTO_TIPOS)[number]["id"]
 
 /** IDs históricos del wizard antes de ampliar el catálogo. */
 const LEGACY_DOCUMENTO_TIPO_MAP: Record<string, ContratoDocumentoTipoId> = {
   cif_nif: "cif_empresa",
-  dni_nie: "dni_nie_titular",
+  dni_nie: "dni_firmante",
+  dni_nie_titular: "dni_firmante",
   factura: "factura_luz",
   grabacion_legal: "grabacion_llamada",
 }
@@ -61,7 +84,7 @@ function defaultIdentityDocumentoForTipoCliente(
   if (tipoCliente === "pyme" || tipoCliente === "comunidad_vecinos") {
     return ["cif_empresa"]
   }
-  return ["dni_nie_titular"]
+  return ["dni_firmante"]
 }
 
 /** DNI solo aplica a residencial/autónomo; CIF a PYME/comunidades. */
@@ -75,7 +98,7 @@ export function filterDocumentosObligatoriosByTipoCliente(
 
   return ids.filter((id) => {
     if (id === "cif_empresa") return needsCif
-    if (id === "dni_nie_titular") return needsDni
+    if (id === "dni_firmante") return needsDni
     return true
   })
 }
@@ -168,8 +191,8 @@ export function countDocumentosPorTipo(documentosPorTipo: DocumentosPorTipo): nu
 
 export function getMissingObligatoriosDocumentos(
   documentosPorTipo: DocumentosPorTipo,
-  obligatorios: ContratoDocumentoTipoId[]
-): { id: ContratoDocumentoTipoId; label: string }[] {
+  obligatorios: readonly string[]
+): { id: string; label: string }[] {
   return obligatorios
     .filter((id) => !(documentosPorTipo[id]?.length ?? 0))
     .map((id) => ({
@@ -178,9 +201,54 @@ export function getMissingObligatoriosDocumentos(
     }))
 }
 
+export function listWizardDocumentoSlots(input: {
+  obligatorios: readonly string[]
+  documentosPorTipo: DocumentosPorTipo
+}): { id: string; label: string }[] {
+  const firmante = CONTRATO_DOCUMENTO_TIPOS_EXTRA.find((tipo) => tipo.id === "dni_firmante")
+  const slots: { id: string; label: string }[] = firmante
+    ? [{ id: firmante.id, label: firmante.label }]
+    : []
+  for (const tipo of CONTRATO_DOCUMENTO_TIPOS_BASE) {
+    slots.push({ id: tipo.id, label: tipo.label })
+  }
+  for (const tipo of CONTRATO_DOCUMENTO_TIPOS_EXTRA) {
+    if (tipo.id === "dni_firmante") continue
+    slots.push({ id: tipo.id, label: tipo.label })
+  }
+  const shown = new Set<string>(slots.map((slot) => slot.id))
+
+  for (const id of input.obligatorios) {
+    if (shown.has(id)) continue
+    slots.push({ id, label: getDocumentoTipoLabel(id) })
+    shown.add(id)
+  }
+
+  return slots
+}
+
+export function listExpedienteDocumentoSlots(
+  documentosPorTipo: Record<string, unknown[]>
+): { id: ContratoDocumentoTipoId; label: string }[] {
+  const firmante = CONTRATO_DOCUMENTO_TIPOS_EXTRA.find((tipo) => tipo.id === "dni_firmante")
+  const slots: { id: ContratoDocumentoTipoId; label: string }[] = firmante
+    ? [{ id: firmante.id, label: firmante.label }]
+    : []
+  for (const tipo of CONTRATO_DOCUMENTO_TIPOS_BASE) {
+    slots.push({ id: tipo.id, label: tipo.label })
+  }
+  for (const tipo of CONTRATO_DOCUMENTO_TIPOS_EXTRA) {
+    if (tipo.id === "dni_firmante") continue
+    if ((documentosPorTipo[tipo.id]?.length ?? 0) > 0) {
+      slots.push({ id: tipo.id, label: tipo.label })
+    }
+  }
+  return slots
+}
+
 export function validateRequiredDocumentos(
   form: NewContractFormState,
-  obligatorios: ContratoDocumentoTipoId[]
+  obligatorios: readonly string[]
 ): { valid: boolean; missingLabels: string[] } {
   const missing = getMissingObligatoriosDocumentos(form.documentosPorTipo, obligatorios)
   return {

@@ -44,6 +44,7 @@ type Props = {
   setCustomTariffName: (tarifa: string) => void
   onToggleServicioExtra: (id: string) => void
   onChange: (patch: Partial<NewContractFormState>) => void
+  sipsHint?: string | null
   selectTariff: (tarifa: string) => void
   setPeajeSegment: (segment: ContractPeajeSegment) => void
   handlePotenciaP1Change: (value: string) => void
@@ -68,6 +69,7 @@ export function WizardSuministroStep({
   setCustomTariffName,
   onToggleServicioExtra,
   onChange,
+  sipsHint,
   selectTariff,
   setPeajeSegment,
   handlePotenciaP1Change,
@@ -166,6 +168,24 @@ export function WizardSuministroStep({
               Se rellena al elegir una tarifa del catálogo. Enertech la usa en el alta.
             </p>
           </div>
+          <div className="mt-2">
+            <label htmlFor="wizard-id-tarifa" className={WIZARD_LABEL_CLASS}>
+              Id de tarifa
+            </label>
+            <input
+              id="wizard-id-tarifa"
+              type="text"
+              inputMode="numeric"
+              value={form.idTarifa}
+              onChange={(e) => onChange({ idTarifa: e.target.value.replace(/\D/g, "") })}
+              className={`${WIZARD_INPUT_CLASS} font-mono py-1.5`}
+              placeholder="id de GET /precios"
+              autoComplete="off"
+            />
+            <p className="text-[9px] font-mono text-brand-subtext mt-0.5">
+              Opcional si ya hay clave tf_. Enertech acepta uno de los dos.
+            </p>
+          </div>
 
           {customTariffExpanded ? (
             <div className="mt-2">
@@ -257,6 +277,9 @@ export function WizardSuministroStep({
             <p className="text-[9px] text-amber-600 font-mono mt-0.5 truncate">
               Ya registrado: {duplicateCups.clientName}
             </p>
+          ) : null}
+          {sipsHint ? (
+            <p className="text-[9px] font-mono text-brand-subtext mt-0.5">{sipsHint}</p>
           ) : null}
         </div>
 

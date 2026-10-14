@@ -134,6 +134,19 @@ export function WizardClienteStep({
                 />
               </div>
               <div>
+                <label htmlFor="wizard-apoderado-apellidos" className={WIZARD_LABEL_CLASS}>
+                  Apellidos del representante
+                </label>
+                <input
+                  id="wizard-apoderado-apellidos"
+                  type="text"
+                  value={form.apoderadoApellidos}
+                  onChange={(e) => onChange({ apoderadoApellidos: e.target.value })}
+                  className={`${WIZARD_INPUT_CLASS} py-1.5`}
+                  autoComplete="family-name"
+                />
+              </div>
+              <div>
                 <label htmlFor="wizard-apoderado-dni" className={WIZARD_LABEL_CLASS}>
                   DNI del representante
                   <WizardRequiredMark />
@@ -173,7 +186,7 @@ export function WizardClienteStep({
         </div>
         <div className="col-span-12 sm:col-span-4">
           <label htmlFor="wizard-apellidos" className={WIZARD_LABEL_CLASS}>
-            Apellidos
+            {isCompany ? "Apellidos" : "Apellido 1"}
             {isCompany ? null : <WizardRequiredMark />}
           </label>
           <input
@@ -184,6 +197,21 @@ export function WizardClienteStep({
             className={`${WIZARD_INPUT_CLASS} py-1.5`}
           />
         </div>
+        {isCompany ? null : (
+          <div className="col-span-12 sm:col-span-4">
+            <label htmlFor="wizard-apellido2" className={WIZARD_LABEL_CLASS}>
+              Apellido 2
+            </label>
+            <input
+              id="wizard-apellido2"
+              type="text"
+              value={form.apellido2}
+              onChange={(e) => onChange({ apellido2: e.target.value })}
+              className={`${WIZARD_INPUT_CLASS} py-1.5`}
+              autoComplete="family-name"
+            />
+          </div>
+        )}
         <div className="col-span-12 sm:col-span-4">
           <label htmlFor="wizard-nif" className={WIZARD_LABEL_CLASS}>
             {isCompany ? "CIF" : "DNI-NIE"}
@@ -218,8 +246,9 @@ export function WizardClienteStep({
         ) : null}
 
         <div className="col-span-12 sm:col-span-6">
-          <label className={WIZARD_LABEL_CLASS}>Teléfono</label>
+          <label htmlFor="wizard-telefono" className={WIZARD_LABEL_CLASS}>Teléfono</label>
           <input
+            id="wizard-telefono"
             type="tel"
             value={form.telefono}
             onChange={(e) => onChange({ telefono: e.target.value })}
@@ -227,8 +256,9 @@ export function WizardClienteStep({
           />
         </div>
         <div className="col-span-12 sm:col-span-6">
-          <label className={WIZARD_LABEL_CLASS}>Email</label>
+          <label htmlFor="wizard-email" className={WIZARD_LABEL_CLASS}>Email</label>
           <input
+            id="wizard-email"
             type="email"
             value={form.email}
             onChange={(e) => onChange({ email: e.target.value })}

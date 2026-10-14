@@ -178,6 +178,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     setCustomTariffName={vm.setCustomTariffName}
                     onToggleServicioExtra={vm.toggleServicioExtra}
                     onChange={onChange}
+                    sipsHint={vm.sipsHint}
                     selectTariff={vm.selectTariff}
                     setPeajeSegment={vm.setPeajeSegment}
                     handlePotenciaP1Change={vm.handlePotenciaP1Change}
@@ -190,6 +191,7 @@ export function NuevoContratoWizard(props: NuevoContratoWizardProps) {
                     form={form}
                     tarifaChipLabel={vm.tarifaChipLabel}
                     documentosObligatorios={vm.documentosObligatorios}
+                    documentacionMensaje={vm.documentacionMensaje}
                     addDocumentosForTipo={vm.addDocumentosForTipo}
                     removeDocumentoForTipo={vm.removeDocumentoForTipo}
                     newComment={vm.newComment}

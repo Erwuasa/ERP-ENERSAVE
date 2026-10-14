@@ -35,15 +35,21 @@ const LEGACY_ESTADO_MAP: Record<string, ContractEstado> = {
   "en trámite": "TRAMITANDO",
   "pte firma": "PTE DE FIRMA",
   "pte rgpd": "PTE DE RGPD",
+  "pte. rgpd": "PTE DE RGPD",
   "pendiente rgpd": "PTE DE RGPD",
+  "pendiente de rgpd": "PTE DE RGPD",
 }
 
 export function normalizeContractEstado(value: string): ContractEstado {
-  if (CONTRACT_ESTADOS.includes(value as ContractEstado)) {
-    return value as ContractEstado
-  }
-  const key = value.toLowerCase().trim()
-  return LEGACY_ESTADO_MAP[key] ?? CONTRACT_ESTADO_INICIAL
+  return contractEstadoFromExternalLabel(value) ?? CONTRACT_ESTADO_INICIAL
+}
+
+/** Estado reconocible de Enertech o del ERP. Un texto desconocido no se inventa. */
+export function contractEstadoFromExternalLabel(value: string): ContractEstado | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (CONTRACT_ESTADOS.includes(trimmed as ContractEstado)) return trimmed as ContractEstado
+  return LEGACY_ESTADO_MAP[trimmed.toLowerCase()] ?? null
 }
 
 export function formatContractEstadoLabel(estado: string): string {

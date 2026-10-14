@@ -6,9 +6,10 @@ import { DocumentoSlotCard } from "@/components/contratos/DocumentoSlotCard"
 import { ContratoDocumentosUploadedList } from "@/components/contratos/ContratoDocumentosUploadedList"
 import { ContratoDetalleSection } from "@/components/contratos/contrato-detalle-ui"
 import {
-  CONTRATO_DOCUMENTO_TIPOS,
   formatDocumentoSize,
+  getDocumentoTipoLabel,
   groupDocumentosByTipo,
+  listExpedienteDocumentoSlots,
   type ContratoDocumentoRecord,
   type ContratoDocumentoTipoId,
 } from "@/lib/contrato-documentos"
@@ -70,6 +71,7 @@ export function ContratoDetalleTabDocumentos({
 
   const documentos = useMemo(() => normalizeContractDocumentos(contract), [contract])
   const documentosPorTipo = useMemo(() => groupDocumentosByTipo(documentos), [documentos])
+  const slots = useMemo(() => listExpedienteDocumentoSlots(documentosPorTipo), [documentosPorTipo])
   const displayDocumentos = useMemo(
     () => [...pendingUploads, ...documentos],
     [pendingUploads, documentos]
@@ -174,7 +176,7 @@ export function ContratoDetalleTabDocumentos({
   return (
     <div className="space-y-6 max-w-5xl">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {CONTRATO_DOCUMENTO_TIPOS.map((tipo) => (
+        {slots.map((tipo) => (
           <DocumentoSlotCard
             key={tipo.id}
             label={tipo.label}
@@ -191,7 +193,7 @@ export function ContratoDetalleTabDocumentos({
 
       {uploadingTipo ? (
         <p className="text-xs font-mono text-cyan-700 dark:text-cyan-300">
-          Subiendo documento en {CONTRATO_DOCUMENTO_TIPOS.find((t) => t.id === uploadingTipo)?.label}…
+          Subiendo documento en {getDocumentoTipoLabel(uploadingTipo)}…
         </p>
       ) : null}
 

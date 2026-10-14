@@ -1,3 +1,4 @@
+import { collectEnertechDocumentos, type EnertechDocumentoAdjunto } from "@/lib/enertech/documentos-post"
 import type { Contract } from "@/types/contract"
 import type { DocumentosPorTipo } from "@/lib/contract-registration"
 import type { ContratoDocumentoRecord, ContratoDocumentoTipoId } from "@/lib/contrato-documentos"
@@ -47,7 +48,7 @@ async function attachIdentityDocumentToCliente(
 ): Promise<void> {
   if (!contract.clientId) return
   const tipo = normalizeDocumentoTipoId(String(doc.tipo))
-  if (tipo !== "dni_nie_titular" && tipo !== "cif_empresa") return
+  if (tipo !== "dni_firmante" && tipo !== "cif_empresa") return
   if (!doc.storagePath) return
 
   const entry: ClienteArchivo = {
@@ -306,4 +307,20 @@ export async function downloadContratoDocumentoBlob(
   }
 
   return { ok: true, data }
+}
+
+export async function enertechDocumentosFromContract(
+  contract: Pick<Contract, "documentos">
+): Promise<EnertechDocumentoAdjunto[]> {
+  const prepared: { filename: string; bytes: Uint8Array }[] = []
+  for (const doc of contract.documentos ?? []) {
+    if (!doc.storagePath || !doc.name) continue
+    const downloaded = await downloadContratoDocumentoBlob(doc.storagePath)
+    if (downloaded.ok === false) continue
+    prepared.push({
+      filename: doc.name,
+      bytes: new Uint8Array(await downloaded.data.arrayBuffer()),
+    })
+  }
+  return collectEnertechDocumentos(prepared)
 }

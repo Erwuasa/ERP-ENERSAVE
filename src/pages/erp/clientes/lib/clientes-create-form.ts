@@ -20,6 +20,11 @@ export interface ClientesCreateFormState {
   tipoCliente: ClienteTipo
   nombre: string
   apellidos: string
+  apellido2: string
+  nacionalidad: string
+  apoderadoNombre: string
+  apoderadoApellidos: string
+  apoderadoDni: string
   documento: string
   telefono: string
   email: string
@@ -37,6 +42,11 @@ export function emptyClientesCreateForm(defaultComercialId: string): ClientesCre
     tipoCliente: "particular",
     nombre: "",
     apellidos: "",
+    apellido2: "",
+    nacionalidad: "",
+    apoderadoNombre: "",
+    apoderadoApellidos: "",
+    apoderadoDni: "",
     documento: "",
     telefono: "",
     email: "",
@@ -74,7 +84,7 @@ export function buildClientFromCreateForm(form: ClientesCreateFormState): Client
   return {
     id: `cli-${Date.now()}`,
     nombre: form.nombre.trim(),
-    apellidos: form.apellidos.trim() || undefined,
+    apellidos: [form.apellidos.trim(), form.apellido2.trim()].filter(Boolean).join(" ") || undefined,
     estado: form.estado,
     documento: form.documento.trim() || undefined,
     telefono: form.telefono.trim() || undefined,

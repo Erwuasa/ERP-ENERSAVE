@@ -185,6 +185,20 @@ export function resolveWizardTariffClave(
   return (byPeaje ?? matches[0])?.id ?? ""
 }
 
+/** Id numérico de GET /precios para la misma oferta, si el catálogo lo trae. */
+export function resolveWizardTariffPriceId(
+  catalog: Array<Pick<MarcoRetributivoEntry, "tarifa" | "peaje"> & { enertechPriceId?: number }>,
+  tarifa: string,
+  peajeSegment: ContractPeajeSegment
+): string {
+  const name = tarifa.trim()
+  if (!name) return ""
+  const matches = catalog.filter((entry) => entry.tarifa === name && entry.enertechPriceId)
+  const byPeaje = matches.find((entry) => marcoEntryMatchesPeajeSegment(entry.peaje, peajeSegment))
+  const id = (byPeaje ?? matches[0])?.enertechPriceId
+  return id ? String(id) : ""
+}
+
 export function priceOfferToWizardEntry(input: {
   id: string
   compania: string

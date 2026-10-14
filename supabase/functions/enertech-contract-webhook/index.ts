@@ -7,6 +7,10 @@
 // sends before relying on this in production.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1"
 import { corsHeaders, handleOptions } from "../_shared/cors.ts"
+import {
+  contractEstadoFromWebhookLabel,
+  readEnertechWebhookContract,
+} from "../_shared/enertech-webhook-contract.ts"
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -118,5 +122,46 @@ Deno.serve(async (req) => {
     return json(401, { error: "Firma inválida" })
   }
 
+  await applyWebhookContractEstado(admin, payload)
+
   return json(200, { ok: true })
 })
+
+async function applyWebhookContractEstado(
+  admin: ReturnType<typeof createClient>,
+  payload: unknown
+): Promise<void> {
+  const read = readEnertechWebhookContract(payload)
+  if (!read?.estado) return
+  const estado = contractEstadoFromWebhookLabel(read.estado)
+  if (!estado) return
+
+  let row: { id: string; metadata: Record<string, unknown> | null } | null = null
+  if (read.idContract) {
+    const byId = await admin
+      .from("contratos_equipo")
+      .select("id, metadata")
+      .eq("metadata->>enertech_contract_id", String(read.idContract))
+      .limit(1)
+      .maybeSingle()
+    row = (byId.data as { id: string; metadata: Record<string, unknown> | null } | null) ?? null
+  }
+  if (!row && read.cups) {
+    const byCups = await admin
+      .from("contratos_equipo")
+      .select("id, metadata")
+      .eq("cups", read.cups)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    row = (byCups.data as { id: string; metadata: Record<string, unknown> | null } | null) ?? null
+  }
+  if (!row) return
+
+  const metadata = {
+    ...(row.metadata ?? {}),
+    enertech_estado: read.estado,
+    ...(read.idContract ? { enertech_contract_id: read.idContract } : {}),
+  }
+  await admin.from("contratos_equipo").update({ estado, metadata }).eq("id", row.id)
+}

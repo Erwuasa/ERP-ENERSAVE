@@ -35,7 +35,7 @@ Cada fila representa un contrato en `contratos_equipo` y renderiza sus datos seg
 ## 4. Modal de Alta (`NuevoContratoWizard`) e Integración con Enertech
 
 ### 4.1. Reglas Generales de Integración
-El asistente guarda localmente en Supabase (`contratos_equipo` y columna JSON `metadata`). No llama de forma sincrónica a Enertech en el guardado. La API de Enertech opera con una única clave para toda la empresa. El comercial asignado es obligatoriamente el usuario con la sesión abierta en el ERP (`nombreComercial`, campo de solo lectura; si inicia sesión Germán Bayón, el comercial se fija como Germán Bayón).
+El asistente guarda en Supabase (`contratos_equipo` y columna JSON `metadata`). No hay botón para subir el contrato: al crear uno completo, con los campos obligatorios y ya guardado en la tabla, el ERP hace `POST /clientes` y después `POST /contratos`. Un borrador no llama a la API. El estado que devuelve Enertech (por ejemplo `Pte. RGPD`) se escribe en esa fila. El webhook de Enertech vuelve a escribir el estado en el mismo contrato cuando avisa un cambio; no vuelve a subir el contrato. Si una fila ya guardada pasa a `PTE DE RGPD` y todavía no tiene id de Enertech, también se sube. Al escribir un CUPS válido en el alta, SIPS rellena el CNAE y el consumo anual. La clave de Enertech no viaja al navegador: la llama la Edge Function `enertech-alta`. La API de Enertech opera con una única clave para toda la empresa. El comercial asignado es obligatoriamente el usuario con la sesión abierta en el ERP (`nombreComercial`, campo de solo lectura; si inicia sesión Germán Bayón, el comercial se fija como Germán Bayón).
 
 Los asteriscos en pantalla marcan estrictamente los campos obligatorios para el cuerpo del `POST` de Enertech.
 
@@ -71,7 +71,7 @@ El orden en pantalla y su equivalencia con Enertech es estricto:
 * **Dirección de suministro (`direccionSuministro`):** Opcional. Se envía a Enertech como `via_nombre`.
 * **IBAN (`iban`):** Opcional. Se traslada a Enertech si está cumplimentado.
 * **Potencias P1–P6 (`potenciaP1`…`potenciaP6`):** Opcionales. Se mapean a `power_p1`…`power_p6` únicamente en periodos con valor mayor a 0 kW.
-* **Documentación adjunta:** No bloquea el cuerpo del POST.
+* **Documentación adjunta:** En «Archivos y documentos» el primer hueco es «DNI del firmante». Ahí caen las claves `dni` y `dni_firmante` de Enertech. No hay un hueco aparte de «DNI o NIE del titular». El resto de huecos se ve siempre (CIF, factura, justo título, certificado de instalación, adenda, cambio de titularidad, grabación, otros, IBAN, visita comercial, recibo de autónomo, carta de poder, acta, carta de certificación, escrituras, boletín de placas y anexo de autoconsumo). El borde rojo sale de `GET /documentacion` (compañía, tipo de cliente, luz/gas, alta nueva y cambio de titular), no del marco. Si la consulta falla, el alta sigue y «Crear contrato» no se bloquea. El fallo de red dice «No se ha podido consultar la documentación de Enertech.» Sin datos: «Enertech no indica documentos para este caso.» Comercializadora desconocida (404): «Enertech no reconoce esta comercializadora.» Segmento ausente o no válido (400): «Falta el tipo de cliente para consultar la documentación.» Mientras carga: «Consultando documentación de Enertech…». El asistente no marca cambio de potencia ni autoconsumo, así que esos tres documentos no se ponen en rojo hasta que el formulario tenga esos filtros. Al crear el contrato, los archivos del formulario van en `documentos` del `POST /contratos` (`filename` + `base64`, pdf/jpg/jpeg/png/webp/heic/tif/tiff, 15 MB por archivo). Un archivo que no cumple eso se omite y el alta sigue.
 
 ---
 
@@ -87,6 +87,7 @@ El documento fiscal (`nif`) debe validarse mediante `classifySpanishTaxId`:
 ### 5.2. `POST /contratos`
 * **Campos del body:** `clientId` (obtenido de la respuesta de cliente), `cups` (con control algorítmico), `cnae` (texto no vacío) y `clave_tarifa` (cadena `tf_…`).
 * **Campos condicionales:** `cp`, `poblacion`, `provincia`, `via_nombre`, `iban` (solo si tienen valor); `consumption` (si es mayor a 0); y `power_p1`…`power_p6` (solo periodos mayores a 0 kW).
+* **Documentos:** `documentos` es un array de `{ filename, base64 }`. Solo se envía si hay al menos un archivo válido. Si se omite y la matriz de Enertech los exige, el contrato se crea igual y puede quedar en incidencia.
 * **Nota comercializadora:** La comercializadora no se envía en el body; Enertech la deduce automáticamente desde la clave de tarifa.
 
 ---

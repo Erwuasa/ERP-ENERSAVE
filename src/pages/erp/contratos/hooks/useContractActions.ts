@@ -27,6 +27,9 @@ import { cancelContractWithSettlement } from "@/lib/erp/cancel-contract-with-set
 import { listRetrocomisionSchedules } from "@/lib/supabase/retrocomision-schedules"
 import { activateContractWithSettlement } from "@/lib/erp/activate-contract-with-settlement"
 import { normalizeContractEstado } from "@/lib/contract-estado"
+import { filesToEnertechDocumentos, pendingFilesFromDocumentos } from "@/lib/enertech/documentos-post"
+import { formToEnertechAltaSource } from "@/lib/enertech/from-contract-form"
+import { uploadSavedContractToEnertech } from "@/lib/supabase/enertech-alta"
 import { createContractFromForm } from "@/lib/erp/create-contract-from-form"
 import { buildOptimisticContractFromForm } from "@/lib/erp/build-optimistic-contract"
 import {
@@ -490,6 +493,43 @@ export function useContractActions(options: UseContractActionsOptions = {}) {
           setContracts(result.contracts)
           if (result.settlement) {
             setSettlements((prev) => [result.settlement!, ...prev])
+          }
+
+          if (!result.isIncomplete) {
+            const documentos = await filesToEnertechDocumentos(
+              pendingFilesFromDocumentos(newContractForm.documentosPorTipo)
+            )
+            const upload = await uploadSavedContractToEnertech({
+              contractId: result.newContract.id,
+              estado: result.newContract.estado,
+              source: formToEnertechAltaSource(newContractForm),
+              when: "created",
+              documentos,
+            })
+            if (upload.ok === false) {
+              toast.warning(`El contrato se guardó en el ERP. Enertech: ${upload.message}`)
+            } else if (!upload.skipped) {
+              setContracts((prev) =>
+                prev.map((item) =>
+                  item.id === result.newContract.id
+                    ? {
+                        ...item,
+                        estado: upload.appliedEstado ?? item.estado,
+                        enertechCustomerId: upload.idCustomer ?? item.enertechCustomerId,
+                        enertechContractId: upload.idContract ?? item.enertechContractId,
+                        enertechEstadoId: upload.estadoId ?? item.enertechEstadoId,
+                        enertechEstado: upload.estado ?? item.enertechEstado,
+                        enertechDocumentosGuardados:
+                          upload.documentosGuardados ?? item.enertechDocumentosGuardados,
+                        enertechRgpd: upload.rgpd ?? item.enertechRgpd,
+                      }
+                    : item
+                )
+              )
+              toast.success(
+                `Enviado a Enertech. id_contract ${upload.idContract}, estado ${upload.estado ?? upload.appliedEstado ?? "—"}.`
+              )
+            }
           }
 
           for (const warning of result.warnings) {

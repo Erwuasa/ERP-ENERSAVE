@@ -157,6 +157,23 @@ describe("buildEnertechContratoBody", () => {
       iban: "ES000000",
     })
     expect(built.value).not.toHaveProperty("power_p3")
+    expect(built.value).not.toHaveProperty("documentos")
+  })
+
+  it("adjunta documentos solo cuando hay filename y base64", () => {
+    const built = buildEnertechContratoBody({
+      clientId: 15,
+      cups: CUPS,
+      cnae: "4711",
+      claveTarifa: "tf_prueba",
+      documentos: [
+        { filename: "dni.pdf", base64: "JVBERg==" },
+        { filename: "", base64: "x" },
+      ],
+    })
+    expect(built.ok).toBe(true)
+    if (built.ok === false) return
+    expect(built.value.documentos).toEqual([{ filename: "dni.pdf", base64: "JVBERg==" }])
   })
 })
 

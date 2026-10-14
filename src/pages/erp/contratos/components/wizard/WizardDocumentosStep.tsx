@@ -1,7 +1,7 @@
 import { Fragment } from "react"
 import { MessageSquare, Plus } from "lucide-react"
 import { toast } from "sonner"
-import { CONTRATO_DOCUMENTO_TIPOS, countDocumentosPorTipo } from "@/lib/contrato-documentos"
+import { countDocumentosPorTipo, listWizardDocumentoSlots } from "@/lib/contrato-documentos"
 import type { NewContractFormState } from "@/lib/contract-registration"
 import { DocumentoSlotCard } from "@/components/contratos/DocumentoSlotCard"
 import { WIZARD_INPUT_CLASS } from "@/pages/erp/contratos/components/wizard/wizard-ui"
@@ -10,6 +10,7 @@ type Props = {
   form: NewContractFormState
   tarifaChipLabel: string
   documentosObligatorios: string[]
+  documentacionMensaje: string | null
   addDocumentosForTipo: (
     tipoId: string,
     files: NewContractFormState["documentosPorTipo"][string]
@@ -24,6 +25,7 @@ export function WizardDocumentosStep({
   form,
   tarifaChipLabel,
   documentosObligatorios,
+  documentacionMensaje,
   addDocumentosForTipo,
   removeDocumentoForTipo,
   newComment,
@@ -50,11 +52,15 @@ export function WizardDocumentosStep({
       </div>
 
       <p className="text-[11px] text-brand-subtext leading-snug shrink-0">
-        Los documentos con borde rojo son obligatorios según la tarifa seleccionada.
+        {documentacionMensaje ??
+          "Los documentos con borde rojo son los que Enertech pide para esta compañía y este tipo de cliente."}
       </p>
 
       <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 content-start">
-        {CONTRATO_DOCUMENTO_TIPOS.map((tipo) => (
+        {listWizardDocumentoSlots({
+          obligatorios: documentosObligatorios,
+          documentosPorTipo: form.documentosPorTipo,
+        }).map((tipo) => (
           <Fragment key={tipo.id}>
             <DocumentoSlotCard
               label={tipo.label}

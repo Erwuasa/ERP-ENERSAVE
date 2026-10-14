@@ -74,6 +74,29 @@ export async function enertechGet(
   return { status: response.status, body, retryAfter: response.headers.get('retry-after') }
 }
 
+/** POST against the Enertech API. The caller decides what a non-2xx means. */
+export async function enertechPost(
+  path: string,
+  body: unknown,
+  idempotencyKey?: string
+): Promise<EnertechResponse> {
+  const headers: Record<string, string> = {
+    'X-Api-Key': apiKey(),
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+  }
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
+
+  const response = await fetch(`${baseUrl()}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  })
+  const parsed = await response.json().catch(() => null)
+  return { status: response.status, body: parsed, retryAfter: response.headers.get('retry-after') }
+}
+
 /** GET that returns the parsed body, waits out 429s (Retry-After) and throws EnertechHttpError otherwise. */
 export async function enertechGetJson(path: string, searchParams?: Record<string, string>): Promise<unknown> {
   for (let attempt = 1; ; attempt++) {

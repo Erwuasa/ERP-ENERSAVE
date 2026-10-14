@@ -21,7 +21,7 @@ export function buildNewContractFormPatchFromClient(
   const documentosPorTipo: NewContractFormState["documentosPorTipo"] = {}
 
   if (identityDocs.length > 0) {
-    const slot = isEmpresa ? "cif_empresa" : "dni_nie_titular"
+    const slot = isEmpresa ? "cif_empresa" : "dni_firmante"
     documentosPorTipo[slot] = identityDocs
   }
 

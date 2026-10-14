@@ -1,3 +1,4 @@
+import type { EnertechDocumentoAdjunto } from "@/lib/enertech/documentos-post"
 import { computeCupsControl, validateCups } from "@/lib/sips/cups"
 
 export const ENERTECH_TEST_BASE_URL = "https://devintranet.enertechcore.com/v1"
@@ -33,6 +34,7 @@ export interface EnertechClienteInput {
   movil?: string
   nacionalidad?: string
   apoderadoNombre?: string
+  apoderadoApellidos?: string
   apoderadoDni?: string
 }
 
@@ -43,6 +45,8 @@ export interface EnertechContratoInput {
   claveTarifa?: string
   idTarifa?: number
   idRate?: number
+  /** Eficiencia no exige CNAE. Luz y gas sí. */
+  eficiencia?: boolean
   viaTipo?: string
   viaNombre?: string
   viaNumero?: string
@@ -52,6 +56,7 @@ export interface EnertechContratoInput {
   iban?: string
   consumption?: number
   powersKw?: Partial<Record<"p1" | "p2" | "p3" | "p4" | "p5" | "p6", number>>
+  documentos?: EnertechDocumentoAdjunto[]
 }
 
 export interface EnertechAltaSource {
@@ -80,7 +85,10 @@ export interface EnertechAltaSource {
   idTarifa?: number
   nacionalidad?: string
   apoderadoNombre?: string
+  apoderadoApellidos?: string
   apoderadoDni?: string
+  /** Si viene informado, `apellidos` entero es apellido1 y este campo es apellido2. */
+  apellido2?: string
 }
 
 export interface EnertechHttpRequest {
@@ -213,6 +221,8 @@ export function buildEnertechClienteBody(input: EnertechClienteInput): Built<Rec
   if (tax.kind === "cif") {
     body.apoderadoNombre = text(input.apoderadoNombre)
     body.apoderadoDni = classifySpanishTaxId(input.apoderadoDni ?? "")?.normalized ?? ""
+    const apoderadoApellidos = text(input.apoderadoApellidos)
+    if (apoderadoApellidos) body.apoderadoApellidos = apoderadoApellidos
   }
   return { ok: true, value: body }
 }
@@ -223,7 +233,9 @@ export function buildEnertechContratoBody(input: EnertechContratoInput): Built<R
   }
   const cups = validateCups(input.cups)
   if (cups.ok === false) return fail("INVALID_CUPS", "El CUPS del contrato no es válido.")
-  if (!text(input.cnae)) return fail("MISSING_CNAE", "El CNAE es obligatorio en el alta de Enertech.")
+  if (!input.eficiencia && !text(input.cnae)) {
+    return fail("MISSING_CNAE", "El CNAE es obligatorio en el alta de Enertech.")
+  }
 
   const clave = text(input.claveTarifa)
   const idTarifa = input.idTarifa
@@ -234,8 +246,8 @@ export function buildEnertechContratoBody(input: EnertechContratoInput): Built<R
   const body: Record<string, unknown> = {
     clientId: input.clientId,
     cups: cups.cups,
-    cnae: text(input.cnae),
   }
+  if (!input.eficiencia) body.cnae = text(input.cnae)
   if (clave) body.clave_tarifa = clave
   if (typeof idTarifa === "number" && idTarifa > 0) body.id_tarifa = idTarifa
   if (typeof input.idRate === "number" && input.idRate > 0) body.id_rate = input.idRate
@@ -250,6 +262,10 @@ export function buildEnertechContratoBody(input: EnertechContratoInput): Built<R
   for (const period of ["p1", "p2", "p3", "p4", "p5", "p6"] as const) {
     const kw = input.powersKw?.[period]
     if (typeof kw === "number" && kw > 0) body[`power_${period}`] = kw
+  }
+  const documentos = (input.documentos ?? []).filter((doc) => doc.filename && doc.base64)
+  if (documentos.length > 0) {
+    body.documentos = documentos.map((doc) => ({ filename: doc.filename, base64: doc.base64 }))
   }
   return { ok: true, value: body }
 }
@@ -284,6 +300,8 @@ export function mapContractSourceToEnertechAlta(source: EnertechAltaSource): Bui
   const tax = classifySpanishTaxId(source.nif)
   if (!tax) return fail("INVALID_TAX_ID", "El NIF del formulario no es un DNI, NIE o CIF válido.")
   const apellidos = splitApellidos(source.apellidos)
+  const apellido2 = text(source.apellido2) || apellidos.apellido2
+  const apellido1 = text(source.apellido2) ? text(source.apellidos) : apellidos.apellido1
   const cliente: EnertechClienteInput =
     tax.kind === "cif"
       ? {
@@ -292,12 +310,13 @@ export function mapContractSourceToEnertechAlta(source: EnertechAltaSource): Bui
           email: source.email,
           movil: source.telefono,
           apoderadoNombre: source.apoderadoNombre,
+          apoderadoApellidos: source.apoderadoApellidos,
           apoderadoDni: source.apoderadoDni,
         }
       : {
           nombre: text(source.nombre),
-          apellido1: apellidos.apellido1,
-          apellido2: apellidos.apellido2,
+          apellido1,
+          apellido2,
           dni: tax.normalized,
           email: source.email,
           movil: source.telefono,

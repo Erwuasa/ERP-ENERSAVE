@@ -7,7 +7,7 @@ import {
 describe("documentos obligatorios por tipo cliente", () => {
   it("autónomo: solo DNI obligatorio, no CIF", () => {
     const ids = getDocumentosObligatoriosForMarco(null, "autonomo")
-    expect(ids).toEqual(["dni_nie_titular"])
+    expect(ids).toEqual(["dni_firmante"])
   })
 
   it("PYME: solo CIF obligatorio, no DNI", () => {
@@ -17,7 +17,7 @@ describe("documentos obligatorios por tipo cliente", () => {
 
   it("filtra lista del marco que incluye ambos", () => {
     const filtered = filterDocumentosObligatoriosByTipoCliente(
-      ["dni_nie_titular", "cif_empresa", "factura_luz"],
+      ["dni_firmante", "cif_empresa", "factura_luz"],
       "pyme"
     )
     expect(filtered).toEqual(["cif_empresa", "factura_luz"])

@@ -26,6 +26,8 @@ export interface TariffConPrecios {
   providerLogoUrl: string | null
   /** Territorio Enertech (`peninsula`, `baleares`, `canarias`). No se pinta; sirve para dedup. */
   territorio?: string | null
+  /** `payload.id` de Enertech. Es el `id_tarifa` del POST de contrato. */
+  enertechPriceId?: number | null
   precios: TariffPreciosPorPeriodo
 }
 
@@ -145,6 +147,11 @@ function resolveProvider(row: EnertechPrecioRow): {
   }
 }
 
+function positivePayloadId(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
 export function mapEnertechPrecioRowToConPrecios(row: EnertechPrecioRow): TariffConPrecios {
   const { providerId, providerName, providerLogoUrl } = resolveProvider(row)
   const payload = row.payload ?? {}
@@ -163,6 +170,7 @@ export function mapEnertechPrecioRowToConPrecios(row: EnertechPrecioRow): Tariff
     isSolarRate: Boolean(row.is_solar_rate),
     atRateId: null,
     territorio: textField(payload.territorio) || null,
+    enertechPriceId: positivePayloadId(payload.id),
     precios: pricesFromPayload(payload),
   }
 }

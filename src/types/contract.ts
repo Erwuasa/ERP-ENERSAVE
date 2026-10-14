@@ -72,9 +72,19 @@ export interface Contract {
   contactApellidos?: string
   nacionalidad?: string
   apoderadoNombre?: string
+  apoderadoApellidos?: string
   apoderadoDni?: string
   cnae?: string
   claveTarifa?: string
+  /** `id` numérico de GET /precios. Alternativa a `claveTarifa`. */
+  idTarifa?: number
+  apellido2?: string
+  enertechCustomerId?: number
+  enertechRgpd?: string
+  enertechContractId?: number
+  enertechEstadoId?: number
+  enertechEstado?: string
+  enertechDocumentosGuardados?: number
   nombreComercial?: string
   jefeEquipo?: string
   comentariosInternos?: Array<{
