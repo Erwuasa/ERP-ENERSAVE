@@ -171,6 +171,26 @@ export function quotePostgrestValue(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
+/**
+ * Campañas a buscar para las tarifas visibles: `prefixes` (la campaña empieza por) y `exact`
+ * (igual, sin distinguir mayúsculas). Alimenta el RPC `list_marco_commissions_v1`.
+ */
+export function campaniaLookupTerms(tariffNames: string[]): { prefixes: string[]; exact: string[] } {
+  const prefixes = new Set<string>()
+  const exact = new Set<string>()
+  for (const name of tariffNames) {
+    marcoCommissionLookupNames(name).forEach((lookup, index) => {
+      const folded = lookup.normalize("NFD").replace(/\p{M}/gu, "")
+      for (const value of new Set([lookup, folded])) {
+        if (index === 0) prefixes.add(value)
+        else exact.add(value)
+      }
+    })
+    for (const token of marcoCommissionExtraLookups(name)) exact.add(token)
+  }
+  return { prefixes: [...prefixes], exact: [...exact] }
+}
+
 /** Filtros `or` de PostgREST para las campañas de las tarifas visibles. */
 export function campaniaIlikeClauses(tariffNames: string[]): string[] {
   const clauses: string[] = []

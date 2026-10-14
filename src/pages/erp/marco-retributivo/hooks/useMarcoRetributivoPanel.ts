@@ -8,7 +8,7 @@ import {
   MARCO_TARIFF_PAGE_SIZE,
   toggleChipFilter,
 } from "@/lib/marco-screen-query"
-import { loadMarcoScreenPage } from "@/lib/supabase/marco-screen-page"
+import { invalidateMarcoScreenCache, loadMarcoScreenPage } from "@/lib/supabase/marco-screen-page"
 import {
   createMarcoEntry,
   deleteMarcoEntry,
@@ -290,6 +290,7 @@ export function useMarcoRetributivoPanel({
     }
     setRows((prev) => prev.map((r) => (r.id === id ? result.data : r)))
     patchMarcoRetributivoCacheRow(id, result.data)
+    invalidateMarcoScreenCache()
     toast.success("Entrada actualizada.")
     return true
   }
@@ -362,6 +363,7 @@ export function useMarcoRetributivoPanel({
     setRows((prev) => [result.data, ...prev.filter((r) => r.id !== tempId)])
     removeMarcoRetributivoCacheRow(tempId)
     prependMarcoRetributivoCacheRow(result.data)
+    invalidateMarcoScreenCache()
     toast.success("Entrada creada.")
     return true
   }
@@ -406,6 +408,7 @@ export function useMarcoRetributivoPanel({
       setDeactivating(false)
       return
     }
+    invalidateMarcoScreenCache()
     toast.success("Entrada desactivada.")
     setPendingDeactivate(null)
     setDeactivating(false)

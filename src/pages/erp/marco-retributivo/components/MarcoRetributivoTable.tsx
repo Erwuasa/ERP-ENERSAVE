@@ -34,8 +34,11 @@ type Props = {
 const ESTIMATED_ROW_HEIGHT = 58
 /** Alto estimado de una tarjeta móvil (px); se reajusta por tarjeta real vía measureElement. */
 const ESTIMATED_CARD_HEIGHT = 220
-/** Tailwind `md`. Por debajo, tarjetas; desde aquí, la tabla de escritorio. */
-const DESKTOP_TABLE_QUERY = "(min-width: 768px)"
+/**
+ * Tailwind `lg`. Por debajo, tarjetas; desde aquí, la tabla de escritorio. Con la barra lateral
+ * del ERP abierta, la tabla (min 820px) no cabe en 768–1023px y obligaba a scroll horizontal.
+ */
+const DESKTOP_TABLE_QUERY = "(min-width: 1024px)"
 
 const FIELD_LABEL = "text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext"
 

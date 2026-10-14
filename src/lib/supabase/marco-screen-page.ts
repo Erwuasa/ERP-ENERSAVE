@@ -1,6 +1,6 @@
 import { commissionSliceFromPayload, type MarcoCommissionSlice } from "@/lib/marco-tariff-commission"
 import {
-  campaniaIlikeClauses,
+  campaniaLookupTerms,
   companyIlikePattern,
   MARCO_COMPANIES_PER_PAGE,
   MARCO_TARIFF_PAGE_SIZE,
@@ -72,7 +72,9 @@ const COMISION_SELECT = `
   enertech_comercializadoras ( nombre, logo_url )
 `
 
-const COMPANY_CACHE_MS = 60_000
+const COMPANY_CACHE_MS = 10 * 60_000
+/** Las lecturas por compañía/campaña se repiten al paginar y al conmutar filtros: se reutilizan. */
+const QUERY_CACHE_MS = 5 * 60_000
 
 interface CompanyCatalog {
   refs: MarcoCompanyRef[]
@@ -81,6 +83,26 @@ interface CompanyCatalog {
 
 let companyCache: (CompanyCatalog & { at: number }) | null = null
 let companyInflight: Promise<CompanyCatalog> | null = null
+
+const queryCache = new Map<string, { at: number; value: Promise<unknown> }>()
+
+/** Cachea (y comparte entre llamadas simultáneas) el resultado de una lectura. Los fallos no se guardan. */
+function cachedQuery<T>(key: string, load: () => Promise<T>): Promise<T> {
+  const hit = queryCache.get(key)
+  if (hit && Date.now() - hit.at < QUERY_CACHE_MS) return hit.value as Promise<T>
+  const value = load().catch((error) => {
+    queryCache.delete(key)
+    throw error
+  })
+  queryCache.set(key, { at: Date.now(), value })
+  return value
+}
+
+/** Tras editar/crear/borrar comisiones hay que olvidar lo leído. */
+export function invalidateMarcoScreenCache(): void {
+  queryCache.clear()
+  companyCache = null
+}
 
 function clientOrNull() {
   if (!isSupabaseConfigured()) return null
@@ -195,45 +217,76 @@ async function fetchComisionRows(
   companyIds: number[]
 ): Promise<ComisionPayloadRow[]> {
   const byClave = new Map<string, ComisionPayloadRow>()
-  const clauses = campaniaIlikeClauses(tariffNames)
-  const chunks: string[][] = []
-  for (let index = 0; index < clauses.length; index += 8) chunks.push(clauses.slice(index, index + 8))
-
-  const named = await runPool(chunks, 4, async (chunk) => {
-    const { data, error } = await client
-      .from("enertech_comisiones")
-      .select(COMISION_SELECT)
-      .is("removed_at", null)
-      .or(chunk.join(","))
-      .limit(1000)
-    if (error) return [] as ComisionPayloadRow[]
-    return (data ?? []) as ComisionPayloadRow[]
-  })
-  for (const page of named) {
-    for (const row of page) byClave.set(row.clave, row)
+  const { prefixes, exact } = campaniaLookupTerms(tariffNames)
+  if (prefixes.length > 0 || exact.length > 0) {
+    const key = `comisiones:rpc:${[...prefixes].sort().join("|")}::${[...exact].sort().join("|")}`
+    const named = await cachedQuery(key, async () => {
+      const { data, error } = await client.rpc("list_marco_commissions_v1", {
+        p_prefixes: prefixes,
+        p_exact: exact,
+      })
+      if (error) throw new Error(error.message)
+      return (data ?? []) as ComisionPayloadRow[]
+    }).catch(() => [] as ComisionPayloadRow[])
+    for (const row of named) byClave.set(row.clave, row)
   }
 
-  const ids = [...new Set(companyIds)]
-  const byCompany = await runPool(ids, 4, async (id) => {
-    const rows: ComisionPayloadRow[] = []
-    for (let from = 0; from < 8000; from += 1000) {
-      const { data, error } = await client
-        .from("enertech_comisiones")
-        .select(COMISION_SELECT)
-        .eq("company_id", id)
-        .is("removed_at", null)
-        .range(from, from + 999)
-      if (error || !data?.length) break
-      rows.push(...(data as ComisionPayloadRow[]))
-      if (data.length < 1000) break
-    }
-    return rows
-  })
+  // Hoy el sync no rellena `company_id` en las comisiones: se pregunta una vez y, si no hay
+  // ninguna, se evita una lectura paginada por compañía que siempre devuelve vacío.
+  const linked = await commissionsHaveCompanyIds(client)
+  const ids = linked ? [...new Set(companyIds)] : []
+  const byCompany = await runPool(ids, 4, (id) =>
+    cachedQuery(`comisiones:company:${id}`, async () => {
+      const rows: ComisionPayloadRow[] = []
+      for (let from = 0; from < 8000; from += 1000) {
+        const { data, error } = await client
+          .from("enertech_comisiones")
+          .select(COMISION_SELECT)
+          .eq("company_id", id)
+          .is("removed_at", null)
+          .range(from, from + 999)
+        if (error) throw new Error(error.message)
+        if (!data?.length) break
+        rows.push(...(data as ComisionPayloadRow[]))
+        if (data.length < 1000) break
+      }
+      return rows
+    }).catch(() => [] as ComisionPayloadRow[])
+  )
   for (const page of byCompany) {
     for (const row of page) byClave.set(row.clave, row)
   }
 
   return [...byClave.values()]
+}
+
+function commissionsHaveCompanyIds(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>
+): Promise<boolean> {
+  return cachedQuery("comisiones:has-company-ids", async () => {
+    const { data, error } = await client
+      .from("enertech_comisiones")
+      .select("clave")
+      .not("company_id", "is", null)
+      .is("removed_at", null)
+      .limit(1)
+    if (error) throw new Error(error.message)
+    return (data ?? []).length > 0
+  }).catch(() => true)
+}
+
+function listCompanyTariffs(pattern: string) {
+  return cachedQuery(`precios:company:${pattern}`, async () => {
+    const listed = await listTariffsMatchingComercializadora(pattern)
+    if (listed.ok === false) throw new Error(listed.message)
+    return listed.data
+  }).then(
+    (data) => ({ ok: true as const, data }),
+    (error: unknown) => ({
+      ok: false as const,
+      message: error instanceof Error ? error.message : "No se pudieron leer las tarifas",
+    })
+  )
 }
 
 function slicesFromRows(rows: ComisionPayloadRow[]): MarcoCommissionSlice[] {
@@ -305,7 +358,7 @@ export async function loadMarcoScreenPage(
       companyIds: [],
       logoUrl: null,
     }
-    const listed = await listTariffsMatchingComercializadora(companyIlikePattern(company.nombre))
+    const listed = await listCompanyTariffs(companyIlikePattern(company.nombre))
     if (listed.ok === false) return listed
     const { offers, total } = visibleOffers(
       listed.data,
@@ -329,6 +382,7 @@ export async function loadMarcoScreenPage(
 
   if (searching) {
     const listed = await listTariffsMatchingSearch(query.search)
+    // (el buscador cambia con cada texto: no se cachea)
     if (listed.ok === false) return listed
     const { offers, total } = visibleOffers(listed.data, null, filters, query.page * MARCO_TARIFF_PAGE_SIZE, MARCO_TARIFF_PAGE_SIZE)
     const ids = companies
@@ -349,9 +403,9 @@ export async function loadMarcoScreenPage(
 
   const pageCompanies = marcoPageSlice(companies, query.page, MARCO_COMPANIES_PER_PAGE)
   await runPool(pageCompanies, 4, async (company) => {
-    const listed = await listTariffsMatchingComercializadora(companyIlikePattern(company.nombre))
+    const listed = await listCompanyTariffs(companyIlikePattern(company.nombre))
     if (listed.ok === false) return
-    const { offers } = visibleOffers(listed.data, company, filters, 0, MARCO_TARIFFS_PER_COMPANY)
+    const { offers } =visibleOffers(listed.data, company, filters, 0, MARCO_TARIFFS_PER_COMPANY)
     const rows = await rowsForOffers(client, offers, company.companyIds)
     if (rows.length > 0) hooks.onRows?.(rows)
   })

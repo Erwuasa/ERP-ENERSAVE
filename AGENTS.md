@@ -266,10 +266,9 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
-- 2026-10-14 — Alta de contrato: se quita el hueco «DNI o NIE del titular». «DNI del firmante» va el primero y recibe también la clave `dni`. Los archivos del alta van en `documentos` del `POST /contratos`. `enertech-alta` sigue sin desplegar. Ver §9.
-- 2026-10-14 — Alta de contrato: el borde rojo de «Archivos y documentos» sale de `GET /documentacion` (compañía, segmento y trámite), no del marco. Los huecos del diccionario se ven siempre. Si la consulta falla, «Crear contrato» sigue. `enertech-documentacion` desplegada. Ver §9.
-- 2026-10-14 — Alta Enertech: sin botón manual. El contrato completo se sube solo al crearlo; el estado lo pone la respuesta de Enertech y el webhook. El CUPS rellena CNAE y consumo anual desde SIPS. `enertech-alta` y el cambio del webhook no están desplegados. Ver §9.
-- 2026-10-14 — Alta Enertech: el contrato solo se sube en estado Pendiente de RGPD, nunca en borrador. Campos y botones de `POST /clientes` y `POST /contratos` en los modales. La función `enertech-alta` no está desplegada. Ver §9.
+- 2026-10-14 — Marco retributivo: timeouts 57014 en `enertech_comisiones`. Migración `20261014141025_enertech_select_policies_initplan.sql` (**aplicada**): políticas SELECT de `enertech_comisiones`/`enertech_precios`/`enertech_comercializadoras` con `(select private."current_role"())`, índice `enertech_comisiones_campania_lower_idx` y RPC `list_marco_commissions_v1(p_prefixes, p_exact)`. La pantalla lee comisiones con ese RPC (una llamada por compañía, caché 5 min) y las tarjetas móviles pasan a `lg`. `enertech_comisiones.company_id` es NULL en todas las filas (el sync no lo rellena). Ver `docs/modulos/marco-retributivo.md` §6.
+- 2026-10-14 — Comparador: el panel del formulario hace scroll en vez de recortar (`overflow-hidden` + flex encogía a 0 el bloque de la IA al reducir la altura de la ventana). El bloque de subida de factura es `shrink-0`.
+
 - 2026-10-13 — La especificación de cada pantalla vive en `docs/modulos/`. §8 ya no repite comparador, contratos, marco ni liquidaciones. Ver §11.
 - 2026-10-13 — Alta de contrato: en pyme la razón social va delante y debajo el representante. CNAE, nacionalidad (NIE) y clave `tf_…` entran en el formulario y se guardan en metadata. Ver §8.
 - 2026-10-13 — Alta de contrato: asterisco en nombre, apellidos, DNI/NIE, tarifa y CUPS, los campos que el POST de Enertech ya puede leer. Ver §8.
