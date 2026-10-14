@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   campaniaIlikeClauses,
+  campaniaLookupTerms,
   collapseLuzTariffStubs,
   companyIlikePattern,
   marcoCompanyRowCounts,
@@ -139,5 +140,19 @@ describe("marco screen query", () => {
         search: "",
       })
     ).toBe(false)
+  })
+})
+
+describe("campaniaLookupTerms", () => {
+  it("separa prefijos (nombre completo) de igualdades (sin año y fragmentos) y pliega tildes", () => {
+    const terms = campaniaLookupTerms(["Plan Única_20ES1"])
+    expect(terms.prefixes).toContain("Plan Única_20ES1")
+    expect(terms.prefixes).toContain("Plan Unica_20ES1")
+    expect(terms.prefixes.every((value) => value.length > 0)).toBe(true)
+  })
+
+  it("no repite términos entre tarifas", () => {
+    const terms = campaniaLookupTerms(["Tarifa Noche", "Tarifa Noche"])
+    expect(terms.prefixes).toEqual(["Tarifa Noche"])
   })
 })

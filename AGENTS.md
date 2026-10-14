@@ -265,6 +265,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-14 — Marco retributivo: timeouts 57014 en `enertech_comisiones`. Migración `20261014141025_enertech_select_policies_initplan.sql` (**aplicada**): políticas SELECT de `enertech_comisiones`/`enertech_precios`/`enertech_comercializadoras` con `(select private."current_role"())`, índice `enertech_comisiones_campania_lower_idx` y RPC `list_marco_commissions_v1(p_prefixes, p_exact)`. La pantalla lee comisiones con ese RPC (una llamada por compañía, caché 5 min) y las tarjetas móviles pasan a `lg`. `enertech_comisiones.company_id` es NULL en todas las filas (el sync no lo rellena). Ver `docs/modulos/marco-retributivo.md` §6.
 - 2026-10-14 — Comparador: el panel del formulario hace scroll en vez de recortar (`overflow-hidden` + flex encogía a 0 el bloque de la IA al reducir la altura de la ventana). El bloque de subida de factura es `shrink-0`.
 
 - 2026-10-13 — La especificación de cada pantalla vive en `docs/modulos/`. §8 ya no repite comparador, contratos, marco ni liquidaciones. Ver §11.

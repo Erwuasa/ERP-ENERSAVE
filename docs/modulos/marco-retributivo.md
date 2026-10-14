@@ -50,4 +50,7 @@ Las operaciones de creación, edición y borrado de comisiones (`createMarcoEntr
 ---
 
 ## 6. Rendimiento y Caché de Red
+**Pantalla actual (`marco-screen-page.ts`, 2026-10-14):** cada página lee tarifas por compañía (`enertech_precios`) y comisiones por nombre de campaña (`enertech_comisiones`, `payload->>campania ilike`, seq scan ~90 ms por consulta). Esas lecturas y el catálogo de compañías se cachean en memoria (5 y 10 min, `cachedQuery`) y se invalidan al guardar/crear/borrar (`invalidateMarcoScreenCache`). Hoy `enertech_comisiones.company_id` es `NULL` en todas las filas (el sync no lo rellena), así que la lectura por `company_id` se omite tras una sonda cacheada. El cambio a tarjetas es a `lg` (1024 px), no `md`.
+
+**Ruta antigua (`listMarcoRetributivo`, barrido completo):**
 Para prevenir bloqueos por timeout en Postgres (`error 57014`), la lectura de comisiones implementa un pool con límite de concurrencia a 4 páginas simultáneas (`runWithConcurrencyLimit`) y reintentos automáticos (`fetchEnertechComisionesPageWithRetry`). Las lecturas de tabla y auditoría de duplicados comparten una caché en memoria de 15 segundos (`fetchAllEnertechComisionesCached`), la cual se invalida inmediatamente tras cualquier operación de guardado o borrado manual.
