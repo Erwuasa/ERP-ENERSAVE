@@ -456,6 +456,7 @@ async function fetchAllEnertechComisionesCached(
 function invalidateRawComisionesCache(): void {
   rawComisionesCache = null
   rawComisionesInflight = null
+  scopedComisionCache.clear()
 }
 
 function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoRow[] {
@@ -538,6 +539,140 @@ function groupEnertechComisiones(rows: EnertechComisionRow[]): MarcoRetributivoR
   }
 
   return result
+}
+
+const SCOPED_COMISION_TTL_MS = 60_000
+const scopedComisionCache = new Map<string, { at: number; rows: EnertechComisionRow[] }>()
+
+function chunkValues<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size))
+  return chunks
+}
+
+function scopedCacheKey(names: string[]): string {
+  return [...new Set(names.map((name) => name.trim().toLowerCase()).filter(Boolean))].sort().join("|")
+}
+
+async function fetchScopedCommissionChunk(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  prefixes: string[],
+  exact: string[]
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
+  const { data, error } = await client.rpc("list_marco_commissions_v1", {
+    p_prefixes: prefixes,
+    p_exact: exact,
+  })
+  if (error) return mapError(error)
+  return { ok: true, data: (data ?? []) as EnertechComisionRow[] }
+}
+
+/** Comisiones de esas campañas, por el RPC indexado. No recorre las ~19.000 filas. */
+async function fetchCommissionRowsForCampaigns(
+  client: NonNullable<ReturnType<typeof getSupabaseClient>>,
+  names: string[]
+): Promise<MarcoRetributivoResult<EnertechComisionRow[]>> {
+  const key = scopedCacheKey(names)
+  if (!key) return { ok: true, data: [] }
+  const cached = scopedComisionCache.get(key)
+  if (cached && Date.now() - cached.at < SCOPED_COMISION_TTL_MS) {
+    return { ok: true, data: cached.rows }
+  }
+
+  const { campaniaLookupTerms } = await import("../marco-screen-query")
+  const { prefixes, exact } = campaniaLookupTerms(key.split("|"))
+  const jobs = [
+    ...chunkValues(prefixes, 25).map((chunk) => ({ prefixes: chunk, exact: [] as string[] })),
+    ...chunkValues(exact, 40).map((chunk) => ({ prefixes: [] as string[], exact: chunk })),
+  ]
+  const byClave = new Map<string, EnertechComisionRow>()
+  let next = 0
+
+  async function worker() {
+    while (next < jobs.length) {
+      const job = jobs[next]
+      next += 1
+      if (!job) return
+      const page = await fetchScopedCommissionChunk(client, job.prefixes, job.exact)
+      if (page.ok === false) throw new Error(page.message)
+      for (const row of page.data) byClave.set(row.clave, row)
+    }
+  }
+
+  try {
+    await Promise.all(Array.from({ length: Math.min(2, jobs.length) }, worker))
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "No se pudieron leer las comisiones",
+    }
+  }
+
+  const rows = [...byClave.values()]
+  scopedComisionCache.set(key, { at: Date.now(), rows })
+  return { ok: true, data: rows }
+}
+
+function slicesFromCommissionRows(rows: EnertechComisionRow[]): MarcoCommissionSlice[] {
+  return rows
+    .map((row) =>
+      commissionSliceFromPayload({
+        compania: readEnertechComercializadora(row.enertech_comercializadoras).nombre,
+        payload: row.payload,
+      })
+    )
+    .filter((slice): slice is MarcoCommissionSlice => slice != null)
+}
+
+/** La compañía de la comisión suele llegar vacía: se rellena con la del contrato de esa tarifa. */
+export function withContractCompania<T extends { tarifa: string; compania: string }>(
+  rows: T[],
+  contracts: Array<{ tarifa: string; compania: string }>
+): T[] {
+  const companiaByTarifa = new Map<string, string>()
+  for (const contract of contracts) {
+    const tarifa = contract.tarifa.trim().toLowerCase()
+    const compania = contract.compania.trim()
+    if (!tarifa || !compania || companiaByTarifa.has(tarifa)) continue
+    companiaByTarifa.set(tarifa, compania)
+  }
+  return rows.map((row) => {
+    if (row.compania.trim()) return row
+    const compania = companiaByTarifa.get(row.tarifa.trim().toLowerCase())
+    return compania ? { ...row, compania } : row
+  })
+}
+
+/** Filas de marco solo para los nombres de tarifa pedidos (comisión, sin barrer el catálogo). */
+export async function listMarcoRetributivoForCampaigns(
+  names: string[]
+): Promise<MarcoRetributivoResult<MarcoRetributivoRow[]>> {
+  const clientOrError = requireClient()
+  if (isMarcoClientError(clientOrError)) return { ok: true, data: [] }
+  const rowsResult = await fetchCommissionRowsForCampaigns(clientOrError, names)
+  if (rowsResult.ok === false) return rowsResult
+  return {
+    ok: true,
+    data: groupEnertechComisiones(rowsResult.data).filter((row) => !isMarcoGenericPlaceholderTariff(row)),
+  }
+}
+
+/** Cruza unas tarifas ya leídas con sus comisiones. No descarga el resto del marco. */
+export async function listMarcoRetributivoMatchingTariffs(
+  tariffs: TariffConPrecios[]
+): Promise<MarcoRetributivoResult<MarcoRetributivoRow[]>> {
+  const clientOrError = requireClient()
+  if (isMarcoClientError(clientOrError)) return { ok: true, data: [] }
+  if (tariffs.length === 0) return { ok: true, data: [] }
+  const rowsResult = await fetchCommissionRowsForCampaigns(
+    clientOrError,
+    tariffs.map((tariff) => tariff.name)
+  )
+  if (rowsResult.ok === false) return rowsResult
+  return {
+    ok: true,
+    data: offersAndSlicesToMarcoRows(tariffsToMarcoOffers(tariffs), slicesFromCommissionRows(rowsResult.data)),
+  }
 }
 
 function periodValue(

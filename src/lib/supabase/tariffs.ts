@@ -1,3 +1,4 @@
+import { concatTariffCatalogPages, mergeTariffCatalogFamilies } from "../tariff-catalog-pages"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import type {
   ProductoPeajeFilter,
@@ -194,6 +195,57 @@ export async function listTariffCatalogPage(
   if (error) return mapError(error)
 
   return { ok: true, data: parseCatalogPage(data) }
+}
+
+const FAMILY_PAGE_SIZE = 200
+
+/** Lee todas las filas de cada nombre crudo y las junta. Sirve cuando pymes y residencial comparten etiqueta. */
+export async function listTariffCatalogForProviders(
+  query: Omit<TariffCatalogQuery, "compania" | "offset" | "limit">,
+  providerNames: string[]
+): Promise<TariffCatalogResult<TariffCatalogPage>> {
+  const names = [...new Set(providerNames.map((name) => name.trim()).filter(Boolean))]
+  if (names.length === 0) {
+    return {
+      ok: true,
+      data: {
+        rows: [],
+        total: 0,
+        limit: FAMILY_PAGE_SIZE,
+        offset: 0,
+        hasMore: false,
+        providerCounts: {},
+        summary: {
+          luz_total: 0,
+          gas_total: 0,
+          luz_web_visible: 0,
+          gas_web_visible: 0,
+          web_visible_total: 0,
+        },
+      },
+    }
+  }
+
+  const families: TariffCatalogPage[] = []
+  for (const name of names) {
+    const pages: TariffCatalogPage[] = []
+    let offset = 0
+    for (let guard = 0; guard < 20; guard += 1) {
+      const result = await listTariffCatalogPage({
+        ...query,
+        compania: name,
+        offset,
+        limit: FAMILY_PAGE_SIZE,
+      })
+      if (result.ok === false) return result
+      pages.push(result.data)
+      if (!result.data.hasMore || result.data.rows.length === 0) break
+      offset += result.data.rows.length
+    }
+    families.push(concatTariffCatalogPages(pages))
+  }
+
+  return { ok: true, data: mergeTariffCatalogFamilies(families) }
 }
 
 /** @deprecated Usar listTariffCatalogPage — conservado por compatibilidad puntual */

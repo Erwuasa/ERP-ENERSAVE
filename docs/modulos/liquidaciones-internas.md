@@ -17,6 +17,8 @@ La visibilidad se orquesta mediante `filterSettlementsForRole` (`src/lib/liquida
 ---
 
 ## 3. Motor de Cálculo y Resolución de Comisiones
+La comisión del marco se lee solo para las tarifas de los contratos visibles (`list_marco_commissions_v1`). No se descarga `enertech_comisiones` entera al abrir la pantalla.
+
 La función `resolveLiquidacionComisionComercial` determina el importe aplicable en este orden:
 1. **Retrocomisión (Clawback):** Si `tipoEvento = 'retrocomision'`, `montoExterno < 0` o la descripción contiene «retrocomisi», el importe es `montoExterno` en negativo.
 2. **Importe Externo de Contrato:** Si el contrato presenta `montoExterno > 0` y está `ACTIVADO`, o el settlement está en estado `pendiente`, se toma dicho `montoExterno`.

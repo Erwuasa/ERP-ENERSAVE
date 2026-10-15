@@ -5,7 +5,7 @@ import {
   type RankingTarifa,
 } from "@/lib/comparador-en-vivo-ranking"
 import type { MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
-import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
+import { listMarcoRetributivoMatchingTariffs } from "@/lib/supabase/marco-retributivo"
 import {
   getTariffsCatalogCacheSnapshot,
   loadTariffsCatalogStaleWhileRevalidate,
@@ -93,22 +93,16 @@ export function useComparadorEnVivo(
   }, [form.segmento, form.peaje])
 
   useEffect(() => {
+    if (catalog.length === 0) return
     let cancelled = false
-
-    void loadMarcoRetributivoStaleWhileRevalidate({
-      onRevalidated: (fresh) => {
-        if (cancelled) return
-        setMarcoRows(fresh)
-      },
-    }).then((rows) => {
-      if (cancelled) return
-      setMarcoRows(rows)
+    void listMarcoRetributivoMatchingTariffs(catalog).then((result) => {
+      if (cancelled || result.ok === false) return
+      setMarcoRows(result.data)
     })
-
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [catalog])
 
   /** Consumos/potencias: debounce para no recalcular en cada tecla. */
   const debouncedUsageInput = useDebouncedValue(

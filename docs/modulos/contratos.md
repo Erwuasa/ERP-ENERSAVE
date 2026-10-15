@@ -1,7 +1,7 @@
 # ESPECIFICACIÓN TÉCNICA Y REGLAS DE AGENTE: GESTIÓN Y ALTA DE CONTRATOS (`/erp/contratos`)
 
 ## 1. Alcance y Arquitectura del Módulo
-La vista `/erp/contratos` centraliza la gestión operativa, auditoría de cartera y tramitación de altas energéticas del ERP. El módulo se compone de dos capas desacopladas: una tabla principal con buscador, filtros y cálculo dinámico de penalizaciones y renovaciones; y un asistente modal de cuatro pasos (`NuevoContratoWizard`) para registrar contratos en Supabase (`contratos_equipo`) estructurando los datos para su posterior emisión hacia la API de Enertech.
+La vista `/erp/contratos` centraliza la gestión operativa, auditoría de cartera y tramitación de altas energéticas del ERP. Al abrirla no se descarga el marco completo: las recomendaciones y el desglose de comisión piden solo las campañas del peaje o de la tarifa del contrato. El módulo se compone de dos capas desacopladas: una tabla principal con buscador, filtros y cálculo dinámico de penalizaciones y renovaciones; y un asistente modal de cuatro pasos (`NuevoContratoWizard`) para registrar contratos en Supabase (`contratos_equipo`) estructurando los datos para su posterior emisión hacia la API de Enertech.
 
 ---
 

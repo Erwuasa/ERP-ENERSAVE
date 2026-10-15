@@ -36,7 +36,7 @@ La tabla expande una fila independiente por cada tramo de consumo anual asociado
 
 ### 4.2. Virtualización de Tabla (Escritorio) y Modo Mobile
 * **Escritorio (`>= md`):** El `<tbody>` de `MarcoRetributivoTable` está virtualizado con `@tanstack/react-virtual` (`useVirtualizer` con `measureElement` dinámico y filas espaciadoras). Solo monta en el DOM las 20–30 filas visibles en el viewport más sobreescaneo, evitando el colapso del navegador ante miles de tramos calculados.
-* **Dispositivos Móviles y Tablets (`< md`):** Por debajo de 768px la tabla se transforma en tarjetas apiladas virtualizadas que contienen el logotipo, compañía, tarifa, badges de peaje/segmento, tramos de comisión y acciones. El toolbar de filtros utiliza `flex-wrap` con `min-w-0` para evitar desbordamientos horizontales.
+* **Dispositivos Móviles y Tabletas (`< md`):** Por debajo de 768px la tabla se transforma en tarjetas apiladas virtualizadas que contienen el logotipo, compañía, tarifa, badges de peaje/segmento, tramos de comisión y acciones. El selector de compañía no se encoge: Luz, Gas y Todos van en su propio grupo y, si no caben, bajan de línea enteros.
 
 ---
 

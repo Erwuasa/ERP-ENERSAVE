@@ -8,7 +8,9 @@ import {
   filterUndismissedRecommendations,
 } from "@/lib/recommendation-dismissed"
 import { dismissRenewalAlert } from "@/lib/renewal-alert-dismissed"
-import { listMarcoRetributivo, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+import { listMarcoRetributivoMatchingTariffs, type MarcoRetributivoRow } from "@/lib/supabase/marco-retributivo"
+import { listTariffsConPrecios } from "@/lib/supabase/tariffs-catalog"
+import { contractPeaje } from "@/lib/tarifa-cost-calculator"
 import { mapRecommendationToEstudioAhorro, recommendationPdfFilename } from "@/lib/pdf/map-recommendation-estudio-ahorro"
 import { getDemoEstudioAhorroInput } from "@/lib/pdf/demo-estudio-ahorro-input"
 import { downloadEstudioAhorroPdf, generateEstudioAhorroPdf } from "@/lib/pdf/estudio-ahorro-pdf"
@@ -32,17 +34,35 @@ export function useContratosRecommendations({
   const [marcoEntries, setMarcoEntries] = useState<MarcoRetributivoRow[]>([])
   const [dismissTick, setDismissTick] = useState(0)
 
+  const peajeKey = useMemo(
+    () =>
+      [...new Set(visibleContracts.map((contract) => contractPeaje(contract)).filter(Boolean))]
+        .sort()
+        .join("|"),
+    [visibleContracts]
+  )
+
   useEffect(() => {
-    if (!enabled) return
+    if (!enabled || !peajeKey) return
     let cancelled = false
-    void listMarcoRetributivo().then((result) => {
-      if (cancelled || result.ok === false) return
-      setMarcoEntries(result.data)
-    })
+    void (async () => {
+      const peajes = peajeKey.split("|")
+      const listed = await Promise.all(
+        peajes.flatMap((peaje) => [
+          listTariffsConPrecios("residencial", peaje),
+          listTariffsConPrecios("pyme", peaje),
+        ])
+      )
+      if (cancelled) return
+      const tariffs = listed.flatMap((result) => (result.ok ? result.data : []))
+      const marco = await listMarcoRetributivoMatchingTariffs(tariffs)
+      if (cancelled || marco.ok === false) return
+      setMarcoEntries(marco.data)
+    })()
     return () => {
       cancelled = true
     }
-  }, [enabled])
+  }, [enabled, peajeKey])
 
   const tarifaRecommendations = useMemo(() => {
     if (!enabled) return new Map<string, TarifaRecommendation>()

@@ -1,4 +1,4 @@
-import { Coins, Filter, Loader2, Plus, Search, Sparkles } from "lucide-react"
+import { Coins, Loader2, Plus, Search, Sparkles } from "lucide-react"
 import { CompaniaFilterSelect } from "@/components/erp/CompaniaFilterSelect"
 
 type Props = {
@@ -44,14 +44,25 @@ export function MarcoRetributivoToolbar({
   search,
   setSearch,
 }: Props) {
+  const supplyOptions = [
+    { id: "luz", label: "Luz" },
+    { id: "gas", label: "Gas" },
+    { id: "todos", label: "Todos" },
+  ] as const
+  const segmentOptions = [
+    { id: "todos", label: "Todos" },
+    { id: "residencial", label: "Residencial" },
+    { id: "pyme", label: "PYME" },
+  ] as const
+
   return (
     <>
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-brand-border pb-2.5">
-        <div className="flex w-full min-w-0 items-center gap-2 lg:w-auto">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-brand-border pb-2.5">
+        <div className="flex shrink-0 items-center gap-2">
           <span className="p-1.5 rounded-lg bg-blue-600/10 text-blue-600 shrink-0">
             <Coins className="w-5 h-5" aria-hidden />
           </span>
-          <div className="min-w-0 flex-1 lg:flex-none">
+          <div className="shrink-0">
             <CompaniaFilterSelect
               value={companiaFilter}
               onChange={setCompaniaFilter}
@@ -64,7 +75,6 @@ export function MarcoRetributivoToolbar({
               size="compact"
               showCounts
               hideEmpty={false}
-              className="max-w-full"
             />
             {!supabaseConfigured && (
               <p className="text-[9px] font-mono text-amber-600 mt-1 pl-0.5">
@@ -74,13 +84,64 @@ export function MarcoRetributivoToolbar({
           </div>
         </div>
 
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+        <div
+          className="flex shrink-0 items-center gap-1.5"
+          role="group"
+          aria-label="Suministro"
+        >
+          {supplyOptions.map((tipo) => (
+            <button
+              key={tipo.id}
+              type="button"
+              onClick={() => setTipoFilter(tipo.id)}
+              aria-pressed={tipoFilter === tipo.id}
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-colors duration-200 cursor-pointer ${
+                tipoFilter === tipo.id
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
+              }`}
+            >
+              {tipo.label}
+            </button>
+          ))}
+        </div>
+
+        <span className="hidden sm:inline w-px h-5 shrink-0 bg-brand-border" aria-hidden />
+
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label="Segmento"
+        >
+          <span className="text-[9px] font-mono uppercase text-slate-500">Segmento</span>
+          {segmentOptions.map((segmento) => (
+            <button
+              key={segmento.id}
+              type="button"
+              onClick={() => setSegmentoFilter(segmento.id)}
+              aria-pressed={segmentoFilter === segmento.id}
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-colors duration-200 cursor-pointer ${
+                segmentoFilter === segmento.id
+                  ? segmento.id === "residencial"
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : segmento.id === "pyme"
+                      ? "bg-amber-600 text-white border-amber-600"
+                      : "bg-blue-600 text-white border-blue-600"
+                  : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
+              }`}
+            >
+              {segmento.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           {canDedup && onDedupDuplicates ? (
             <button
               type="button"
               onClick={onDedupDuplicates}
               disabled={deduping}
-              className="inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/15 cursor-pointer disabled:opacity-50"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 hover:bg-amber-500/15 transition-colors duration-200 cursor-pointer disabled:opacity-50"
             >
               {deduping ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -94,56 +155,12 @@ export function MarcoRetributivoToolbar({
             <button
               type="button"
               onClick={onCreate}
-              className="inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-cyan-600 bg-cyan-600 text-white hover:bg-cyan-500 cursor-pointer"
+              className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border border-cyan-600 bg-cyan-600 text-white hover:bg-cyan-500 transition-colors duration-200 cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               Nueva entrada
             </button>
           )}
-          <span className="text-[9px] font-mono uppercase text-slate-500 flex items-center gap-1">
-            <Filter className="w-3 h-3" />
-            Suministro
-          </span>
-          {(["luz", "gas", "todos"] as const).map((tipo) => (
-            <button
-              key={tipo}
-              type="button"
-              onClick={() => setTipoFilter(tipo)}
-              className={`max-w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
-                tipoFilter === tipo
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
-              }`}
-            >
-              {tipo === "todos" ? "Todos" : tipo}
-            </button>
-          ))}
-          <span className="hidden sm:inline w-px h-5 bg-brand-border mx-0.5" aria-hidden />
-          <span className="text-[9px] font-mono uppercase text-slate-500">Segmento</span>
-          {(
-            [
-              { id: "todos", label: "Todos" },
-              { id: "residencial", label: "Residencial" },
-              { id: "pyme", label: "PYME" },
-            ] as const
-          ).map((segmento) => (
-            <button
-              key={segmento.id}
-              type="button"
-              onClick={() => setSegmentoFilter(segmento.id)}
-              className={`max-w-full shrink-0 whitespace-nowrap px-3 py-1.5 text-[10px] font-mono font-bold uppercase rounded-lg border transition-all cursor-pointer ${
-                segmentoFilter === segmento.id
-                  ? segmento.id === "residencial"
-                    ? "bg-emerald-600 text-white border-emerald-600"
-                    : segmento.id === "pyme"
-                      ? "bg-amber-600 text-white border-amber-600"
-                      : "bg-blue-600 text-white border-blue-600"
-                  : "bg-brand-panel border-brand-border text-brand-text hover:border-slate-300"
-              }`}
-            >
-              {segmento.label}
-            </button>
-          ))}
         </div>
       </div>
 

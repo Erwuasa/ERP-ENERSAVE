@@ -266,6 +266,9 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-15 — Contratos, comparador y liquidaciones internas ya no descargan las ~19.000 filas de `enertech_comisiones` al entrar. Piden las campañas del peaje o de la tarifa por `list_marco_commissions_v1`. Esa lectura era la que dejaba la pestaña bloqueada.
+- 2026-10-15 — Marco retributivo: Luz, Gas y Todos dejan de quedar debajo del selector de compañía. El selector no se encoge y cada grupo de filtros baja de línea entero. Ver `docs/modulos/marco-retributivo.md`.
+- 2026-10-15 — Tarifas: al elegir una compañía se leen todas sus variantes de Enertech (pymes y residencial). Naturgy, Nordy y Repsol dejaban fuera las residenciales porque el filtro solo pedía el nombre con más filas. Esas ofertas ya estaban en `enertech_precios`.
 - 2026-10-14 — Comparador: la etiqueta de precio por periodo queda en €/kW·día o €/kWh, y el consumo del formulario pasa de kWh/mes a kWh/día. Ver `docs/modulos/comparador.md`.
 - 2026-10-14 — Comparador: al abrir los precios por periodo usan el mismo tamaño de input y de rejilla que las cantidades de ese peaje. El bloque crece hacia abajo y el panel hace scroll, sin montarse sobre el siguiente. Ver `docs/modulos/comparador.md`.
 - 2026-10-14 — Comparador: los precios por periodo de la factura actual vuelven a ir plegados. Se abren y se rellenan cuando la lectura de la factura (OCR o IA) trae importes, solo de los periodos del peaje. `invoice-ai-openai` sigue sin `OPENAI_API_KEY`. Ver `docs/modulos/comparador.md`.

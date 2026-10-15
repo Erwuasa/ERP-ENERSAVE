@@ -34,7 +34,8 @@ import {
 } from "../lib/supabase/settlement-reclamaciones"
 import { isSupabaseConfigured } from "../lib/supabase/client"
 import {
-  listMarcoRetributivo,
+  listMarcoRetributivoForCampaigns,
+  withContractCompania,
   type MarcoRetributivoRow,
 } from "../lib/supabase/marco-retributivo"
 import type { Alegacion, AlegacionAdjunto, AlegacionEstado } from "../types/alegacion"
@@ -673,11 +674,24 @@ export function LiquidacionesInternasPanel({
     }
   }, [isAdminLiquidaciones, loadAutofacturas])
 
+  const marcoCampaignKey = useMemo(
+    () =>
+      [...new Set(contracts.map((contract) => contract.tarifa.trim()).filter(Boolean))]
+        .sort()
+        .join("|"),
+    [contracts]
+  )
+
   useEffect(() => {
-    void listMarcoRetributivo().then((result) => {
-      if (result.ok) setMarcoRows(result.data)
+    if (!marcoCampaignKey) return
+    let cancelled = false
+    void listMarcoRetributivoForCampaigns(marcoCampaignKey.split("|")).then((result) => {
+      if (!cancelled && result.ok) setMarcoRows(withContractCompania(result.data, contracts))
     })
-  }, [])
+    return () => {
+      cancelled = true
+    }
+  }, [marcoCampaignKey])
 
   const alegacionBySettlementId = useMemo(() => {
     const map = new Map<string, Alegacion>()

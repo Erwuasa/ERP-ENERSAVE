@@ -2,8 +2,7 @@ import { useEffect, useState } from "react"
 import type { Contract } from "@/types/contract"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
-  getMarcoRowById,
-  listMarcoRetributivo,
+  listMarcoRetributivoForCampaigns,
   marcoRowToCatalogEntry,
   type MarcoRetributivoRow,
 } from "@/lib/supabase/marco-retributivo"
@@ -55,17 +54,9 @@ export function useContratoMarcoRow(contract?: Contract | null): UseContratoMarc
 
       setIsLoading(true)
 
-      if (contract.marcoEntryId) {
-        const byId = await getMarcoRowById(contract.marcoEntryId)
-        if (cancelled) return
-        if (byId.ok) {
-          setRow(byId.data)
-          setIsLoading(false)
-          return
-        }
-      }
-
-      const listed = await listMarcoRetributivo()
+      const listed = await listMarcoRetributivoForCampaigns(
+        contract.tarifa.trim() ? [contract.tarifa] : []
+      )
       if (cancelled) return
       if (!listed.ok) {
         setRow(null)
@@ -73,7 +64,10 @@ export function useContratoMarcoRow(contract?: Contract | null): UseContratoMarc
         return
       }
 
-      setRow(resolveMarcoRow(contract, listed.data))
+      const rows = listed.data.map((row) =>
+        row.compania.trim() ? row : { ...row, compania: contract.compania }
+      )
+      setRow(resolveMarcoRow(contract, rows))
       setIsLoading(false)
     })()
 

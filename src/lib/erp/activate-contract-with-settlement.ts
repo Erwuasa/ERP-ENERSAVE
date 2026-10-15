@@ -9,10 +9,9 @@ import { computeComisionBreakdown } from "@/lib/marco-commission"
 import { formatCurrency } from "@/lib/erp/format-currency"
 import { updateTeamContract } from "@/lib/supabase/contracts"
 import {
-  getMarcoEntryById,
+  listMarcoRetributivoForCampaigns,
   getMarcoRowByAtIds,
   resolveMarcoCatalogEntry,
-  listMarcoRetributivo,
   marcoRowToCatalogEntry,
 } from "@/lib/supabase/marco-retributivo"
 import {
@@ -65,23 +64,19 @@ export async function activateContractWithSettlement(
   const activationDate = resolveActivationDate(contract, activationDateInput)
   const consumoAnual = consumoInput ?? contract.consumoAnualManual ?? contract.consumoAnual ?? 0
 
-  let marcoEntry = null
-  if (contract.marcoEntryId) {
-    const marcoResult = await getMarcoEntryById(contract.marcoEntryId)
-    if (marcoResult.ok) marcoEntry = marcoResult.data
-  }
-
-  if (!marcoEntry) {
-    const marcosResult = await listMarcoRetributivo()
-    const marcoRows = marcosResult.ok ? marcosResult.data : []
-    marcoEntry = resolveMarcoCatalogEntry(
-      contract.marcoEntryId,
-      contract.compania,
-      contract.tarifa,
-      contract.tipo,
-      marcoRows
-    )
-  }
+  const marcosResult = await listMarcoRetributivoForCampaigns(
+    contract.tarifa.trim() ? [contract.tarifa] : []
+  )
+  const marcoRows = (marcosResult.ok ? marcosResult.data : []).map((row) =>
+    row.compania.trim() ? row : { ...row, compania: contract.compania }
+  )
+  let marcoEntry = resolveMarcoCatalogEntry(
+    contract.marcoEntryId,
+    contract.compania,
+    contract.tarifa,
+    contract.tipo,
+    marcoRows
+  )
 
   if (!marcoEntry && (contract.atMarcoId || contract.atRateId)) {
     const byAt = await getMarcoRowByAtIds({

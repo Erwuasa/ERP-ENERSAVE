@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { toast } from "sonner"
-import { listMarcoRetributivo, marcoRowToCatalogEntry } from "@/lib/supabase/marco-retributivo"
 import { listTariffCatalogPage } from "@/lib/supabase/tariffs"
 import { listTariffsMatchingComercializadora } from "@/lib/supabase/tariffs-catalog"
 import { companiaMatchesSelectorFilter, mergeCompanyNames } from "@/lib/erp/compania-logos"
@@ -91,7 +90,6 @@ export function useNuevoContratoWizard({
   const [incompleteConfirmOpen, setIncompleteConfirmOpen] = useState(false)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [incompleteMissing, setIncompleteMissing] = useState<string[]>([])
-  const [marcoCatalog, setMarcoCatalog] = useState<MarcoRetributivoEntry[]>([])
   const [priceCatalog, setPriceCatalog] = useState<Array<MarcoRetributivoEntry & { enertechPriceId?: number }>>([])
   const [serviciosExtrasExpanded, setServiciosExtrasExpanded] = useState(false)
   const [customTariffExpanded, setCustomTariffExpanded] = useState(false)
@@ -101,15 +99,6 @@ export function useNuevoContratoWizard({
   )
   const [documentosObligatorios, setDocumentosObligatorios] = useState<string[]>([])
   const cpLookupRequestId = useRef(0)
-
-  useEffect(() => {
-    if (!open) return
-    void listMarcoRetributivo().then((result) => {
-      if (result.ok && result.data.length > 0) {
-        setMarcoCatalog(result.data.map(marcoRowToCatalogEntry))
-      }
-    })
-  }, [open])
 
   useEffect(() => {
     if (!open || !form.compania.trim()) {
@@ -137,8 +126,8 @@ export function useNuevoContratoWizard({
   }, [open, form.compania])
 
   const wizardCatalog = useMemo(
-    () => mergeWizardTariffCatalog(marcoCatalog, priceCatalog),
-    [marcoCatalog, priceCatalog]
+    () => mergeWizardTariffCatalog([], priceCatalog),
+    [priceCatalog]
   )
 
   useEffect(() => {

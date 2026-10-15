@@ -3,8 +3,7 @@ import type { Contract } from "@/types/contract"
 import { computeComisionBreakdown } from "@/lib/marco-commission"
 import type { MarcoRetributivoEntry } from "@/data/marco-retributivo-catalog"
 import {
-  getMarcoEntryById,
-  listMarcoRetributivo,
+  listMarcoRetributivoForCampaigns,
   resolveMarcoCatalogEntry,
 } from "@/lib/supabase/marco-retributivo"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
@@ -28,27 +27,24 @@ export function ContractComisionDesglose({
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      if (contract.marcoEntryId) {
-        const byId = await getMarcoEntryById(contract.marcoEntryId)
-        if (cancelled) return
-        if (byId.ok) {
-          setEntry(byId.data)
-          return
-        }
-      }
-      const listed = await listMarcoRetributivo()
+      const listed = await listMarcoRetributivoForCampaigns(
+        contract.tarifa.trim() ? [contract.tarifa] : []
+      )
       if (cancelled) return
       if (!listed.ok) {
         setEntry(null)
         return
       }
+      const rows = listed.data.map((row) =>
+        row.compania.trim() ? row : { ...row, compania: contract.compania }
+      )
       setEntry(
         resolveMarcoCatalogEntry(
           contract.marcoEntryId,
           contract.compania,
           contract.tarifa,
           contract.tipo,
-          listed.data
+          rows
         )
       )
     })()

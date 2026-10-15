@@ -16,7 +16,7 @@ import {
 } from "../liquidaciones-mensuales"
 import { listTeamContracts } from "./contracts"
 import { listErpComerciales, type ErpComercialRow } from "./erp-comerciales"
-import { listMarcoRetributivo } from "./marco-retributivo"
+import { listMarcoRetributivoForCampaigns, withContractCompania } from "./marco-retributivo"
 import {
   isoDate,
   mapPatchToRow,
@@ -364,8 +364,9 @@ export async function generarLiquidacionesDelMes(
   }
 
   const existingSettlements = options.existingSettlements ?? []
-  const marcosResult = await listMarcoRetributivo()
-  const marcoRows = marcosResult.ok ? marcosResult.data : []
+  const marcoNames = [...new Set(contracts.map((contract) => contract.tarifa.trim()).filter(Boolean))]
+  const marcosResult = await listMarcoRetributivoForCampaigns(marcoNames)
+  const marcoRows = marcosResult.ok ? withContractCompania(marcosResult.data, contracts) : []
   const liquidaciones = calcularLiquidacionesMensualesTodoElEquipo(
     contracts,
     comerciales,
@@ -440,8 +441,9 @@ export async function generarLiquidacionesDelMesFromProfiles(
     .filter((profile) => profile.role === "comercial" || profile.role === "jefe_comercial")
     .map(erpComercialFromProfile)
 
-  const marcosResult = await listMarcoRetributivo()
-  const marcoRows = marcosResult.ok ? marcosResult.data : []
+  const marcoNames = [...new Set(contracts.map((contract) => contract.tarifa.trim()).filter(Boolean))]
+  const marcosResult = await listMarcoRetributivoForCampaigns(marcoNames)
+  const marcoRows = marcosResult.ok ? withContractCompania(marcosResult.data, contracts) : []
   const liquidaciones = calcularLiquidacionesMensualesTodoElEquipo(
     contracts,
     comerciales,

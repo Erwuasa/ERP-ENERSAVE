@@ -46,6 +46,20 @@ describe("compania-logos", () => {
     ).toBe(true)
   })
 
+  it("conserva cada nombre crudo al unir pymes y residencial", () => {
+    const merged = mergeProviderCounts({
+      "NATURGY PYMES": 75,
+      "NATURGY RESIDENCIAL": 4,
+    })
+    expect(merged.labels).toEqual(["Naturgy"])
+    expect(merged.countsByLabel.Naturgy).toBe(79)
+    expect(merged.filterNameByLabel.Naturgy).toBe("NATURGY PYMES")
+    expect(merged.rawNamesByLabel.Naturgy?.slice().sort()).toEqual([
+      "NATURGY PYMES",
+      "NATURGY RESIDENCIAL",
+    ])
+  })
+
   it("unifica variantes de Supabase en una sola etiqueta", () => {
     const merged = mergeProviderCounts({ Neon: 53, "Neón": 155, IGNIS: 5, Ignis: 588 })
     expect(merged.labels).toContain("Neón")

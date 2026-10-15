@@ -266,10 +266,11 @@ export function mergeProviderCounts(
   countsByLabel: Record<string, number>
   keyByLabel: Record<string, string>
   filterNameByLabel: Record<string, string>
+  rawNamesByLabel: Record<string, string[]>
 } {
   const merged = new Map<
     string,
-    { label: string; count: number; bestRaw: string; bestRawCount: number }
+    { label: string; count: number; bestRaw: string; bestRawCount: number; rawNames: string[] }
   >()
 
   for (const [name, count] of Object.entries(raw)) {
@@ -278,12 +279,13 @@ export function mergeProviderCounts(
     const existing = merged.get(key)
     if (existing) {
       existing.count += count
+      existing.rawNames.push(name)
       if (count > existing.bestRawCount) {
         existing.bestRawCount = count
         existing.bestRaw = name
       }
     } else {
-      merged.set(key, { label, count, bestRaw: name, bestRawCount: count })
+      merged.set(key, { label, count, bestRaw: name, bestRawCount: count, rawNames: [name] })
     }
   }
 
@@ -294,13 +296,15 @@ export function mergeProviderCounts(
   const countsByLabel: Record<string, number> = {}
   const keyByLabel: Record<string, string> = {}
   const filterNameByLabel: Record<string, string> = {}
+  const rawNamesByLabel: Record<string, string[]> = {}
   for (const [key, item] of merged.entries()) {
     countsByLabel[item.label] = item.count
     keyByLabel[item.label] = key
     filterNameByLabel[item.label] = item.bestRaw
+    rawNamesByLabel[item.label] = item.rawNames
   }
 
-  return { labels, countsByLabel, keyByLabel, filterNameByLabel }
+  return { labels, countsByLabel, keyByLabel, filterNameByLabel, rawNamesByLabel }
 }
 
 export function filterAndSortWizardCompanies(companies: string[], query: string): string[] {

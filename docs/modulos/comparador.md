@@ -3,7 +3,7 @@
 ## 1. Información General y Propósito del Módulo
 El Comparador de Tarifas es el motor de simulación y tarificación en tiempo real del ERP. Su función es recibir los datos de un suministro eléctrico (captura manual o extracción automatizada IA/OCR), contrastarlos contra el catálogo de tarifas de comercializadoras activas (`enertech_precios`) y cruzar los resultados con el Marco Retributivo (`enertech_comisiones`) para determinar el coste exacto, los impuestos regulados, el ahorro frente a la factura actual y la comisión comercial asignada.
 
-La pantalla opera con dos paneles sincronizados: el panel izquierdo para la captura de parámetros del suministro y el panel derecho para la visualización, filtrado y conversión de ofertas.
+La pantalla opera con dos paneles sincronizados: el panel izquierdo para la captura de parámetros del suministro y el panel derecho para la visualización, filtrado y conversión de ofertas. Las comisiones se piden solo para las tarifas del peaje elegido, no para las ~19.000 filas de `enertech_comisiones`.
 
 ---
 

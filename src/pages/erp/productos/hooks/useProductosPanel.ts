@@ -7,6 +7,7 @@ import {
 import { mergeProviderCounts } from "@/lib/erp/compania-logos"
 import { tariffRowToProducto, type ProductoPeajeFilter, type ProductoSuministroTab, type ProductoTarifa, type ProductoTipoClienteFilter, type ProductoWebVisibilityFilter } from "@/lib/productos-catalog"
 import {
+  listTariffCatalogForProviders,
   listTariffCatalogPage,
   TARIFF_CATALOG_PAGE_SIZE,
   updateTariffWebSettings,
@@ -58,6 +59,8 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
     if (!showWebVisibilityFilter && webVisibility !== "todas") setWebVisibility("todas")
   }, [showWebVisibilityFilter, webVisibility])
   const providerFilterRef = useRef<Record<string, string>>({})
+  const rawNamesByLabelRef = useRef<Record<string, string[]>>({})
+  const requestSeq = useRef(0)
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), SEARCH_DEBOUNCE_MS)
@@ -70,21 +73,31 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
       else setLoading(true)
       setLoadError(null)
 
+      const seq = requestSeq.current + 1
+      requestSeq.current = seq
+      const rawNames = compania === "Todas" ? [] : (rawNamesByLabelRef.current[compania] ?? [])
       const providerFilter =
         compania === "Todas"
           ? "Todas"
           : (providerFilterRef.current[compania] ?? compania)
-
-      const result = await listTariffCatalogPage({
+      const catalogQuery = {
         suministro,
-        compania: providerFilter,
         tipoCliente,
         peaje,
         webVisibility: catalogWebVisibility,
         search: debouncedSearch,
-        offset,
-        limit: TARIFF_CATALOG_PAGE_SIZE,
-      })
+      }
+      const result =
+        rawNames.length > 1
+          ? await listTariffCatalogForProviders(catalogQuery, rawNames)
+          : await listTariffCatalogPage({
+              ...catalogQuery,
+              compania: rawNames[0] ?? providerFilter,
+              offset,
+              limit: TARIFF_CATALOG_PAGE_SIZE,
+            })
+
+      if (seq !== requestSeq.current) return
 
       if (append) setLoadingMore(false)
       else setLoading(false)
@@ -234,7 +247,8 @@ export function useProductosPanel({ activeRole, superadminViewMode }: Options) {
 
   useEffect(() => {
     providerFilterRef.current = mergedProviders.filterNameByLabel
-  }, [mergedProviders.filterNameByLabel])
+    rawNamesByLabelRef.current = mergedProviders.rawNamesByLabel
+  }, [mergedProviders.filterNameByLabel, mergedProviders.rawNamesByLabel])
 
   const countsByCompania = useMemo(() => {
     const totalFiltered = catalogPage?.total ?? 0

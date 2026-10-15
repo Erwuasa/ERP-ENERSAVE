@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState, useTransition } from "react"
-import { loadMarcoRetributivoStaleWhileRevalidate } from "@/lib/supabase/marco-retributivo-cache"
+import { useMemo, useState, useTransition } from "react"
 import type { ContractsViewFilter, LegacyContractsListFilter } from "@/lib/contracts-view-filters"
 import { useAuth } from "@/hooks/useAuth"
 import { useErpData } from "@/providers/ErpDataProvider"
@@ -69,14 +68,6 @@ export function useContratosPage({
   const activeRole = activeUser.role as ContratosPanelProps["activeRole"]
   const [teamScope, setTeamScope] = useState<ContractsTeamScope>("own")
   const [isFilterPending, startFilterTransition] = useTransition()
-  const [, setMarcoCatalogRevision] = useState(0)
-
-  useEffect(() => {
-    void loadMarcoRetributivoStaleWhileRevalidate({
-      onRevalidated: () => setMarcoCatalogRevision((revision) => revision + 1),
-    })
-  }, [])
-
   const showContractsUserFilter =
     activeRole === "tramitacion" ||
     (activeRole === "superadmin" && superadminViewMode === "tramitacion") ||

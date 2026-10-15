@@ -25,7 +25,7 @@ import { persistAutofacturaRecord } from "@/lib/autofactura-records"
 import { normalizeTipoClienteSegment } from "@/lib/contract-segment-rules"
 import { enrichSettlementRow, type ProfileRow } from "@/lib/liquidaciones-internas"
 import { downloadAutofacturaPdf, generateAutofacturaPdf } from "@/lib/pdf/autofactura-pdf"
-import { listMarcoRetributivo } from "@/lib/supabase/marco-retributivo"
+import { listMarcoRetributivoForCampaigns, withContractCompania } from "@/lib/supabase/marco-retributivo"
 
 interface Params {
   activeUser: Profile
@@ -157,8 +157,9 @@ export function useErpFiscalProfile({
       return
     }
 
-    const marcos = await listMarcoRetributivo()
-    const marcoRows = marcos.ok ? marcos.data : []
+    const names = [...new Set(contracts.map((contract) => contract.tarifa.trim()).filter(Boolean))]
+    const marcos = await listMarcoRetributivoForCampaigns(names)
+    const marcoRows = marcos.ok ? withContractCompania(marcos.data, contracts) : []
     const enrichedRows = settlements
       .filter((settlement) => settlement.comercialId === activeUserId)
       .map((settlement) =>

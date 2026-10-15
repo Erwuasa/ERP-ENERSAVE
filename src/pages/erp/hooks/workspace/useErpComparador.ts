@@ -33,7 +33,6 @@ import { isInvoiceAiConfigured } from '@/lib/comparador/invoice-ai-client';
 import { listAtComparisons } from '@/lib/supabase/at-comparisons';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import type { MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
-import { loadMarcoRetributivoStaleWhileRevalidate } from '@/lib/supabase/marco-retributivo-cache';
 import {
   mapComparadorHistoryListToEstudioAhorroConjunto,
   mapComparadorHistoryToEstudioAhorro,
@@ -235,19 +234,6 @@ export function useErpComparador({
     activeUser.commissionPercentage,
     marcoRowsForComparador,
   ]);
-
-  useEffect(() => {
-    if (
-      currentMenuTab !== 'Comparador' &&
-      currentMenuTab !== 'Comparador de Facturas' &&
-      currentMenuTab !== 'Historial de Comparativas'
-    ) {
-      return;
-    }
-    void loadMarcoRetributivoStaleWhileRevalidate({
-      onRevalidated: (fresh) => setMarcoRowsForComparador(fresh),
-    }).then((rows) => setMarcoRowsForComparador(rows));
-  }, [currentMenuTab]);
 
   async function handleComparadorInvoiceOcr(files: File | File[]) {
     const list = Array.isArray(files) ? files : [files];

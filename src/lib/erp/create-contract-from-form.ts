@@ -17,7 +17,10 @@ import {
 import { syncClientEstados } from "@/lib/clients"
 import { ensureClientForContract } from "@/lib/erp/persist-client-for-contract"
 import { computeComisionBreakdown } from "@/lib/marco-commission"
-import { getMarcoEntryById } from "@/lib/supabase/marco-retributivo"
+import {
+  listMarcoRetributivoForCampaigns,
+  resolveMarcoCatalogEntry,
+} from "@/lib/supabase/marco-retributivo"
 import { contractsService } from "@/api/erp/contracts.service"
 import {
   createContratoCreadoActividad,
@@ -97,8 +100,19 @@ export async function createContractFromForm(params: {
   const consumo = form.consumoAnual === "" ? 0 : Number(form.consumoAnual)
   const precioFijo = parseFloat(String(form.precioFijoConsumo).replace(",", "."))
 
-  const marcoResult = form.marcoEntryId ? await getMarcoEntryById(form.marcoEntryId) : null
-  const marcoEntry = marcoResult?.ok ? marcoResult.data : null
+  const marcoListed = form.tarifa.trim()
+    ? await listMarcoRetributivoForCampaigns([form.tarifa])
+    : { ok: true as const, data: [] }
+  const marcoRows = marcoListed.ok
+    ? marcoListed.data.map((row) => (row.compania.trim() ? row : { ...row, compania: form.compania }))
+    : []
+  const marcoEntry = resolveMarcoCatalogEntry(
+    form.marcoEntryId,
+    form.compania,
+    form.tarifa,
+    form.tipo,
+    marcoRows
+  )
 
   const comercialDefault =
     profiles.find((p) => p.role === "comercial" || p.role === "jefe_comercial") ||
