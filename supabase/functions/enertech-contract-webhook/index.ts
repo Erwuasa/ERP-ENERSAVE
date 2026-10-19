@@ -11,6 +11,7 @@ import {
   contractEstadoFromWebhookLabel,
   readEnertechWebhookContract,
 } from "../_shared/enertech-webhook-contract.ts"
+import { describeWebhookProcessing } from "../_shared/enertech-webhook-processing.ts"
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -105,13 +106,17 @@ Deno.serve(async (req) => {
       : null
 
   const admin = createClient(supabaseUrl, serviceRoleKey)
-  const { error: insertError } = await admin.from("enertech_webhook_events").insert({
-    external_event_id: externalEventId,
-    signature_valid: signatureValid,
-    headers: safeHeadersSnapshot(req),
-    payload,
-    raw_body: payload === null ? rawBody : null,
-  })
+  const { data: inserted, error: insertError } = await admin
+    .from("enertech_webhook_events")
+    .insert({
+      external_event_id: externalEventId,
+      signature_valid: signatureValid,
+      headers: safeHeadersSnapshot(req),
+      payload,
+      raw_body: payload === null ? rawBody : null,
+    })
+    .select("id")
+    .maybeSingle()
 
   // A duplicate external_event_id (Enertech retry) is not an error: we already logged it once.
   if (insertError && insertError.code !== "23505") {
@@ -122,7 +127,28 @@ Deno.serve(async (req) => {
     return json(401, { error: "Firma inválida" })
   }
 
-  await applyWebhookContractEstado(admin, payload)
+  let processing = describeWebhookProcessing({
+    estadoLabel: null,
+    mapped: false,
+    idContract: null,
+    cups: null,
+    localContractId: null,
+  })
+  try {
+    processing = await applyWebhookContractEstado(admin, payload)
+  } catch (error) {
+    console.error("enertech webhook apply failed", error)
+    processing = { processed: false, note: "no se pudo aplicar el estado" }
+  }
+
+  const eventId = inserted && typeof inserted.id === "string" ? inserted.id : null
+  if (eventId) {
+    const { error: updateError } = await admin
+      .from("enertech_webhook_events")
+      .update({ processed: processing.processed, processing_note: processing.note })
+      .eq("id", eventId)
+    if (updateError) console.error("enertech webhook processing note", updateError)
+  }
 
   return json(200, { ok: true })
 })
@@ -130,11 +156,19 @@ Deno.serve(async (req) => {
 async function applyWebhookContractEstado(
   admin: ReturnType<typeof createClient>,
   payload: unknown
-): Promise<void> {
+): Promise<{ processed: boolean; note: string }> {
   const read = readEnertechWebhookContract(payload)
-  if (!read?.estado) return
-  const estado = contractEstadoFromWebhookLabel(read.estado)
-  if (!estado) return
+  const estadoLabel = read?.estado ?? null
+  const mappedEstado = estadoLabel ? contractEstadoFromWebhookLabel(estadoLabel) : null
+  const base = {
+    estadoLabel,
+    mapped: Boolean(mappedEstado),
+    idContract: read?.idContract ?? null,
+    cups: read?.cups ?? null,
+  }
+  if (!read?.estado || !mappedEstado) {
+    return describeWebhookProcessing({ ...base, localContractId: null })
+  }
 
   let row: { id: string; metadata: Record<string, unknown> | null } | null = null
   if (read.idContract) {
@@ -156,12 +190,17 @@ async function applyWebhookContractEstado(
       .maybeSingle()
     row = (byCups.data as { id: string; metadata: Record<string, unknown> | null } | null) ?? null
   }
-  if (!row) return
+  if (!row) return describeWebhookProcessing({ ...base, localContractId: null })
 
   const metadata = {
     ...(row.metadata ?? {}),
     enertech_estado: read.estado,
     ...(read.idContract ? { enertech_contract_id: read.idContract } : {}),
   }
-  await admin.from("contratos_equipo").update({ estado, metadata }).eq("id", row.id)
+  const { error } = await admin.from("contratos_equipo").update({ estado: mappedEstado, metadata }).eq("id", row.id)
+  return describeWebhookProcessing({
+    ...base,
+    localContractId: row.id,
+    updateFailed: Boolean(error),
+  })
 }
