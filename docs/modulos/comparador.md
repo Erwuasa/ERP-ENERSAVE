@@ -37,7 +37,7 @@ Empiezan ocultos. El icono junto a Potencia o Consumo los despliega a mano.
 * **Conceptos No Persistentes (`Otros Costes / SVA`):** Seguros, mantenimientos o asistencias de la comercializadora saliente. Solo se computan en la factura actual del cliente y se excluyen de las nuevas ofertas; su eliminación forma parte directa del ahorro mensual conseguido.
 
 ### 2.6. Consumo Anual, Días Facturados y Descuentos
-* **Consumo Anual (kWh):** No altera la factura mensual inmediata. Determina la elegibilidad técnica de la tarifa (límites de consumo de la comercializadora) y ubica el suministro en el tramo correspondiente del Marco Retributivo para comisiones.
+* **Consumo Anual (kWh):** No altera la factura mensual inmediata. Determina la elegibilidad técnica de la tarifa (límites de consumo de la comercializadora) y ubica el suministro en el tramo correspondiente del Marco Retributivo para comisiones. Al lado hay un CUPS: en cuanto el CUPS está completo y las letras de control cuadran, se consulta SIPS (primero la consulta ya guardada, y si no está, la API) y se rellena este campo. Se puede corregir a mano.
 * **Días Facturados:** Multiplicador temporal obligatorio para el cálculo de potencia fija (por defecto: `30`).
 * **Total Factura €:** Importe final neto pagado actualmente (impuestos incluidos). Es la referencia base para calcular el ahorro.
 * **Descuento Potencia (%) y Descuento Energía (%):** Bonificaciones comerciales del contrato actual que permiten calcular la factura teórica sin descuentos y demostrar la competitividad de la nueva propuesta.

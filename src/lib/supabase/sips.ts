@@ -1,6 +1,9 @@
-import { parseSipsResponse } from "../sips/parse-response"
+import { resolveSipsLookup } from "../sips/fast-lookup"
+import { parseSipsResumen, parseSipsResponse } from "../sips/parse-response"
 import type { SipsOutcome, SipsProducto } from "../sips/types"
 import { resolveSupabaseClient } from "./result"
+
+const LISTO_CACHE_MS = 30 * 24 * 60 * 60 * 1000
 
 function envUrl() {
   return String(import.meta.env.SUPABASE_URL ?? import.meta.env.VITE_SUPABASE_URL ?? "").replace(
@@ -19,6 +22,44 @@ const FAILURE_MESSAGE = "No se pudo consultar SIPS."
  * Calls the enertech-sips-lookup Edge Function (the provider key never reaches the browser)
  * and maps the answer to a SipsOutcome. `force` skips the internal cache.
  */
+async function readStoredSipsListo(cups: string, producto: SipsProducto): Promise<SipsOutcome | null> {
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return null
+  const since = new Date(Date.now() - LISTO_CACHE_MS).toISOString()
+  const { data, error } = await resolved.client
+    .from("enertech_sips_consultas")
+    .select("cups, resumen, origen, consultado_en")
+    .eq("cups", cups)
+    .eq("producto", producto)
+    .eq("estado", "listo")
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error || !data?.resumen) return null
+  return {
+    status: "listo",
+    cups: String(data.cups || cups),
+    resumen: parseSipsResumen(data.resumen),
+    origen: typeof data.origen === "string" ? data.origen : null,
+    consultadoEn: typeof data.consultado_en === "string" ? data.consultado_en : null,
+  }
+}
+
+/** Cached SIPS row first, then the Edge Function. A processing answer is retried once, at most 3 s later. */
+export async function lookupSipsPreferringCache(
+  cups: string,
+  producto: SipsProducto = "luz"
+): Promise<SipsOutcome> {
+  return resolveSipsLookup({
+    cups,
+    producto,
+    readStored: () => readStoredSipsListo(cups, producto),
+    fetchLive: () => lookupSips(cups, producto),
+    wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  })
+}
+
 export async function lookupSips(
   cups: string,
   producto: SipsProducto = "luz",

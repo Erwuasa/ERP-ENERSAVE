@@ -268,6 +268,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-19 — Comparador: el consumo anual tiene al lado un CUPS. En cuanto las letras de control cuadran se consulta SIPS (consulta guardada y, si no hay, la API) y se rellena el kWh. El campo sigue siendo editable. El alta de contrato usa la misma consulta. Ver `docs/modulos/comparador.md`.
 - 2026-10-19 — Logs Enertech en `/erp/logs` (tramitación y superadmin dueño). Entrantes, salientes y reconciliación de huérfanos. `/erp/enertech-webhooks` redirige. La tabla saliente ya está en remoto; el RPC del fichero `20261019140000` y las Edge Functions con el registro no están aplicados. Ver `docs/modulos/logs.md`.
 - 2026-10-15 — Contratos, comparador y liquidaciones internas ya no descargan las ~19.000 filas de `enertech_comisiones` al entrar. Piden las campañas del peaje o de la tarifa por `list_marco_commissions_v1`. Esa lectura era la que dejaba la pestaña bloqueada.
 - 2026-10-15 — Marco retributivo: Luz, Gas y Todos dejan de quedar debajo del selector de compañía. El selector no se encoge y cada grupo de filtros baja de línea entero. Ver `docs/modulos/marco-retributivo.md`.

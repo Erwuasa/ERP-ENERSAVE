@@ -56,7 +56,7 @@ import { hasContractWizardDraft } from "@/lib/contract-wizard-draft"
 import { lookupSpainPostalCode } from "@/lib/spain-postal-code"
 import { contractFieldsFromSipsResumen } from "@/lib/enertech/sips-contract-fields"
 import { validateCups } from "@/lib/sips/cups"
-import { lookupSips } from "@/lib/supabase/sips"
+import { lookupSipsPreferringCache } from "@/lib/supabase/sips"
 import type { NuevoContratoWizardProps } from "@/pages/erp/contratos/components/wizard/wizard-types"
 import { tipoClienteChipLabel } from "@/pages/erp/contratos/components/wizard/wizard-ui"
 
@@ -403,15 +403,12 @@ export function useNuevoContratoWizard({
     setSipsHint("Consultando SIPS…")
     const producto = form.tipo === "gas" ? "gas" : "luz"
     void (async () => {
-      let outcome = await lookupSips(checked.cups, producto)
+      const outcome = await lookupSipsPreferringCache(checked.cups, producto)
       if (cancelled) return
       if (outcome.status === "procesando") {
-        const waitMs = Math.min(Math.max(outcome.reintentarEnSegundos, 1), 15) * 1000
-        await new Promise((resolve) => setTimeout(resolve, waitMs))
-        if (cancelled) return
-        outcome = await lookupSips(checked.cups, producto)
+        setSipsHint("SIPS sigue preparando este CUPS.")
+        return
       }
-      if (cancelled) return
       if (outcome.status !== "listo") {
         setSipsHint("SIPS no tiene datos para este CUPS.")
         return

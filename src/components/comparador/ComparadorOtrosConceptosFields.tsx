@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   CalendarDays,
   CircleDollarSign,
   Gauge,
+  Hash,
   HeartHandshake,
   Layers,
   Receipt,
@@ -20,6 +21,8 @@ import {
   COMPARADOR_DIAS_FACTURACION_MENSUAL,
   normalizeComparadorDiasFacturacion,
 } from "@/lib/comparador-billing"
+import { annualKwhFromSipsResumen, cupsLookupReadiness } from "@/lib/sips/fast-lookup"
+import { lookupSipsPreferringCache } from "@/lib/supabase/sips"
 
 function DiasFacturadosInput({
   value,
@@ -62,6 +65,105 @@ function DiasFacturadosInput({
       className={className}
       aria-label="Días facturados del periodo"
     />
+  )
+}
+
+function ComparadorConsumoAnualFields({
+  labelClass,
+  inputClass,
+  fieldClass,
+  consumoAnualKwh,
+  onConsumoAnualKwhChange,
+}: {
+  labelClass: string
+  inputClass: string
+  fieldClass: string
+  consumoAnualKwh: number
+  onConsumoAnualKwhChange: (value: number) => void
+}) {
+  const [cups, setCups] = useState("")
+  const [hint, setHint] = useState<string | null>(null)
+  const onChangeRef = useRef(onConsumoAnualKwhChange)
+  onChangeRef.current = onConsumoAnualKwhChange
+
+  useEffect(() => {
+    const ready = cupsLookupReadiness(cups)
+    if (ready.state === "empty" || ready.state === "incomplete") {
+      setHint(null)
+      return
+    }
+    if (ready.state === "invalid") {
+      setHint(ready.message)
+      return
+    }
+
+    let cancelled = false
+    setHint("Consultando SIPS…")
+    void lookupSipsPreferringCache(ready.cups, "luz").then((outcome) => {
+      if (cancelled) return
+      if (outcome.status === "listo") {
+        const kwh = annualKwhFromSipsResumen(outcome.resumen)
+        if (kwh == null) {
+          setHint("SIPS no trae consumo anual.")
+          return
+        }
+        onChangeRef.current(kwh)
+        setHint("Consumo anual desde SIPS.")
+        return
+      }
+      if (outcome.status === "procesando") {
+        setHint("SIPS sigue preparando este CUPS.")
+        return
+      }
+      if (outcome.status === "sin_datos") {
+        setHint("SIPS no tiene datos para este CUPS.")
+        return
+      }
+      setHint(outcome.message)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cups])
+
+  return (
+    <>
+      <div className={fieldClass}>
+        <FieldLabelWithIcon icon={Hash} labelClass={labelClass}>
+          CUPS
+        </FieldLabelWithIcon>
+        <input
+          type="text"
+          value={cups}
+          autoComplete="off"
+          spellCheck={false}
+          placeholder="ES0021…"
+          onChange={(event) => setCups(event.target.value.toUpperCase())}
+          className={`${inputClass} uppercase`}
+          aria-label="CUPS para consultar el consumo anual en SIPS"
+        />
+      </div>
+      <div className={fieldClass}>
+        <FieldLabelWithIcon icon={Zap} labelClass={labelClass}>
+          Consumo anual (kWh)
+        </FieldLabelWithIcon>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          value={consumoAnualKwh > 0 ? consumoAnualKwh : ""}
+          placeholder="Ej. 78500"
+          onChange={(event) => {
+            const parsed = Number.parseInt(event.target.value, 10)
+            onConsumoAnualKwhChange(Number.isFinite(parsed) ? parsed : 0)
+          }}
+          className={inputClass}
+          aria-label="Consumo anual en kWh para calcular comisión por tramos del marco retributivo"
+        />
+      </div>
+      {hint ? <p className="col-span-2 text-[10px] font-mono text-brand-subtext">{hint}</p> : null}
+    </>
   )
 }
 
@@ -186,25 +288,13 @@ export function ComparadorOtrosConceptosFields({
           />
         </div>
 
-        <div className={`${fieldClass} col-span-2`}>
-          <FieldLabelWithIcon icon={Zap} labelClass={labelClass}>
-            Consumo anual (kWh) · tramos comisión
-          </FieldLabelWithIcon>
-          <input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={1}
-            value={consumoAnualKwh > 0 ? consumoAnualKwh : ""}
-            placeholder="Ej. 78500"
-            onChange={(e) => {
-              const parsed = Number.parseInt(e.target.value, 10)
-              onConsumoAnualKwhChange(Number.isFinite(parsed) ? parsed : 0)
-            }}
-            className={inputClass}
-            aria-label="Consumo anual en kWh para calcular comisión por tramos del marco retributivo"
-          />
-        </div>
+        <ComparadorConsumoAnualFields
+          labelClass={labelClass}
+          inputClass={inputClass}
+          fieldClass={fieldClass}
+          consumoAnualKwh={consumoAnualKwh}
+          onConsumoAnualKwhChange={onConsumoAnualKwhChange}
+        />
 
         <div className={fieldClass}>
           <FieldLabelWithIcon icon={CalendarDays} labelClass={labelClass}>
