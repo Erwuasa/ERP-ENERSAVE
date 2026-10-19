@@ -18,37 +18,15 @@ function envAnonKey() {
 // Reconciliación de eventos salientes
 // ---------------------------------------------------------------------------
 
-/** Marca un evento de log saliente como 'ok' u 'orphan' una vez sabemos si updateTeamContract tuvo éxito. */
+/**
+ * Marca un evento de log saliente como 'ok' u 'orphan'.
+ * Usa el cliente Supabase directamente (JWT del usuario) vía la política RLS
+ * "staff_update_own_reconciliation" — solo actualiza reconciliation_status y
+ * reconciliation_note; el resto de columnas son inmutables desde el cliente.
+ * Fallo silencioso: si no escribe, el evento queda en 'pending' y el
+ * superadmin lo ve en la pantalla de Logs.
+ */
 async function markOutboundReconciliation(
-  eventId: string,
-  status: "ok" | "orphan",
-  note?: string
-): Promise<void> {
-  const resolved = resolveSupabaseClient()
-  if (resolved.ok === false) return
-
-  const { data: sessionData } = await resolved.client.auth.getSession()
-  const token = sessionData.session?.access_token
-  if (!token) return
-
-  try {
-    await fetch(`${envUrl()}/functions/v1/enertech-outbound-reconcile`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        apikey: envAnonKey(),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ eventId, status, note: note ?? null }),
-    })
-  } catch {
-    // Fallo silencioso — el evento queda en 'pending' y el superadmin lo ve en la pantalla de Logs
-  }
-}
-
-// Alternativa directa si no hay Edge Function de reconciliación aún:
-// llama al cliente de Supabase directamente con la sesión del usuario.
-async function markOutboundReconciliationDirect(
   eventId: string,
   status: "ok" | "orphan",
   note?: string
@@ -216,7 +194,7 @@ export async function uploadSavedContractToEnertech(input: {
   if (saved.ok === false) {
     // Contrato huérfano: Enertech lo creó pero el ERP no guardó el id.
     if (outboundEventId) {
-      await markOutboundReconciliationDirect(
+      await markOutboundReconciliation(
         outboundEventId,
         "orphan",
         `updateTeamContract falló: ${saved.message}`
@@ -230,7 +208,7 @@ export async function uploadSavedContractToEnertech(input: {
 
   // Éxito completo: marcar ok
   if (outboundEventId) {
-    await markOutboundReconciliationDirect(outboundEventId, "ok")
+    await markOutboundReconciliation(outboundEventId, "ok")
   }
 
   return { ...result, appliedEstado }
