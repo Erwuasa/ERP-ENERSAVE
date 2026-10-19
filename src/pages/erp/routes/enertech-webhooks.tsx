@@ -1,5 +1,5 @@
-import { EnertechWebhooksPage } from "@/pages/erp/enertech-webhooks/EnertechWebhooksPage"
+import { Navigate } from "react-router-dom"
 
 export default function ErpEnertechWebhooksRoute() {
-  return <EnertechWebhooksPage />
+  return <Navigate to="/erp/logs" replace />
 }

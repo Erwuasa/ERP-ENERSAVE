@@ -26,6 +26,7 @@ export interface EnertechWebhookEventsPage {
 export interface ListEnertechWebhookEventsOptions {
   page?: number
   pageSize?: number
+  problemsOnly?: boolean
 }
 
 function mapRow(row: Record<string, unknown>): EnertechWebhookEventRow {
@@ -51,13 +52,18 @@ export async function listEnertechWebhookEvents(
     options.pageSize
   )
 
-  const { data, error } = await resolved.client
+  let query = resolved.client
     .from(TABLE)
     .select(
       "id, received_at, external_event_id, signature_valid, payload, processed, processing_note"
     )
     .order("received_at", { ascending: false })
-    .range(from, to)
+
+  if (options.problemsOnly) {
+    query = query.or("signature_valid.eq.false,processed.eq.false")
+  }
+
+  const { data, error } = await query.range(from, to)
 
   if (error) {
     return toSupabaseFailure(error, TABLE)

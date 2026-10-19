@@ -1,7 +1,7 @@
 import type { AppModule } from "@/constants/navigation"
 import { pathToMenuTab } from "@/constants/navigation"
 import { getVisibleSidebarItems } from "@/lib/navigation/sidebar-items"
-import { canAccessEnertechWebhookAudit, isEnertechWebhookAuditSegment } from "@/lib/enertech-webhook-audit-access"
+import { canAccessEnertechLogs, isEnertechLogsSegment } from "@/lib/enertech-logs-access"
 import {
   canAccessComparator,
   canAccessSips,
@@ -32,10 +32,7 @@ export function canAccessWorkspaceSegment(
     if (isSipsWorkspaceSegment(segment) && !canAccessSips(ws.activeRole, permissions)) {
       return false
     }
-    if (
-      isEnertechWebhookAuditSegment(segment) &&
-      !canAccessEnertechWebhookAudit(ws.activeRole, ws.activeUser.email)
-    ) {
+    if (isEnertechLogsSegment(segment) && !canAccessEnertechLogs(ws.activeRole, ws.activeUser.email)) {
       return false
     }
   }

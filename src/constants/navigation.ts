@@ -24,7 +24,7 @@ export type ErpTabId =
   | "FTP"
   | "Base de Datos"
   | "Comunicaciones"
-  | "Webhooks Enertech"
+  | "Logs Enertech"
   | "Nuevo contrato"
 
 export type VentasTabId =
@@ -58,7 +58,7 @@ const ERP_TAB_SLUGS: Record<string, string> = {
   FTP: "ftp",
   "Base de Datos": "base-datos",
   Comunicaciones: "comunicaciones",
-  "Webhooks Enertech": "enertech-webhooks",
+  "Logs Enertech": "logs",
   "Mi Equipo": "mi-equipo",
   "Nuevo contrato": "contratos/nuevo",
 }
@@ -120,7 +120,9 @@ export function pathToMenuTab(
   if (normalized === "/ventas") {
     return { module: "ventas", tab: "Mi Día" }
   }
-  return SLUG_TO_TAB[normalized] ?? null
+  return SLUG_TO_TAB[normalized] ?? (normalized === "/erp/enertech-webhooks"
+    ? { module: "erp", tab: "Logs Enertech" }
+    : null)
 }
 
 export const ERP_TABS: readonly ErpTabId[] = [
@@ -140,7 +142,7 @@ export const ERP_TABS: readonly ErpTabId[] = [
   "FTP",
   "Base de Datos",
   "Comunicaciones",
-  "Webhooks Enertech",
+  "Logs Enertech",
 ] as const
 
 export const VENTAS_TABS: readonly VentasTabId[] = [
@@ -178,6 +180,7 @@ export const ROUTES = {
     ftp: "/erp/ftp",
     baseDatos: "/erp/base-datos",
     comunicaciones: "/erp/comunicaciones",
+    logs: "/erp/logs",
     enertechWebhooks: "/erp/enertech-webhooks",
     nuevoContrato: "/erp/contratos/nuevo",
   },

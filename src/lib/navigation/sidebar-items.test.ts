@@ -84,7 +84,7 @@ describe("getVisibleSidebarItems", () => {
     expect(withoutPermission.some((item) => item.name === "SIPS")).toBe(false)
   })
 
-  it("muestra Webhooks Enertech solo al superadmin dueño y a tramitación", () => {
+  it("muestra Logs Enertech solo al superadmin dueño y a tramitación", () => {
     const owner = getVisibleSidebarItems({
       activeModule: "erp",
       activeRole: "superadmin",
@@ -104,8 +104,8 @@ describe("getVisibleSidebarItems", () => {
       staffEmail: "ops@example.com",
     })
 
-    expect(owner.some((item) => item.name === "Webhooks Enertech")).toBe(true)
-    expect(otherSuperadmin.some((item) => item.name === "Webhooks Enertech")).toBe(false)
-    expect(tramitacion.some((item) => item.name === "Webhooks Enertech")).toBe(true)
+    expect(owner.some((item) => item.name === "Logs Enertech")).toBe(true)
+    expect(otherSuperadmin.some((item) => item.name === "Logs Enertech")).toBe(false)
+    expect(tramitacion.some((item) => item.name === "Logs Enertech")).toBe(true)
   })
 })

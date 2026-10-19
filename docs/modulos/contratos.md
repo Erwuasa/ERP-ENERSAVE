@@ -87,7 +87,7 @@ El documento fiscal (`nif`) debe validarse mediante `classifySpanishTaxId`:
 ### 5.2. `POST /contratos`
 * **Campos del body:** `clientId` (obtenido de la respuesta de cliente), `cups` (con control algorítmico), `cnae` (texto no vacío) y `clave_tarifa` (cadena `tf_…`).
 * **Campos condicionales:** `cp`, `poblacion`, `provincia`, `via_nombre`, `iban` (solo si tienen valor); `consumption` (si es mayor a 0); y `power_p1`…`power_p6` (solo periodos mayores a 0 kW).
-* **Documentos:** `documentos` es un array de `{ filename, base64 }`. Solo se envía si hay al menos un archivo válido. Si se omite y la matriz de Enertech los exige, el contrato se crea igual y puede quedar en incidencia.
+* **Documentos:** `documentos` es un array de `{ filename, base64 }`. Solo se envía si hay al menos un archivo válido. Si se omite y la matriz de Enertech los exige, el contrato se crea igual y puede quedar en incidencia. El base64 no se guarda en el log: la función `enertech-alta` lo quita y deja el recuento y el tamaño. Si la suma de los base64 pasa de 20 MB, la función responde 413 con «Documentos superan el límite permitido (20 MB)» y no llama a Enertech. Un DNI, NIE o CIF inválido, un NIE sin nacionalidad o un CIF sin apoderado lo rechaza el formulario antes de esa llamada (`buildEnertechClienteBody`) y el asistente lo enseña en el aviso de error; esas validaciones no crean fila en `enertech_outbound_events`. Un rechazo de Enertech (documento ya existente, CUPS o tarifa) sí queda en Logs, pestaña Salientes. Si Enertech crea el contrato y el ERP no puede guardar el id, la fila queda `orphan` en la pestaña Reconciliación.
 * **Nota comercializadora:** La comercializadora no se envía en el body; Enertech la deduce automáticamente desde la clave de tarifa.
 
 ---

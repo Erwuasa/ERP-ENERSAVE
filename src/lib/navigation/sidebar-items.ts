@@ -23,7 +23,7 @@ import {
   WalletCards,
   Webhook,
 } from "lucide-react"
-import { canAccessEnertechWebhookAudit } from "@/lib/enertech-webhook-audit-access"
+import { canAccessEnertechLogs } from "@/lib/enertech-logs-access"
 import { defaultPermissionsForRole, type Profile, type UserRole } from "@/types/profile"
 import type { AppModule } from "@/constants/navigation"
 import {
@@ -59,7 +59,7 @@ export const ERP_SIDEBAR_ITEMS: SidebarMenuItem[] = [
   { name: "Base de Datos", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: BookUser },
   { name: "FTP", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: HardDrive },
   { name: "Comunicaciones", allowedRoles: ["superadmin", "jefe_comercial", "comercial", "tramitacion"], icon: Megaphone },
-  { name: "Webhooks Enertech", allowedRoles: ["superadmin", "tramitacion"], icon: Webhook },
+  { name: "Logs Enertech", allowedRoles: ["superadmin", "tramitacion"], icon: Webhook },
 ]
 
 export const VENTAS_SIDEBAR_ITEMS: SidebarMenuItem[] = [
@@ -108,8 +108,8 @@ function isSidebarItemAllowedByPermissions(
   staffPermissions?: Profile["permissions"],
   staffEmail?: string
 ): boolean {
-  if (itemName === "Webhooks Enertech") {
-    return canAccessEnertechWebhookAudit(activeRole, staffEmail)
+  if (itemName === "Logs Enertech") {
+    return canAccessEnertechLogs(activeRole, staffEmail)
   }
   if (!staffPermissions) return true
   if (itemName === "Contratos" && !canViewContracts(activeRole, staffPermissions)) return false
@@ -182,7 +182,7 @@ export function getVisibleSidebarItems({
         "Base de Datos",
         "FTP",
         "Comunicaciones",
-        "Webhooks Enertech",
+        "Logs Enertech",
       ]
       if (!superadminTramitacionTabs.includes(item.name)) return false
       return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions, staffEmail)
@@ -201,7 +201,7 @@ export function getVisibleSidebarItems({
         "Base de Datos",
         "FTP",
         "Comunicaciones",
-        "Webhooks Enertech",
+        "Logs Enertech",
       ]
       if (!tramitacionTabs.includes(item.name)) return false
       return isSidebarItemAllowedByPermissions(item.name, activeRole, staffPermissions, staffEmail)
