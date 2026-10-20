@@ -1,10 +1,5 @@
-// Receives Enertech's contract-status-change webhook: POST HTTPS,
-// HMAC-SHA256 signed. See docs/BIENVENIDA-NUEVA-API.md ("Avisos en tiempo
-// real (webhooks)") — Enertech only confirmed the mechanism (HMAC-SHA256
-// over a header Enertech names once we hand them this endpoint's URL);
-// the exact header name and payload shape arrive separately, so both are
-// configurable here and MUST be confirmed against what Enertech actually
-// sends before relying on this in production.
+// Receives Enertech/aenergetic contract-status-change webhook: POST HTTPS,
+// HMAC-SHA256 signed. Header names confirmed by Enertech 2026-10-20.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1"
 import { corsHeaders, handleOptions } from "../_shared/cors.ts"
 import {
@@ -13,17 +8,18 @@ import {
 } from "../_shared/enertech-webhook-contract.ts"
 import { describeWebhookProcessing } from "../_shared/enertech-webhook-processing.ts"
 
+// Header names confirmed by Enertech. Supabase delivers them in lowercase.
+const SIGNATURE_HEADER = "x-aenergetic-signature"   // value: "sha256=<hmac>"
+const TIMESTAMP_HEADER = "x-aenergetic-timestamp"   // epoch in seconds
+const DELIVERY_HEADER  = "x-aenergetic-delivery"    // idempotency key
+const ATTEMPT_HEADER   = "x-aenergetic-attempt"     // retry counter
+const EVENT_HEADER     = "x-aenergetic-event"       // e.g. "estado_contrato"
+
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   })
-}
-
-// Default header name. Override with ENERTECH_WEBHOOK_SIGNATURE_HEADER if
-// Enertech tells us a different one when they hand over the secret.
-function signatureHeaderName(): string {
-  return (Deno.env.get("ENERTECH_WEBHOOK_SIGNATURE_HEADER") ?? "x-enertech-signature").toLowerCase()
 }
 
 function webhookSecret(): string | null {
@@ -53,9 +49,16 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0
 }
 
-/** Only keep headers that are useful for audit/debugging; never store the signature itself. */
+/** Only keep headers useful for audit; never store the signature itself. */
 function safeHeadersSnapshot(req: Request): Record<string, string> {
-  const keep = ["content-type", "user-agent", "x-request-id", "x-enertech-event-id", "x-enertech-event"]
+  const keep = [
+    "content-type",
+    "user-agent",
+    EVENT_HEADER,
+    DELIVERY_HEADER,
+    ATTEMPT_HEADER,
+    TIMESTAMP_HEADER,
+  ]
   const snapshot: Record<string, string> = {}
   for (const name of keep) {
     const value = req.headers.get(name)
@@ -83,11 +86,23 @@ Deno.serve(async (req) => {
     return json(500, { error: "Supabase env incompleto en la función" })
   }
 
+  // Must read raw body before any parsing — re-serializing JSON changes whitespace
+  // and breaks the HMAC. The signed payload is: timestamp + "." + rawBody.
   const rawBody = await req.text()
-  const receivedSignature = req.headers.get(signatureHeaderName())?.trim() ?? ""
-  const expectedSignature = await hmacSha256Hex(secret, rawBody)
-  const signatureValid =
-    receivedSignature.length > 0 && timingSafeEqual(receivedSignature, expectedSignature)
+
+  const rawTimestamp = req.headers.get(TIMESTAMP_HEADER)?.trim() ?? ""
+  const rawSig       = req.headers.get(SIGNATURE_HEADER)?.trim() ?? ""
+
+  // Enertech sends "sha256=<hex>"; strip the prefix before comparing.
+  const receivedHex = rawSig.startsWith("sha256=") ? rawSig.slice(7) : rawSig
+
+  // Sign exactly: timestamp + "." + rawBody (rawBody = text as received, never re-serialized).
+  const signPayload      = rawTimestamp + "." + rawBody
+  const expectedHex      = await hmacSha256Hex(secret, signPayload)
+  const signatureValid   =
+    receivedHex.length > 0 &&
+    rawTimestamp.length > 0 &&
+    timingSafeEqual(receivedHex, expectedHex)
 
   let payload: unknown = null
   try {
@@ -96,7 +111,10 @@ Deno.serve(async (req) => {
     payload = null
   }
 
-  const externalEventId =
+  // Use the delivery header as idempotency key (Enertech retries keep the same delivery ID).
+  // Fall back to a body field if the header is absent.
+  const deliveryId = req.headers.get(DELIVERY_HEADER)?.trim() || null
+  const bodyEventId =
     payload && typeof payload === "object" && payload !== null
       ? String(
           (payload as Record<string, unknown>).event_id ??
@@ -104,6 +122,7 @@ Deno.serve(async (req) => {
             ""
         ).trim() || null
       : null
+  const externalEventId = deliveryId ?? bodyEventId
 
   const admin = createClient(supabaseUrl, serviceRoleKey)
   const { data: inserted, error: insertError } = await admin
@@ -118,7 +137,7 @@ Deno.serve(async (req) => {
     .select("id")
     .maybeSingle()
 
-  // A duplicate external_event_id (Enertech retry) is not an error: we already logged it once.
+  // A duplicate external_event_id (Enertech retry) is not an error: already logged once.
   if (insertError && insertError.code !== "23505") {
     return json(500, { error: insertError.message })
   }

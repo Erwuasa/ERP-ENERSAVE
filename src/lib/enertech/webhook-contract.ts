@@ -32,7 +32,12 @@ function readFrom(record: Record<string, unknown>): EnertechWebhookContract {
       positiveInt(source.idContract) ??
       positiveInt(source.contract_id)
     cups = cups ?? text(source.cups)
+    // Direct estado fields (legacy format)
     estado = estado ?? text(source.estado) ?? text(source.status) ?? text(source.estado_nombre)
+    // Enertech wizard format: estado_nuevo: { id, nombre }
+    if (!estado && isRecord(source.estado_nuevo)) {
+      estado = text((source.estado_nuevo as Record<string, unknown>).nombre)
+    }
   }
   return { idContract, cups: cups?.toUpperCase().replace(/[\s\-.]/g, "") ?? null, estado }
 }

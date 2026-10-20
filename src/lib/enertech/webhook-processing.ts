@@ -21,14 +21,15 @@ function notFoundNote(input: WebhookProcessingInput): string {
 /** What the inbound log stores after a signed webhook is applied. */
 export function describeWebhookProcessing(input: WebhookProcessingInput): WebhookProcessingResult {
   const label = input.estadoLabel?.trim() ?? ""
-  if (label && !input.mapped) {
-    return { processed: false, note: `estado "${label}" no mapea al dominio del ERP` }
-  }
   if (!label || !input.localContractId) {
     return { processed: false, note: notFoundNote(input) }
   }
   if (input.updateFailed) {
     return { processed: false, note: `no se pudo guardar el estado en ${input.localContractId}` }
+  }
+  if (!input.mapped) {
+    // Contract was found and Enertech ID saved, but estado couldn't be mapped to ERP domain
+    return { processed: true, note: `id guardado en ${input.localContractId}; estado "${label}" no mapea al ERP` }
   }
   return { processed: true, note: `estado aplicado a ${input.localContractId}` }
 }
