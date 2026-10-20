@@ -6,6 +6,7 @@ import {
   calcularCosteComparadorDesdePreciosActuales,
   calcularCosteComparadorDesdeTariffPrecios,
   normalizeComparadorDiasFacturacion,
+  resolveComparadorAlquilerMensual,
   type ComparadorBillingBreakdown,
 } from "@/lib/comparador-billing"
 import {
@@ -68,6 +69,8 @@ export interface MapComparadorEstudioAhorroParams {
   currentBillMonthly: number
   bestOption: ComparadorPdfOption
   summary: ComparadorPdfSummary
+  /** Fecha ya formateada. Si falta, el PDF usa el momento de la generación. */
+  fechaGeneracion?: string
 }
 
 export interface ComparadorHistoryPdfParams {
@@ -82,7 +85,7 @@ export interface ComparadorHistoryPdfParams {
   snapshot?: MapComparadorEstudioAhorroParams
 }
 
-function formatFechaGeneracion(date = new Date()): string {
+export function formatFechaGeneracion(date = new Date()): string {
   return new Intl.DateTimeFormat("es-ES", {
     day: "2-digit",
     month: "2-digit",
@@ -237,8 +240,9 @@ export function mapComparadorToEstudioAhorro(
 ): EstudioAhorroInput {
   const peaje = normalizeComparadorAccessTariff(params.accessTariff)
   const dias = normalizeComparadorDiasFacturacion(params.diasFacturacion)
+  const alquilerMensual = resolveComparadorAlquilerMensual(params.rentMeterMonthly)
   const extras = {
-    alquilerContador: params.rentMeterMonthly,
+    alquilerContador: alquilerMensual,
     bonoSocial: params.bonoSocial ?? 0,
     energiaReactiva: params.energiaReactiva ?? 0,
     otrosCostesSva: params.otrosCostesSva ?? 0,
@@ -258,7 +262,7 @@ export function mapComparadorToEstudioAhorro(
         preciosActualesPotencia,
         preciosActualesEnergia,
         peaje,
-        params.rentMeterMonthly,
+        alquilerMensual,
         extras
       )
     : null
@@ -269,7 +273,7 @@ export function mapComparadorToEstudioAhorro(
     peaje,
     { potencias: params.potencias, consumos: params.consumos },
     extras,
-    params.rentMeterMonthly
+    alquilerMensual
   )
 
   const otrosInput: ComparadorOtrosConceptosInput = {
@@ -324,7 +328,7 @@ export function mapComparadorToEstudioAhorro(
       cups: params.cups,
       direccion: params.direccion,
     },
-    fechaGeneracion: formatFechaGeneracion(),
+    fechaGeneracion: params.fechaGeneracion ?? formatFechaGeneracion(),
     tarifaActual,
     tarifaPropuesta,
     ahorroPorFacturaEur,

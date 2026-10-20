@@ -25,6 +25,7 @@ export interface ComparadorCandidateInput {
 
 function periodCount(accessTariff: ComparadorAccessTariff): { pot: number; con: number } {
   if (accessTariff === "2.0TD") return { pot: 2, con: 3 }
+  if (accessTariff.startsWith("RL")) return { pot: 1, con: 1 }
   return { pot: 6, con: 6 }
 }
 

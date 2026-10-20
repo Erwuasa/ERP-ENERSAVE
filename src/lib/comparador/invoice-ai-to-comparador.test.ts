@@ -25,4 +25,28 @@ describe("mapInvoiceAiToComparadorExtraction", () => {
     expect(result.diasFacturados).toBe(27)
     expect(result.facturaImporteEur).toBeCloseTo(79.62)
   })
+
+  it("mapea una factura de gas al peaje RL y a los precios del formulario", () => {
+    const result = mapInvoiceAiToComparadorExtraction({
+      cups: "ES0217901000012345AB",
+      companyBrand: "Naturgy",
+      supplyType: "gas",
+      segment: "residencial",
+      gasCategory: "RL.2",
+      invoiceDays: 30,
+      gasConsumoKwh: 800,
+      gasTerminoFijoEurDia: 0.25,
+      gasPrecioVariableEurKwh: 0.07,
+      gasOtrosServiciosEur: 3.5,
+      totalAmountEur: 72.4,
+    })
+
+    expect(result.tipo).toBe("gas")
+    expect(result.accessTariff).toBe("RL2")
+    expect(result.consumosKwh?.p1).toBe(800)
+    expect(result.preciosPotenciaEur?.p1).toBeCloseTo(0.25)
+    expect(result.preciosEnergiaEur?.p1).toBeCloseTo(0.07)
+    expect(result.gasIhcTotalEur).toBeUndefined()
+    expect(result.otherCosts).toBeCloseTo(3.5)
+  })
 })

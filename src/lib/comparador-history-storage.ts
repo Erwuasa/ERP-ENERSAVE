@@ -1,3 +1,5 @@
+import { COMPARADOR_MESES_ANUAL } from "./comparador-billing"
+import type { MapComparadorEstudioAhorroParams } from "./pdf/map-comparador-estudio-ahorro"
 import type { ComparadorPeriodValues } from "./erp/comparador-rates"
 import type { TariffPreciosPorPeriodo } from "./tarifa-cost-calculator"
 import type { ComparadorAccessTariff } from "./erp/comparador-rates"
@@ -36,6 +38,8 @@ export interface ComparisonHistoryEntry {
   date: string
   source?: "local" | "at"
   snapshot?: ComparisonHistorySnapshot
+  /** Campos del formulario y precios de la oferta en el momento de guardar. */
+  pdfInput?: MapComparadorEstudioAhorroParams
 }
 
 function canUseStorage(): boolean {
@@ -52,6 +56,71 @@ export function loadLocalComparisonHistory(): ComparisonHistoryEntry[] {
     return parsed.filter((item) => item && typeof item.id === "string")
   } catch {
     return []
+  }
+}
+
+export function comparisonHistoryInvoiceTotal(entry: ComparisonHistoryEntry): number {
+  const monthly = entry.pdfInput?.currentBillMonthly ?? entry.snapshot?.currentBillMonthly
+  if (typeof monthly === "number" && Number.isFinite(monthly) && monthly > 0) return monthly
+  if (entry.currentAnnualExpense > 0) return entry.currentAnnualExpense / COMPARADOR_MESES_ANUAL
+  return 0
+}
+
+export function comparisonHistorySavingsMonthly(entry: ComparisonHistoryEntry): number {
+  return entry.maxAnnualSavings / COMPARADOR_MESES_ANUAL
+}
+
+export function comparisonHistoryCanDownloadPdf(entry: ComparisonHistoryEntry): boolean {
+  return comparisonHistoryToEstudioParams(entry) != null
+}
+
+/** Reconstruye el PDF con los campos y los precios guardados, sin leer el catálogo actual. */
+export function comparisonHistoryToEstudioParams(
+  entry: ComparisonHistoryEntry
+): MapComparadorEstudioAhorroParams | null {
+  if (entry.pdfInput) return entry.pdfInput
+  const snapshot = entry.snapshot
+  if (!snapshot) return null
+  const savingsPercentage =
+    entry.currentAnnualExpense > 0
+      ? (entry.maxAnnualSavings / entry.currentAnnualExpense) * 100
+      : 0
+  return {
+    clienteNombre: entry.clientName,
+    cups: entry.cups,
+    accessTariff: entry.accessTariff,
+    tarifaActualNombre: snapshot.tarifaActualNombre,
+    comercializadoraActual: snapshot.comercializadoraActual,
+    potencias: snapshot.potencias,
+    consumos: snapshot.consumos,
+    preciosPotenciaActual: snapshot.preciosPotenciaActual,
+    preciosEnergiaActual: snapshot.preciosEnergiaActual,
+    diasFacturacion: snapshot.diasFacturacion,
+    rentMeterMonthly: snapshot.rentMeterMonthly,
+    bonoSocial: snapshot.bonoSocial,
+    energiaReactiva: snapshot.energiaReactiva,
+    otrosCostesSva: snapshot.otrosCostesSva,
+    descuentoPotencia: snapshot.descuentoPotencia ?? 0,
+    descuentoEnergia: snapshot.descuentoEnergia ?? 0,
+    currentBillMonthly: snapshot.currentBillMonthly,
+    bestOption: {
+      companyName: snapshot.companyName,
+      tariffName: entry.bestTariffName,
+      annualCost: snapshot.annualCost,
+      potenciaBreakdown: 0,
+      consumoBreakdown: 0,
+      rentCostAnnual: snapshot.rentMeterMonthly * COMPARADOR_MESES_ANUAL,
+      savingsAnnual: entry.maxAnnualSavings,
+      savingsPercentage,
+      precios: snapshot.preciosOferta,
+    },
+    summary: {
+      bestTariffName: entry.bestTariffName,
+      bestTariffCompany: snapshot.companyName,
+      maxAnnualSavings: entry.maxAnnualSavings,
+      maxSavingsPercentage: savingsPercentage,
+      currentAnnualExpense: entry.currentAnnualExpense,
+    },
   }
 }
 

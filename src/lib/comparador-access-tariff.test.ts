@@ -11,6 +11,16 @@ describe("comparador-access-tariff", () => {
     expect(normalizeComparadorAccessTariff("6.2TD")).toBe("6.2TD")
     expect(normalizeComparadorAccessTariff("6.0TD")).toBe("6.1TD")
     expect(normalizeComparadorAccessTariff("3.0TD")).toBe("3.0TD")
+    expect(normalizeComparadorAccessTariff("RL.1")).toBe("RL1")
+    expect(normalizeComparadorAccessTariff("rl4")).toBe("RL4")
+  })
+
+  it("keeps gas on a single period and matches only that RL band", () => {
+    expect(isComparadorMultiPeriodTariff("RL1")).toBe(false)
+    expect(comparadorAccessTariffDbIlikePattern("RL3")).toBe("%RL%")
+    expect(tariffMatchesComparadorAccessTariff("RL.2", "RL2")).toBe(true)
+    expect(tariffMatchesComparadorAccessTariff("RL1", "RL2")).toBe(false)
+    expect(tariffMatchesComparadorAccessTariff("RL12", "RL1")).toBe(false)
   })
 
   it("detects multi-period tariffs", () => {

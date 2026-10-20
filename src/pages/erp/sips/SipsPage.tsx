@@ -72,6 +72,7 @@ export function SipsPage() {
             >
               <SipsResultsPanel
                 data={visual}
+                producto={lookup.producto}
                 onClose={lookup.cancel}
                 onRefresh={() => lookup.submit({ force: true })}
               />
@@ -84,7 +85,7 @@ export function SipsPage() {
               className="rounded-xl border border-dashed border-brand-border bg-brand-surface/40 px-4 py-12 text-center"
             >
               <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
-                Introduce un CUPS y pulsa consultar
+                Introduce un CUPS, elige luz o gas y pulsa consultar
               </p>
               <p className="text-[10px] font-mono text-brand-subtext/80 mt-1 max-w-md mx-auto">
                 Verás el suministro, el consumo anual y la potencia contratada por periodo.

@@ -9,12 +9,14 @@ La pantalla opera con dos paneles sincronizados: el panel izquierdo para la capt
 
 ## 2. Panel Izquierdo: Captura y Comportamiento de Entradas
 
-### 2.1. Selector de Segmento
-* **Opciones:** `Residencial` | `PYME`.
-* **Comportamiento:** Modifica el estado global (`segment`). Filtra el catálogo para admitir únicamente tarifas cuyo segmento coincida o aplique a `AMBOS`. Si la tarifa proviene de Enertech con segmento por defecto, el peaje de acceso manda en la asignación (`2.0TD` → Residencial; `3.0TD` a `6.4TD` → PYME, salvo especificación en el nombre comercial).
+### 2.1. Selector de suministro y de segmento
+* **Suministro:** `Luz` | `Gas`, con icono. Luz usa peajes `2.0` a `6.4`. Gas usa `RL1`, `RL2`, `RL3`, `RL4` y `RL5` (también vale `RL.1`). No hay periodos P1–P6: un consumo en kWh, término fijo en €/día y término variable en €/kWh. `RL1` deja el segmento en residencial; `RL2` a `RL5` lo dejan en PYME.
+* **Segmento:** `Residencial` | `PYME`.
+* **Comportamiento:** Modifica el estado global (`segment`). Filtra el catálogo para admitir únicamente tarifas cuyo segmento coincida o aplique a `AMBOS`. Si la tarifa proviene de Enertech con segmento por defecto, el peaje de acceso manda en la asignación (`2.0TD` → Residencial; `3.0TD` a `6.4TD` → PYME; `RL1` → Residencial; `RL2` a `RL5` → PYME).
 
 ### 2.2. Tarifa de Acceso (ATR) y Adaptación Dinámica del Grid
-* **Opciones:** `2.0` (2.0TD), `3.0` (3.0TD), `6.1`, `6.2`, `6.3`, `6.4`.
+* **Luz:** `2.0` (2.0TD), `3.0` (3.0TD), `6.1`, `6.2`, `6.3`, `6.4`.
+* **Gas:** `RL1` a `RL5`. El formulario pide el kWh del periodo. El término fijo de la oferta es 1 × €/día × días. Bono social y reactiva no salen.
 * **Reglas de estructura visual.** A la vista solo está la cantidad de cada periodo. El precio unitario de la factura actual va plegado, detrás del icono de cada bloque. Si la lectura de la factura trae precios, ese bloque se abre y se rellena solo con los periodos del peaje. El bloque abierto usa la misma rejilla, el mismo tamaño de etiqueta y el mismo tamaño de input que las cantidades de ese peaje (2.0 más holgado; 3.0 en adelante, tres columnas). Crece hacia abajo y el panel hace scroll. No se encoge ni se monta sobre Consumo ni sobre Otros conceptos.
   * **Peaje 2.0:** Potencia `P1` y `P2` (kW y, si hay precio, €/kW·día). Consumo `P1`, `P2` y `P3` (kWh/día y, si hay precio, €/kWh). La etiqueta del precio es solo la unidad, sin el texto «Precio actual».
   * **Peajes 3.0 a 6.4:** Potencia `P1` a `P6` y consumo `P1` a `P6`, con el mismo par cantidad/precio.
@@ -25,7 +27,7 @@ Empiezan ocultos. El icono junto a Potencia o Consumo los despliega a mano.
 * **Potencia:** precio en €/kW·día de cada periodo activo.
 * **Consumo:** precio en €/kWh de cada periodo activo.
 * **Factura adjunta:** al leer un PDF o una imagen, si la extracción trae precios de potencia o de energía, esos campos se rellenan y se muestran. El número de huecos sigue el peaje de la factura (2.0 o 3.0 en adelante).
-* **IA:** el lector principal es la Edge Function `invoice-ai-openai`. Todavía no tiene `OPENAI_API_KEY`, así que esa vía no está activa. Si falla o no está configurada, se usa el servicio de respaldo y, si tampoco, el OCR local. Cuando cualquiera de las tres devuelve precios, el formulario se comporta igual.
+* **IA:** el lector principal es la Edge Function `invoice-ai-enersave` (Gemini 2.0 Flash). Exige sesión y el secreto `GEMINI_API_KEY` en la función; no está desplegada. Si falla, se usa `invoice-ai-openai` y, si tampoco, el servicio de respaldo y el OCR local. Una factura de gas rellena el peaje RL, el kWh, el término fijo €/día y el término variable €/kWh.
 * **Uso:** reconstruyen el coste de la factura original con las mismas fórmulas que la oferta (`kW × €/kW·día × días` y `kWh × €/kWh`) y rellenan la columna «Tarifa actual» del estudio PDF.
 
 ### 2.4. Mapeo de Precios de Catálogo
@@ -37,7 +39,7 @@ Empiezan ocultos. El icono junto a Potencia o Consumo los despliega a mano.
 * **Conceptos No Persistentes (`Otros Costes / SVA`):** Seguros, mantenimientos o asistencias de la comercializadora saliente. Solo se computan en la factura actual del cliente y se excluyen de las nuevas ofertas; su eliminación forma parte directa del ahorro mensual conseguido.
 
 ### 2.6. Consumo Anual, Días Facturados y Descuentos
-* **Consumo Anual (kWh):** No altera la factura mensual inmediata. Determina la elegibilidad técnica de la tarifa (límites de consumo de la comercializadora) y ubica el suministro en el tramo correspondiente del Marco Retributivo para comisiones. Al lado hay un CUPS: en cuanto el CUPS está completo y las letras de control cuadran, se consulta SIPS (primero la consulta ya guardada, y si no está, la API) y se rellena este campo. Se puede corregir a mano.
+* **Consumo Anual (kWh):** No altera la factura mensual inmediata. Determina la elegibilidad técnica de la tarifa (límites de consumo de la comercializadora) y ubica el suministro en el tramo correspondiente del Marco Retributivo para comisiones. Al lado hay un CUPS: en cuanto el CUPS está completo y las letras de control cuadran, se consulta el SIPS del suministro elegido (luz o gas; primero la consulta ya guardada, y si no está, la API) y se rellena este campo. Si el SIPS trae peaje, se selecciona ese `2.0`–`6.4` o ese `RL`. Se puede corregir a mano.
 * **Días Facturados:** Multiplicador temporal obligatorio para el cálculo de potencia fija (por defecto: `30`).
 * **Total Factura €:** Importe final neto pagado actualmente (impuestos incluidos). Es la referencia base para calcular el ahorro.
 * **Descuento Potencia (%) y Descuento Energía (%):** Bonificaciones comerciales del contrato actual que permiten calcular la factura teórica sin descuentos y demostrar la competitividad de la nueva propuesta.
@@ -100,9 +102,12 @@ El PDF de una oferta usa las mismas fórmulas y los mismos precios que el desglo
 * **2.0:** la tabla de potencia lista `P1` y `P2`. La de energía lista `P1`, `P2` y `P3`.
 * **3.0 a 6.4:** potencia y energía listan `P1` a `P6`.
 * **Tarifa actual:** cada fila lleva la cantidad, el precio unitario y el importe del periodo, tomados de los campos de la factura actual. Si no hay precios de la factura actual, el total de esa columna es el importe introducido en «Total factura €».
-* **Tarifa propuesta:** no incluye «Otros costes / SVA». Sí incluye alquiler, bono social y reactiva.
+* **Tarifa propuesta:** no incluye «Otros costes / SVA». Sí incluye alquiler, bono social y reactiva. Si el alquiler del formulario está vacío o a 0, el PDF usa 1,84 €/mes, el mismo importe que la tarjeta. El total de la oferta es potencia + energía + alquiler + bono + reactiva + IEE + IVA, el mismo que el total de la tarjeta.
 
-## 6. Directivas de Implementación Técnica
+## 6. Historial de comparativas
+Cada comparativa guardada conserva el CUPS, el peaje, el total de la factura y el ahorro mensual. También guarda los campos del formulario y los precios de esa oferta. El PDF se vuelve a generar con esos datos, sin leer el catálogo actual. Una fila de AT sin precios guardados no se puede descargar.
+
+## 7. Directivas de Implementación Técnica
 * **Precisión Numérica:** Operaciones internas con coma flotante de precisión completa (mínimo 6 decimales). El redondeo a 2 decimales (`0.01 €`) aplica exclusivamente en renderizado de UI y generación de PDFs.
 * **Debounce:** Recálculo del ranking con debounce de 250 a 300 ms en inputs numéricos para mantener la fluidez de la interfaz.
 * **Tolerancia a Nulos:** Inputs vacíos o borrados deben resolverse internamente como `0`, impidiendo estados `NaN`.

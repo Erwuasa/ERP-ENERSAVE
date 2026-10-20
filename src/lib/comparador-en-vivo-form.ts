@@ -1,4 +1,5 @@
 import type { CompProposalFilterId } from "./comparador-proposal-filters"
+import { isComparadorGasPeaje } from "./comparador-access-tariff"
 import type { ComparadorEnVivoFormState } from "./comparador-en-vivo-ranking"
 import {
   canCalcularCosteActualExacto,
@@ -80,6 +81,9 @@ function withMarketFallbackConsumos(
   if (sum > 0) return consumos
 
   const consumoMensualTotal = MERCADO_CONSUMO_ANUAL[segmento] / COMPARADOR_MESES_ANUAL
+  if (isComparadorGasPeaje(peaje)) {
+    return { ...consumos, p1: Math.round(consumoMensualTotal) }
+  }
   const split = normalizePeaje(peaje) === "2.0TD" ? CONSUMO_SPLIT_20TD : CONSUMO_SPLIT_30TD
   const periodCount = normalizePeaje(peaje) === "2.0TD" ? 3 : 6
   const next = { ...consumos }
@@ -98,7 +102,8 @@ function withDefaultPotencias(
   const hasPotencia = PERIOD_SLOTS.some((slot) => (potencias[slot] ?? 0) > 0)
   if (hasPotencia) return potencias
 
-  const defaultKw = normalizePeaje(peaje) === "2.0TD" ? 4.6 : 15
+  const defaultKw = isComparadorGasPeaje(peaje) ? 1 : normalizePeaje(peaje) === "2.0TD" ? 4.6 : 15
+  if (isComparadorGasPeaje(peaje)) return { ...potencias, p1: defaultKw }
   return {
     ...potencias,
     p1: defaultKw,

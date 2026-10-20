@@ -6,6 +6,10 @@ import {
   isInvoiceAiConfigured,
 } from "./comparador/invoice-ai-client"
 import {
+  analyzeInvoiceWithGemini,
+  isInvoiceAiGeminiConfigured,
+} from "./comparador/invoice-ai-gemini-client"
+import {
   analyzeInvoiceWithOpenAi,
   isInvoiceAiOpenAiConfigured,
 } from "./comparador/invoice-ai-openai-client"
@@ -49,9 +53,20 @@ export async function extractComparadorInvoiceFromFiles(
   const { text: ocrText } = await extractDocumentTextForOcr(files[0], onProgress)
   const localParsed = parseContractTextFromOcr(ocrText)
 
-  // Proveedor principal de IA: Edge Function propia sobre OpenAI (gpt-5.6-luna), más barata
-  // que el servicio de terceros de abajo. Si falla o no está configurada, cae al servicio
-  // de terceros y, si tampoco está disponible, al OCR local (comportamiento ya existente).
+  // Proveedor principal: Edge Function propia sobre Gemini 2.0 Flash.
+  // Si falla o no hay sesión, cae a OpenAI, luego al servicio de terceros y al OCR local.
+  if (isInvoiceAiGeminiConfigured()) {
+    try {
+      onProgress?.("Analizando con IA…")
+      const payload = await analyzeInvoiceWithGemini(files, { onProgress })
+      const aiMapped = mapInvoiceAiToComparadorExtraction(payload)
+      onProgress?.("Ajustando alquiler, total y SVA con lectura de factura…")
+      return mergeComparadorBillingFromOcrText(aiMapped, ocrText, localParsed)
+    } catch (err) {
+      console.warn("Invoice AI (Gemini) falló, probando OpenAI:", err)
+    }
+  }
+
   if (isInvoiceAiOpenAiConfigured()) {
     try {
       onProgress?.("Analizando con IA…")

@@ -42,8 +42,10 @@ export function inferErpAudienceFromText(name: string, condiciones = ""): ErpAud
 
 export function inferErpAudienceFromPeaje(peaje: string): ErpAudienceSegment | null {
   const p = peaje.toLowerCase().replace(/\s/g, "")
-  if (p.includes("2.0")) return "residencial"
-  if (p.includes("3.0") || p.includes("6.1") || p.includes("6.2")) return "pyme"
+  if (p.includes("2.0") || /rl\.?1(?!\d)/i.test(p)) return "residencial"
+  if (p.includes("3.0") || p.includes("6.1") || p.includes("6.2") || /rl\.?[2-5](?!\d)/i.test(p)) {
+    return "pyme"
+  }
   return null
 }
 

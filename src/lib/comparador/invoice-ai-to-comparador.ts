@@ -64,20 +64,42 @@ function deriveUnitPrices(input: {
 export function mapInvoiceAiToComparadorExtraction(
   payload: InvoiceAiPublicPayload
 ): ComparadorInvoiceExtraction {
+  const tipo =
+    payload.supplyType === "gas" || payload.billCategory === "gas"
+      ? "gas"
+      : payload.supplyType === "luz" || payload.billCategory === "luz"
+        ? "luz"
+        : undefined
+  const isGas = tipo === "gas"
+
   const potencias = periodArrayToRecord(payload.powerKwByPeriod)
-  const consumos = periodArrayToRecord(payload.energyKwhByPeriod)
-  const accessRaw = payload.electricityCategory ?? payload.tariffType ?? ""
-  const accessTariff = normalizeComparadorAccessTariff(String(accessRaw))
+  let consumos = periodArrayToRecord(payload.energyKwhByPeriod)
+  if (isGas && (payload.gasConsumoKwh ?? 0) > 0 && Object.values(consumos).every((value) => value <= 0)) {
+    consumos = { ...consumos, p1: payload.gasConsumoKwh ?? 0 }
+  }
+
+  const accessRaw = isGas
+    ? payload.gasCategory ?? ""
+    : payload.electricityCategory ?? payload.tariffType ?? ""
+  const accessTariff = isGas && !payload.gasCategory
+    ? undefined
+    : normalizeComparadorAccessTariff(String(accessRaw))
 
   const totalKwh = Object.values(consumos).reduce((a, b) => a + b, 0)
   const invoiceDays = payload.invoiceDays
   const { preciosPotencia, preciosEnergia } = deriveUnitPrices({
-    powerCostEur: payload.powerCostEur,
-    energyCostEur: payload.energyCostEur,
+    powerCostEur: isGas ? undefined : payload.powerCostEur,
+    energyCostEur: isGas ? undefined : payload.energyCostEur,
     invoiceDays,
     potencias,
     consumos,
   })
+  if (isGas && preciosPotencia && (payload.gasTerminoFijoEurDia ?? 0) > 0) {
+    preciosPotencia.p1 = payload.gasTerminoFijoEurDia ?? 0
+  }
+  if (isGas && preciosEnergia && (payload.gasPrecioVariableEurKwh ?? 0) > 0) {
+    preciosEnergia.p1 = payload.gasPrecioVariableEurKwh ?? 0
+  }
 
   let facturaImporteEur = payload.totalAmountEur
   let facturaEsMensual = true
@@ -88,8 +110,10 @@ export function mapInvoiceAiToComparadorExtraction(
   const extraServicesTotal = Array.isArray(payload.extraServices)
     ? payload.extraServices.reduce((acc, item) => acc + (item.costEur ?? 0), 0)
     : 0
+  const gasServices =
+    (payload.gasOtrosServiciosEur ?? 0) + (payload.gasOtrosConceptosEur ?? 0)
 
-  const rawOtherCosts = (payload.otherCosts ?? 0) + extraServicesTotal
+  const rawOtherCosts = (payload.otherCosts ?? 0) + extraServicesTotal + gasServices
   const otherCosts = sanitizeAiOtherCosts(
     rawOtherCosts > 0 ? rawOtherCosts : undefined,
     facturaImporteEur,
@@ -99,17 +123,10 @@ export function mapInvoiceAiToComparadorExtraction(
   const segment =
     payload.segment === "pyme" ? "pyme" : payload.segment === "residencial" ? "residencial" : undefined
 
-  const tipo =
-    payload.supplyType === "gas" || payload.billCategory === "gas"
-      ? "gas"
-      : payload.supplyType === "luz" || payload.billCategory === "luz"
-        ? "luz"
-        : undefined
-
   return {
     cups: payload.cups,
     compania: payload.companyBrand,
-    tarifa: payload.electricityCategory ?? payload.tariffType,
+    tarifa: isGas ? payload.gasCategory ?? payload.tariffType : payload.electricityCategory ?? payload.tariffType,
     tipo,
     segment,
     accessTariff,
@@ -135,5 +152,21 @@ export function mapInvoiceAiToComparadorExtraction(
     nif: payload.holderNif,
     iban: payload.iban,
     source: "invoice-ai",
+    gasConsumoKwh: finiteOrUndefined(payload.gasConsumoKwh),
+    gasPrecioVariableEurKwh: finiteOrUndefined(payload.gasPrecioVariableEurKwh),
+    gasTerminoFijoEurDia: finiteOrUndefined(payload.gasTerminoFijoEurDia),
+    gasTerminoFijoEurTotal: finiteOrUndefined(payload.gasTerminoFijoEurTotal),
+    gasIhcCantidadKwh: finiteOrUndefined(payload.gasIhcCantidadKwh),
+    gasIhcPrecioEurKwh: finiteOrUndefined(payload.gasIhcPrecioEurKwh),
+    gasIhcTotalEur: finiteOrUndefined(payload.gasIhcTotalEur),
+    gasTasasEspecialesEur: finiteOrUndefined(payload.gasTasasEspecialesEur),
+    gasCanonIrcEur: finiteOrUndefined(payload.gasCanonIrcEur),
+    gasOtrosServiciosEur: finiteOrUndefined(payload.gasOtrosServiciosEur),
+    gasOtrosConceptosEur: finiteOrUndefined(payload.gasOtrosConceptosEur),
+    gasImpuestoIndirectoPct: finiteOrUndefined(payload.gasImpuestoIndirectoPct),
   }
+}
+
+function finiteOrUndefined(value: number | null | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }

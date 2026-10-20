@@ -34,8 +34,7 @@ import { listAtComparisons } from '@/lib/supabase/at-comparisons';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import type { MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
 import {
-  mapComparadorHistoryListToEstudioAhorroConjunto,
-  mapComparadorHistoryToEstudioAhorro,
+  formatFechaGeneracion,
   mapComparadorToEstudioAhorro,
   resolveOfferPrecios,
 } from '@/lib/pdf/map-comparador-estudio-ahorro';
@@ -52,6 +51,7 @@ import {
 } from '@/lib/ia/comparador-email-helpers';
 import type { ComparadorOfferOption } from '@/components/ComparadorOfferCard';
 import {
+  comparisonHistoryToEstudioParams,
   loadLocalComparisonHistory,
   persistLocalComparisonHistory,
   type ComparisonHistoryEntry,
@@ -356,7 +356,10 @@ export function useErpComparador({
       return;
     }
 
-    const params = buildEstudioParamsFromOffer(option);
+    const params = {
+      ...buildEstudioParamsFromOffer(option),
+      fechaGeneracion: formatFechaGeneracion(),
+    };
     const entry: ComparisonHistoryEntry = {
       id: `comp-${Date.now()}-${option.id}`,
       clientName: compClient.trim() || 'Cliente',
@@ -367,6 +370,7 @@ export function useErpComparador({
       bestTariffName: option.tariffName,
       date: new Date().toISOString().split('T')[0],
       source: 'local',
+      pdfInput: params,
       snapshot: {
         potencias: compPotencias,
         consumos: compConsumos,
@@ -393,66 +397,14 @@ export function useErpComparador({
   }
 
   async function handleDownloadHistoryPdf(item: ComparisonHistoryEntry) {
+    const params = comparisonHistoryToEstudioParams(item);
+    if (!params) {
+      toast.error('Esta comparativa no tiene guardados los campos ni los precios de la oferta.');
+      return;
+    }
     try {
-      const snapshot = item.snapshot
-        ? {
-            clienteNombre: item.clientName,
-            cups: item.cups,
-            accessTariff: item.accessTariff,
-            tarifaActualNombre: item.snapshot.tarifaActualNombre,
-            comercializadoraActual: item.snapshot.comercializadoraActual,
-            potencias: item.snapshot.potencias,
-            consumos: item.snapshot.consumos,
-            preciosPotenciaActual: item.snapshot.preciosPotenciaActual,
-            preciosEnergiaActual: item.snapshot.preciosEnergiaActual,
-            diasFacturacion: item.snapshot.diasFacturacion,
-            rentMeterMonthly: item.snapshot.rentMeterMonthly,
-            bonoSocial: item.snapshot.bonoSocial,
-            energiaReactiva: item.snapshot.energiaReactiva,
-            otrosCostesSva: item.snapshot.otrosCostesSva,
-            descuentoPotencia: item.snapshot.descuentoPotencia ?? 0,
-            descuentoEnergia: item.snapshot.descuentoEnergia ?? 0,
-            currentBillMonthly: item.snapshot.currentBillMonthly,
-            bestOption: {
-              companyName: item.snapshot.companyName,
-              tariffName: item.bestTariffName,
-              annualCost: item.snapshot.annualCost,
-              potenciaBreakdown: 0,
-              consumoBreakdown: 0,
-              rentCostAnnual: Math.round(
-                item.snapshot.rentMeterMonthly * COMPARADOR_MESES_ANUAL
-              ),
-              savingsAnnual: item.maxAnnualSavings,
-              savingsPercentage:
-                item.currentAnnualExpense > 0
-                  ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
-                  : 0,
-              precios: item.snapshot.preciosOferta,
-            },
-            summary: {
-              bestTariffName: item.bestTariffName,
-              bestTariffCompany: item.snapshot.companyName,
-              maxAnnualSavings: item.maxAnnualSavings,
-              maxSavingsPercentage:
-                item.currentAnnualExpense > 0
-                  ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
-                  : 0,
-              currentAnnualExpense: item.currentAnnualExpense,
-            },
-          }
-        : undefined;
-      const input = mapComparadorHistoryToEstudioAhorro({
-        clientName: item.clientName,
-        cups: item.cups,
-        accessTariff: item.accessTariff,
-        currentAnnualExpense: item.currentAnnualExpense,
-        maxAnnualSavings: item.maxAnnualSavings,
-        bestTariffName: item.bestTariffName,
-        bestTariffCompany: item.snapshot?.companyName,
-        snapshot,
-      });
-      const blob = await generateEstudioAhorroPdf(input);
-      downloadEstudioAhorroPdf(blob, item.clientName);
+      const blob = await generateEstudioAhorroPdf(mapComparadorToEstudioAhorro(params));
+      downloadEstudioAhorroPdf(blob, item.cups || item.clientName);
       toast.success('Estudio de ahorro descargado correctamente.');
     } catch (error) {
       console.error(error);
@@ -472,67 +424,26 @@ export function useErpComparador({
       toast.error('Selecciona al menos 2 comparativas para generar el estudio conjunto.');
       return;
     }
+    const ready = selected.filter((item) => comparisonHistoryToEstudioParams(item));
+    if (ready.length < 2) {
+      toast.error('Selecciona al menos 2 comparativas con los precios de la oferta guardados.');
+      return;
+    }
     setIsGeneratingJointPdf(true);
     try {
-      const input = mapComparadorHistoryListToEstudioAhorroConjunto(
-        selected.map((item) => ({
-          clientName: item.clientName,
-          cups: item.cups,
-          accessTariff: item.accessTariff,
-          currentAnnualExpense: item.currentAnnualExpense,
-          maxAnnualSavings: item.maxAnnualSavings,
-          bestTariffName: item.bestTariffName,
-          bestTariffCompany: item.snapshot?.companyName,
-          snapshot: item.snapshot
-            ? {
-                clienteNombre: item.clientName,
-                cups: item.cups,
-                accessTariff: item.accessTariff,
-                tarifaActualNombre: item.snapshot.tarifaActualNombre,
-                comercializadoraActual: item.snapshot.comercializadoraActual,
-                potencias: item.snapshot.potencias,
-                consumos: item.snapshot.consumos,
-                preciosPotenciaActual: item.snapshot.preciosPotenciaActual,
-                preciosEnergiaActual: item.snapshot.preciosEnergiaActual,
-                diasFacturacion: item.snapshot.diasFacturacion,
-                rentMeterMonthly: item.snapshot.rentMeterMonthly,
-                bonoSocial: item.snapshot.bonoSocial,
-                energiaReactiva: item.snapshot.energiaReactiva,
-                otrosCostesSva: item.snapshot.otrosCostesSva,
-                currentBillMonthly: item.snapshot.currentBillMonthly,
-                bestOption: {
-                  companyName: item.snapshot.companyName,
-                  tariffName: item.bestTariffName,
-                  annualCost: item.snapshot.annualCost,
-                  potenciaBreakdown: 0,
-                  consumoBreakdown: 0,
-                  rentCostAnnual: Math.round(
-                    item.snapshot.rentMeterMonthly * COMPARADOR_MESES_ANUAL
-                  ),
-                  savingsAnnual: item.maxAnnualSavings,
-                  savingsPercentage:
-                    item.currentAnnualExpense > 0
-                      ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
-                      : 0,
-                  precios: item.snapshot.preciosOferta,
-                },
-                summary: {
-                  bestTariffName: item.bestTariffName,
-                  bestTariffCompany: item.snapshot.companyName,
-                  maxAnnualSavings: item.maxAnnualSavings,
-                  maxSavingsPercentage:
-                    item.currentAnnualExpense > 0
-                      ? (item.maxAnnualSavings / item.currentAnnualExpense) * 100
-                      : 0,
-                  currentAnnualExpense: item.currentAnnualExpense,
-                },
-              }
-            : undefined,
-        }))
-      );
+      const names = new Set(ready.map((item) => item.clientName));
+      const estudios = ready.flatMap((item) => {
+        const params = comparisonHistoryToEstudioParams(item);
+        return params ? [mapComparadorToEstudioAhorro(params)] : [];
+      });
+      const input = {
+        fechaGeneracion: formatFechaGeneracion(),
+        titular: names.size === 1 ? ready[0]?.clientName : undefined,
+        estudios,
+      };
       const blob = await generateEstudioAhorroConjuntoPdf(input);
-      downloadEstudioAhorroPdf(blob, `estudio-ahorro-conjunto-${selected.length}-cups.pdf`);
-      toast.success(`Estudio conjunto generado con ${selected.length} propuestas.`);
+      downloadEstudioAhorroPdf(blob, `estudio-ahorro-conjunto-${ready.length}-cups.pdf`);
+      toast.success(`Estudio conjunto generado con ${ready.length} propuestas.`);
     } catch (error) {
       console.error(error);
       toast.error('No se pudo generar el estudio conjunto. Inténtalo de nuevo.');
@@ -775,6 +686,17 @@ export function useErpComparador({
     setContracts(contractsWithNew);
     setSettlements([newSettlementObj, ...settlements]);
 
+    const matchedOffer = (compResults ?? []).find(
+      (option) => option.tariffName === modalTariff && option.companyName === modalCompany
+    ) as ComparadorOfferOption | undefined;
+    const pdfInput = matchedOffer
+      ? {
+          ...buildEstudioParamsFromOffer(matchedOffer),
+          fechaGeneracion: formatFechaGeneracion(),
+          clienteNombre: modalClientName.trim() || 'Cliente',
+          cups: modalCups.trim(),
+        }
+      : undefined;
     const newHistoryEntry: ComparisonHistoryEntry = {
       id: `comp-${Date.now()}`,
       clientName: modalClientName || 'Demo Empresa SL',
@@ -785,6 +707,29 @@ export function useErpComparador({
       bestTariffName: modalTariff,
       date: new Date().toISOString().split('T')[0],
       source: 'local',
+      pdfInput,
+      snapshot: matchedOffer
+        ? {
+            potencias: compPotencias,
+            consumos: compConsumos,
+            preciosPotenciaActual: compPreciosPotenciaActual,
+            preciosEnergiaActual: compPreciosEnergiaActual,
+            preciosOferta: matchedOffer.precios ?? resolveOfferPrecios(matchedOffer),
+            diasFacturacion: compDiasFacturados,
+            rentMeterMonthly: compRentMeter,
+            bonoSocial: compBonoSocial,
+            energiaReactiva: compEnergiaReactiva,
+            otrosCostesSva: compOtrosCostesSva,
+            descuentoPotencia: compDescuentoPotencia,
+            descuentoEnergia: compDescuentoEnergia,
+            currentBillMonthly: compCurrentBill,
+            tarifaActualNombre: compTarifaActual,
+            comercializadoraActual: compCompaniaActual,
+            companyName: matchedOffer.companyName,
+            monthlyCost: matchedOffer.monthlyCost,
+            annualCost: matchedOffer.annualCost,
+          }
+        : undefined,
     };
     setComparisonsHistory((prev) => [newHistoryEntry, ...prev]);
 

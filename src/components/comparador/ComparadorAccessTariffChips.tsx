@@ -1,6 +1,6 @@
 import { filterPillClass } from "@/lib/enersave-ui-theme"
 import {
-  COMPARADOR_ACCESS_TARIFF_CHIPS,
+  comparadorAccessTariffChips,
   normalizeComparadorAccessTariff,
   type ComparadorAccessTariffChip,
 } from "@/lib/comparador-access-tariff"
@@ -8,18 +8,21 @@ import type { ComparadorAccessTariff } from "@/lib/erp/comparador-rates"
 
 interface ComparadorAccessTariffChipsProps {
   value: ComparadorAccessTariff
+  supply?: "luz" | "gas"
   onChange: (value: ComparadorAccessTariff) => void
 }
 
 export function ComparadorAccessTariffChips({
   value,
+  supply = "luz",
   onChange,
 }: ComparadorAccessTariffChipsProps) {
   const activeValue = normalizeComparadorAccessTariff(value)
+  const chips = comparadorAccessTariffChips(supply)
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {COMPARADOR_ACCESS_TARIFF_CHIPS.map((chip: ComparadorAccessTariffChip) => (
+    <div className="flex flex-wrap gap-1.5">
+      {chips.map((chip: ComparadorAccessTariffChip) => (
         <button
           key={chip.value}
           type="button"

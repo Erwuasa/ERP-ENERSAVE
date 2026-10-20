@@ -1,3 +1,4 @@
+import { isComparadorGasPeaje } from "./comparador-access-tariff"
 import type { ComparadorPeriodValues } from "./erp/comparador-rates"
 import { activePeriodCount, normalizePeaje } from "./tarifa-cost-calculator"
 
@@ -33,6 +34,7 @@ export function activeConsumoPeriodSlots(peaje: string): ComparadorPeriodSlot[] 
 
 /** Periodos de potencia contratada: 2 en 2.0TD (P1+P2), 6 en 3.0/6.x */
 export function activePotenciaPeriodSlots(peaje: string): ComparadorPeriodSlot[] {
+  if (isComparadorGasPeaje(peaje)) return ["p1"]
   if (normalizePeaje(peaje) === "2.0TD") {
     return ["p1", "p2"]
   }

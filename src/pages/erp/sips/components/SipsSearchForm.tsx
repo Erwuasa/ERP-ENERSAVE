@@ -1,6 +1,6 @@
-import { Flame, Loader2, Search, X, Zap } from "lucide-react"
+import { Loader2, Search, X } from "lucide-react"
+import { SupplyKindToggle } from "@/components/SupplyKindToggle"
 import { createNoSpacePasteHandler } from "@/hooks/useNoSpacePasteInput"
-import { supplyTabClass } from "@/lib/enersave-ui-theme"
 import { normalizeCups } from "@/lib/sips/cups"
 import type { SipsProducto } from "@/lib/sips/types"
 import { CupsPlate } from "./CupsPlate"
@@ -40,13 +40,18 @@ export function SipsSearchForm({
         onSubmit()
       }}
     >
-      <div
-        className={
-          compact
-            ? "flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-2"
-            : "grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4"
-        }
-      >
+      <div className={compact ? "space-y-2" : "space-y-3"}>
+        <div className={compact ? "space-y-1" : "space-y-1.5"}>
+          {compact ? null : <span className={LABEL}>Producto</span>}
+          <SupplyKindToggle value={producto} onChange={onProductoChange} />
+        </div>
+        <div
+          className={
+            compact
+              ? "flex flex-col gap-2 sm:flex-row sm:items-end"
+              : "grid grid-cols-1 gap-4"
+          }
+        >
         <div className={compact ? "flex-1 min-w-0 space-y-1" : "space-y-1.5"}>
           <label htmlFor="sips-cups" className={compact ? "sr-only" : LABEL}>
             CUPS del suministro
@@ -67,52 +72,28 @@ export function SipsSearchForm({
           />
         </div>
 
-        <div className={compact ? "flex flex-wrap items-center gap-2 shrink-0" : "space-y-1.5"}>
-          {!compact ? <span className={LABEL}>Producto</span> : null}
-          <div role="radiogroup" aria-label="Producto" className="flex gap-1.5">
+        {compact ? (
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
-              type="button"
-              role="radio"
-              aria-checked={producto === "luz"}
-              onClick={() => onProductoChange("luz")}
-              className={supplyTabClass("luz", producto === "luz")}
+              type="submit"
+              disabled={busy || cups.trim().length === 0}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-extrabold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap transition-colors"
             >
-              <Zap className="w-3.5 h-3.5" />
-              Luz
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+              Consultar
             </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={producto === "gas"}
-              onClick={() => onProductoChange("gas")}
-              className={supplyTabClass("gas", producto === "gas")}
-            >
-              <Flame className="w-3.5 h-3.5" />
-              Gas
-            </button>
-          </div>
-          {compact ? (
-            <>
+            {busy ? (
               <button
-                type="submit"
-                disabled={busy || cups.trim().length === 0}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-extrabold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap transition-colors"
+                type="button"
+                onClick={onCancel}
+                className="inline-flex items-center p-2 rounded-xl border border-brand-border bg-brand-surface text-brand-subtext hover:text-brand-text cursor-pointer transition-colors"
+                aria-label="Cancelar consulta"
               >
-                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                Consultar
+                <X className="w-3.5 h-3.5" />
               </button>
-              {busy ? (
-                <button
-                  type="button"
-                  onClick={onCancel}
-                  className="inline-flex items-center p-2 rounded-xl border border-brand-border bg-brand-surface text-brand-subtext hover:text-brand-text cursor-pointer transition-colors"
-                  aria-label="Cancelar consulta"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              ) : null}
-            </>
-          ) : null}
+            ) : null}
+          </div>
+        ) : null}
         </div>
       </div>
 

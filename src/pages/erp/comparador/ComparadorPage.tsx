@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Calculator, User, Building2 } from "lucide-react"
+import { SupplyKindToggle } from "@/components/SupplyKindToggle"
 import { resolveComparadorFormDensity } from "@/lib/comparador-period-layout"
+import {
+  canonicalComparadorGasPeaje,
+  normalizeComparadorAccessTariff,
+} from "@/lib/comparador-access-tariff"
+import { emptyComparadorPeriodValues } from "@/lib/comparador-periods"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 import { ComparadorIaUpload } from "@/components/comparador/ComparadorIaUpload"
 import { ComparadorAccessTariffChips } from "@/components/comparador/ComparadorAccessTariffChips"
@@ -21,6 +27,8 @@ import { resolveComparadorConsumoAnualKwh } from "@/lib/comparador-marco-commiss
 import { usePotenciaP1Autofill } from "@/pages/erp/comparador/hooks/usePotenciaP1Autofill"
 import { onFormEnterNavigationKeyDown } from "@/lib/form-enter-navigation"
 import { hasComparadorUserProvidedData } from "@/lib/comparador-user-input"
+import type { ComparadorAccessTariff } from "@/lib/erp/comparador-rates"
+import type { SipsResumen } from "@/lib/sips/types"
 
 const OFFER_RENDER_BATCH = 24
 
@@ -73,6 +81,7 @@ export function ComparadorPage() {
     compClient,
     compCups,
     compTipo,
+    setCompTipo,
   } = ws
 
   const { handlePotenciaP1Change, handlePotenciaManualChange } =
@@ -204,6 +213,54 @@ export function ComparadorPage() {
 
   const visibleOffers = offerOptions.slice(0, offerLimit)
 
+  function clearPeriodInputs() {
+    const empty = emptyComparadorPeriodValues()
+    setCompPotencias(empty)
+    setCompConsumos(empty)
+    setCompPreciosPotenciaActual(empty)
+    setCompPreciosEnergiaActual(empty)
+  }
+
+  function handleSupplyChange(next: "luz" | "gas") {
+    if (next === compTipo) return
+    setCompTipo(next)
+    clearPeriodInputs()
+    setCompBonoSocial(0)
+    setCompEnergiaReactiva(0)
+    setCompAccessTariff(next === "gas" ? "RL1" : "2.0TD")
+    setCompSegment("residencial")
+  }
+
+  function handleAccessTariffChange(next: ComparadorAccessTariff) {
+    setCompAccessTariff(next)
+    if (compTipo !== "gas") return
+    setCompSegment(canonicalComparadorGasPeaje(next) === "RL1" ? "residencial" : "pyme")
+  }
+
+  function handleSegmentChange(next: "residencial" | "pyme") {
+    setCompSegment(next)
+    if (compTipo !== "gas") return
+    if (next === "residencial") {
+      setCompAccessTariff("RL1")
+      return
+    }
+    if (canonicalComparadorGasPeaje(compAccessTariff) === "RL1") setCompAccessTariff("RL2")
+  }
+
+  function handleSipsResumen(resumen: SipsResumen) {
+    const gasPeaje = canonicalComparadorGasPeaje(resumen.tarifa)
+    if (compTipo === "gas") {
+      if (!gasPeaje) return
+      setCompAccessTariff(gasPeaje)
+      setCompSegment(gasPeaje === "RL1" ? "residencial" : "pyme")
+      return
+    }
+    if (gasPeaje || !resumen.tarifa) return
+    const next = normalizeComparadorAccessTariff(resumen.tarifa)
+    if (next.startsWith("RL")) return
+    setCompAccessTariff(next)
+  }
+
   function handlePotenciaValueChange(slot: ComparadorPeriodSlot, value: number) {
     if (slot === "p1") {
       handlePotenciaP1Change(value)
@@ -248,6 +305,12 @@ export function ComparadorPage() {
             />
 
             <div className={isCompactForm ? "space-y-2.5" : "space-y-3"}>
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
+                  Suministro
+                </label>
+                <SupplyKindToggle value={compTipo} onChange={handleSupplyChange} />
+              </div>
               <div className={`grid grid-cols-1 ${isCompactForm ? "sm:grid-cols-2 gap-2.5" : "sm:grid-cols-2 gap-3"}`}>
                 <div className="space-y-1.5">
                   <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
@@ -256,7 +319,7 @@ export function ComparadorPage() {
                   <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-brand-surface border border-brand-border">
                     <button
                       type="button"
-                      onClick={() => setCompSegment("residencial")}
+                      onClick={() => handleSegmentChange("residencial")}
                       className={`py-2 px-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors duration-200 flex flex-col items-center gap-1 ${
                         compSegment === "residencial"
                           ? "bg-white dark:bg-brand-panel text-emerald-600 dark:text-emerald-400 shadow-sm ring-1 ring-emerald-500/35"
@@ -268,7 +331,7 @@ export function ComparadorPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCompSegment("pyme")}
+                      onClick={() => handleSegmentChange("pyme")}
                       className={`py-2 px-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors duration-200 flex flex-col items-center gap-1 ${
                         compSegment === "pyme"
                           ? "bg-white dark:bg-brand-panel text-amber-600 dark:text-amber-500 shadow-sm"
@@ -287,7 +350,8 @@ export function ComparadorPage() {
                   </label>
                   <ComparadorAccessTariffChips
                     value={compAccessTariff}
-                    onChange={setCompAccessTariff}
+                    supply={compTipo}
+                    onChange={handleAccessTariffChange}
                   />
                 </div>
               </div>
@@ -308,6 +372,7 @@ export function ComparadorPage() {
 
             <ComparadorOtrosConceptosFields
               density={formDensity}
+              producto={compTipo}
               alquiler={compRentMeter}
               bonoSocial={compBonoSocial}
               energiaReactiva={compEnergiaReactiva}
@@ -321,6 +386,7 @@ export function ComparadorPage() {
               onOtrosCostesSvaChange={setCompOtrosCostesSva}
               onDiasFacturadosChange={setCompDiasFacturados}
               onConsumoAnualKwhChange={setCompConsumoAnualKwh}
+              onSipsResumen={handleSipsResumen}
               onFacturaMensualChange={setCompCurrentBill}
               descuentoPotencia={compDescuentoPotencia}
               descuentoEnergia={compDescuentoEnergia}

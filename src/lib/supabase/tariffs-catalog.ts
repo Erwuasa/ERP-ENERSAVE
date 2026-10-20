@@ -1,5 +1,6 @@
 import {
   comparadorAccessTariffDbIlikePattern,
+  isComparadorGasPeaje,
   tariffMatchesComparadorAccessTariff,
 } from "../comparador-access-tariff"
 import { collapseTariffsWithSamePrices } from "../tariff-catalog-dedup"
@@ -196,8 +197,12 @@ export async function listTariffsConPrecios(
   if (error) return mapError(error)
 
   const rows = ((data ?? []) as unknown as EnertechPrecioRow[])
-    .filter((row) => !isGasTariff(row.payload))
-    .filter((row) => tariffMatchesComparadorAccessTariff(String(row.payload?.tarifa ?? ""), accessTariff))
+    .filter((row) => {
+      const tarifa = String(row.payload?.tarifa ?? "")
+      if (!tariffMatchesComparadorAccessTariff(tarifa, accessTariff)) return false
+      if (!isComparadorGasPeaje(accessTariff) && isGasTariff(row.payload)) return false
+      return true
+    })
     .filter((row) =>
       tariffMatchesErpAudience(
         String(row.payload?.comercializadora ?? ""),

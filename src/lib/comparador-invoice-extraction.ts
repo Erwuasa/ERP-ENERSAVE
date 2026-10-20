@@ -18,4 +18,16 @@ export interface ComparadorInvoiceExtraction extends ContractOcrResult {
   otherCosts?: number
   electricityTaxRegime?: string
   consumptionFromProfile?: boolean
+  gasConsumoKwh?: number
+  gasPrecioVariableEurKwh?: number
+  gasTerminoFijoEurDia?: number
+  gasTerminoFijoEurTotal?: number
+  gasIhcCantidadKwh?: number
+  gasIhcPrecioEurKwh?: number
+  gasIhcTotalEur?: number
+  gasTasasEspecialesEur?: number
+  gasCanonIrcEur?: number
+  gasOtrosServiciosEur?: number
+  gasOtrosConceptosEur?: number
+  gasImpuestoIndirectoPct?: number
 }

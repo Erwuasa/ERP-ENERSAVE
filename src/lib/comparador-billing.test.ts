@@ -8,12 +8,33 @@ import {
   calcularCosteComparadorMensual,
   COMPARADOR_DIAS_FACTURACION_MENSUAL,
   potenciaPeriodCostMensual,
+  resolveComparadorAlquilerMensual,
 } from "./comparador-billing"
 
 describe("comparador-billing", () => {
+  it("trata el alquiler vacío o a 0 como el de mercado que usa la tarjeta", () => {
+    expect(resolveComparadorAlquilerMensual(0)).toBe(1.84)
+    expect(resolveComparadorAlquilerMensual(null)).toBe(1.84)
+    expect(resolveComparadorAlquilerMensual(2.5)).toBe(2.5)
+  })
+
   it("calculates potencia as kW × €/kW·día × días (mensual)", () => {
     const cost = potenciaPeriodCostMensual(75, 0.055824, 31)
     expect(cost).toBeCloseTo(129.79, 1)
+  })
+
+  it("calculates a gas bill as one fixed term per day plus one variable kWh price", () => {
+    const breakdown = calcularCosteComparadorMensual(
+      [1, 0, 0, 0, 0, 0],
+      [800, 0, 0, 0, 0, 0],
+      [0.2, 0, 0, 0, 0, 0],
+      [0.08, 0, 0, 0, 0, 0],
+      "RL2",
+      0,
+      { diasFacturacion: 30, alquilerContador: 0 }
+    )
+    expect(breakdown.potenciaMensual).toBeCloseTo(6, 2)
+    expect(breakdown.energiaMensual).toBeCloseTo(64, 2)
   })
 
   it("calculates monthly energy from kWh/mes × €/kWh", () => {

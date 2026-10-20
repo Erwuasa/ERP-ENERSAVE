@@ -23,6 +23,7 @@ import {
 } from "@/lib/comparador-billing"
 import { annualKwhFromSipsResumen, cupsLookupReadiness } from "@/lib/sips/fast-lookup"
 import { lookupSipsPreferringCache } from "@/lib/supabase/sips"
+import type { SipsProducto, SipsResumen } from "@/lib/sips/types"
 
 function DiasFacturadosInput({
   value,
@@ -72,19 +73,25 @@ function ComparadorConsumoAnualFields({
   labelClass,
   inputClass,
   fieldClass,
+  producto,
   consumoAnualKwh,
   onConsumoAnualKwhChange,
+  onSipsResumen,
 }: {
   labelClass: string
   inputClass: string
   fieldClass: string
+  producto: SipsProducto
   consumoAnualKwh: number
   onConsumoAnualKwhChange: (value: number) => void
+  onSipsResumen?: (resumen: SipsResumen) => void
 }) {
   const [cups, setCups] = useState("")
   const [hint, setHint] = useState<string | null>(null)
   const onChangeRef = useRef(onConsumoAnualKwhChange)
+  const onSipsRef = useRef(onSipsResumen)
   onChangeRef.current = onConsumoAnualKwhChange
+  onSipsRef.current = onSipsResumen
 
   useEffect(() => {
     const ready = cupsLookupReadiness(cups)
@@ -98,17 +105,18 @@ function ComparadorConsumoAnualFields({
     }
 
     let cancelled = false
-    setHint("Consultando SIPS…")
-    void lookupSipsPreferringCache(ready.cups, "luz").then((outcome) => {
+    setHint(producto === "gas" ? "Consultando SIPS de gas…" : "Consultando SIPS…")
+    void lookupSipsPreferringCache(ready.cups, producto).then((outcome) => {
       if (cancelled) return
       if (outcome.status === "listo") {
+        onSipsRef.current?.(outcome.resumen)
         const kwh = annualKwhFromSipsResumen(outcome.resumen)
         if (kwh == null) {
           setHint("SIPS no trae consumo anual.")
           return
         }
         onChangeRef.current(kwh)
-        setHint("Consumo anual desde SIPS.")
+        setHint(producto === "gas" ? "Consumo anual desde SIPS de gas." : "Consumo anual desde SIPS.")
         return
       }
       if (outcome.status === "procesando") {
@@ -124,7 +132,7 @@ function ComparadorConsumoAnualFields({
     return () => {
       cancelled = true
     }
-  }, [cups])
+  }, [cups, producto])
 
   return (
     <>
@@ -169,6 +177,7 @@ function ComparadorConsumoAnualFields({
 
 interface ComparadorOtrosConceptosFieldsProps {
   density: ComparadorFormDensity
+  producto?: SipsProducto
   alquiler: number
   bonoSocial: number
   energiaReactiva: number
@@ -182,6 +191,7 @@ interface ComparadorOtrosConceptosFieldsProps {
   onOtrosCostesSvaChange: (value: number) => void
   onDiasFacturadosChange: (value: number) => void
   onConsumoAnualKwhChange: (value: number) => void
+  onSipsResumen?: (resumen: SipsResumen) => void
   onFacturaMensualChange: (value: number) => void
   descuentoPotencia?: number
   descuentoEnergia?: number
@@ -208,6 +218,7 @@ function FieldLabelWithIcon({
 
 export function ComparadorOtrosConceptosFields({
   density,
+  producto = "luz",
   alquiler,
   bonoSocial,
   energiaReactiva,
@@ -221,6 +232,7 @@ export function ComparadorOtrosConceptosFields({
   onOtrosCostesSvaChange,
   onDiasFacturadosChange,
   onConsumoAnualKwhChange,
+  onSipsResumen,
   onFacturaMensualChange,
   descuentoPotencia = 0,
   descuentoEnergia = 0,
@@ -231,6 +243,7 @@ export function ComparadorOtrosConceptosFields({
   const inputClass = comparadorNumericInputClass(density)
   const fieldClass = "space-y-1"
   const gridGap = density === "compact" ? "gap-2.5" : "gap-2"
+  const isGas = producto === "gas"
 
   return (
     <section className="pt-1 border-t border-brand-border/60">
@@ -253,29 +266,33 @@ export function ComparadorOtrosConceptosFields({
             className={inputClass}
           />
         </div>
-        <div className={fieldClass}>
-          <FieldLabelWithIcon icon={HeartHandshake} labelClass={labelClass}>
-            Bono social
-          </FieldLabelWithIcon>
-          <DecimalComaInput
-            value={bonoSocial}
-            onChange={onBonoSocialChange}
-            showZeroAsEmpty
-            className={inputClass}
-          />
-        </div>
+        {isGas ? null : (
+          <div className={fieldClass}>
+            <FieldLabelWithIcon icon={HeartHandshake} labelClass={labelClass}>
+              Bono social
+            </FieldLabelWithIcon>
+            <DecimalComaInput
+              value={bonoSocial}
+              onChange={onBonoSocialChange}
+              showZeroAsEmpty
+              className={inputClass}
+            />
+          </div>
+        )}
 
-        <div className={fieldClass}>
-          <FieldLabelWithIcon icon={Activity} labelClass={labelClass}>
-            Reactiva
-          </FieldLabelWithIcon>
-          <DecimalComaInput
-            value={energiaReactiva}
-            onChange={onEnergiaReactivaChange}
-            showZeroAsEmpty
-            className={inputClass}
-          />
-        </div>
+        {isGas ? null : (
+          <div className={fieldClass}>
+            <FieldLabelWithIcon icon={Activity} labelClass={labelClass}>
+              Reactiva
+            </FieldLabelWithIcon>
+            <DecimalComaInput
+              value={energiaReactiva}
+              onChange={onEnergiaReactivaChange}
+              showZeroAsEmpty
+              className={inputClass}
+            />
+          </div>
+        )}
         <div className={fieldClass}>
           <FieldLabelWithIcon icon={Layers} labelClass={labelClass}>
             Otros costes / SVA
@@ -292,8 +309,10 @@ export function ComparadorOtrosConceptosFields({
           labelClass={labelClass}
           inputClass={inputClass}
           fieldClass={fieldClass}
+          producto={producto}
           consumoAnualKwh={consumoAnualKwh}
           onConsumoAnualKwhChange={onConsumoAnualKwhChange}
+          onSipsResumen={onSipsResumen}
         />
 
         <div className={fieldClass}>
@@ -321,7 +340,7 @@ export function ComparadorOtrosConceptosFields({
         {onDescuentoPotenciaChange ? (
           <div className={fieldClass}>
             <FieldLabelWithIcon icon={CircleDollarSign} labelClass={labelClass}>
-              Descuento potencia
+              {isGas ? "Dto. término fijo" : "Descuento potencia"}
             </FieldLabelWithIcon>
             <DecimalComaInput
               value={descuentoPotencia}

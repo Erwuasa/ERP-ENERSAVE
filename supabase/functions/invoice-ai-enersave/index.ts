@@ -1,0 +1,295 @@
+// Invoice extraction for the comparador, backed by Gemini 2.0 Flash.
+// Primary provider. OpenAI and the third-party assistant stay as fallbacks in the client.
+// Auth: default verify_jwt (do not set verify_jwt = false). GEMINI_API_KEY stays a function secret.
+import { corsHeadersFor, handleOptions } from "../_shared/cors.ts"
+
+const GEMINI_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+const MAX_PDF_BYTES = 20 * 1024 * 1024
+const MAX_IMG_BYTES = 10 * 1024 * 1024
+const MAX_FILES = 3
+
+const GEMINI_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    cups: { type: "string", nullable: true, description: "Código CUPS del punto de suministro (empieza ES)" },
+    companyBrand: { type: "string", nullable: true, description: "Nombre comercializadora" },
+    holderNif: { type: "string", nullable: true, description: "NIF/CIF/NIE del titular" },
+    holderName: { type: "string", nullable: true },
+    invoiceDate: { type: "string", nullable: true, description: "Fecha de factura AAAA-MM-DD" },
+    invoiceDays: { type: "number", nullable: true, description: "Días del período de facturación" },
+    supplyType: { type: "string", nullable: true, enum: ["luz", "gas", null], description: "Tipo de suministro" },
+    segment: { type: "string", nullable: true, enum: ["residencial", "pyme", null], description: "Segmento deducido del NIF" },
+    electricityCategory: { type: "string", nullable: true, description: "Tarifa de acceso eléctrica: 2.0TD, 3.0TD, 6.1TD, 6.2TD, 6.3TD, 6.4TD" },
+    gasCategory: { type: "string", nullable: true, description: "Categoría gas: RL1, RL2, RL3, RL4, RL5" },
+    electricityTaxRegime: { type: "string", nullable: true, description: "Régimen fiscal eléctrico si aparece" },
+    powerKwByPeriod: {
+      type: "array",
+      items: { type: "number" },
+      minItems: 6,
+      maxItems: 6,
+      description: "Potencia contratada kW P1..P6, 0 si no aplica",
+    },
+    powerCostEur: { type: "number", nullable: true, description: "Coste total término de potencia en EUR" },
+    energyKwhByPeriod: {
+      type: "array",
+      items: { type: "number" },
+      minItems: 6,
+      maxItems: 6,
+      description: "Energía kWh P1..P6. Buscar también Lectura por periodos. Si es kWh/día, multiplicar por invoiceDays.",
+    },
+    energyCostEur: { type: "number", nullable: true, description: "Coste total término de energía en EUR" },
+    meterRentalAmount: { type: "number", nullable: true, description: "Alquiler del equipo de medida del período" },
+    socialBonusCostEur: { type: "number", nullable: true, description: "Bono social en EUR" },
+    financingSocialBonusAmount: { type: "number", nullable: true, description: "Financiación bono social" },
+    otherCosts: { type: "number", nullable: true, description: "Otros costes/SVA que no sean potencia, energía, contador ni impuestos" },
+    totalAmountEur: { type: "number", nullable: true, description: "Importe total con impuestos" },
+    gasConsumoKwh: { type: "number", nullable: true, description: "Gas: consumo del período en kWh" },
+    gasPrecioVariableEurKwh: { type: "number", nullable: true, description: "Gas: precio variable EUR/kWh" },
+    gasTerminoFijoEurDia: { type: "number", nullable: true, description: "Gas: término fijo EUR/día" },
+    gasTerminoFijoEurTotal: { type: "number", nullable: true, description: "Gas: importe total del término fijo" },
+    gasIhcCantidadKwh: { type: "number", nullable: true, description: "Gas: cantidad IHC en kWh" },
+    gasIhcPrecioEurKwh: { type: "number", nullable: true, description: "Gas: precio IHC EUR/kWh" },
+    gasIhcTotalEur: { type: "number", nullable: true, description: "Gas: importe total IHC" },
+    gasTasasEspecialesEur: { type: "number", nullable: true, description: "Gas: tasas especiales en EUR" },
+    gasCanonIrcEur: { type: "number", nullable: true, description: "Gas: canon IRC en EUR" },
+    gasOtrosServiciosEur: { type: "number", nullable: true, description: "Gas: otros servicios/SVA" },
+    gasOtrosConceptosEur: { type: "number", nullable: true, description: "Gas: otros conceptos" },
+    gasImpuestoIndirectoPct: { type: "number", nullable: true, description: "Gas: porcentaje de impuesto indirecto" },
+  },
+  required: [
+    "cups", "companyBrand", "holderNif", "holderName", "invoiceDate", "invoiceDays",
+    "supplyType", "segment", "electricityCategory", "gasCategory", "electricityTaxRegime",
+    "powerKwByPeriod", "powerCostEur", "energyKwhByPeriod", "energyCostEur",
+    "meterRentalAmount", "socialBonusCostEur", "financingSocialBonusAmount",
+    "otherCosts", "totalAmountEur",
+    "gasConsumoKwh", "gasPrecioVariableEurKwh", "gasTerminoFijoEurDia",
+    "gasTerminoFijoEurTotal", "gasIhcCantidadKwh", "gasIhcPrecioEurKwh",
+    "gasIhcTotalEur", "gasTasasEspecialesEur", "gasCanonIrcEur",
+    "gasOtrosServiciosEur", "gasOtrosConceptosEur", "gasImpuestoIndirectoPct",
+  ],
+}
+
+const SYSTEM_PROMPT = `Eres un extractor especializado en facturas de electricidad y gas españolas para una asesoría energética.
+
+Lee la factura adjunta (imagen o PDF) y extrae los datos según el esquema JSON.
+
+REGLAS GENERALES:
+- Si un dato no aparece en la factura: devuelve null (o array de ceros para powerKwByPeriod/energyKwhByPeriod).
+- Importes SIEMPRE en euros con punto decimal (nunca coma). Ej: 45.32
+- No inventes datos que no estén explícitamente en la factura.
+- powerKwByPeriod y energyKwhByPeriod tienen SIEMPRE 6 posiciones (P1..P6 en orden).
+
+TIPO DE SUMINISTRO (supplyType):
+- "luz" si es factura eléctrica
+- "gas" si es factura de gas natural
+
+SEGMENTO (segment) - deducir del NIF:
+- DNI: 8 dígitos + letra → "residencial"
+- NIE: letra X/Y/Z + 7 dígitos + letra → "residencial"
+- CIF: letra + 7 dígitos + control → "pyme"
+- Si hay CNAE empresarial aunque el titular tenga DNI → "pyme"
+- Duda → null
+
+TARIFA DE ACCESO ELÉCTRICA (electricityCategory):
+- 2.0TD, 3.0TD, 6.1TD, 6.2TD, 6.3TD, 6.4TD. Buscar el literal en la factura.
+
+PERIODOS ACTIVOS:
+- 2.0TD: potencia en P1 y P2; energía en P1, P2 y P3. El resto a 0.
+- 3.0TD y 6.x: potencia y energía en P1..P6.
+
+CONSUMO ELÉCTRICO (energyKwhByPeriod):
+- Buscar primero en "Lectura por periodos", "Consumo por periodos" o "Desglose de consumo".
+- Si los kWh se muestran como kWh/día, multiplicar por invoiceDays.
+- Si no hay desglose, usar el desglose de cargos del término de energía.
+
+POTENCIA (powerKwByPeriod):
+- Buscar en "Potencia contratada" o "Término de potencia".
+
+GAS (gasCategory):
+- RL1 ≤ 5.000 kWh/año; RL2 hasta 15.000; RL3 hasta 50.000; RL4 hasta 300.000; RL5 por encima. Si no hay consumo anual, null.
+- gasConsumoKwh: kWh del período.
+- gasPrecioVariableEurKwh: término variable EUR/kWh.
+- gasTerminoFijoEurDia: cuota fija EUR/día.
+- gasIhc*: impuesto de hidrocarburos.
+- gasTasasEspecialesEur, gasCanonIrcEur, gasOtrosServiciosEur, gasImpuestoIndirectoPct según aparezcan.
+
+ALQUILER (meterRentalAmount): importe del período, sin mensualizar.
+TOTAL (totalAmountEur): importe final con impuestos. Una rectificativa puede ser negativa.`
+
+function errorResponse(status: number, message: string, request: Request): Response {
+  return new Response(JSON.stringify({ status: "error", message }), {
+    status,
+    headers: { ...corsHeadersFor(request), "Content-Type": "application/json" },
+  })
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ""
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+function isPdf(file: File): boolean {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+}
+
+function normalizePeriods(value: unknown): number[] {
+  const source = Array.isArray(value) ? value : []
+  const periods = source.map((item) => (typeof item === "number" && Number.isFinite(item) ? item : 0))
+  while (periods.length < 6) periods.push(0)
+  return periods.slice(0, 6)
+}
+
+function normalizeNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function normalizeString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+function oneOf(value: unknown, allowed: string[]): string | null {
+  return typeof value === "string" && allowed.includes(value) ? value : null
+}
+
+function normalizePayload(raw: unknown): Record<string, unknown> {
+  const row = (raw ?? {}) as Record<string, unknown>
+  return {
+    status: "ok",
+    cups: normalizeString(row.cups),
+    companyBrand: normalizeString(row.companyBrand),
+    holderNif: normalizeString(row.holderNif),
+    holderName: normalizeString(row.holderName),
+    invoiceDate: normalizeString(row.invoiceDate),
+    invoiceDays: normalizeNumber(row.invoiceDays),
+    supplyType: oneOf(row.supplyType, ["luz", "gas"]),
+    segment: oneOf(row.segment, ["residencial", "pyme"]),
+    electricityCategory: normalizeString(row.electricityCategory),
+    gasCategory: normalizeString(row.gasCategory),
+    electricityTaxRegime: normalizeString(row.electricityTaxRegime),
+    powerKwByPeriod: normalizePeriods(row.powerKwByPeriod),
+    powerCostEur: normalizeNumber(row.powerCostEur),
+    energyKwhByPeriod: normalizePeriods(row.energyKwhByPeriod),
+    energyCostEur: normalizeNumber(row.energyCostEur),
+    meterRentalAmount: normalizeNumber(row.meterRentalAmount),
+    socialBonusCostEur: normalizeNumber(row.socialBonusCostEur),
+    financingSocialBonusAmount: normalizeNumber(row.financingSocialBonusAmount),
+    otherCosts: normalizeNumber(row.otherCosts),
+    totalAmountEur: normalizeNumber(row.totalAmountEur),
+    gasConsumoKwh: normalizeNumber(row.gasConsumoKwh),
+    gasPrecioVariableEurKwh: normalizeNumber(row.gasPrecioVariableEurKwh),
+    gasTerminoFijoEurDia: normalizeNumber(row.gasTerminoFijoEurDia),
+    gasTerminoFijoEurTotal: normalizeNumber(row.gasTerminoFijoEurTotal),
+    gasIhcCantidadKwh: normalizeNumber(row.gasIhcCantidadKwh),
+    gasIhcPrecioEurKwh: normalizeNumber(row.gasIhcPrecioEurKwh),
+    gasIhcTotalEur: normalizeNumber(row.gasIhcTotalEur),
+    gasTasasEspecialesEur: normalizeNumber(row.gasTasasEspecialesEur),
+    gasCanonIrcEur: normalizeNumber(row.gasCanonIrcEur),
+    gasOtrosServiciosEur: normalizeNumber(row.gasOtrosServiciosEur),
+    gasOtrosConceptosEur: normalizeNumber(row.gasOtrosConceptosEur),
+    gasImpuestoIndirectoPct: normalizeNumber(row.gasImpuestoIndirectoPct),
+  }
+}
+
+Deno.serve(async (request: Request) => {
+  const optionsResponse = handleOptions(request)
+  if (optionsResponse) return optionsResponse
+
+  if (request.method !== "POST") return errorResponse(405, "Método no permitido", request)
+
+  const apiKey = Deno.env.get("GEMINI_API_KEY")
+  if (!apiKey) return errorResponse(500, "GEMINI_API_KEY no configurada", request)
+
+  let formData: FormData
+  try {
+    formData = await request.formData()
+  } catch {
+    return errorResponse(400, "No se pudo leer el formulario", request)
+  }
+
+  const files: File[] = []
+  for (const [key, value] of formData.entries()) {
+    if (value instanceof File && (key === "file" || /^file_\d+$/.test(key))) files.push(value)
+  }
+
+  if (files.length === 0) return errorResponse(400, "No se adjuntó ningún archivo", request)
+  if (files.length > MAX_FILES) return errorResponse(400, `Máximo ${MAX_FILES} archivos`, request)
+
+  const pdfCount = files.filter(isPdf).length
+  if (pdfCount > 1) return errorResponse(400, "Solo se admite un PDF", request)
+  if (pdfCount === 1 && files.length > 1) return errorResponse(400, "El PDF se envía solo, sin imágenes", request)
+
+  for (const file of files) {
+    const pdf = isPdf(file)
+    const limit = pdf ? MAX_PDF_BYTES : MAX_IMG_BYTES
+    if (file.size > limit) {
+      return errorResponse(400, `${file.name} supera el límite (${pdf ? "20" : "10"} MB)`, request)
+    }
+  }
+
+  const parts: Record<string, unknown>[] = [
+    { text: "Extrae los datos de esta factura según el esquema JSON." },
+  ]
+  for (const file of files) {
+    const base64 = await fileToBase64(file)
+    parts.push({
+      inlineData: {
+        mimeType: file.type || (isPdf(file) ? "application/pdf" : "application/octet-stream"),
+        data: base64,
+      },
+    })
+  }
+
+  let geminiRes: Response
+  try {
+    geminiRes = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: GEMINI_RESPONSE_SCHEMA,
+          temperature: 0,
+          maxOutputTokens: 1024,
+        },
+      }),
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "error de red"
+    return errorResponse(502, `No se pudo contactar con Gemini: ${message}`, request)
+  }
+
+  if (!geminiRes.ok) {
+    const errText = await geminiRes.text().catch(() => "")
+    return errorResponse(502, `Gemini error ${geminiRes.status}: ${errText.slice(0, 400)}`, request)
+  }
+
+  const geminiJson = await geminiRes.json().catch(() => null) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+  } | null
+  const rawText = geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text
+  if (!rawText) return errorResponse(502, "Gemini no devolvió contenido", request)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(rawText)
+  } catch {
+    return errorResponse(502, "Respuesta de Gemini no es JSON válido", request)
+  }
+
+  return new Response(JSON.stringify(normalizePayload(parsed)), {
+    status: 200,
+    headers: { ...corsHeadersFor(request), "Content-Type": "application/json" },
+  })
+})

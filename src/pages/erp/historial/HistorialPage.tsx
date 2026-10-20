@@ -1,4 +1,10 @@
-import { FileClock, Search, TrendingUp, Download, Loader2 } from "lucide-react"
+import { FileClock, Search, Download, Loader2 } from "lucide-react"
+import {
+  comparisonHistoryCanDownloadPdf,
+  comparisonHistoryInvoiceTotal,
+  comparisonHistorySavingsMonthly,
+  type ComparisonHistoryEntry,
+} from "@/lib/comparador-history-storage"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 
 export function HistorialPage() {
@@ -43,7 +49,7 @@ export function HistorialPage() {
               <Search className="w-3.5 h-3.5 text-brand-subtext absolute top-3 left-3" />
               <input
                 type="text"
-                placeholder="Buscar cliente o CUPS..."
+                placeholder="Buscar CUPS..."
                 value={compHistorySearch}
                 onChange={(e) => setCompHistorySearch(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-brand-surface border border-brand-border rounded-xl focus:border-blue-500 focus:outline-none text-xs text-brand-text font-medium"
@@ -70,25 +76,81 @@ export function HistorialPage() {
             <p className="text-xs">No hay comparativas locales ni sincronizadas de AT.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-3 md:hidden">
+            {filtered.map((item, idx) => {
+              const row = historyRowView(item)
+              const selected = selectedComparisonIds.includes(item.id)
+              return (
+                <article
+                  key={item.id || idx}
+                  className="rounded-2xl border border-brand-border p-3 space-y-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleComparisonSelection(item.id)}
+                      className="mt-0.5 rounded border-brand-border cursor-pointer"
+                      aria-label={`Seleccionar ${item.cups || "comparativa"}`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[11px] font-bold text-brand-text break-all">
+                        {item.cups || "—"}
+                        {item.source === "at" ? <AtBadge /> : null}
+                      </div>
+                      <div className="text-[10px] text-brand-subtext font-mono mt-0.5">{item.date}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <TariffBadge tariff={item.accessTariff} />
+                    <div className="text-[10px] text-brand-subtext mt-1">{item.bestTariffName}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
+                        Total factura
+                      </p>
+                      <p className="font-mono font-bold text-brand-text text-sm">
+                        {formatCurrency(row.invoiceTotal)}
+                        <span className="text-[10px] font-medium text-brand-subtext">/mes</span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
+                        Ahorro
+                      </p>
+                      <p className={`font-mono font-extrabold text-sm ${row.savingsClass}`}>
+                        {formatCurrency(row.savingsMonthly)}
+                        <span className="text-[10px] font-medium">/mes</span>
+                      </p>
+                      <p className={`text-[10px] font-bold ${row.savingsClass}`}>{row.savingsPercent}%</p>
+                    </div>
+                  </div>
+                  <PdfButton
+                    disabled={!row.canDownload}
+                    onClick={() => void handleDownloadHistoryPdf(item)}
+                    className="w-full justify-center"
+                  />
+                </article>
+              )
+            })}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-brand-border text-[10px] uppercase font-bold tracking-wider font-mono text-brand-subtext">
                   <th className="pb-3 px-2 w-8" />
-                  <th className="pb-3 px-2">Cliente / Fecha</th>
-                  <th className="pb-3 px-2">CUPS / Tarifa Acceso</th>
-                  <th className="pb-3 px-2 text-right">Gasto Actual</th>
-                  <th className="pb-3 px-2 text-right">Ahorro Máx.</th>
-                  <th className="pb-3 px-2">Mejor Oferta</th>
-                  <th className="pb-3 px-2 text-right">Propuesta</th>
+                  <th className="pb-3 px-2">CUPS</th>
+                  <th className="pb-3 px-2">Tarifa de acceso</th>
+                  <th className="pb-3 px-2 text-right">Total factura</th>
+                  <th className="pb-3 px-2 text-right">Ahorro</th>
+                  <th className="pb-3 px-2 text-right">PDF</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-border">
                 {filtered.map((item, idx) => {
-                  const savingsPercent =
-                    item.currentAnnualExpense > 0
-                      ? Math.round((item.maxAnnualSavings / item.currentAnnualExpense) * 100)
-                      : 0
+                  const row = historyRowView(item)
                   const selected = selectedComparisonIds.includes(item.id)
                   return (
                     <tr
@@ -101,58 +163,38 @@ export function HistorialPage() {
                           checked={selected}
                           onChange={() => toggleComparisonSelection(item.id)}
                           className="rounded border-brand-border cursor-pointer"
-                          aria-label={`Seleccionar ${item.clientName}`}
+                          aria-label={`Seleccionar ${item.cups}`}
                         />
                       </td>
                       <td className="py-4 px-2">
-                        <div className="font-bold text-brand-text">
-                          {item.clientName}
-                          {item.source === "at" ? (
-                            <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
-                              AT
-                            </span>
-                          ) : null}
+                        <div className="font-mono text-[11px] font-bold text-brand-text break-all">
+                          {item.cups || "—"}
+                          {item.source === "at" ? <AtBadge /> : null}
                         </div>
                         <div className="text-[10px] text-brand-subtext font-mono mt-0.5">
                           {item.date}
                         </div>
                       </td>
-                      <td className="py-4 px-2 font-mono text-[11px] text-brand-subtext">
-                        <div className="break-all">{item.cups}</div>
-                        <span className="inline-block bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded text-[9px] font-bold mt-1">
-                          TARIFA: {item.accessTariff}
-                        </span>
-                      </td>
-                      <td className="py-4 px-2 text-right font-mono font-bold text-brand-text">
-                        {formatCurrency(item.currentAnnualExpense)}/año
-                      </td>
-                      <td className="py-4 px-2 text-right font-mono">
-                        <div className="text-emerald-500 font-extrabold">
-                          {formatCurrency(item.maxAnnualSavings)}/año
-                        </div>
-                        <div className="text-[10px] font-bold text-emerald-500 mt-0.5">
-                          -{savingsPercent}% Gasto
-                        </div>
-                      </td>
                       <td className="py-4 px-2">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-cyan-400 text-[10px] font-extrabold rounded-lg border border-blue-100 dark:border-blue-900/30">
-                          <TrendingUp className="w-3.5 h-3.5 text-blue-600 dark:text-cyan-400" />
-                          {item.bestTariffName}
-                        </span>
+                        <TariffBadge tariff={item.accessTariff} />
+                        <div className="text-[10px] text-brand-subtext mt-1">{item.bestTariffName}</div>
+                      </td>
+                      <td className="py-4 px-2 text-right font-mono font-bold text-brand-text whitespace-nowrap">
+                        {formatCurrency(row.invoiceTotal)}
+                        <span className="text-[10px] font-medium text-brand-subtext">/mes</span>
+                      </td>
+                      <td className={`py-4 px-2 text-right font-mono whitespace-nowrap ${row.savingsClass}`}>
+                        <div className="font-extrabold">
+                          {formatCurrency(row.savingsMonthly)}
+                          <span className="text-[10px] font-medium">/mes</span>
+                        </div>
+                        <div className="text-[10px] font-bold mt-0.5">{row.savingsPercent}%</div>
                       </td>
                       <td className="py-4 px-2 text-right">
-                        {item.source === "at" ? (
-                          <span className="text-[10px] font-mono text-brand-subtext">Log AT</span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void handleDownloadHistoryPdf(item)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold text-[10px] rounded-lg tracking-wider uppercase shadow transition-colors cursor-pointer"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>Descargar PDF</span>
-                          </button>
-                        )}
+                        <PdfButton
+                          disabled={!row.canDownload}
+                          onClick={() => void handleDownloadHistoryPdf(item)}
+                        />
                       </td>
                     </tr>
                   )
@@ -160,8 +202,71 @@ export function HistorialPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
+  )
+}
+
+function historyRowView(item: ComparisonHistoryEntry) {
+  const invoiceTotal = comparisonHistoryInvoiceTotal(item)
+  const savingsMonthly = comparisonHistorySavingsMonthly(item)
+  const savingsPercent = invoiceTotal > 0 ? Math.round((savingsMonthly / invoiceTotal) * 100) : 0
+  const savingsClass =
+    savingsMonthly > 0
+      ? "text-emerald-600 dark:text-emerald-400"
+      : savingsMonthly < 0
+        ? "text-rose-600 dark:text-rose-400"
+        : "text-brand-text"
+  return {
+    invoiceTotal,
+    savingsMonthly,
+    savingsPercent,
+    savingsClass,
+    canDownload: comparisonHistoryCanDownloadPdf(item),
+  }
+}
+
+function AtBadge() {
+  return (
+    <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
+      AT
+    </span>
+  )
+}
+
+function TariffBadge({ tariff }: { tariff: string }) {
+  return (
+    <span className="inline-block bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold">
+      {tariff}
+    </span>
+  )
+}
+
+function PdfButton({
+  disabled,
+  onClick,
+  className = "",
+}: {
+  disabled: boolean
+  onClick: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={
+        disabled
+          ? "Esta comparativa no tiene los precios de la oferta guardados"
+          : "PDF con los datos y precios guardados"
+      }
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-extrabold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${className}`}
+    >
+      <Download className="w-3.5 h-3.5" />
+      <span>PDF</span>
+    </button>
   )
 }

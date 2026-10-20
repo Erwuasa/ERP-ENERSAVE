@@ -1,4 +1,5 @@
 import type { Contract } from "../types/contract"
+import { canonicalComparadorGasPeaje, isComparadorGasPeaje } from "./comparador-access-tariff"
 import type { MarcoRetributivoRow } from "./supabase/marco-retributivo"
 import { marcoRowToProducto } from "./productos-catalog"
 import { getTariffPeajeType } from "./contract-potencia"
@@ -45,6 +46,8 @@ export interface ComparadorCostExtras {
 }
 
 export function normalizePeaje(peaje: string | undefined): string {
+  const gas = canonicalComparadorGasPeaje(peaje)
+  if (gas) return gas
   if (!peaje) return "2.0TD"
   if (peaje.includes("2.0")) return "2.0TD"
   if (peaje.includes("3.0")) return "3.0TD"
@@ -64,6 +67,7 @@ function parsePotenciaKw(contract: Contract): number {
 }
 
 export function activePeriodCount(peaje: string): number {
+  if (isComparadorGasPeaje(peaje)) return 1
   return normalizePeaje(peaje) === "2.0TD" ? 3 : 6
 }
 
@@ -87,8 +91,11 @@ export function inferContractPotencias(contract: Contract): number[] {
 export function inferContractConsumos(contract: Contract): number[] {
   const total = contract.consumoAnualManual ?? contract.consumoAnual ?? 0
   const peaje = contractPeaje(contract)
-  const split =
-    normalizePeaje(peaje) === "2.0TD" ? CONSUMO_SPLIT_20TD : CONSUMO_SPLIT_30TD
+  const split = isComparadorGasPeaje(peaje)
+    ? [1, 0, 0, 0, 0, 0]
+    : normalizePeaje(peaje) === "2.0TD"
+      ? CONSUMO_SPLIT_20TD
+      : CONSUMO_SPLIT_30TD
   return split.map((ratio) => Math.round(total * ratio))
 }
 

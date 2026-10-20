@@ -16,20 +16,18 @@ import { toast } from "sonner"
 import {
   ENERSAVE_ACTION,
   ENERSAVE_PERIOD_CHART_COLORS,
+  supplyBadgeClass,
   type EnersavePeriodChartKey,
 } from "@/lib/enersave-ui-theme"
 import type { SipsVisualResult } from "@/lib/sips/to-visual"
+import type { SipsProducto } from "@/lib/sips/types"
 
 interface Props {
   data: SipsVisualResult
+  producto?: SipsProducto
   onClose: () => void
   onRefresh?: () => void
 }
-
-const TH =
-  "text-left text-[9px] font-mono font-bold uppercase tracking-wider text-brand-subtext px-3 py-2 border-b border-brand-border bg-brand-surface/60"
-const TD = "px-3 py-2 text-[11px] text-brand-text border-b border-brand-border/70 align-middle"
-const TD_MONO = `${TD} font-mono tabular-nums`
 
 const kwhFormat = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 })
 const kwFormat = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 3 })
@@ -87,7 +85,7 @@ function dash(value: string): string {
   return value.trim() ? value : "—"
 }
 
-export function SipsResultsPanel({ data, onClose, onRefresh }: Props) {
+export function SipsResultsPanel({ data, producto = "luz", onClose, onRefresh }: Props) {
   const hasConsumptionSplit = data.periodosAnual.length > 0
   const consumptionPeriods = hasConsumptionSplit
     ? data.periodosAnual.map((row) => row.period)
@@ -118,7 +116,12 @@ export function SipsResultsPanel({ data, onClose, onRefresh }: Props) {
     <div className="space-y-3 min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-mono text-sm font-extrabold tracking-tight text-brand-text break-all">{data.cups}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-sm font-extrabold tracking-tight text-brand-text break-all">{data.cups}</p>
+            <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase ${supplyBadgeClass(producto)}`}>
+              {producto === "gas" ? "Gas" : "Luz"}
+            </span>
+          </div>
           {meta ? <p className="text-[10px] font-mono text-brand-subtext mt-0.5">{meta}</p> : null}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -159,34 +162,27 @@ export function SipsResultsPanel({ data, onClose, onRefresh }: Props) {
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-brand-border">
-        <table className="w-full min-w-[720px] border-collapse">
-          <thead>
-            <tr>
-              <th className={TH}>Provincia</th>
-              <th className={TH}>Localidad</th>
-              <th className={TH}>C.P.</th>
-              <th className={TH}>Distribuidora</th>
-              <th className={TH}>Tarifa</th>
-              <th className={TH}>CNAE</th>
-              <th className={TH}>Pot. máx.</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="bg-white dark:bg-[#0f172a]">
-              <td className={TD}>{dash(data.provincia)}</td>
-              <td className={TD}>{dash(data.localidad)}</td>
-              <td className={TD_MONO}>{dash(data.codigoPostal)}</td>
-              <td className={TD}>{dash(data.distribuidora)}</td>
-              <td className={TD_MONO}>{dash(data.tarifa)}</td>
-              <td className={TD_MONO}>{dash(data.cnae)}</td>
-              <td className={`${TD_MONO} font-bold text-cyan-700 dark:text-cyan-400`}>
-                {data.potenciaMaxKw === null ? "—" : `${kwFormat.format(data.potenciaMaxKw)} kW`}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-px overflow-hidden rounded-xl border border-brand-border bg-brand-border">
+        {(
+          [
+            ["Provincia", dash(data.provincia)],
+            ["Localidad", dash(data.localidad)],
+            ["C.P.", dash(data.codigoPostal)],
+            ["Distribuidora", dash(data.distribuidora)],
+            ["Tarifa", dash(data.tarifa)],
+            ["CNAE", dash(data.cnae)],
+            [
+              producto === "gas" ? "Caudal máx." : "Pot. máx.",
+              data.potenciaMaxKw === null ? "—" : `${kwFormat.format(data.potenciaMaxKw)} kW`,
+            ],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label} className="bg-white dark:bg-[#0f172a] px-3 py-2 min-w-0">
+            <dt className="text-[9px] font-mono font-bold uppercase tracking-wider text-brand-subtext">{label}</dt>
+            <dd className="mt-0.5 text-[11px] font-mono text-brand-text break-words">{value}</dd>
+          </div>
+        ))}
+      </dl>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <section className="rounded-xl border border-brand-border bg-white dark:bg-[#0f172a] p-4 min-h-[240px] flex flex-col">
@@ -270,11 +266,13 @@ export function SipsResultsPanel({ data, onClose, onRefresh }: Props) {
 
         <div className="rounded-xl border border-brand-border bg-white dark:bg-[#0f172a] p-3">
           <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-brand-subtext mb-2">
-            Potencias (kW)
+            {producto === "gas" ? "Potencia / caudal" : "Potencias (kW)"}
           </p>
           {data.potencias.length === 0 ? (
             <p className="text-xs text-brand-subtext py-8 text-center">
-              El proveedor no devuelve potencias para este CUPS.
+              {producto === "gas"
+                ? "El SIPS de gas no trae potencias por periodo para este CUPS."
+                : "El proveedor no devuelve potencias para este CUPS."}
             </p>
           ) : (
             <div className="h-[220px] w-full">

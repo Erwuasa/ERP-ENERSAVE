@@ -14,15 +14,46 @@ export const COMPARADOR_ACCESS_TARIFF_CHIPS: ComparadorAccessTariffChip[] = [
   { label: "6.4", value: "6.4TD" },
 ]
 
-const ACCESS_TARIFF_VALUES = new Set<string>(
-  COMPARADOR_ACCESS_TARIFF_CHIPS.map((chip) => chip.value)
-)
+export const COMPARADOR_GAS_ACCESS_TARIFF_CHIPS: ComparadorAccessTariffChip[] = [
+  { label: "RL1", value: "RL1" },
+  { label: "RL2", value: "RL2" },
+  { label: "RL3", value: "RL3" },
+  { label: "RL4", value: "RL4" },
+  { label: "RL5", value: "RL5" },
+]
+
+export function comparadorAccessTariffChips(
+  supply: "luz" | "gas"
+): ComparadorAccessTariffChip[] {
+  return supply === "gas" ? COMPARADOR_GAS_ACCESS_TARIFF_CHIPS : COMPARADOR_ACCESS_TARIFF_CHIPS
+}
+
+/** RL1–RL5, also written RL.1. Other gas tolls (RLTA, RLPS…) stay out of the comparator chips. */
+export function canonicalComparadorGasPeaje(value: string | null | undefined): ComparadorAccessTariff | null {
+  const match = String(value ?? "")
+    .toUpperCase()
+    .replace(/\s/g, "")
+    .match(/RL\.?([1-5])(?!\d)/)
+  if (!match) return null
+  return `RL${match[1]}` as ComparadorAccessTariff
+}
+
+export function isComparadorGasPeaje(value: string | null | undefined): boolean {
+  return canonicalComparadorGasPeaje(value) != null
+}
+
+const ACCESS_TARIFF_VALUES = new Set<string>([
+  ...COMPARADOR_ACCESS_TARIFF_CHIPS.map((chip) => chip.value),
+  ...COMPARADOR_GAS_ACCESS_TARIFF_CHIPS.map((chip) => chip.value),
+])
 
 export function isComparadorAccessTariff(value: string): value is ComparadorAccessTariff {
   return ACCESS_TARIFF_VALUES.has(value) || value === "6.0TD"
 }
 
 export function normalizeComparadorAccessTariff(value: string | null | undefined): ComparadorAccessTariff {
+  const gas = canonicalComparadorGasPeaje(value)
+  if (gas) return gas
   const normalized = String(value ?? "").trim().toUpperCase()
   if (!normalized) return "2.0TD"
   if (normalized.includes("2.0")) return "2.0TD"
@@ -36,6 +67,7 @@ export function normalizeComparadorAccessTariff(value: string | null | undefined
 }
 
 export function isComparadorMultiPeriodTariff(accessTariff: string): boolean {
+  if (isComparadorGasPeaje(accessTariff)) return false
   return accessTariff !== "2.0TD"
 }
 
@@ -48,6 +80,7 @@ export function resolveComparadorCatalogPeajeKey(accessTariff: string): string {
 export function comparadorAccessTariffDbIlikePattern(
   accessTariff: ComparadorAccessTariff | string
 ): string {
+  if (isComparadorGasPeaje(accessTariff)) return "%RL%"
   const chip = normalizeComparadorAccessTariff(accessTariff)
   if (chip === "2.0TD") return "%2.0%"
   if (chip === "3.0TD") return "%3.0%"
@@ -65,6 +98,9 @@ export function tariffMatchesComparadorAccessTariff(
   const chip = normalizeComparadorAccessTariff(selected)
   const db = String(dbAccessTariff ?? "").trim().toUpperCase()
   if (!db) return false
+
+  const chipGas = canonicalComparadorGasPeaje(chip)
+  if (chipGas) return canonicalComparadorGasPeaje(db) === chipGas
 
   if (chip === "2.0TD") return db.includes("2.0")
   if (chip === "3.0TD") return db.includes("3.0") && !db.includes("6.")

@@ -97,6 +97,63 @@ describe("mapComparadorToEstudioAhorro", () => {
     expect(desglose.find((row) => row.kind === "total")?.costEur).toBe(taxes.totalMensual)
   })
 
+  it("con el alquiler del formulario a 0 el total del PDF es el de la tarjeta, con 1,84 €", () => {
+    const potencias = { p1: 4.6, p2: 4.6, p3: 0, p4: 0, p5: 0, p6: 0 }
+    const consumos = { p1: 5, p2: 4, p3: 6, p4: 0, p5: 0, p6: 0 }
+    const precios = {
+      P1: { energyPriceKwh: 0.18, powerPriceKwDay: 0.07 },
+      P2: { energyPriceKwh: 0.14, powerPriceKwDay: 0.01 },
+      P3: { energyPriceKwh: 0.12, powerPriceKwDay: 0 },
+    }
+    const input = mapComparadorToEstudioAhorro({
+      clienteNombre: "Cliente",
+      cups: "ES0000000000000000AA",
+      accessTariff: "2.0TD",
+      potencias,
+      consumos,
+      diasFacturacion: 30,
+      rentMeterMonthly: 0,
+      currentBillMonthly: 90,
+      bestOption: {
+        companyName: "IMAGINA",
+        tariffName: "Flex Fijo",
+        annualCost: 0,
+        potenciaBreakdown: 0,
+        consumoBreakdown: 0,
+        rentCostAnnual: 0,
+        savingsAnnual: 0,
+        savingsPercentage: 0,
+        precios,
+      },
+      summary: {
+        bestTariffName: "Flex Fijo",
+        bestTariffCompany: "IMAGINA",
+        maxAnnualSavings: 0,
+        maxSavingsPercentage: 0,
+        currentAnnualExpense: 90 * 12,
+      },
+    })
+
+    const potencia = 4.6 * 0.07 * 30 + 4.6 * 0.01 * 30
+    const energia = 5 * 0.18 + 4 * 0.14 + 6 * 0.12
+    const taxes = resolveComparadorOfferTaxes({
+      costeAnual: (potencia + energia + 1.84) * 12,
+      potenciaAnual: potencia * 12,
+      energiaAnual: energia * 12,
+      alquilerAnual: 1.84 * 12,
+    })
+
+    expect(input.tarifaPropuesta.otrosConceptos.find((row) => row.concepto === "Alquiler equipo")?.total).toBe(
+      1.84
+    )
+    expect(input.tarifaPropuesta.totalFactura).toBe(taxes.totalMensual)
+    expect(input.tarifaPropuesta.otrosConceptos.find((row) => row.concepto === "IVA")?.total).toBe(
+      taxes.ivaMensual
+    )
+    expect(input.tarifaActual.totalFactura).toBe(90)
+    expect(input.ahorroPorFacturaEur).toBeCloseTo(90 - taxes.totalMensual, 2)
+  })
+
   it("en 3.0TD la factura actual y la oferta usan P1-P6", () => {
     const periodos = { p1: 1, p2: 1, p3: 1, p4: 1, p5: 1, p6: 1 }
     const input = mapComparadorToEstudioAhorro({

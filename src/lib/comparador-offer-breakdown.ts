@@ -1,3 +1,4 @@
+import { isComparadorGasPeaje } from "./comparador-access-tariff"
 import {
   activeConsumoPeriodSlots,
   activePotenciaPeriodSlots,
@@ -84,6 +85,7 @@ export function buildComparadorOfferBreakdown(
   const conSlots = activeConsumoPeriodSlots(input.peaje)
   const preciosOferta = input.preciosOferta ?? {}
   const dias = input.diasFacturacion ?? COMPARADOR_DIAS_FACTURACION_MENSUAL
+  const gas = isComparadorGasPeaje(input.peaje)
 
   for (const slot of potSlots) {
     const key = slotToPeriodKey(slot)
@@ -101,7 +103,9 @@ export function buildComparadorOfferBreakdown(
     rows.push({
       id: `pot-${slot}`,
       kind: "potencia",
-      labelLeft: `${periodLabel} · ${formatRate(kw, 2)} kW · ${dias} días × ${formatRate(offerPotRate)} €/kW·día`,
+      labelLeft: gas
+        ? `Término fijo · ${dias} días × ${formatRate(offerPotRate)} €/día`
+        : `${periodLabel} · ${formatRate(kw, 2)} kW · ${dias} días × ${formatRate(offerPotRate)} €/kW·día`,
       amountOffer,
       amountCurrent,
       savings:
@@ -125,7 +129,9 @@ export function buildComparadorOfferBreakdown(
     rows.push({
       id: `ene-${slot}`,
       kind: "energia",
-      labelLeft: `${periodLabel} · ${formatRate(kwhMes, 0)} kWh/mes · ${formatRate(offerEnergyRate, 4)} €/kWh`,
+      labelLeft: gas
+        ? `Término variable · ${formatRate(kwhMes, 0)} kWh × ${formatRate(offerEnergyRate, 4)} €/kWh`
+        : `${periodLabel} · ${formatRate(kwhMes, 0)} kWh/mes · ${formatRate(offerEnergyRate, 4)} €/kWh`,
       amountOffer,
       amountCurrent,
       savings:

@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react"
-import { Coins, Zap } from "lucide-react"
+import { Coins, Flame, Zap } from "lucide-react"
 import { ComparadorAdvancedToggle } from "@/components/comparador/ComparadorAdvancedToggle"
 import { ComparadorPeriodRows } from "@/components/comparador/ComparadorPeriodRows"
-import { resolveComparadorFormDensity } from "@/lib/comparador-period-layout"
+import { DecimalComaInput } from "@/components/comparador/DecimalComaInput"
+import { isComparadorGasPeaje } from "@/lib/comparador-access-tariff"
+import { resolveComparadorFormDensity, comparadorFieldLabelClass, comparadorNumericInputClass } from "@/lib/comparador-period-layout"
+import { SUPPLY_KIND_THEME } from "@/lib/enersave-ui-theme"
 import { hasComparadorPeriodPrices, type ComparadorPeriodSlot } from "@/lib/comparador-periods"
 import type { ComparadorPeriodValues } from "@/lib/erp/comparador-rates"
 
@@ -63,12 +66,71 @@ export function ComparadorEnergyFields({
 }: ComparadorEnergyFieldsProps) {
   const density = resolveComparadorFormDensity(peaje)
   const isCompact = density === "compact"
+  const isGas = isComparadorGasPeaje(peaje)
   const [showPotenciaPrices, togglePotenciaPrices] = useRevealPricesWhenFilled(
     hasComparadorPeriodPrices(peaje, "potencia", preciosPotencia)
   )
   const [showConsumoPrices, toggleConsumoPrices] = useRevealPricesWhenFilled(
     hasComparadorPeriodPrices(peaje, "consumo", preciosEnergia)
   )
+  const showGasPrices = showPotenciaPrices || showConsumoPrices
+
+  if (isGas) {
+    const labelClass = comparadorFieldLabelClass(density)
+    const inputClass = comparadorNumericInputClass(density)
+    return (
+      <section className="space-y-2">
+        <SectionHeader
+          title="Consumo"
+          icon={<Flame className={`w-3.5 h-3.5 ${SUPPLY_KIND_THEME.gas.icon}`} />}
+          action={
+            <ComparadorAdvancedToggle
+              active={showGasPrices}
+              onToggle={() => {
+                const next = !showGasPrices
+                if (next !== showPotenciaPrices) togglePotenciaPrices()
+                if (next !== showConsumoPrices) toggleConsumoPrices()
+              }}
+              label="Precios de la factura actual de gas"
+            />
+          }
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="flex min-w-0 flex-col gap-1">
+            <label className={labelClass}>Consumo (kWh)</label>
+            <DecimalComaInput
+              value={consumos.p1 || 0}
+              onChange={(value) => onConsumoChange("p1", value)}
+              showZeroAsEmpty
+              className={inputClass}
+            />
+          </div>
+        </div>
+        {showGasPrices ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className={labelClass}>Término fijo €/día</span>
+              <DecimalComaInput
+                value={preciosPotencia.p1 || 0}
+                onChange={(value) => onPotenciaPriceChange("p1", value)}
+                showZeroAsEmpty
+                className={inputClass}
+              />
+            </div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className={labelClass}>Término variable €/kWh</span>
+              <DecimalComaInput
+                value={preciosEnergia.p1 || 0}
+                onChange={(value) => onConsumoPriceChange("p1", value)}
+                showZeroAsEmpty
+                className={inputClass}
+              />
+            </div>
+          </div>
+        ) : null}
+      </section>
+    )
+  }
 
   return (
     <div className={isCompact ? "space-y-3" : "space-y-4"}>

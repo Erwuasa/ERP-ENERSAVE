@@ -1,3 +1,4 @@
+import { isComparadorGasPeaje } from "./comparador-access-tariff"
 import {
   activeConsumoPeriodSlots,
   activePotenciaPeriodSlots,
@@ -6,6 +7,7 @@ import {
 import type { ComparadorPeriodValues } from "./erp/comparador-rates"
 import {
   activePeriodCount,
+  DEFAULT_RENT_METER_MONTHLY,
   normalizePeaje,
   preciosMapToRateArrays,
   type ComparadorCostExtras,
@@ -15,6 +17,16 @@ import {
 } from "./tarifa-cost-calculator"
 
 export const COMPARADOR_DIAS_FACTURACION_MENSUAL = 30
+
+/**
+ * Alquiler que usa la tarjeta. Vacío o 0 no es «sin alquiler»: el formulario
+ * arranca en 0 y la oferta aplica el alquiler de mercado hasta que se escriba otro.
+ */
+export function resolveComparadorAlquilerMensual(value: number | null | undefined): number {
+  const num = Number(value)
+  if (Number.isFinite(num) && num > 0) return num
+  return DEFAULT_RENT_METER_MONTHLY
+}
 
 /**
  * La oferta nueva no arrastra «otros costes / SVA»: es un coste de la factura actual.
@@ -84,6 +96,12 @@ export function resolveComparadorBillingPeriods(
 
   if (hasPotencia && totalConsumo > 0) {
     return { potencias, consumos, precision: "exacto" }
+  }
+
+  if (isComparadorGasPeaje(peaje) && totalConsumo > 0) {
+    const next = [...potencias]
+    next[0] = 1
+    return { potencias: next, consumos, precision: "exacto" }
   }
 
   return { potencias, consumos, precision: "estimado" }

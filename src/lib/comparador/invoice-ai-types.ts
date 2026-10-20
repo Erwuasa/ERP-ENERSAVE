@@ -34,4 +34,16 @@ export interface InvoiceAiPublicPayload {
   supplyAddress?: Record<string, unknown>
   iban?: string
   contact?: { email?: string; phone?: string }
+  gasConsumoKwh?: number | null
+  gasPrecioVariableEurKwh?: number | null
+  gasTerminoFijoEurDia?: number | null
+  gasTerminoFijoEurTotal?: number | null
+  gasIhcCantidadKwh?: number | null
+  gasIhcPrecioEurKwh?: number | null
+  gasIhcTotalEur?: number | null
+  gasTasasEspecialesEur?: number | null
+  gasCanonIrcEur?: number | null
+  gasOtrosServiciosEur?: number | null
+  gasOtrosConceptosEur?: number | null
+  gasImpuestoIndirectoPct?: number | null
 }
