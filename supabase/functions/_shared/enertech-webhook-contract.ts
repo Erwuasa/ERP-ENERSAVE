@@ -40,6 +40,17 @@ const LEGACY_ESTADO_MAP: Record<string, string> = {
   "pte. rgpd": "PTE DE RGPD",
   "pendiente rgpd": "PTE DE RGPD",
   "pendiente de rgpd": "PTE DE RGPD",
+  // Enertech wizard estados (estado_nuevo.nombre)
+  "pte rgpd": "PTE DE RGPD",
+  "pendiente de carga": "PTE DE TRAMITACIÓN",
+  "incidencia": "INCIDENCIA ADMINISTRATIVA",
+  "pte. revisión interna": "INCIDENCIA ADMINISTRATIVA",
+  "pte. revision interna": "INCIDENCIA ADMINISTRATIVA",
+  "revisión interna": "INCIDENCIA ADMINISTRATIVA",
+  "revision interna": "INCIDENCIA ADMINISTRATIVA",
+  "tramitando": "TRAMITANDO",
+  "activando": "TRAMITANDO",
+  "dado de baja": "Dado de Baja",
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -78,7 +89,12 @@ export function readEnertechWebhookContract(payload: unknown): EnertechWebhookCo
       positiveInt(source.idContract) ??
       positiveInt(source.contract_id)
     cups = cups ?? text(source.cups)
+    // Direct estado fields (legacy format)
     estado = estado ?? text(source.estado) ?? text(source.status) ?? text(source.estado_nombre)
+    // Enertech wizard format: estado_nuevo: { id, nombre }
+    if (!estado && isRecord(source.estado_nuevo)) {
+      estado = text((source.estado_nuevo as Record<string, unknown>).nombre)
+    }
   }
   if (!idContract && !cups && !estado) return null
   return { idContract, cups: cups?.toUpperCase().replace(/[\s\-.]/g, "") ?? null, estado }

@@ -14,9 +14,6 @@ export function describeWebhookProcessing(input: {
   updateFailed?: boolean
 }): WebhookProcessingResult {
   const label = input.estadoLabel?.trim() ?? ''
-  if (label && !input.mapped) {
-    return { processed: false, note: `estado "${label}" no mapea al dominio del ERP` }
-  }
   if (!label || !input.localContractId) {
     if (input.idContract) return { processed: false, note: `contrato Enertech ${input.idContract} no encontrado` }
     if (input.cups) return { processed: false, note: `CUPS ${input.cups} sin contrato local` }
@@ -24,6 +21,10 @@ export function describeWebhookProcessing(input: {
   }
   if (input.updateFailed) {
     return { processed: false, note: `no se pudo guardar el estado en ${input.localContractId}` }
+  }
+  if (!input.mapped) {
+    // Contract was found and Enertech ID saved, but estado couldn't be mapped to ERP domain
+    return { processed: true, note: `id guardado en ${input.localContractId}; estado "${label}" no mapea al ERP` }
   }
   return { processed: true, note: `estado aplicado a ${input.localContractId}` }
 }

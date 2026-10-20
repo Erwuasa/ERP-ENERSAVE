@@ -185,10 +185,15 @@ async function applyWebhookContractEstado(
     idContract: read?.idContract ?? null,
     cups: read?.cups ?? null,
   }
-  if (!read?.estado || !mappedEstado) {
+
+  // Need at least an ID or CUPS to find the contract
+  if (!read?.idContract && !read?.cups) {
     return describeWebhookProcessing({ ...base, localContractId: null })
   }
 
+  // Look up the contract — first by saved Enertech ID, then by CUPS.
+  // We do this REGARDLESS of whether the estado maps, so we can always
+  // save the enertech_contract_id link for future event matching.
   let row: { id: string; metadata: Record<string, unknown> | null } | null = null
   if (read.idContract) {
     const byId = await admin
@@ -211,12 +216,21 @@ async function applyWebhookContractEstado(
   }
   if (!row) return describeWebhookProcessing({ ...base, localContractId: null })
 
+  // Always persist the Enertech contract ID and estado label so future events
+  // can match by ID directly (avoiding the slower CUPS fallback).
   const metadata = {
     ...(row.metadata ?? {}),
-    enertech_estado: read.estado,
+    ...(estadoLabel ? { enertech_estado: estadoLabel } : {}),
     ...(read.idContract ? { enertech_contract_id: read.idContract } : {}),
   }
-  const { error } = await admin.from("contratos_equipo").update({ estado: mappedEstado, metadata }).eq("id", row.id)
+
+  // Only update the ERP estado field when we have a mapped value.
+  const update: Record<string, unknown> = { metadata }
+  if (mappedEstado) {
+    update.estado = mappedEstado
+  }
+
+  const { error } = await admin.from("contratos_equipo").update(update).eq("id", row.id)
   return describeWebhookProcessing({
     ...base,
     localContractId: row.id,
