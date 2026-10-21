@@ -31,6 +31,13 @@ const GEMINI_RESPONSE_SCHEMA = {
       maxItems: 6,
       description: "Potencia contratada kW P1..P6, 0 si no aplica",
     },
+    powerPriceEurKwDayByPeriod: {
+      type: "array",
+      items: { type: "number" },
+      minItems: 6,
+      maxItems: 6,
+      description: "Precio unitario de potencia EUR/kW día, P1..P6. 0 si no aplica. No es el importe total.",
+    },
     powerCostEur: { type: "number", nullable: true, description: "Coste total término de potencia en EUR" },
     energyKwhByPeriod: {
       type: "array",
@@ -38,6 +45,13 @@ const GEMINI_RESPONSE_SCHEMA = {
       minItems: 6,
       maxItems: 6,
       description: "Energía kWh P1..P6. Buscar también Lectura por periodos. Si es kWh/día, multiplicar por invoiceDays.",
+    },
+    energyPriceEurKwhByPeriod: {
+      type: "array",
+      items: { type: "number" },
+      minItems: 6,
+      maxItems: 6,
+      description: "Precio unitario de energía EUR/kWh, P1..P6. 0 si no aplica. Si hay un solo precio, repetirlo en los periodos activos.",
     },
     energyCostEur: { type: "number", nullable: true, description: "Coste total término de energía en EUR" },
     meterRentalAmount: { type: "number", nullable: true, description: "Alquiler del equipo de medida del período" },
@@ -61,7 +75,8 @@ const GEMINI_RESPONSE_SCHEMA = {
   required: [
     "cups", "companyBrand", "holderNif", "holderName", "invoiceDate", "invoiceDays",
     "supplyType", "segment", "electricityCategory", "gasCategory", "electricityTaxRegime",
-    "powerKwByPeriod", "powerCostEur", "energyKwhByPeriod", "energyCostEur",
+    "powerKwByPeriod", "powerPriceEurKwDayByPeriod", "powerCostEur",
+    "energyKwhByPeriod", "energyPriceEurKwhByPeriod", "energyCostEur",
     "meterRentalAmount", "socialBonusCostEur", "financingSocialBonusAmount",
     "otherCosts", "totalAmountEur",
     "gasConsumoKwh", "gasPrecioVariableEurKwh", "gasTerminoFijoEurDia",
@@ -79,21 +94,24 @@ REGLAS GENERALES:
 - Si un dato no aparece en la factura: devuelve null (o array de ceros para powerKwByPeriod/energyKwhByPeriod).
 - Importes SIEMPRE en euros con punto decimal (nunca coma). Ej: 45.32
 - No inventes datos que no estén explícitamente en la factura.
-- powerKwByPeriod y energyKwhByPeriod tienen SIEMPRE 6 posiciones (P1..P6 en orden).
+- powerKwByPeriod, energyKwhByPeriod, powerPriceEurKwDayByPeriod y energyPriceEurKwhByPeriod tienen SIEMPRE 6 posiciones (P1..P6 en orden).
 
-TIPO DE SUMINISTRO (supplyType):
-- "luz" si es factura eléctrica
-- "gas" si es factura de gas natural
+TIPO DE SUMINISTRO (supplyType) — el campo más importante:
+- "luz" si la factura dice electricidad, peaje 2.0TD/3.0TD/6.xTD, término de potencia o impuesto electricidad.
+- "gas" solo si es una factura de gas de verdad: peaje RL1–RL5, término fijo de gas o suministro de gas.
+- Una dirección («Plaça del Gas», «Plaza del Gas»), el mix de generación o la línea «CC Gas Natural» NO convierten una factura eléctrica en gas.
+- Si aparecen señales de luz y de gas, gana la luz.
 
 SEGMENTO (segment) - deducir del NIF:
 - DNI: 8 dígitos + letra → "residencial"
 - NIE: letra X/Y/Z + 7 dígitos + letra → "residencial"
 - CIF: letra + 7 dígitos + control → "pyme"
-- Si hay CNAE empresarial aunque el titular tenga DNI → "pyme"
+- Un CNAE en una factura con DNI o NIE y peaje 2.0TD sigue siendo "residencial"
 - Duda → null
 
 TARIFA DE ACCESO ELÉCTRICA (electricityCategory):
-- 2.0TD, 3.0TD, 6.1TD, 6.2TD, 6.3TD, 6.4TD. Buscar el literal en la factura.
+- Copiar el peaje de «Peaje de transporte y distribución»: 2.0TD, 3.0TD, 6.1TD, 6.2TD, 6.3TD, 6.4TD.
+- En gas, gasCategory es RL1–RL5 y electricityCategory queda null.
 
 PERIODOS ACTIVOS:
 - 2.0TD: potencia en P1 y P2; energía en P1, P2 y P3. El resto a 0.
@@ -105,7 +123,12 @@ CONSUMO ELÉCTRICO (energyKwhByPeriod):
 - Si no hay desglose, usar el desglose de cargos del término de energía.
 
 POTENCIA (powerKwByPeriod):
-- Buscar en "Potencia contratada" o "Término de potencia".
+- Buscar en "Potencia contratada" o "Término de potencia". Son kW, no el precio.
+
+PRECIOS UNITARIOS (del desglose, no los importes):
+- powerPriceEurKwDayByPeriod: el €/kW día de cada «Término potencia P1..P6». En 2.0TD, P1 y P2 pueden ser distintos. El resto a 0.
+- energyPriceEurKwhByPeriod: el €/kWh de Punta/Llano/Valle o de P1..P6. Si la factura trae un solo €/kWh para todo el consumo, repetirlo en P1–P3 (2.0TD) o en P1–P6 (3.0 y 6.x).
+- No uses la lectura del contador (el acumulado) como kWh ni como precio.
 
 GAS (gasCategory):
 - RL1 ≤ 5.000 kWh/año; RL2 hasta 15.000; RL3 hasta 50.000; RL4 hasta 300.000; RL5 por encima. Si no hay consumo anual, null.
@@ -174,8 +197,10 @@ function normalizePayload(raw: unknown): Record<string, unknown> {
     gasCategory: normalizeString(row.gasCategory),
     electricityTaxRegime: normalizeString(row.electricityTaxRegime),
     powerKwByPeriod: normalizePeriods(row.powerKwByPeriod),
+    powerPriceEurKwDayByPeriod: normalizePeriods(row.powerPriceEurKwDayByPeriod),
     powerCostEur: normalizeNumber(row.powerCostEur),
     energyKwhByPeriod: normalizePeriods(row.energyKwhByPeriod),
+    energyPriceEurKwhByPeriod: normalizePeriods(row.energyPriceEurKwhByPeriod),
     energyCostEur: normalizeNumber(row.energyCostEur),
     meterRentalAmount: normalizeNumber(row.meterRentalAmount),
     socialBonusCostEur: normalizeNumber(row.socialBonusCostEur),

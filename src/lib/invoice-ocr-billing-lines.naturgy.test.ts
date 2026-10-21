@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   extractDiasFacturadosFromInvoice,
   extractInvoicePeriodConsumoKwh,
+  extractInvoicePeriodUnitPrices,
   extractInvoiceTotalAmountEur,
   extractMeterRentalAmountEur,
   extractSocialBonusFinancingEur,
@@ -36,6 +37,11 @@ describe("invoice-ocr-billing-lines Naturgy", () => {
     expect(monthly.p1).toBeCloseTo(34.29, 1)
     expect(monthly.p2).toBeCloseTo(42, 0)
     expect(monthly.p3).toBeCloseTo(90, 0)
+
+    const prices = extractInvoicePeriodUnitPrices(NATURGY_FIXTURE, "2.0TD")
+    expect(prices.energia?.p1).toBeCloseTo(0.189562)
+    expect(prices.energia?.p2).toBeCloseTo(0.116955)
+    expect(prices.energia?.p3).toBeCloseTo(0.082281)
   })
 
   it("tolera errores típicos de OCR escaneado", () => {

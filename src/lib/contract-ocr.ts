@@ -1,9 +1,13 @@
 import type { ComparadorAccessTariff } from "./erp/comparador-rates"
 import { normalizeComparadorAccessTariff } from "./comparador-access-tariff"
 import type { ComparadorPeriodValues } from "./erp/comparador-rates"
+import { inferInvoiceSupplyKind, resolveInvoiceSegment } from "./comparador-invoice-supply"
 import {
   extractDiasFacturadosFromInvoice,
+  extractInvoiceAccessPeaje,
+  extractInvoiceContractedPowerKw,
   extractInvoicePeriodConsumoKwh,
+  extractInvoicePeriodUnitPrices,
   extractInvoiceTotalAmountEur,
   extractMeterRentalAmountEur,
   extractServiciosSvaAmountEur,
@@ -97,11 +101,8 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
     }
   }
 
-  if (/\bGAS\b|GNL|RL\.?\s*[123]|NATURAL\b/i.test(text)) {
-    result.tipo = "gas"
-  } else if (/\bLUZ\b|ELECTRIC|2\.0\s*TD|3\.0\s*TD|6\.0\s*TD|SUMINISTRO\s+EL[EÉ]CTRIC/i.test(text)) {
-    result.tipo = "luz"
-  }
+  const supplyKind = inferInvoiceSupplyKind(text)
+  if (supplyKind) result.tipo = supplyKind
 
   const companies = [
     "Gana Energía",
@@ -142,6 +143,9 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
   } else if (/6\.[0-9]\s*TD/.test(text)) {
     result.accessTariff = normalizeComparadorAccessTariff("6.1TD")
   }
+
+  const peaje = extractInvoiceAccessPeaje(text)
+  if (peaje) result.accessTariff = peaje
 
   const periodConsumo = extractInvoicePeriodConsumoKwh(text)
   if (periodConsumo && periodConsumo.p1 + periodConsumo.p2 + periodConsumo.p3 > 0) {
@@ -201,6 +205,14 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
     }
   }
 
+  const contractedPower = extractInvoiceContractedPowerKw(text)
+  if (contractedPower) {
+    result.potenciasKw = contractedPower
+    if (contractedPower.p1 > 0) {
+      result.potenciaContratada = String(contractedPower.p1).replace(".", ",")
+    }
+  }
+
   const diasLabel = extractDiasFacturadosFromInvoice(text)
   if (diasLabel != null) {
     result.diasFacturados = diasLabel
@@ -245,6 +257,18 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
   if (precioMatch) {
     result.precioFijoConsumo = parseFloat(precioMatch[1].replace(",", "."))
   }
+
+  const unitPrices = extractInvoicePeriodUnitPrices(text, result.accessTariff)
+  if (unitPrices.potencia) result.preciosPotenciaEur = unitPrices.potencia
+  if (unitPrices.energia) result.preciosEnergiaEur = unitPrices.energia
+
+  const segment = resolveInvoiceSegment({
+    nif: result.nif,
+    tipo: result.tipo,
+    accessTariff: result.accessTariff,
+    current: result.segment,
+  })
+  if (segment) result.segment = segment
 
   const fechaInicioMatch =
     text.match(/(?:fecha\s+de\s+)?(?:inicio|activaci[oó]n|alta)[^\d]{0,25}(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i) ||

@@ -1,6 +1,8 @@
-import { normalizeComparadorAccessTariff } from "@/lib/comparador-access-tariff"
+import { isComparadorGasPeaje, normalizeComparadorAccessTariff } from "@/lib/comparador-access-tariff"
+import type { ComparadorAccessTariff } from "@/lib/erp/comparador-rates"
 import type { ComparadorInvoiceExtraction } from "@/lib/comparador-invoice-extraction"
 import { sanitizeAiOtherCosts } from "@/lib/comparador-invoice-billing-merge"
+import { resolveInvoiceSegment } from "@/lib/comparador-invoice-supply"
 import type { InvoiceAiPublicPayload } from "./invoice-ai-types"
 
 function periodArrayToRecord(values?: number[]): {
@@ -61,15 +63,37 @@ function deriveUnitPrices(input: {
   return { preciosPotencia, preciosEnergia }
 }
 
+function statedElectricPeaje(value?: string | null): ComparadorAccessTariff | undefined {
+  if (!value) return undefined
+  const match = value.toUpperCase().replace(",", ".").match(/2\.0\s*TD|3\.0\s*TD|6\.[1-4]\s*TD/)
+  return match ? normalizeComparadorAccessTariff(match[0]) : undefined
+}
+
+function statedGasPeaje(value?: string | null): ComparadorAccessTariff | undefined {
+  if (!value || !/RL\.?\s*[1-5]/i.test(value)) return undefined
+  const normalized = normalizeComparadorAccessTariff(value)
+  return isComparadorGasPeaje(normalized) ? normalized : undefined
+}
+
+function hasPositivePrice(values?: number[]): boolean {
+  return (values ?? []).some((value) => value > 0)
+}
+
 export function mapInvoiceAiToComparadorExtraction(
   payload: InvoiceAiPublicPayload
 ): ComparadorInvoiceExtraction {
-  const tipo =
-    payload.supplyType === "gas" || payload.billCategory === "gas"
+  const electricPeaje =
+    statedElectricPeaje(payload.electricityCategory) ?? statedElectricPeaje(payload.tariffType)
+  const gasPeaje = statedGasPeaje(payload.gasCategory)
+  const tipo = electricPeaje
+    ? "luz"
+    : gasPeaje
       ? "gas"
       : payload.supplyType === "luz" || payload.billCategory === "luz"
         ? "luz"
-        : undefined
+        : payload.supplyType === "gas" || payload.billCategory === "gas"
+          ? "gas"
+          : undefined
   const isGas = tipo === "gas"
 
   const potencias = periodArrayToRecord(payload.powerKwByPeriod)
@@ -78,22 +102,23 @@ export function mapInvoiceAiToComparadorExtraction(
     consumos = { ...consumos, p1: payload.gasConsumoKwh ?? 0 }
   }
 
-  const accessRaw = isGas
-    ? payload.gasCategory ?? ""
-    : payload.electricityCategory ?? payload.tariffType ?? ""
-  const accessTariff = isGas && !payload.gasCategory
-    ? undefined
-    : normalizeComparadorAccessTariff(String(accessRaw))
+  const accessTariff = isGas ? gasPeaje : electricPeaje
 
   const totalKwh = Object.values(consumos).reduce((a, b) => a + b, 0)
   const invoiceDays = payload.invoiceDays
-  const { preciosPotencia, preciosEnergia } = deriveUnitPrices({
+  const derivedPrices = deriveUnitPrices({
     powerCostEur: isGas ? undefined : payload.powerCostEur,
     energyCostEur: isGas ? undefined : payload.energyCostEur,
     invoiceDays,
     potencias,
     consumos,
   })
+  const preciosPotencia = hasPositivePrice(payload.powerPriceEurKwDayByPeriod)
+    ? periodArrayToRecord(payload.powerPriceEurKwDayByPeriod)
+    : derivedPrices.preciosPotencia
+  const preciosEnergia = hasPositivePrice(payload.energyPriceEurKwhByPeriod)
+    ? periodArrayToRecord(payload.energyPriceEurKwhByPeriod)
+    : derivedPrices.preciosEnergia
   if (isGas && preciosPotencia && (payload.gasTerminoFijoEurDia ?? 0) > 0) {
     preciosPotencia.p1 = payload.gasTerminoFijoEurDia ?? 0
   }
@@ -120,8 +145,14 @@ export function mapInvoiceAiToComparadorExtraction(
     extraServicesTotal
   )
 
-  const segment =
+  const statedSegment =
     payload.segment === "pyme" ? "pyme" : payload.segment === "residencial" ? "residencial" : undefined
+  const segment = resolveInvoiceSegment({
+    nif: payload.holderNif,
+    tipo,
+    accessTariff,
+    current: statedSegment,
+  })
 
   return {
     cups: payload.cups,

@@ -21,7 +21,7 @@ export function ComparadorAccessTariffChips({
   const chips = comparadorAccessTariffChips(supply)
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div role="radiogroup" aria-label="Tarifa de acceso" className="flex flex-wrap gap-1.5">
       {chips.map((chip: ComparadorAccessTariffChip) => (
         <button
           key={chip.value}

@@ -130,7 +130,7 @@ Reglas del cruce:
   - **Proveedor principal (2026-10-19): Edge Function propia `invoice-ai-enersave`** sobre Gemini 2.0 Flash (REST `generateContent`, PDF o imagen inline, `responseSchema`). Cliente: `lib/comparador/invoice-ai-gemini-client.ts` (`analyzeInvoiceWithGemini`/`isInvoiceAiGeminiConfigured`). Función: `supabase/functions/invoice-ai-enersave/index.ts`, **todavía sin desplegar**. `verify_jwt` se deja en el valor por defecto (`true`): solo responde a una sesión del ERP, no se añade a `config.toml`. Secreto: `GEMINI_API_KEY` (nunca en `VITE_*`). El cliente envía el JWT de la sesión y la anon key.
   - **Primer respaldo: `invoice-ai-openai`** (Responses API, `gpt-5.6-luna`). Sigue sin desplegar y sin `OPENAI_API_KEY`. `verify_jwt = false` en `config.toml`. Secretos: `OPENAI_API_KEY` y, opcional, `INVOICE_AI_OPENAI_CLIENT_KEY` (el cliente la manda en `VITE_INVOICE_AI_OPENAI_KEY`).
   - **Respaldo de terceros: `ai-assistant`**, cliente en `lib/comparador/invoice-ai-client.ts`. Si Gemini y OpenAI fallan o no están configurados, cae aquí; si tampoco, al OCR local. `VITE_INVOICE_AI_KEY` viaja en el cliente (deuda conocida, usar solo clave `pk-`).
-  - Tras cualquiera de los proveedores, `mergeComparadorBillingFromOcrText` sobreescribe alquiler de equipo/total/SVA con la lectura OCR local. Una factura de gas rellena peaje RL, kWh, término fijo €/día y término variable €/kWh.
+  - Tras cualquiera de los proveedores, `mergeComparadorBillingFromOcrText` sobreescribe alquiler de equipo/total/SVA con la lectura OCR local y, si el texto lo deja claro, también el suministro, el peaje y los precios por periodo. Una dirección o el mix con la palabra «gas» no convierten una factura eléctrica en gas. El peaje sale de «Peaje de transporte y distribución». Una factura de gas rellena peaje RL, kWh, término fijo €/día y término variable €/kWh.
 
 ## 7. Base de datos (Supabase)
 
@@ -271,6 +271,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
+- 2026-10-20 — Comparador: una factura de luz con «gas» en la dirección o en el mix sigue en luz. El peaje sale de «Peaje de transporte y distribución» y el desglose rellena los €/kW·día y los €/kWh. Un DNI con 2.0TD queda en residencial. Se quitan las etiquetas Suministro, Segmento y Tarifa de acceso, y el botón elegido de luz o gas va en color sólido. Ver `docs/modulos/comparador.md`.
 - 2026-10-19 — Historial de comparativas: columnas CUPS, peaje, total factura y ahorro. El PDF se regenera con los campos y los precios de la oferta guardados en ese momento. Ver `docs/modulos/comparador.md`.
 - 2026-10-19 — Comparador: el lector principal de facturas pasa a la Edge Function `invoice-ai-enersave` (Gemini 2.0 Flash). Exige sesión; el secreto `GEMINI_API_KEY` no está en el cliente. OpenAI queda de respaldo. La función no está desplegada. Una factura de gas rellena peaje RL, kWh y precios. Ver `docs/modulos/comparador.md`.
 - 2026-10-19 — Comparador y SIPS: botones de luz y gas. En gas el peaje es RL1–RL5 y el formulario pide kWh, término fijo y término variable. El CUPS consulta el SIPS de ese suministro. En `/erp/sips` el selector queda encima del CUPS. Ver `docs/modulos/comparador.md`.

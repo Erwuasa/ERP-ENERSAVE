@@ -305,57 +305,48 @@ export function ComparadorPage() {
             />
 
             <div className={isCompactForm ? "space-y-2.5" : "space-y-3"}>
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
-                  Suministro
-                </label>
-                <SupplyKindToggle value={compTipo} onChange={handleSupplyChange} />
-              </div>
+              <SupplyKindToggle value={compTipo} onChange={handleSupplyChange} />
               <div className={`grid grid-cols-1 ${isCompactForm ? "sm:grid-cols-2 gap-2.5" : "sm:grid-cols-2 gap-3"}`}>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
-                    Segmento
-                  </label>
-                  <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-brand-surface border border-brand-border">
-                    <button
-                      type="button"
-                      onClick={() => handleSegmentChange("residencial")}
-                      className={`py-2 px-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors duration-200 flex flex-col items-center gap-1 ${
-                        compSegment === "residencial"
-                          ? "bg-white dark:bg-brand-panel text-emerald-600 dark:text-emerald-400 shadow-sm ring-1 ring-emerald-500/35"
-                          : "text-brand-subtext hover:text-brand-text"
-                      }`}
-                    >
-                      <User className="w-3.5 h-3.5" />
-                      <span className="leading-tight text-center">Residencial</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSegmentChange("pyme")}
-                      className={`py-2 px-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors duration-200 flex flex-col items-center gap-1 ${
-                        compSegment === "pyme"
-                          ? "bg-white dark:bg-brand-panel text-amber-600 dark:text-amber-500 shadow-sm"
-                          : "text-brand-subtext hover:text-brand-text"
-                      }`}
-                    >
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span className="leading-tight text-center">PYME</span>
-                    </button>
-                  </div>
+                <div
+                  role="radiogroup"
+                  aria-label="Segmento"
+                  className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-100 dark:bg-brand-surface border border-brand-border"
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={compSegment === "residencial"}
+                    onClick={() => handleSegmentChange("residencial")}
+                    className={`py-2 px-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors duration-200 flex flex-col items-center gap-1 ${
+                      compSegment === "residencial"
+                        ? "bg-white dark:bg-brand-panel text-emerald-600 dark:text-emerald-400 shadow-sm ring-1 ring-emerald-500/35"
+                        : "text-brand-subtext hover:text-brand-text"
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span className="leading-tight text-center">Residencial</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={compSegment === "pyme"}
+                    onClick={() => handleSegmentChange("pyme")}
+                    className={`py-2 px-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors duration-200 flex flex-col items-center gap-1 ${
+                      compSegment === "pyme"
+                        ? "bg-white dark:bg-brand-panel text-amber-600 dark:text-amber-500 shadow-sm"
+                        : "text-brand-subtext hover:text-brand-text"
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span className="leading-tight text-center">PYME</span>
+                  </button>
                 </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono font-bold text-brand-subtext uppercase tracking-wider">
-                    Tarifa de acceso
-                  </label>
-                  <ComparadorAccessTariffChips
-                    value={compAccessTariff}
-                    supply={compTipo}
-                    onChange={handleAccessTariffChange}
-                  />
-                </div>
+                <ComparadorAccessTariffChips
+                  value={compAccessTariff}
+                  supply={compTipo}
+                  onChange={handleAccessTariffChange}
+                />
               </div>
-
             </div>
 
             <ComparadorEnergyFields

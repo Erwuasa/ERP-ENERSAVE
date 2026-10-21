@@ -15,6 +15,8 @@ export interface InvoiceAiPublicPayload {
   billingPeriod?: { from?: string; to?: string }
   powerKwByPeriod?: number[]
   energyKwhByPeriod?: number[]
+  powerPriceEurKwDayByPeriod?: number[]
+  energyPriceEurKwhByPeriod?: number[]
   powerCostEur?: number
   energyCostEur?: number
   meterRentalAmount?: number

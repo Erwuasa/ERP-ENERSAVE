@@ -10,7 +10,7 @@ La pantalla opera con dos paneles sincronizados: el panel izquierdo para la capt
 ## 2. Panel Izquierdo: Captura y Comportamiento de Entradas
 
 ### 2.1. Selector de suministro y de segmento
-* **Suministro:** `Luz` | `Gas`, con icono. Luz usa peajes `2.0` a `6.4`. Gas usa `RL1`, `RL2`, `RL3`, `RL4` y `RL5` (también vale `RL.1`). No hay periodos P1–P6: un consumo en kWh, término fijo en €/día y término variable en €/kWh. `RL1` deja el segmento en residencial; `RL2` a `RL5` lo dejan en PYME.
+* **Suministro:** `Luz` | `Gas`, con icono y el botón elegido en color sólido (cian o naranja). No hay etiqueta «Suministro», «Segmento» ni «Tarifa de acceso». Luz usa peajes `2.0` a `6.4`. Gas usa `RL1`, `RL2`, `RL3`, `RL4` y `RL5` (también vale `RL.1`). No hay periodos P1–P6: un consumo en kWh, término fijo en €/día y término variable en €/kWh. `RL1` deja el segmento en residencial; `RL2` a `RL5` lo dejan en PYME.
 * **Segmento:** `Residencial` | `PYME`.
 * **Comportamiento:** Modifica el estado global (`segment`). Filtra el catálogo para admitir únicamente tarifas cuyo segmento coincida o aplique a `AMBOS`. Si la tarifa proviene de Enertech con segmento por defecto, el peaje de acceso manda en la asignación (`2.0TD` → Residencial; `3.0TD` a `6.4TD` → PYME; `RL1` → Residencial; `RL2` a `RL5` → PYME).
 
@@ -27,7 +27,7 @@ Empiezan ocultos. El icono junto a Potencia o Consumo los despliega a mano.
 * **Potencia:** precio en €/kW·día de cada periodo activo.
 * **Consumo:** precio en €/kWh de cada periodo activo.
 * **Factura adjunta:** al leer un PDF o una imagen, si la extracción trae precios de potencia o de energía, esos campos se rellenan y se muestran. El número de huecos sigue el peaje de la factura (2.0 o 3.0 en adelante).
-* **IA:** el lector principal es la Edge Function `invoice-ai-enersave` (Gemini 2.0 Flash). Exige sesión y el secreto `GEMINI_API_KEY` en la función; no está desplegada. Si falla, se usa `invoice-ai-openai` y, si tampoco, el servicio de respaldo y el OCR local. Una factura de gas rellena el peaje RL, el kWh, el término fijo €/día y el término variable €/kWh.
+* **IA:** el lector principal es la Edge Function `invoice-ai-enersave` (Gemini 2.0 Flash). Exige sesión y el secreto `GEMINI_API_KEY` en la función; no está desplegada. Si falla, se usa `invoice-ai-openai` y, si tampoco, el servicio de respaldo y el OCR local. Una factura de electricidad se queda en luz aunque la dirección o el mix digan «gas». El peaje sale de «Peaje de transporte y distribución» y el desglose rellena €/kW·día y €/kWh por periodo. Un DNI con peaje 2.0TD es residencial. Una factura de gas rellena el peaje RL, el kWh, el término fijo €/día y el término variable €/kWh.
 * **Uso:** reconstruyen el coste de la factura original con las mismas fórmulas que la oferta (`kW × €/kW·día × días` y `kWh × €/kWh`) y rellenan la columna «Tarifa actual» del estudio PDF.
 
 ### 2.4. Mapeo de Precios de Catálogo

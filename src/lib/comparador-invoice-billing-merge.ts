@@ -1,8 +1,16 @@
 import type { ContractOcrResult } from "./contract-ocr"
 import type { ComparadorInvoiceExtraction } from "./comparador-invoice-extraction"
 import {
+  holderIdFromInvoiceText,
+  inferInvoiceSupplyKind,
+  resolveInvoiceSegment,
+} from "./comparador-invoice-supply"
+import {
   extractDiasFacturadosFromInvoice,
+  extractInvoiceAccessPeaje,
+  extractInvoiceContractedPowerKw,
   extractInvoicePeriodConsumoKwh,
+  extractInvoicePeriodUnitPrices,
   extractInvoiceTotalAmountEur,
   extractMeterRentalAmountEur,
   extractServiciosSvaAmountEur,
@@ -134,8 +142,41 @@ export function mergeComparadorBillingFromOcrText(
     extraction.facturaEsMensual ??
     (dias != null ? dias <= 35 : true)
 
+  const textTipo = inferInvoiceSupplyKind(ocrText)
+  const textPeaje = extractInvoiceAccessPeaje(ocrText)
+  const tipo = textTipo ?? localParsed?.tipo ?? extraction.tipo
+  const accessTariff =
+    textPeaje ??
+    (textTipo && textTipo !== extraction.tipo
+      ? localParsed?.accessTariff ?? extraction.accessTariff
+      : extraction.accessTariff ?? localParsed?.accessTariff)
+  const unitPrices = extractInvoicePeriodUnitPrices(ocrText, accessTariff)
+  const contractedPower = extractInvoiceContractedPowerKw(ocrText)
+  const potenciasKw =
+    contractedPower ??
+    (localParsed?.potenciasKw &&
+    Object.values(localParsed.potenciasKw).some((value) => value > 0)
+      ? localParsed.potenciasKw
+      : extraction.potenciasKw)
+  const nif = localParsed?.nif ?? holderIdFromInvoiceText(ocrText) ?? extraction.nif
+  const segment = resolveInvoiceSegment({
+    nif,
+    tipo,
+    accessTariff,
+    current: textTipo && textTipo !== extraction.tipo ? localParsed?.segment ?? extraction.segment : extraction.segment ?? localParsed?.segment,
+  })
+
   return {
     ...extraction,
+    tipo,
+    segment,
+    accessTariff,
+    nif,
+    potenciasKw,
+    preciosPotenciaEur:
+      unitPrices.potencia ?? localParsed?.preciosPotenciaEur ?? extraction.preciosPotenciaEur,
+    preciosEnergiaEur:
+      unitPrices.energia ?? localParsed?.preciosEnergiaEur ?? extraction.preciosEnergiaEur,
     compania: localParsed?.compania ?? extraction.compania,
     meterRentalAmount: meterRental,
     facturaImporteEur: invoiceTotal,

@@ -14,6 +14,7 @@ export interface EnertechAltaTransport {
     resource: "clientes" | "contratos"
     body: Record<string, unknown>
     idempotencyKey: string
+    /** ID del contrato del ERP, para vincular el log saliente. Opcional. */
     contractId?: string | null
   }): Promise<{ status: number; body: unknown; outboundEventId?: string | null }>
 }
@@ -29,6 +30,8 @@ export interface EnertechContractUploadSuccess {
   documentosGuardados: number | null
   clienteEventId: string | null
   contratoEventId: string | null
+  /** ID de la fila en enertech_outbound_events del POST /contratos, para cerrar la reconciliación. */
+  outboundEventId: string | null
 }
 
 export interface EnertechContractUploadFailure {
@@ -89,6 +92,7 @@ export async function uploadContractAlta(input: {
       documentosGuardados: null,
       clienteEventId: null,
       contratoEventId: null,
+      outboundEventId: null,
     }
   }
 
@@ -136,5 +140,6 @@ export async function uploadContractAlta(input: {
     documentosGuardados: contrato.documentosGuardados,
     clienteEventId,
     contratoEventId,
+    outboundEventId: contratoEventId,
   }
 }

@@ -1,3 +1,6 @@
+import type { ComparadorAccessTariff, ComparadorPeriodValues } from "./erp/comparador-rates"
+import { normalizeComparadorAccessTariff } from "./comparador-access-tariff"
+
 const MAX_PLAUSIBLE_SVA_EUR = 80
 
 /** Variantes de texto (OCR escaneado: espacios, acentos, O/0). */
@@ -307,7 +310,15 @@ export function extractDiasFacturadosFromInvoice(text: string): number | undefin
   )
   if (fromAlquiler?.[1]) {
     const days = Number.parseInt(fromAlquiler[1], 10)
-    if (days >= 28 && days <= 62) return days
+    if (days >= 15 && days <= 62) return days
+  }
+
+  const fromTerm = text.match(
+    /(?:t[eé]rmino\s+(?:de\s+)?potencia|bono\s+social)[^\n]{0,80}?(\d{1,3})\s*d[ií]as/i
+  )
+  if (fromTerm?.[1]) {
+    const days = Number.parseInt(fromTerm[1], 10)
+    if (days >= 15 && days <= 62) return days
   }
 
   return undefined
@@ -440,6 +451,133 @@ export function extractInvoicePeriodConsumoKwh(text: string): InvoicePeriodConsu
     if (value && value.p1 + value.p2 + value.p3 > 0) return value
   }
   return undefined
+}
+
+function emptyPeriods(): ComparadorPeriodValues {
+  return { p1: 0, p2: 0, p3: 0, p4: 0, p5: 0, p6: 0 }
+}
+
+function periodKey(label: string): keyof ComparadorPeriodValues | undefined {
+  const token = label.trim().toLowerCase()
+  const numbered = token.match(/^p?([1-6])$/)
+  if (numbered) {
+    const key = `p${numbered[1]}` as keyof ComparadorPeriodValues
+    return key
+  }
+  if (token === "punta") return "p1"
+  if (token === "llano" || token === "plano") return "p2"
+  if (token === "valle") return "p3"
+  return undefined
+}
+
+function canonicalPeaje(raw: string): ComparadorAccessTariff {
+  const compact = raw.toUpperCase().replace(/\s/g, "").replace(",", ".")
+  const gas = compact.match(/^RL\.?([1-5])$/)
+  if (gas) return normalizeComparadorAccessTariff(`RL${gas[1]}`)
+  return normalizeComparadorAccessTariff(compact)
+}
+
+/** Peaje que la factura rotula como «Peaje de transporte y distribución». */
+export function extractInvoiceAccessPeaje(text: string): ComparadorAccessTariff | undefined {
+  for (const variant of invoiceTextExtractionVariants(text)) {
+    const labeled = variant.match(
+      /peaje\s+de\s+transporte[\s\S]{0,80}?((?:2[.,]0|3[.,]0|6[.,][1-4])\s*TD|RL\.?\s*[1-5])/i
+    )
+    if (labeled?.[1]) return canonicalPeaje(labeled[1])
+    const electric = variant.match(/\b((?:2[.,]0|3[.,]0|6[.,][1-4])\s*TD)\b/i)
+    if (electric?.[1]) return canonicalPeaje(electric[1])
+    const gas = variant.match(/\b(RL\.?\s*[1-5])\b/i)
+    if (gas?.[1] && !/\b(?:2[.,]0|3[.,]0|6[.,][1-4])\s*TD\b/i.test(variant)) {
+      return canonicalPeaje(gas[1])
+    }
+  }
+  return undefined
+}
+
+/** kW de «Potencia contratada P1/P2», o del término de potencia si no hay esa línea. */
+export function extractInvoiceContractedPowerKw(text: string): ComparadorPeriodValues | undefined {
+  for (const variant of invoiceTextExtractionVariants(text)) {
+    const powers = emptyPeriods()
+    let found = false
+    const labeled = /potencia\s+contratada\s+P([1-6])\s*:?\s*(\d+[,.]\d+)\s*kW/gi
+    for (const match of variant.matchAll(labeled)) {
+      const key = periodKey(match[1])
+      const value = parseSpanishInvoiceAmount(match[2])
+      if (!key || !Number.isFinite(value) || value <= 0 || value >= 1000) continue
+      powers[key] = value
+      found = true
+    }
+    if (found) return powers
+    const fromTerm = /t[eé]rmino\s+(?:de\s+)?potencia\s+P([1-6])\s+(\d+[,.]\d+)\s*kW/gi
+    for (const match of variant.matchAll(fromTerm)) {
+      const key = periodKey(match[1])
+      const value = parseSpanishInvoiceAmount(match[2])
+      if (!key || !Number.isFinite(value) || value <= 0 || value >= 1000) continue
+      powers[key] = value
+      found = true
+    }
+    if (found) return powers
+  }
+  return undefined
+}
+
+/**
+ * Precios unitarios del desglose: €/kW·día por periodo de potencia y €/kWh por periodo de energía.
+ * Un único €/kWh se copia a P1–P3 en 2.0TD y a P1–P6 en 3.0/6.x.
+ */
+export function extractInvoicePeriodUnitPrices(
+  text: string,
+  accessTariff?: string | null
+): { potencia?: ComparadorPeriodValues; energia?: ComparadorPeriodValues } {
+  const potencia = emptyPeriods()
+  const energia = emptyPeriods()
+  let hasPower = false
+  let hasEnergy = false
+
+  for (const variant of invoiceTextExtractionVariants(text)) {
+    const powerRe =
+      /t[eé]rmino\s+(?:de\s+)?potencia\s+P([1-6])[\s\S]{0,140}?(\d+[,.]\d+)\s*€\s*\/\s*kW/gi
+    for (const match of variant.matchAll(powerRe)) {
+      const key = periodKey(match[1])
+      const value = parseSpanishInvoiceAmount(match[2])
+      if (!key || !Number.isFinite(value) || value <= 0 || value >= 2) continue
+      potencia[key] = value
+      hasPower = true
+    }
+
+    const energyRe =
+      /(?:consumo\s+electricidad\s+)?(Punta|Llano|Plano|Valle|P[1-6])[^\n]{0,60}?(\d+[,.]\d+)\s*€\s*\/\s*kWh/gi
+    for (const match of variant.matchAll(energyRe)) {
+      const key = periodKey(match[1])
+      const value = parseSpanishInvoiceAmount(match[2])
+      if (!key || !Number.isFinite(value) || value <= 0 || value >= 2) continue
+      energia[key] = value
+      hasEnergy = true
+    }
+
+    if (!hasEnergy) {
+      const single =
+        variant.match(/kWh\s*[x×]\s*(\d+[,.]\d+)\s*€\s*\/\s*kWh/i) ??
+        variant.match(/(\d+[,.]\d{4,})\s*€\s*\/\s*kWh/i)
+      if (single?.[1]) {
+        const value = parseSpanishInvoiceAmount(single[1])
+        if (Number.isFinite(value) && value > 0 && value < 2) {
+          const slots =
+            accessTariff && /3\.0|6\.[1-4]/.test(accessTariff)
+              ? (["p1", "p2", "p3", "p4", "p5", "p6"] as const)
+              : (["p1", "p2", "p3"] as const)
+          for (const key of slots) energia[key] = value
+          hasEnergy = true
+        }
+      }
+    }
+    if (hasPower || hasEnergy) break
+  }
+
+  return {
+    potencia: hasPower ? potencia : undefined,
+    energia: hasEnergy ? energia : undefined,
+  }
 }
 
 export function scalePeriodConsumoToMonthlyKwh(
