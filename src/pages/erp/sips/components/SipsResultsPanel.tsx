@@ -11,22 +11,19 @@ import {
   YAxis,
   type PieLabelRenderProps,
 } from "recharts"
-import { BarChart3, Download, RefreshCw, TrendingUp, X } from "lucide-react"
-import { toast } from "sonner"
+import { TrendingDown, TrendingUp, X } from "lucide-react"
 import {
-  ENERSAVE_ACTION,
   ENERSAVE_PERIOD_CHART_COLORS,
   supplyBadgeClass,
   type EnersavePeriodChartKey,
 } from "@/lib/enersave-ui-theme"
-import type { SipsVisualResult } from "@/lib/sips/to-visual"
+import { SIPS_PERIOD_ORDER, type SipsVisualResult } from "@/lib/sips/to-visual"
 import type { SipsProducto } from "@/lib/sips/types"
 
 interface Props {
   data: SipsVisualResult
   producto?: SipsProducto
   onClose: () => void
-  onRefresh?: () => void
 }
 
 const kwhFormat = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 })
@@ -48,16 +45,6 @@ function formatConsultedAt(value: string | null): string | null {
   const date = new Date(value.replace(" ", "T"))
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" })
-}
-
-function handleComparativa() {
-  toast.message("Generar comparativa", {
-    description: "Disponible próximamente desde la consulta SIPS.",
-  })
-}
-
-function handleExport() {
-  toast.message("Exportar", { description: "Exportación SIPS en preparación." })
 }
 
 function renderDonutPctLabel(props: PieLabelRenderProps) {
@@ -85,21 +72,17 @@ function dash(value: string): string {
   return value.trim() ? value : "—"
 }
 
-export function SipsResultsPanel({ data, producto = "luz", onClose, onRefresh }: Props) {
-  const hasConsumptionSplit = data.periodosAnual.length > 0
-  const consumptionPeriods = hasConsumptionSplit
-    ? data.periodosAnual.map((row) => row.period)
-    : data.potencias.map((row) => row.period)
-
+export function SipsResultsPanel({ data, producto = "luz", onClose }: Props) {
+  const consumptionPeriods = SIPS_PERIOD_ORDER.filter((period) =>
+    data.consumoMensual.some((month) => (month.byPeriod[period] ?? 0) > 0)
+  )
   const powerTotalKw = data.potencias.reduce((sum, row) => sum + row.kw, 0)
-  const donutData = hasConsumptionSplit
-    ? data.periodosAnual.map((row) => ({ name: row.period, value: row.kwh, pct: row.pct, unit: "kWh" as const }))
-    : data.potencias.map((row) => ({
-        name: row.period,
-        value: row.kw,
-        pct: powerTotalKw > 0 ? (row.kw / powerTotalKw) * 100 : 0,
-        unit: "kW" as const,
-      }))
+  const donutData = data.potencias.map((row) => ({
+    name: row.period,
+    value: row.kw,
+    pct: powerTotalKw > 0 ? (row.kw / powerTotalKw) * 100 : 0,
+    unit: "kW" as const,
+  }))
 
   const stackedData = data.consumoMensual.map((month) => {
     const row: Record<string, string | number> = { label: month.label }
@@ -125,32 +108,6 @@ export function SipsResultsPanel({ data, producto = "luz", onClose, onRefresh }:
           {meta ? <p className="text-[10px] font-mono text-brand-subtext mt-0.5">{meta}</p> : null}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          {onRefresh ? (
-            <button
-              type="button"
-              onClick={onRefresh}
-              className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[9px] font-bold cursor-pointer transition-colors ${ENERSAVE_ACTION.primary}`}
-            >
-              <RefreshCw className="w-3.5 h-3.5" aria-hidden />
-              Actualizar
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleComparativa}
-            className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[9px] font-bold cursor-pointer transition-colors ${ENERSAVE_ACTION.secondary}`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" aria-hidden />
-            Comparativa
-          </button>
-          <button
-            type="button"
-            onClick={handleExport}
-            className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[9px] font-bold cursor-pointer transition-colors ${ENERSAVE_ACTION.secondary}`}
-          >
-            <Download className="w-3.5 h-3.5" aria-hidden />
-            Exportar
-          </button>
           <button
             type="button"
             onClick={onClose}
@@ -194,72 +151,81 @@ export function SipsResultsPanel({ data, producto = "luz", onClose, onRefresh }:
                 <span className="text-base sm:text-lg font-bold text-brand-subtext">kWh</span>
               )}
             </p>
-            <span className="text-[9px] font-mono text-brand-subtext">Total anual del suministro</span>
+            <span className="text-[9px] font-mono text-brand-subtext">
+              {data.consumoMensual.length > 0 ? "Últimos 12 meses" : "Total anual del suministro"}
+            </span>
             {data.consumoTrendPct !== null ? (
-              <span className="inline-flex items-center gap-0.5 rounded-md bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                <TrendingUp className="w-3 h-3" aria-hidden />+{data.consumoTrendPct}%
+              <span
+                className={`inline-flex items-center gap-0.5 rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                  data.consumoTrendPct >= 0
+                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                    : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                }`}
+              >
+                {data.consumoTrendPct >= 0 ? (
+                  <TrendingUp className="w-3 h-3" aria-hidden />
+                ) : (
+                  <TrendingDown className="w-3 h-3" aria-hidden />
+                )}
+                {data.consumoTrendPct > 0 ? `+${data.consumoTrendPct}%` : `${data.consumoTrendPct}%`}
               </span>
             ) : null}
           </div>
 
           {donutData.length > 0 ? (
             <>
-              {!hasConsumptionSplit ? (
-                <p className="mt-4 text-[9px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
-                  Reparto de potencia
-                </p>
-              ) : null}
-            <div className={`${hasConsumptionSplit ? "mt-4" : "mt-2"} flex flex-1 flex-col sm:flex-row items-center gap-4 sm:gap-6 min-h-[180px]`}>
-              <ul
-                className="w-full sm:w-auto sm:min-w-[140px] space-y-3 shrink-0"
-                aria-label={hasConsumptionSplit ? "Consumo por periodo" : "Potencia contratada por periodo"}
-              >
-                {(hasConsumptionSplit ? data.periodosAnual : data.potencias).map((row) => (
-                  <li key={row.period} className="flex items-center gap-2.5 text-[11px]">
-                    <span
-                      className="h-3.5 w-3.5 rounded-full border-[3px] bg-transparent shrink-0"
-                      style={{ borderColor: periodColor(row.period) }}
-                      aria-hidden
-                    />
-                    <span className="font-mono font-bold text-brand-text w-7">{row.period}</span>
-                    <span className="font-mono font-bold tabular-nums text-brand-text">
-                      {"kwh" in row ? `${kwhFormat.format(row.kwh)} kWh` : `${kwFormat.format(row.kw)} kW`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="h-[200px] w-full sm:flex-1 max-w-[280px] mx-auto sm:mx-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donutData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius="52%"
-                      outerRadius="88%"
-                      paddingAngle={2}
-                      stroke="none"
-                      label={renderDonutPctLabel}
-                      labelLine={false}
-                    >
-                      {donutData.map((entry) => (
-                        <Cell key={entry.name} fill={periodColor(entry.name)} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number, _name, item) => {
-                        const pct = item?.payload?.pct
-                        const unit = item?.payload?.unit === "kW" ? "kW" : "kWh"
-                        const formatted = unit === "kW" ? kwFormat.format(value) : kwhFormat.format(value)
-                        const pctLabel = typeof pct === "number" ? ` (${pct.toFixed(1)}%)` : ""
-                        return [`${formatted} ${unit}${pctLabel}`, item?.payload?.name ?? ""]
-                      }}
-                      contentStyle={chartTooltipStyle}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+              <p className="mt-4 text-[9px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
+                Reparto de potencia
+              </p>
+              <div className="mt-2 flex flex-1 flex-col sm:flex-row items-center gap-4 sm:gap-6 min-h-[180px]">
+                <ul
+                  className="w-full sm:w-auto sm:min-w-[140px] space-y-3 shrink-0"
+                  aria-label="Potencia contratada por periodo"
+                >
+                  {data.potencias.map((row) => (
+                    <li key={row.period} className="flex items-center gap-2.5 text-[11px]">
+                      <span
+                        className="h-3.5 w-3.5 rounded-full border-[3px] bg-transparent shrink-0"
+                        style={{ borderColor: periodColor(row.period) }}
+                        aria-hidden
+                      />
+                      <span className="font-mono font-bold text-brand-text w-7">{row.period}</span>
+                      <span className="font-mono font-bold tabular-nums text-brand-text">
+                        {kwFormat.format(row.kw)} kW
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="h-[200px] w-full sm:flex-1 max-w-[280px] mx-auto sm:mx-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius="52%"
+                        outerRadius="88%"
+                        paddingAngle={2}
+                        stroke="none"
+                        label={renderDonutPctLabel}
+                        labelLine={false}
+                      >
+                        {donutData.map((entry) => (
+                          <Cell key={entry.name} fill={periodColor(entry.name)} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, _name, item) => {
+                          const pct = item?.payload?.pct
+                          const pctLabel = typeof pct === "number" ? ` (${pct.toFixed(1)}%)` : ""
+                          return [`${kwFormat.format(value)} kW${pctLabel}`, item?.payload?.name ?? ""]
+                        }}
+                        contentStyle={chartTooltipStyle}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
-            </div>
             </>
           ) : null}
         </section>
@@ -312,7 +278,7 @@ export function SipsResultsPanel({ data, producto = "luz", onClose, onRefresh }:
         <div className="rounded-xl border border-brand-border bg-white dark:bg-[#0f172a] p-3">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <p className="text-[9px] font-mono font-bold uppercase tracking-wider text-brand-subtext">
-              Consumo mensual (kWh)
+              Consumo energético mensual
             </p>
             <div className="flex flex-wrap gap-2 text-[8px] font-mono font-bold uppercase">
               {consumptionPeriods.map((period) => (
@@ -361,6 +327,35 @@ export function SipsResultsPanel({ data, producto = "luz", onClose, onRefresh }:
                 })}
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-left text-[10px] font-mono">
+              <thead>
+                <tr className="text-[8px] font-bold uppercase tracking-wider text-brand-subtext">
+                  <th className="py-1 pr-3 font-bold">Mes</th>
+                  {consumptionPeriods.map((period) => (
+                    <th key={period} className="py-1 pr-3 font-bold">{period}</th>
+                  ))}
+                  <th className="py-1 font-bold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.consumoMensual.map((month, index) => {
+                  const total = consumptionPeriods.reduce((sum, period) => sum + (month.byPeriod[period] ?? 0), 0)
+                  return (
+                    <tr key={`${month.label}-${index}`} className="border-t border-brand-border/60 text-brand-text">
+                      <td className="py-1 pr-3">{month.label}</td>
+                      {consumptionPeriods.map((period) => (
+                        <td key={period} className="py-1 pr-3 tabular-nums">
+                          {kwhFormat.format(month.byPeriod[period] ?? 0)}
+                        </td>
+                      ))}
+                      <td className="py-1 tabular-nums font-bold">{kwhFormat.format(total)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : null}

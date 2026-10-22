@@ -23,6 +23,12 @@ export function mapSipsQueryToListoOutcome(data: SipsQueryResult): Extract<SipsO
       municipio: data.localidad || null,
       distribuidora: data.distribuidora,
       cnae: null,
+      consumosKwh: Object.fromEntries(data.periodosAnual.map((row) => [row.period, row.kwh])),
+      consumoMensual: data.consumoMensual.map((month) => ({
+        label: month.label,
+        sortKey: null,
+        byPeriod: month.byPeriod,
+      })),
     },
     origen: "Datos de prueba (demo)",
     consultadoEn: new Date().toISOString(),

@@ -71,6 +71,8 @@ export function ComparadorPage() {
     setCompProposalFilters,
     compSortMode,
     setCompSortMode,
+    compMinSavingsPct,
+    setCompMinSavingsPct,
     compOcrLoading,
     compOcrProgress,
     handleComparadorInvoiceOcr,
@@ -80,6 +82,7 @@ export function ComparadorPage() {
     openContractWizardFromComparador,
     compClient,
     compCups,
+    setCompCups,
     compTipo,
     setCompTipo,
   } = ws
@@ -160,6 +163,7 @@ export function ComparadorPage() {
         },
         diasFacturacion: compDiasFacturados,
         sortMode: compSortMode,
+        minSavingsPct: compMinSavingsPct,
         descuentoPotencia: compDescuentoPotencia,
         descuentoEnergia: compDescuentoEnergia,
       }),
@@ -179,6 +183,7 @@ export function ComparadorPage() {
       compDescuentoEnergia,
       compDiasFacturados,
       compSortMode,
+      compMinSavingsPct,
     ]
   )
 
@@ -190,7 +195,7 @@ export function ComparadorPage() {
   const isCompactForm = formDensity === "compact"
   const [offerLimit, setOfferLimit] = useState(OFFER_RENDER_BATCH)
   const offerSentinelRef = useRef<HTMLDivElement>(null)
-  const offerListKey = `${compSegment}|${compAccessTariff}|${compSortMode}|${compProposalFilters.join(",")}|${offerOptions.length}`
+  const offerListKey = `${compSegment}|${compAccessTariff}|${compSortMode}|${compMinSavingsPct}|${compProposalFilters.join(",")}|${offerOptions.length}`
 
   useEffect(() => {
     setOfferLimit(OFFER_RENDER_BATCH)
@@ -369,6 +374,8 @@ export function ComparadorPage() {
               energiaReactiva={compEnergiaReactiva}
               otrosCostesSva={compOtrosCostesSva}
               diasFacturados={compDiasFacturados}
+              cups={compCups}
+              onCupsChange={setCompCups}
               consumoAnualKwh={compConsumoAnualKwh}
               facturaMensual={compCurrentBill}
               onAlquilerChange={setCompRentMeter}
@@ -394,6 +401,8 @@ export function ComparadorPage() {
               onFiltersChange={setCompProposalFilters}
               sortMode={compSortMode}
               onSortChange={setCompSortMode}
+              minSavingsPct={compMinSavingsPct}
+              onMinSavingsPctChange={setCompMinSavingsPct}
               resultsCount={offerOptions.length}
             />
           </div>
@@ -412,7 +421,7 @@ export function ComparadorPage() {
                       ? "Introduce datos para comparar"
                       : catalogError
                         ? "No se pudo cargar el catálogo de tarifas"
-                        : compProposalFilters.length > 0
+                        : compProposalFilters.length > 0 || compMinSavingsPct > 0
                           ? "Sin ofertas para los filtros seleccionados"
                           : "Sin tarifas disponibles"}
                   </h3>
@@ -421,8 +430,8 @@ export function ComparadorPage() {
                       ? "Rellena potencia, consumo por periodo, consumo anual o el total de tu factura. Las ofertas aparecerán conforme haya datos con los que calcular."
                       : catalogError
                         ? catalogError
-                        : compProposalFilters.length > 0
-                          ? "Prueba quitando algún filtro o cambia la tarifa de acceso."
+                        : compProposalFilters.length > 0 || compMinSavingsPct > 0
+                          ? "Prueba quitando algún filtro, bajando el ahorro mínimo o cambia la tarifa de acceso."
                           : catalogCount === 0
                             ? "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."
                             : "Hay tarifas de Enertech para este peaje, pero ninguna tiene precio en todos los periodos que has rellenado. Revisa la potencia y el consumo, o quita filtros."}

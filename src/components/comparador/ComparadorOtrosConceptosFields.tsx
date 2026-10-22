@@ -74,6 +74,8 @@ function ComparadorConsumoAnualFields({
   inputClass,
   fieldClass,
   producto,
+  cups,
+  onCupsChange,
   consumoAnualKwh,
   onConsumoAnualKwhChange,
   onSipsResumen,
@@ -82,11 +84,12 @@ function ComparadorConsumoAnualFields({
   inputClass: string
   fieldClass: string
   producto: SipsProducto
+  cups: string
+  onCupsChange: (value: string) => void
   consumoAnualKwh: number
   onConsumoAnualKwhChange: (value: number) => void
   onSipsResumen?: (resumen: SipsResumen) => void
 }) {
-  const [cups, setCups] = useState("")
   const [hint, setHint] = useState<string | null>(null)
   const onChangeRef = useRef(onConsumoAnualKwhChange)
   const onSipsRef = useRef(onSipsResumen)
@@ -146,7 +149,7 @@ function ComparadorConsumoAnualFields({
           autoComplete="off"
           spellCheck={false}
           placeholder="ES0021…"
-          onChange={(event) => setCups(event.target.value.toUpperCase())}
+          onChange={(event) => onCupsChange(event.target.value.toUpperCase())}
           className={`${inputClass} uppercase`}
           aria-label="CUPS para consultar el consumo anual en SIPS"
         />
@@ -183,6 +186,8 @@ interface ComparadorOtrosConceptosFieldsProps {
   energiaReactiva: number
   otrosCostesSva: number
   diasFacturados: number
+  cups: string
+  onCupsChange: (value: string) => void
   consumoAnualKwh: number
   facturaMensual: number
   onAlquilerChange: (value: number) => void
@@ -224,6 +229,8 @@ export function ComparadorOtrosConceptosFields({
   energiaReactiva,
   otrosCostesSva,
   diasFacturados,
+  cups,
+  onCupsChange,
   consumoAnualKwh,
   facturaMensual,
   onAlquilerChange,
@@ -310,6 +317,8 @@ export function ComparadorOtrosConceptosFields({
           inputClass={inputClass}
           fieldClass={fieldClass}
           producto={producto}
+          cups={cups}
+          onCupsChange={onCupsChange}
           consumoAnualKwh={consumoAnualKwh}
           onConsumoAnualKwhChange={onConsumoAnualKwhChange}
           onSipsResumen={onSipsResumen}

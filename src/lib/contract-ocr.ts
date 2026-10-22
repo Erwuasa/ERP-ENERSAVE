@@ -11,6 +11,7 @@ import {
   extractInvoiceTotalAmountEur,
   extractMeterRentalAmountEur,
   extractServiciosSvaAmountEur,
+  extractInvoiceCups,
   extractSocialBonusFinancingEur,
   parseSpanishInvoiceAmount,
   scalePeriodConsumoToMonthlyKwh,
@@ -78,8 +79,8 @@ export function parseContractTextFromOcr(fullText: string): ContractOcrResult {
   const upper = text.toUpperCase()
   const result: ContractOcrResult = { rawTextPreview: text.slice(0, 1200) }
 
-  const cupsMatch = upper.match(/ES\d{16,22}[A-Z]{0,2}/)
-  if (cupsMatch) result.cups = cupsMatch[0]
+  const cups = extractInvoiceCups(text)
+  if (cups) result.cups = cups
 
   const ibanMatch = text.replace(/\s/g, "").match(/ES\d{22}/i)
   if (ibanMatch) {

@@ -5,13 +5,19 @@ import {
   toggleCompProposalFilter,
   type CompProposalFilterId,
 } from "@/lib/comparador-proposal-filters"
-import { COMPARADOR_SORT_OPTIONS, type ComparadorSortMode } from "@/lib/comparador-sort"
+import {
+  COMPARADOR_MIN_SAVINGS_OPTIONS,
+  COMPARADOR_SORT_OPTIONS,
+  type ComparadorSortMode,
+} from "@/lib/comparador-sort"
 
 interface ComparadorResultsToolbarProps {
   filters: CompProposalFilterId[]
   onFiltersChange: (next: CompProposalFilterId[]) => void
   sortMode: ComparadorSortMode
   onSortChange: (mode: ComparadorSortMode) => void
+  minSavingsPct: number
+  onMinSavingsPctChange: (value: number) => void
   resultsCount: number
 }
 
@@ -44,6 +50,8 @@ export function ComparadorResultsToolbar({
   onFiltersChange,
   sortMode,
   onSortChange,
+  minSavingsPct,
+  onMinSavingsPctChange,
   resultsCount,
 }: ComparadorResultsToolbarProps) {
   const pricingFilters = COMP_PROPOSAL_FILTER_OPTIONS.filter(
@@ -76,6 +84,21 @@ export function ComparadorResultsToolbar({
               {option.label}
             </ToolbarChip>
           ))}
+          <label className="inline-flex items-center gap-1.5">
+            <span className="text-[10px] font-mono uppercase text-brand-subtext">Ahorro</span>
+            <select
+              aria-label="Ahorro mínimo de las ofertas"
+              value={minSavingsPct}
+              onChange={(event) => onMinSavingsPctChange(Number(event.target.value))}
+              className="h-8 rounded-lg border border-brand-border bg-brand-surface px-2 text-xs font-semibold text-brand-text"
+            >
+              {COMPARADOR_MIN_SAVINGS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 

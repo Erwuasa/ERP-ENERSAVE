@@ -204,6 +204,8 @@ export interface MapRankingToOfferOptionsInput {
   billExtras: ComparadorBillExtrasInput
   diasFacturacion: number
   sortMode: ComparadorSortMode
+  /** Porcentaje mínimo de ahorro. 0 no filtra. */
+  minSavingsPct?: number
   descuentoPotencia?: number
   descuentoEnergia?: number
 }
@@ -227,6 +229,7 @@ export function mapRankingToOfferOptions(
     billExtras,
     diasFacturacion,
     sortMode,
+    minSavingsPct = 0,
     descuentoPotencia = 0,
     descuentoEnergia = 0,
   } = input
@@ -359,7 +362,11 @@ export function mapRankingToOfferOptions(
     }
   })
 
-  const sorted = [...withSavings].sort((a, b) => {
+  const minPct = Number.isFinite(minSavingsPct) ? Math.max(0, minSavingsPct) : 0
+  const eligible = withSavings.filter(
+    (option) => minPct <= 0 || option.savingsPercentage >= minPct
+  )
+  const sorted = [...eligible].sort((a, b) => {
     if (sortMode === "comision") {
       const commissionDiff = (b.commissionEur ?? -1) - (a.commissionEur ?? -1)
       if (commissionDiff !== 0) return commissionDiff

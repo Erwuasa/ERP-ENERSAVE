@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   extractDiasFacturadosFromInvoice,
+  extractInvoiceCups,
   extractInvoicePeriodConsumoKwh,
   extractInvoicePeriodUnitPrices,
   extractInvoiceTotalAmountEur,
@@ -27,6 +28,8 @@ describe("invoice-ocr-billing-lines Naturgy", () => {
     expect(extractInvoiceTotalAmountEur(NATURGY_FIXTURE)).toBeCloseTo(51.78)
     expect(extractMeterRentalAmountEur(NATURGY_FIXTURE)).toBeCloseTo(0.93)
     expect(extractSocialBonusFinancingEur(NATURGY_FIXTURE)).toBeCloseTo(0.67)
+    expect(extractSocialBonusFinancingEur("Financiación del Bono Social 12,40 €")).toBeCloseTo(12.4)
+    expect(extractInvoiceCups("Código CUPS: ES 0021 0000 1234 5678 AB")).toBe("ES0021000012345678AB")
 
     const period = extractInvoicePeriodConsumoKwh(NATURGY_FIXTURE)
     expect(period?.p1).toBe(40)
@@ -56,5 +59,30 @@ describe("invoice-ocr-billing-lines Naturgy", () => {
     expect(extractInvoicePeriodConsumoKwh(ocrLike)?.p3).toBe(105)
     expect(extractSocialBonusFinancingEur(ocrLike)).toBeCloseTo(0.67)
     expect(extractMeterRentalAmountEur(ocrLike)).toBeCloseTo(0.93)
+  })
+
+  it("usa la columna Consumos y no las lecturas reales", () => {
+    const lecturasYConsumos = `
+Lecturas reales a 26/09/2026: Consumos:
+P1: 19.353 kWh P1: 60,22 kWh
+P2: 5.055 kWh P2: 79,69 kWh
+P3: 5.889 kWh P3: 66,65 kWh
+`
+    const enColumnas = `
+Lecturas reales a 26/09/2026:
+P1: 19.353 kWh
+P2: 5.055 kWh
+P3: 5.889 kWh
+Consumos:
+P1: 60,22 kWh
+P2: 79,69 kWh
+P3: 66,65 kWh
+`
+    for (const fixture of [lecturasYConsumos, enColumnas]) {
+      const consumos = extractInvoicePeriodConsumoKwh(fixture)
+      expect(consumos?.p1).toBeCloseTo(60.22)
+      expect(consumos?.p2).toBeCloseTo(79.69)
+      expect(consumos?.p3).toBeCloseTo(66.65)
+    }
   })
 })

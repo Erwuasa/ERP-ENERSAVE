@@ -29,6 +29,20 @@ export function comparadorNumericInputClass(density: ComparadorFormDensity): str
   return "w-full px-2.5 py-2 bg-brand-surface border border-brand-border rounded-lg text-sm font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 text-brand-text tabular-nums transition-colors"
 }
 
+/** Precio unitario: ámbar, para distinguirlo de la cantidad en kW o kWh. */
+export function comparadorPriceInputClass(density: ComparadorFormDensity): string {
+  const shape =
+    density === "compact"
+      ? "w-full px-3 py-2.5 rounded-xl text-base"
+      : "w-full px-2.5 py-2 rounded-lg text-sm"
+  return `${shape} bg-amber-200 dark:bg-amber-800/80 border border-amber-500 dark:border-amber-400 font-mono font-medium text-amber-950 dark:text-amber-50 tabular-nums focus:border-amber-600 focus:ring-2 focus:ring-amber-500/30 transition-colors`
+}
+
+export function comparadorPriceLabelClass(density: ComparadorFormDensity): string {
+  const size = density === "compact" ? "text-[11px]" : "text-[9px]"
+  return `${size} font-mono font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wide`
+}
+
 export function comparadorFieldLabelClass(density: ComparadorFormDensity): string {
   if (density === "compact") {
     return "text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide"
@@ -49,7 +63,8 @@ export function resolveComparadorPeriodGridLayout(
   const inputClass = comparadorNumericInputClass(density)
   const labelClass = comparadorFieldLabelClass(density)
 
-  const priceLabelClass = `${labelClass} block min-w-0 leading-tight truncate`
+  const priceLabelClass = `${comparadorPriceLabelClass(density)} block min-w-0 leading-tight`
+  const priceInputClass = comparadorPriceInputClass(density)
 
   if (density === "compact") {
     return {
@@ -60,7 +75,7 @@ export function resolveComparadorPeriodGridLayout(
       labelClass,
       inputClass,
       priceLabelClass,
-      priceInputClass: inputClass,
+      priceInputClass,
     }
   }
 
@@ -72,6 +87,6 @@ export function resolveComparadorPeriodGridLayout(
     labelClass,
     inputClass,
     priceLabelClass,
-    priceInputClass: inputClass,
+    priceInputClass,
   }
 }

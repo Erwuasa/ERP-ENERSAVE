@@ -40,6 +40,7 @@ Parámetros recomendados en comparador: `skipDraftContract=true`, `skipTrainingD
 | **Servicios** (Repsol resumen) | Otros costes / SVA | Línea `Servicios X,XX €` del resumen (pág. 1) o desglose (pág. 2), ej. 4,20 €. |
 | **Financiación** bono (Repsol) | Bono social | Suma de líneas `Financiación` bajo «Otros conceptos» (ej. 0,14 + 0,38 €). |
 | **Financiación de Bono Social** (Naturgy) | Bono social | Importe tras `=` en la línea (ej. 0,67 €), no confundir con €/día. |
+| **Consumos** P1–P3 (no «Lecturas reales») | P1–P3 kWh | El kWh del periodo es la columna «Consumos» (ej. 60,22 / 79,69 / 66,65). «Lecturas reales» (ej. 19.353 / 5.055 / 5.889) es el índice del contador y no se copia. Si las dos van en la misma línea, se usa el kWh de la derecha. |
 | **Consumo electricidad Punta/Llano/Valle** (Naturgy) | P1–P3 kWh | kWh enteros (ej. 40 / 49 / 105); escalar a mes con días del periodo. |
 | **Alquiler de contador** con cálculo | Alquiler contador | Importe final tras `=` (ej. 35 días × … = 0,93 €). |
 | **Total a pagar** (Naturgy) | Factura mensual | Etiqueta `Total a pagar` con IVA (ej. 51,78 €). |

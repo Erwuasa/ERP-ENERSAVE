@@ -14,6 +14,7 @@ import {
   extractInvoiceTotalAmountEur,
   extractMeterRentalAmountEur,
   extractServiciosSvaAmountEur,
+  extractInvoiceCups,
   extractSocialBonusFinancingEur,
   scalePeriodConsumoToMonthlyKwh,
 } from "./invoice-ocr-billing-lines"
@@ -172,6 +173,7 @@ export function mergeComparadorBillingFromOcrText(
     segment,
     accessTariff,
     nif,
+    cups: extractInvoiceCups(ocrText) ?? localParsed?.cups ?? extraction.cups,
     potenciasKw,
     preciosPotenciaEur:
       unitPrices.potencia ?? localParsed?.preciosPotenciaEur ?? extraction.preciosPotenciaEur,

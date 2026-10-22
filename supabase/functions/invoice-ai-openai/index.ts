@@ -104,7 +104,10 @@ Reglas:
 - electricityCategory es la tarifa de acceso (ej. "2.0TD", "3.0TD", "6.1TD"), no el nombre comercial del producto.
 - companyBrand es el nombre de la comercializadora (ej. "Naturgy", "Endesa", "TotalEnergies"), no el nombre de la tarifa.
 - Los importes van en euros, con punto decimal (nunca coma).
-- No inventes datos que no veas en la factura.`
+- No inventes datos que no veas en la factura.
+- energyKwhByPeriod son los kWh de «Consumos», no los de «Lecturas reales». Las lecturas reales son el índice del contador. Si P1 en lecturas es 19.353 kWh y en consumos es 60,22 kWh, P1 es 60.22.
+- cups es el Código CUPS (ES + 16 dígitos + 2 letras), sin espacios.
+- socialBonusCostEur es el importe de «Financiación de Bono Social», también si en una pyme pasa de 5 euros.`
 
 function errorResponse(status: number, message: string, request: Request): Response {
   return new Response(JSON.stringify({ status: "error", message }), {

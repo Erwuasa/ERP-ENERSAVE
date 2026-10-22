@@ -324,9 +324,24 @@ export function extractDiasFacturadosFromInvoice(text: string): number | undefin
   return undefined
 }
 
+const BONO_SOCIAL_LINE =
+  /Financiaci[oó]n\s+(?:del?\s+)?Bono\s+Social[^\n]{0,180}/i
+
+/** Código CUPS (ES + 16 dígitos + 2 letras), aunque venga partido con espacios. */
+export function extractInvoiceCups(text: string): string | undefined {
+  const labelAt = text.search(
+    /c[oó]digo\s+universal\s+del?\s+punto|c[oó]digo\s+cups|\bcups\b/i
+  )
+  const region = labelAt >= 0 ? text.slice(labelAt, labelAt + 100) : text
+  const compact = region.toUpperCase().replace(/[^A-Z0-9]/g, "")
+  const labeled = compact.match(/ES\d{16}[A-Z]{2}/)
+  if (labeled) return labeled[0]
+  return text.toUpperCase().replace(/[^A-Z0-9]/g, "").match(/ES\d{16}[A-Z]{2}/)?.[0]
+}
+
 function extractSocialBonusFromSingleText(text: string): number | undefined {
-  const bonoBlock = text.match(
-    /Financiacion\s+(?:de\s+)?Bono\s+Social[\s\S]{0,280}/i
+  const bonoBlock = text.match(BONO_SOCIAL_LINE) ?? text.match(
+    /Financiacion\s+(?:del?\s+)?Bono\s+Social[\s\S]{0,280}/i
   )
   if (bonoBlock?.[0]) {
     const equalsAmount = bonoBlock[0].match(/=\s*(\d+[,.]\d+)\s*€/)
@@ -338,7 +353,7 @@ function extractSocialBonusFromSingleText(text: string): number | undefined {
     const last = euroAmounts.at(-1)?.[1]
     if (last) {
       const value = parseSpanishInvoiceAmount(last)
-      if (Number.isFinite(value) && value > 0 && value <= 5) return value
+      if (Number.isFinite(value) && value > 0 && value <= 80) return value
     }
   }
 
@@ -384,9 +399,78 @@ function parseKwhAmount(raw: string): number {
   return parseSpanishInvoiceAmount(raw)
 }
 
+function isConsumosHeading(line: string): boolean {
+  if (/consumo\s+(?:anual|medio|estimado)/i.test(line)) return false
+  if (/^consumos?\s*:?\s*$/i.test(line)) return true
+  return /^consumos?\s+(?:del\s+periodo|por\s+periodos?)\s*:?\s*$/i.test(line)
+}
+
+function isLecturasRealesHeading(line: string): boolean {
+  return /lecturas?\s+reales/i.test(line) && !/consumos?/i.test(line)
+}
+
+function kwhAmountsOnLine(line: string): string[] {
+  return [...line.matchAll(/(\d+(?:[.,]\d+)+)\s*kWh/gi)].map((match) => match[1])
+}
+
+/**
+ * kWh del periodo. Si la factura pone «Lecturas reales» y «Consumos» a la vez,
+ * las lecturas son el índice del contador y no entran en el formulario.
+ */
+function extractConsumosColumnKwh(text: string): InvoicePeriodConsumoKwh | undefined {
+  const lines = text.split(/\n/)
+  const found: Partial<InvoicePeriodConsumoKwh> = {}
+  let inConsumos = false
+  let dualColumn = false
+  let filled = 0
+
+  const assign = (period: string, token: string) => {
+    const key = periodKey(period)
+    if (key !== "p1" && key !== "p2" && key !== "p3") return
+    const value = parseSpanishInvoiceAmount(token)
+    if (!Number.isFinite(value) || value <= 0) return
+    found[key] = value
+    filled += 1
+  }
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    if (/lecturas?\s+reales/i.test(line) && /consumos?/i.test(line)) {
+      dualColumn = true
+      inConsumos = true
+      continue
+    }
+    if (isConsumosHeading(line)) {
+      inConsumos = true
+      dualColumn = false
+      continue
+    }
+    if (isLecturasRealesHeading(line)) {
+      inConsumos = false
+      continue
+    }
+    if (!inConsumos) continue
+    if (filled > 0 && !/\bP[1-6]\b/i.test(line) && !/kWh/i.test(line)) break
+
+    const period = line.match(/\bP([1-3])\b/i)
+    if (!period) continue
+    const amounts = kwhAmountsOnLine(line)
+    if (amounts.length === 0) continue
+    const token = dualColumn && amounts.length >= 2 ? amounts[amounts.length - 1] : amounts[0]
+    assign(period[1], token)
+  }
+
+  if ((found.p1 ?? 0) + (found.p2 ?? 0) + (found.p3 ?? 0) <= 0) return undefined
+  return { p1: found.p1 ?? 0, p2: found.p2 ?? 0, p3: found.p3 ?? 0 }
+}
+
 function extractInvoicePeriodConsumoFromSingleText(
   text: string
 ): InvoicePeriodConsumoKwh | undefined {
+  const consumosColumn = extractConsumosColumnKwh(text)
+  if (consumosColumn) return consumosColumn
+
   const naturgyPunta = text.match(
     new RegExp(`Consumo\\s+elec[a-z]*\\s+Punta[\\s\\S]{0,120}?${KWH_AMOUNT}`, "i")
   )

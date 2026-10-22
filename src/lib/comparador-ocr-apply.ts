@@ -176,8 +176,12 @@ export function applyComparadorOcrResult(
     applied++
   }
 
-  if (ocr.socialBonusCostEur != null && target.setCompBonoSocial) {
-    target.setCompBonoSocial(ocr.socialBonusCostEur)
+  const bonoSocial =
+    ocr.socialBonusCostEur != null && ocr.socialBonusCostEur > 0
+      ? ocr.socialBonusCostEur
+      : ocr.financingSocialBonusAmount
+  if (bonoSocial != null && bonoSocial > 0 && target.setCompBonoSocial) {
+    target.setCompBonoSocial(bonoSocial)
     applied++
   }
 

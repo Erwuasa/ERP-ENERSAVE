@@ -58,11 +58,67 @@ function maxPower(potencias: SipsVisualPower[]): number | null {
   return potencias.reduce((max, row) => (row.kw > max ? row.kw : max), potencias[0].kw)
 }
 
+function periodKwh(byPeriod: Record<string, number>): SipsVisualConsumptionPeriod[] {
+  const rows: SipsVisualConsumptionPeriod[] = []
+  for (const period of SIPS_PERIOD_ORDER) {
+    const kwh = byPeriod[period]
+    if (typeof kwh === "number" && Number.isFinite(kwh) && kwh > 0) rows.push({ period, kwh, pct: 0 })
+  }
+  const total = rows.reduce((sum, row) => sum + row.kwh, 0)
+  if (total <= 0) return []
+  return rows.map((row) => ({ ...row, pct: (row.kwh / total) * 100 }))
+}
+
+function sumPeriods(months: SipsVisualMonth[]): Record<string, number> {
+  const totals: Record<string, number> = {}
+  for (const month of months) {
+    for (const [period, kwh] of Object.entries(month.byPeriod)) {
+      if (typeof kwh !== "number" || !Number.isFinite(kwh) || kwh <= 0) continue
+      totals[period] = (totals[period] ?? 0) + kwh
+    }
+  }
+  return totals
+}
+
+function monthTotal(month: SipsVisualMonth): number {
+  return Object.values(month.byPeriod).reduce((sum, kwh) => sum + (typeof kwh === "number" ? kwh : 0), 0)
+}
+
+/** Last 12 months when dates exist. Trend compares them with the previous 12. */
+export function monthlyConsumptionView(months: SipsResumen["consumoMensual"]): {
+  consumoMensual: SipsVisualMonth[]
+  consumoTrendPct: number | null
+} {
+  const ordered = months
+    .map((month, index) => ({ month, index }))
+    .sort((a, b) => {
+      if (a.month.sortKey && b.month.sortKey && a.month.sortKey !== b.month.sortKey) {
+        return a.month.sortKey < b.month.sortKey ? -1 : 1
+      }
+      return a.index - b.index
+    })
+    .map((entry) => entry.month)
+  const latest = ordered.slice(-12).map((month) => ({ label: month.label, byPeriod: month.byPeriod }))
+  if (ordered.length < 24) return { consumoMensual: latest, consumoTrendPct: null }
+  const previous = ordered.slice(-24, -12).map((month) => ({ label: month.label, byPeriod: month.byPeriod }))
+  const previousTotal = previous.reduce((sum, month) => sum + monthTotal(month), 0)
+  const latestTotal = latest.reduce((sum, month) => sum + monthTotal(month), 0)
+  if (previousTotal <= 0) return { consumoMensual: latest, consumoTrendPct: null }
+  return {
+    consumoMensual: latest,
+    consumoTrendPct: Math.round(((latestTotal - previousTotal) / previousTotal) * 100),
+  }
+}
+
 export function mapSipsListoToVisual(
   outcome: Extract<SipsOutcome, { status: "listo" }>
 ): SipsVisualResult {
   const { resumen } = outcome
   const potencias = powersFromResumen(resumen.potenciasKw)
+  const monthly = monthlyConsumptionView(resumen.consumoMensual)
+  const periodosAnual = periodKwh(
+    Object.keys(resumen.consumosKwh).length > 0 ? resumen.consumosKwh : sumPeriods(monthly.consumoMensual)
+  )
   return {
     cups: outcome.cups,
     provincia: resumen.provincia ?? "",
@@ -73,10 +129,10 @@ export function mapSipsListoToVisual(
     cnae: resumen.cnae ?? "",
     potenciaMaxKw: maxPower(potencias),
     consumoAnualKwh: resumen.consumoAnualKwh,
-    consumoTrendPct: null,
+    consumoTrendPct: monthly.consumoTrendPct,
     potencias,
-    periodosAnual: [],
-    consumoMensual: [],
+    periodosAnual,
+    consumoMensual: monthly.consumoMensual,
     origen: outcome.origen,
     consultadoEn: outcome.consultadoEn,
   }

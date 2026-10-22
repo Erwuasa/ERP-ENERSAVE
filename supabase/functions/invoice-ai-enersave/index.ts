@@ -55,7 +55,7 @@ const GEMINI_RESPONSE_SCHEMA = {
     },
     energyCostEur: { type: "number", nullable: true, description: "Coste total término de energía en EUR" },
     meterRentalAmount: { type: "number", nullable: true, description: "Alquiler del equipo de medida del período" },
-    socialBonusCostEur: { type: "number", nullable: true, description: "Bono social en EUR" },
+    socialBonusCostEur: { type: "number", nullable: true, description: "Importe en EUR de Financiación de Bono Social, también en pyme si pasa de unos pocos euros" },
     financingSocialBonusAmount: { type: "number", nullable: true, description: "Financiación bono social" },
     otherCosts: { type: "number", nullable: true, description: "Otros costes/SVA que no sean potencia, energía, contador ni impuestos" },
     totalAmountEur: { type: "number", nullable: true, description: "Importe total con impuestos" },
@@ -118,9 +118,10 @@ PERIODOS ACTIVOS:
 - 3.0TD y 6.x: potencia y energía en P1..P6.
 
 CONSUMO ELÉCTRICO (energyKwhByPeriod):
-- Buscar primero en "Lectura por periodos", "Consumo por periodos" o "Desglose de consumo".
-- Si los kWh se muestran como kWh/día, multiplicar por invoiceDays.
-- Si no hay desglose, usar el desglose de cargos del término de energía.
+- Copia los kWh de la columna o el bloque «Consumos» (también «Consumo por periodos» o el kWh del desglose que multiplica el €/kWh).
+- «Lecturas reales», «Lectura» y el acumulado del contador no son el consumo. Si salen las dos cosas, ignora las lecturas.
+- Ejemplo: Lecturas reales P1 19.353 kWh y Consumos P1 60,22 kWh → P1 es 60.22. Igual con P2 y P3.
+- Si los kWh se muestran como kWh/día, multiplicar por invoiceDays. Si ya son los kWh del periodo, copiarlos tal cual.
 
 POTENCIA (powerKwByPeriod):
 - Buscar en "Potencia contratada" o "Término de potencia". Son kW, no el precio.
@@ -128,7 +129,13 @@ POTENCIA (powerKwByPeriod):
 PRECIOS UNITARIOS (del desglose, no los importes):
 - powerPriceEurKwDayByPeriod: el €/kW día de cada «Término potencia P1..P6». En 2.0TD, P1 y P2 pueden ser distintos. El resto a 0.
 - energyPriceEurKwhByPeriod: el €/kWh de Punta/Llano/Valle o de P1..P6. Si la factura trae un solo €/kWh para todo el consumo, repetirlo en P1–P3 (2.0TD) o en P1–P6 (3.0 y 6.x).
-- No uses la lectura del contador (el acumulado) como kWh ni como precio.
+- No uses la lectura del contador ni «Lecturas reales» como kWh ni como precio. El kWh es el de «Consumos».
+
+CUPS:
+- cups es el «Código CUPS» del suministro. Empieza por ES, 16 dígitos y 2 letras. Quita los espacios. No lo dejes null si esa etiqueta está en la factura.
+
+BONO SOCIAL (socialBonusCostEur):
+- Importe de «Financiación de Bono Social» o «Financiación del bono social»: el total de esa línea, no el €/día. En una pyme puede pasar de 5 €. Si esa línea existe, no lo dejes null.
 
 GAS (gasCategory):
 - RL1 ≤ 5.000 kWh/año; RL2 hasta 15.000; RL3 hasta 50.000; RL4 hasta 300.000; RL5 por encima. Si no hay consumo anual, null.

@@ -17,7 +17,7 @@ La pantalla opera con dos paneles sincronizados: el panel izquierdo para la capt
 ### 2.2. Tarifa de Acceso (ATR) y Adaptación Dinámica del Grid
 * **Luz:** `2.0` (2.0TD), `3.0` (3.0TD), `6.1`, `6.2`, `6.3`, `6.4`.
 * **Gas:** `RL1` a `RL5`. El formulario pide el kWh del periodo. El término fijo de la oferta es 1 × €/día × días. Bono social y reactiva no salen.
-* **Reglas de estructura visual.** A la vista solo está la cantidad de cada periodo. El precio unitario de la factura actual va plegado, detrás del icono de cada bloque. Si la lectura de la factura trae precios, ese bloque se abre y se rellena solo con los periodos del peaje. El bloque abierto usa la misma rejilla, el mismo tamaño de etiqueta y el mismo tamaño de input que las cantidades de ese peaje (2.0 más holgado; 3.0 en adelante, tres columnas). Crece hacia abajo y el panel hace scroll. No se encoge ni se monta sobre Consumo ni sobre Otros conceptos.
+* **Reglas de estructura visual.** A la vista solo está la cantidad de cada periodo. El precio unitario de la factura actual va plegado, detrás del icono de cada bloque. Si la lectura de la factura trae precios, ese bloque se abre y cada precio (fondo ámbar) queda justo debajo de su kW o de su kWh, en la misma columna. El bloque crece hacia abajo y el panel hace scroll. No se encoge ni se monta sobre el bloque siguiente.
   * **Peaje 2.0:** Potencia `P1` y `P2` (kW y, si hay precio, €/kW·día). Consumo `P1`, `P2` y `P3` (kWh/día y, si hay precio, €/kWh). La etiqueta del precio es solo la unidad, sin el texto «Precio actual».
   * **Peajes 3.0 a 6.4:** Potencia `P1` a `P6` y consumo `P1` a `P6`, con el mismo par cantidad/precio.
 * **Saneamiento de estado:** Al cambiar a una tarifa con menor número de periodos, los valores en periodos inactivos se limpian automáticamente a `0` para no falsear los cálculos en segundo plano.
@@ -27,7 +27,7 @@ Empiezan ocultos. El icono junto a Potencia o Consumo los despliega a mano.
 * **Potencia:** precio en €/kW·día de cada periodo activo.
 * **Consumo:** precio en €/kWh de cada periodo activo.
 * **Factura adjunta:** al leer un PDF o una imagen, si la extracción trae precios de potencia o de energía, esos campos se rellenan y se muestran. El número de huecos sigue el peaje de la factura (2.0 o 3.0 en adelante).
-* **IA:** el lector principal es la Edge Function `invoice-ai-enersave` (Gemini 2.0 Flash). Exige sesión y el secreto `GEMINI_API_KEY` en la función; no está desplegada. Si falla, se usa `invoice-ai-openai` y, si tampoco, el servicio de respaldo y el OCR local. Una factura de electricidad se queda en luz aunque la dirección o el mix digan «gas». El peaje sale de «Peaje de transporte y distribución» y el desglose rellena €/kW·día y €/kWh por periodo. Un DNI con peaje 2.0TD es residencial. Una factura de gas rellena el peaje RL, el kWh, el término fijo €/día y el término variable €/kWh.
+* **IA:** el lector principal es la Edge Function `invoice-ai-enersave` (Gemini 2.0 Flash). Exige sesión y el secreto `GEMINI_API_KEY` en la función; no está desplegada. Si falla, se usa `invoice-ai-openai` y, si tampoco, el servicio de respaldo y el OCR local. Una factura de electricidad se queda en luz aunque la dirección o el mix digan «gas». El peaje sale de «Peaje de transporte y distribución» y el desglose rellena €/kW·día y €/kWh por periodo. Los kWh de cada periodo salen de «Consumos», no de «Lecturas reales» (el índice del contador). El «Código CUPS» rellena el campo CUPS y, si las letras de control cuadran, se consulta el SIPS para el consumo anual. «Financiación de Bono Social» rellena el bono, también cuando el importe de una pyme pasa de unos pocos euros. Un DNI con peaje 2.0TD es residencial. Una factura de gas rellena el peaje RL, el kWh, el término fijo €/día y el término variable €/kWh.
 * **Uso:** reconstruyen el coste de la factura original con las mismas fórmulas que la oferta (`kW × €/kW·día × días` y `kWh × €/kWh`) y rellenan la columna «Tarifa actual» del estudio PDF.
 
 ### 2.4. Mapeo de Precios de Catálogo
@@ -83,6 +83,7 @@ Para cada tarifa evaluada:
 * **Toggle de Ordenación:**  
   * `Más ahorro` (predeterminado): Orden descendente por `Ahorro Mensual (€)`. Desempate por mayor comisión comercial.  
   * `Más comisión`: Orden descendente por la comisión percibida en euros. Desempate por mayor ahorro mensual.
+* **Ahorro mínimo:** selector al lado de los dos órdenes (`Todos`, `5% o más` … `30% o más`). Con `Más comisión` y `5%` salen primero las comisiones más altas, solo entre las ofertas cuyo ahorro es ese porcentaje o más. `Todos` no filtra.
 * **Filtro Tipo Tarifa (`Fijo` | `Indexado`):** Valida la tipología del producto. Si el campo en base de datos es nulo, aplica una heurística de contingencia por expresión regular sobre el nombre comercial (`/indexad|variable|pass[\s-]?through|pool|flex/i` categoriza como `Indexado`; de lo contrario, `Fijo`).
 * **Filtro Atributos - `Sin SVA`:** Excluye tarifas con servicios de valor añadido o mantenimientos obligatorios vinculados.
 * **Filtro Atributos - `Potencia BOE`:** Aplica verificación híbrida: comprueba si el nombre comercial contiene la palabra completa `BOE` (mediante `/\bBOE\b/i`) o si los precios de potencia coinciden matemáticamente con los peajes y cargos regulados oficiales del BOE sin margen comercial añadido.
@@ -101,7 +102,7 @@ El PDF de una oferta usa las mismas fórmulas y los mismos precios que el desglo
 
 * **2.0:** la tabla de potencia lista `P1` y `P2`. La de energía lista `P1`, `P2` y `P3`.
 * **3.0 a 6.4:** potencia y energía listan `P1` a `P6`.
-* **Tarifa actual:** cada fila lleva la cantidad, el precio unitario y el importe del periodo, tomados de los campos de la factura actual. Si no hay precios de la factura actual, el total de esa columna es el importe introducido en «Total factura €».
+* **Tarifa actual:** cada fila lleva la cantidad, el precio unitario y el importe del periodo que el usuario ha escrito en el comparador. Los kW y los kWh salen aunque el precio de ese periodo esté a 0. Bono social, alquiler, costes adicionales y excesos salen cuando el importe es mayor que 0. Si no hay precios unitarios, el total de esa columna sigue siendo el importe escrito en «Total factura €» y no se inventan IEE ni IVA. Si sí hay precios unitarios, el total es el calculado con IEE e IVA.
 * **Tarifa propuesta:** no incluye «Otros costes / SVA». Sí incluye alquiler, bono social y reactiva. Si el alquiler del formulario está vacío o a 0, el PDF usa 1,84 €/mes, el mismo importe que la tarjeta. El total de la oferta es potencia + energía + alquiler + bono + reactiva + IEE + IVA, el mismo que el total de la tarjeta.
 
 ## 6. Historial de comparativas

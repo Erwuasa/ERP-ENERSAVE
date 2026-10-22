@@ -99,6 +99,11 @@ function emptyPeriodValues(): ComparadorPeriodValues {
   return { p1: 0, p2: 0, p3: 0, p4: 0, p5: 0, p6: 0 }
 }
 
+function periodHasValue(values: ComparadorPeriodValues | undefined): boolean {
+  if (!values) return false
+  return Object.values(values).some((value) => Number(value) > 0)
+}
+
 export function rateArraysToPrecios(
   potRates: number[] = [],
   conRates: number[] = []
@@ -250,12 +255,10 @@ export function mapComparadorToEstudioAhorro(
   }
   const preciosActualesPotencia = params.preciosPotenciaActual ?? emptyPeriodValues()
   const preciosActualesEnergia = params.preciosEnergiaActual ?? emptyPeriodValues()
-  const hasActualPrices = Object.values({
-    ...preciosActualesPotencia,
-    ...preciosActualesEnergia,
-  }).some((value) => Number(value) > 0)
+  const hasActualPrices = periodHasValue(preciosActualesPotencia) || periodHasValue(preciosActualesEnergia)
+  const hasActualQuantities = periodHasValue(params.potencias) || periodHasValue(params.consumos)
 
-  const actualBreakdown = hasActualPrices
+  const actualBreakdown = hasActualPrices || hasActualQuantities
     ? calcularCosteComparadorDesdePreciosActuales(
         params.potencias,
         params.consumos,
@@ -288,7 +291,7 @@ export function mapComparadorToEstudioAhorro(
     descuentoEnergia: params.descuentoEnergia ?? 0,
   }
 
-  const tarifaActual = actualBreakdown
+  let tarifaActual = actualBreakdown
     ? buildTarifaFromBreakdown(
         params.comercializadoraActual ?? "Comercializadora actual",
         params.tarifaActualNombre || "Tarifa actual",
@@ -304,6 +307,16 @@ export function mapComparadorToEstudioAhorro(
           ? params.currentBillMonthly
           : params.summary.currentAnnualExpense / COMPARADOR_MESES_ANUAL
       )
+
+  if (!hasActualPrices && params.currentBillMonthly > 0) {
+    tarifaActual = {
+      ...tarifaActual,
+      otrosConceptos: tarifaActual.otrosConceptos.filter(
+        (row) => row.concepto !== "IEE" && row.concepto !== "IVA"
+      ),
+      totalFactura: params.currentBillMonthly,
+    }
+  }
 
   const tarifaPropuesta = buildTarifaFromBreakdown(
     params.bestOption.companyName,

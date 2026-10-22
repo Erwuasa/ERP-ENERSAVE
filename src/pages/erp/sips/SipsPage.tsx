@@ -74,7 +74,6 @@ export function SipsPage() {
                 data={visual}
                 producto={lookup.producto}
                 onClose={lookup.cancel}
-                onRefresh={() => lookup.submit({ force: true })}
               />
             </motion.div>
           ) : lookup.state.phase === "idle" ? (

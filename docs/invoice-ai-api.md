@@ -50,7 +50,7 @@ Content-Type: multipart/form-data
 |---|---|---|
 | `powerKwByPeriod` | `number[6]` | Potencia contratada kW P1–P6 (0 si no aplica) |
 | `powerCostEur` | `number \| null` | Importe total término de potencia |
-| `energyKwhByPeriod` | `number[6]` | Energía consumida kWh P1–P6 (0 si no aplica) |
+| `energyKwhByPeriod` | `number[6]` | kWh consumidos en el periodo, columna «Consumos». No la lectura del contador ni «Lecturas reales» (0 si no aplica) |
 | `energyCostEur` | `number \| null` | Importe total término de energía |
 
 > **2.0TD**: potencia activa en P1 y P2; energía en P1, P2, P3. P4–P6 = 0.  

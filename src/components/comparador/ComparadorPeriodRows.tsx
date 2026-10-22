@@ -54,25 +54,21 @@ export function ComparadorPeriodRows({
               showZeroAsEmpty
               className={layout.inputClass}
             />
+            {showPrices ? (
+              <>
+                <span className={`${layout.priceLabelClass} mt-1`}>{priceLabel}</span>
+                <DecimalComaInput
+                  value={priceValues[slot] || 0}
+                  onChange={(value) => onPriceChange(slot, value)}
+                  showZeroAsEmpty
+                  className={layout.priceInputClass}
+                  aria-label={`${periodHeading(mode, slot)} ${priceLabel}`}
+                />
+              </>
+            ) : null}
           </div>
         ))}
       </div>
-
-      {showPrices ? (
-        <div className={`grid ${layout.gridClass} ${layout.gapClass} pt-2`}>
-          {periods.map((slot) => (
-            <div key={`${slot}-price`} className={layout.fieldClass}>
-              <span className={layout.priceLabelClass}>{priceLabel}</span>
-              <DecimalComaInput
-                value={priceValues[slot] || 0}
-                onChange={(value) => onPriceChange(slot, value)}
-                showZeroAsEmpty
-                className={layout.priceInputClass}
-              />
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   )
 }

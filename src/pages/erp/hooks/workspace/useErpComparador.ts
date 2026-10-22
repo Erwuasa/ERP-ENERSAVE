@@ -132,6 +132,7 @@ export function useErpComparador({
   const [compLoading] = useState<boolean>(false);
   const [compProposalFilters, setCompProposalFilters] = useState<CompProposalFilterId[]>([]);
   const [compSortMode, setCompSortMode] = useState<ComparadorSortMode>('ahorro');
+  const [compMinSavingsPct, setCompMinSavingsPct] = useState(0);
   const [compOcrLoading, setCompOcrLoading] = useState(false);
   const [compOcrProgress, setCompOcrProgress] = useState<string | null>(null);
   const [marcoRowsForComparador, setMarcoRowsForComparador] = useState<MarcoRetributivoRow[]>([]);
@@ -789,6 +790,8 @@ export function useErpComparador({
     setCompProposalFilters,
     compSortMode,
     setCompSortMode,
+    compMinSavingsPct,
+    setCompMinSavingsPct,
     compOcrLoading,
     compOcrProgress,
     emailPropuestaOpen,

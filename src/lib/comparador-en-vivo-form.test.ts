@@ -110,4 +110,42 @@ describe("resolveComparadorCurrentAnnualExpense", () => {
 
     expect(mapped.currentBillPrecision).toBe("estimado")
   })
+
+  it("con más comisión y un 5% deja solo las ofertas que ahorran ese porcentaje o más", () => {
+    const base = {
+      providerName: "A",
+      tariffName: "Tarifa",
+      potenciaAnual: 0,
+      energiaAnual: 0,
+      comisionPrecision: "exacto" as const,
+      comisionTramoLabel: null,
+      atRateId: null,
+      isIndexed: false,
+      pricingType: "fijo" as const,
+      svaPriceMonthly: null,
+      potenciaBoe: null,
+      providerLogoUrl: null,
+      precios: {},
+      alquilerAnual: 0,
+      extrasAnual: 0,
+    }
+    const mapped = mapRankingToOfferOptions({
+      resultados: [
+        { ...base, tariffId: "cara", costeAnual: 1100, comisionEstimada: 200 },
+        { ...base, tariffId: "barata", costeAnual: 200, comisionEstimada: 10 },
+      ],
+      peaje: "2.0TD",
+      potencias: emptyComparadorPeriodValues(),
+      consumos: emptyComparadorPeriodValues(),
+      preciosPotenciaActual: emptyComparadorPeriodValues(),
+      preciosEnergiaActual: emptyComparadorPeriodValues(),
+      currentBillMonthly: 100,
+      billExtras: { rentMeterMonthly: 0, bonoSocial: 0, energiaReactiva: 0, otrosCostesSva: 0 },
+      diasFacturacion: 30,
+      sortMode: "comision",
+      minSavingsPct: 5,
+    })
+
+    expect(mapped.options.map((option) => option.id)).toEqual(["barata"])
+  })
 })

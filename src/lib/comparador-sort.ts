@@ -9,6 +9,17 @@ export const COMPARADOR_SORT_OPTIONS: { id: ComparadorSortMode; label: string }[
   { id: "comision", label: "Más comisión" },
 ]
 
+/** Ahorro mínimo sobre la factura actual. 0 muestra todas las ofertas. */
+export const COMPARADOR_MIN_SAVINGS_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Todos" },
+  { value: 5, label: "5% o más" },
+  { value: 10, label: "10% o más" },
+  { value: 15, label: "15% o más" },
+  { value: 20, label: "20% o más" },
+  { value: 25, label: "25% o más" },
+  { value: 30, label: "30% o más" },
+]
+
 export interface ComparadorSortableOption {
   id: string
   companyName: string

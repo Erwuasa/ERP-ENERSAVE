@@ -20,6 +20,8 @@ const LISTO: SipsOutcome = {
     municipio: null,
     distribuidora: null,
     cnae: "4711",
+    consumosKwh: {},
+    consumoMensual: [],
   },
   origen: null,
   consultadoEn: null,

@@ -4,7 +4,13 @@ import { ComparadorAdvancedToggle } from "@/components/comparador/ComparadorAdva
 import { ComparadorPeriodRows } from "@/components/comparador/ComparadorPeriodRows"
 import { DecimalComaInput } from "@/components/comparador/DecimalComaInput"
 import { isComparadorGasPeaje } from "@/lib/comparador-access-tariff"
-import { resolveComparadorFormDensity, comparadorFieldLabelClass, comparadorNumericInputClass } from "@/lib/comparador-period-layout"
+import {
+  resolveComparadorFormDensity,
+  comparadorFieldLabelClass,
+  comparadorNumericInputClass,
+  comparadorPriceInputClass,
+  comparadorPriceLabelClass,
+} from "@/lib/comparador-period-layout"
 import { SUPPLY_KIND_THEME } from "@/lib/enersave-ui-theme"
 import { hasComparadorPeriodPrices, type ComparadorPeriodSlot } from "@/lib/comparador-periods"
 import type { ComparadorPeriodValues } from "@/lib/erp/comparador-rates"
@@ -104,30 +110,32 @@ export function ComparadorEnergyFields({
               showZeroAsEmpty
               className={inputClass}
             />
+            {showGasPrices ? (
+              <>
+                <span className={`${comparadorPriceLabelClass(density)} mt-1`}>Término variable €/kWh</span>
+                <DecimalComaInput
+                  value={preciosEnergia.p1 || 0}
+                  onChange={(value) => onConsumoPriceChange("p1", value)}
+                  showZeroAsEmpty
+                  className={comparadorPriceInputClass(density)}
+                  aria-label="Término variable €/kWh"
+                />
+              </>
+            ) : null}
           </div>
-        </div>
-        {showGasPrices ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          {showGasPrices ? (
             <div className="flex min-w-0 flex-col gap-1">
-              <span className={labelClass}>Término fijo €/día</span>
+              <span className={comparadorPriceLabelClass(density)}>Término fijo €/día</span>
               <DecimalComaInput
                 value={preciosPotencia.p1 || 0}
                 onChange={(value) => onPotenciaPriceChange("p1", value)}
                 showZeroAsEmpty
-                className={inputClass}
+                className={comparadorPriceInputClass(density)}
+                aria-label="Término fijo €/día"
               />
             </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <span className={labelClass}>Término variable €/kWh</span>
-              <DecimalComaInput
-                value={preciosEnergia.p1 || 0}
-                onChange={(value) => onConsumoPriceChange("p1", value)}
-                showZeroAsEmpty
-                className={inputClass}
-              />
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </section>
     )
   }

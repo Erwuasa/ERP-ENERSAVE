@@ -81,11 +81,39 @@ describe("parseSipsResumen", () => {
       tarifa: null,
       potenciasKw: {},
       consumoAnualKwh: null,
+      consumosKwh: {},
+      consumoMensual: [],
       codigoPostal: null,
       provincia: null,
       municipio: null,
       distribuidora: null,
       cnae: null,
+    })
+  })
+
+  it("reads period kWh and monthly active energy when the provider sends them", () => {
+    const resumen = parseSipsResumen({
+      consumos_kwh: { P1: 1263, P2: 978, P3: 1752, P4: 0 },
+      consumo_mensual: [
+        {
+          fechaFinMesConsumo: "2025-05-31",
+          consumoEnergiaActivaEnWhP1: 80000,
+          consumoEnergiaActivaEnWhP2: 20000,
+          potenciaDemandadaEnWP1: 6900,
+        },
+        { mes: "2025-06", P1: 90, P2: 10 },
+      ],
+    })
+    expect(resumen.consumosKwh).toEqual({ P1: 1263, P2: 978, P3: 1752 })
+    expect(resumen.consumoMensual[0]).toMatchObject({
+      label: "may 25",
+      sortKey: "2025-05",
+      byPeriod: { P1: 80, P2: 20 },
+    })
+    expect(resumen.consumoMensual[1]).toMatchObject({
+      label: "jun 25",
+      sortKey: "2025-06",
+      byPeriod: { P1: 90, P2: 10 },
     })
   })
 })

@@ -40,6 +40,14 @@ describe("mapComparadorToEstudioAhorro", () => {
       },
     })
 
+    const actualP1 = input.tarifaActual.terminoPotencia.find((row) => row.periodo === "P1")
+    expect(actualP1?.potenciaContratadaKw).toBe(4.6)
+    expect(actualP1?.precioEurDia).toBe(0.1)
+    expect(actualP1?.total).toBeCloseTo(4.6 * 0.1 * 30, 6)
+    const actualE1 = input.tarifaActual.terminoEnergia.find((row) => row.periodo === "P1")
+    expect(actualE1?.consumoKwh).toBe(120)
+    expect(actualE1?.precioEurKwh).toBe(0.2)
+
     const p1 = input.tarifaPropuesta.terminoPotencia.find((row) => row.periodo === "P1")
     expect(p1?.potenciaContratadaKw).toBe(4.6)
     expect(p1?.precioEurDia).toBe(0.08)
@@ -151,6 +159,9 @@ describe("mapComparadorToEstudioAhorro", () => {
       taxes.ivaMensual
     )
     expect(input.tarifaActual.totalFactura).toBe(90)
+    expect(input.tarifaActual.terminoPotencia.find((row) => row.periodo === "P1")?.potenciaContratadaKw).toBe(4.6)
+    expect(input.tarifaActual.terminoEnergia.find((row) => row.periodo === "P1")?.consumoKwh).toBe(5)
+    expect(input.tarifaActual.otrosConceptos.find((row) => row.concepto === "Alquiler equipo")?.total).toBe(1.84)
     expect(input.ahorroPorFacturaEur).toBeCloseTo(90 - taxes.totalMensual, 2)
   })
 

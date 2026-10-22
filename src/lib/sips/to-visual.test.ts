@@ -21,6 +21,8 @@ function listo(overrides: Partial<Extract<SipsOutcome, { status: "listo" }>["res
       municipio: "Lugo",
       distribuidora: "Begasa",
       cnae: "4711",
+      consumosKwh: {},
+      consumoMensual: [],
       ...overrides,
     },
   }
@@ -63,5 +65,44 @@ describe("mapSipsListoToVisual", () => {
     expect(visual.consumoAnualKwh).toBeNull()
     expect(visual.provincia).toBe("")
     expect(visual.cnae).toBe("")
+  })
+
+  it("uses the provider period kWh for the donut and the last 12 months for the curve", () => {
+    const months = Array.from({ length: 24 }, (_, index) => {
+      const date = new Date(Date.UTC(2024, index, 1))
+      const sortKey = date.toISOString().slice(0, 7)
+      const kwh = index < 12 ? 10 : 15
+      return { label: sortKey, sortKey, byPeriod: { P1: kwh, P2: kwh } }
+    })
+    const visual = mapSipsListoToVisual(
+      listo({
+        consumosKwh: { P1: 1263, P2: 978, P3: 1752 },
+        consumoMensual: months,
+      })
+    )
+    expect(visual.periodosAnual.map((row) => row.period)).toEqual(["P1", "P2", "P3"])
+    expect(visual.periodosAnual[0]).toMatchObject({ kwh: 1263 })
+    expect(visual.periodosAnual[0].pct).toBeCloseTo((1263 / 3993) * 100)
+    expect(visual.consumoMensual).toHaveLength(12)
+    expect(visual.consumoMensual[0].label).toBe("2025-01")
+    expect(visual.consumoMensual[11].label).toBe("2025-12")
+    expect(visual.consumoTrendPct).toBe(50)
+  })
+
+  it("builds the donut from the monthly curve when the annual split is missing", () => {
+    const visual = mapSipsListoToVisual(
+      listo({
+        consumoMensual: [
+          { label: "may 25", sortKey: "2025-05", byPeriod: { P1: 40, P3: 60 } },
+          { label: "jun 25", sortKey: "2025-06", byPeriod: { P1: 20, P2: 30 } },
+        ],
+      })
+    )
+    expect(visual.periodosAnual).toEqual([
+      { period: "P1", kwh: 60, pct: 40 },
+      { period: "P2", kwh: 30, pct: 20 },
+      { period: "P3", kwh: 60, pct: 40 },
+    ])
+    expect(visual.consumoTrendPct).toBeNull()
   })
 })

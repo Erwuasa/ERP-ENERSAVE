@@ -24,7 +24,7 @@ export const ENERSAVE_EMAIL = {
   fontDisplay:
     '"SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   fontMono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  from: "asesoria.enersave@gmail.com",
+  from: "germanbayon@enersave.website",
   fromName: "EnerSave ERP",
 } as const
 
