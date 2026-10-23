@@ -39,7 +39,7 @@ npm run db:apply   # scripts/apply-supabase-sql.mjs (aplica SQL a Supabase)
 
 `.env` (ignorado por git) contiene `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `GMAIL_*`, `VITE_INVOICE_AI_*`.
 
-- El correo del ERP (invitación, OTP y aviso de estado) sale por `sendHtmlEmailViaGmail`. Si existen `SMTP_USER` y `SMTP_PASSWORD`, usa Zoho (`SMTP_HOST`, por defecto `smtp.zoho.eu`, puerto 465). Si no, sigue con `GMAIL_USER` / `GMAIL_APP_PASSWORD`. El remitente es el usuario SMTP. Esos secretos viven en las Edge Functions, no en el repo. Hace falta redesplegar `send-staff-invitation`, `staff-login-otp` y `notify-contract-estado-change` para que el cambio llegue a producción.
+- El correo del ERP (invitación, OTP y aviso de estado) sale por `sendHtmlEmailViaGmail`. Si existen `SMTP_USER` y `SMTP_PASSWORD`, usa Zoho (`SMTP_HOST`, por defecto `smtp.zoho.eu`, puerto 465). Si no, sigue con `GMAIL_USER` / `GMAIL_APP_PASSWORD`. El remitente es el usuario SMTP. Esos secretos viven en las Edge Functions, no en el repo. `send-staff-invitation` y `notify-contract-estado-change` están desplegadas con este envío (2026-10-22). `staff-login-otp` sigue con el paquete anterior.
 
 - **Nunca** leas ni pegues valores en chat, commits, docs ni logs.
 - **Nunca** pongas la service role en una variable `VITE_*` ni en código de cliente. Solo vive en Edge Functions / scripts de servidor.
@@ -273,7 +273,7 @@ Si el commit no afecta a nada de lo anterior, no hace falta tocarlo.
 
 ## 12. Registro de cambios (más reciente arriba)
 
-- 2026-10-22 — Correo del ERP: si hay `SMTP_USER` y `SMTP_PASSWORD`, la invitación, el OTP y el aviso de estado salen por Zoho (`smtp.zoho.eu`). Sin esos secretos sigue Gmail. Las tres Edge Functions no están redesplegadas. Ver §3.
+- 2026-10-22 — Correo del ERP: `send-staff-invitation` y `notify-contract-estado-change` desplegadas. Con `SMTP_USER` y `SMTP_PASSWORD` salen por Zoho. `staff-login-otp` no se redesplegó. Ver §3.
 - 2026-10-22 — SIPS: el resultado quita Actualizar, Comparativa y Exportar. El quesito sigue en el reparto de potencia contratada. Ver §9.
 - 2026-10-22 — Comparador: cada precio €/kW·día o €/kWh va justo debajo de su kW o kWh, en ámbar. Una factura rellena el CUPS y consulta el SIPS para el consumo anual, y copia la financiación del bono social aunque el importe de una pyme pase de unos euros. Ver `docs/modulos/comparador.md`.
 - 2026-10-22 — Comparador: los kWh por periodo de una factura salen de «Consumos» (60,22 / 79,69 / 66,65), no de «Lecturas reales» (el índice del contador). El OCR local pisa lo que haya devuelto la IA. Ver `docs/modulos/comparador.md`.
