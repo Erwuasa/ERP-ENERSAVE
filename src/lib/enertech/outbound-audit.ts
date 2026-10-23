@@ -142,6 +142,29 @@ export interface OutboundResultInput {
   enertechContractId: number | null
 }
 
+/** A saved contract that never reached Enertech should leave a log row. A draft that we skip on purpose should not. */
+export function shouldRecordLocalAltaFailure(message: string): boolean {
+  const text = message.trim()
+  if (!text) return false
+  if (/borrador/i.test(text)) return false
+  if (/todavía no está/i.test(text)) return false
+  if (/Pendiente de RGPD/i.test(text)) return false
+  return true
+}
+
+export function isOutboundProblem(input: {
+  httpStatus: number | null
+  documentsRejected: boolean
+  errorCode: string | null
+  errorMessage: string | null
+  reconciliationStatus: EnertechReconciliationStatus
+}): boolean {
+  if (input.documentsRejected || input.reconciliationStatus === "orphan") return true
+  if (input.errorCode?.trim() || input.errorMessage?.trim()) return true
+  if (input.httpStatus == null) return false
+  return input.httpStatus < 200 || input.httpStatus >= 300
+}
+
 export function outboundResultSummary(input: OutboundResultInput): string {
   if (input.documentsRejected) return input.errorMessage ?? "Documentos rechazados"
   const failed = input.httpStatus == null || input.httpStatus < 200 || input.httpStatus >= 300

@@ -1,5 +1,4 @@
 import { AvisosPanel } from "@/components/AvisosPanel"
-import { AtEmailLogsPanel } from "@/pages/erp/comunicaciones/AtEmailLogsPanel"
 import { useAuth } from "@/hooks/useAuth"
 import { useStaffFeeds } from "@/pages/erp/providers/staff-feeds-context"
 
@@ -30,7 +29,6 @@ export function ComunicacionesPage() {
         onAvisoCreated={(aviso) => setAvisos((prev) => [aviso, ...prev])}
         onAvisoDeleted={(avisoId) => setAvisos((prev) => prev.filter((aviso) => aviso.id !== avisoId))}
       />
-      {activeUser.role === "superadmin" ? <AtEmailLogsPanel /> : null}
     </div>
   )
 }

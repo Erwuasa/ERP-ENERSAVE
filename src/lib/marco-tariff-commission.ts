@@ -1,3 +1,4 @@
+import { catalogSupplyType } from "@/lib/enertech/catalog-supply"
 import { normalizeCompaniaKey } from "@/lib/erp/compania-logos"
 import {
   inferErpAudienceFromPeaje,
@@ -54,6 +55,28 @@ function companyKey(name: string): string {
 
 function peajeKey(peaje: string): string {
   return peaje.trim().toLowerCase()
+}
+
+/** `HUNTER+` y `HUNTER +` quedan en la misma clave, y `++` no se mezcla con `+`. */
+export function plusAwareCommissionKey(name: string): string {
+  const trimmed = name.trim()
+  const plusMatch = trimmed.match(/(\++)\s*$/)
+  const pluses = plusMatch?.[1]?.length ?? 0
+  const withoutPlus = pluses > 0 ? trimmed.slice(0, trimmed.length - (plusMatch?.[0].length ?? 0)).trim() : trimmed
+  const base = marcoCommissionNameKey(withoutPlus).replace(/\bcon\b/g, " ").replace(/\s+/g, " ").trim()
+  if (!base) return ""
+  return pluses > 0 ? `${base} ${"+".repeat(pluses)}` : base
+}
+
+/** `HUNTER + / LASAI + / WILD +` enlaza con la tarifa `HUNTER+`. */
+export function marcoCommissionAliasKeys(name: string): string[] {
+  const parts = name.split("/").map((part) => part.trim()).filter(Boolean)
+  const keys = new Set<string>()
+  for (const part of parts) {
+    const key = plusAwareCommissionKey(part)
+    if (key) keys.add(key)
+  }
+  return [...keys]
 }
 
 /**
@@ -233,8 +256,7 @@ export function marcoOfferSegment(compania: string, tarifa: string, peaje: strin
 }
 
 export function marcoOfferTipo(tarifa: string, peaje: string): "luz" | "gas" {
-  if (/gas/i.test(tarifa) || /gas/i.test(peaje) || /rl\d/i.test(peaje)) return "gas"
-  return "luz"
+  return catalogSupplyType({ tarifa: peaje, campania: tarifa })
 }
 
 function toConsumoTramo(slice: MarcoCommissionSlice): MarcoConsumoTramo {
@@ -280,15 +302,21 @@ export function weaveMarcoTariffsWithCommissions(
     const peaje = peajeKey(slice.peaje)
     const company = slice.compania.trim() ? companyKey(slice.compania) : ""
     push(exact, `${name}|${peaje}|${company}`, slice)
+    for (const alias of marcoCommissionAliasKeys(slice.campania)) {
+      push(exact, `${alias}|${peaje}|${company}`, slice)
+    }
     push(byCompanyPeaje, `${company}|${peaje}`, slice)
 
-    if (company && !peaje && isTierToken(slice.campania)) {
+    const tierCompany =
+      company ||
+      (["base", "one", "supra"].includes(normalizeMarcoTarifaName(slice.campania)) ? "naturgy" : "")
+    if (tierCompany && !peaje && isTierToken(slice.campania)) {
       const token = normalizeMarcoTarifaName(slice.campania)
-      const bucket = tiers.get(company) ?? new Map<string, MarcoCommissionSlice[]>()
+      const bucket = tiers.get(tierCompany) ?? new Map<string, MarcoCommissionSlice[]>()
       const list = bucket.get(token) ?? []
       list.push(slice)
       bucket.set(token, list)
-      tiers.set(company, bucket)
+      tiers.set(tierCompany, bucket)
     }
   }
 
@@ -303,9 +331,12 @@ export function weaveMarcoTariffsWithCommissions(
   }
 
   function exactSlices(offer: MarcoTariffOffer, peaje: string): MarcoCommissionSlice[] {
-    const name = marcoCommissionNameKey(offer.tarifa)
-    return companyLookupKeys(offer.compania).flatMap(
-      (company) => exact.get(`${name}|${peaje}|${company}`) ?? []
+    const names = new Set([
+      marcoCommissionNameKey(offer.tarifa),
+      ...marcoCommissionAliasKeys(offer.tarifa),
+    ])
+    return companyLookupKeys(offer.compania).flatMap((company) =>
+      [...names].flatMap((name) => exact.get(`${name}|${peaje}|${company}`) ?? [])
     )
   }
 

@@ -4,6 +4,7 @@ import {
   isCompleteTotpCode,
   mapMfaError,
   maskEmail,
+  nextTotpAction,
   normalizeTotpCode,
   staffMfaStep,
   staffSessionHasSecondFactor,
@@ -56,6 +57,29 @@ describe("totp helpers", () => {
   it("maps common MFA errors", () => {
     expect(mapMfaError("Invalid TOTP code")).toBe("Código incorrecto o caducado.")
     expect(mapMfaError("MFA is disabled")).toContain("habilitado")
+    expect(
+      mapMfaError('A factor with the friendly name "ENERSAVE ERP" for this user already exists')
+    ).toBe("Esta cuenta ya tiene Google Authenticator. Entra con el código de la app.")
+  })
+})
+
+describe("nextTotpAction", () => {
+  it("asks for the existing verified authenticator", () => {
+    expect(
+      nextTotpAction([
+        { id: "verified", status: "verified", factorType: "totp", friendlyName: "ENERSAVE ERP" },
+        { id: "draft", status: "unverified", factorType: "totp", friendlyName: "ENERSAVE ERP" },
+      ])
+    ).toEqual({ action: "challenge", factorId: "verified" })
+  })
+
+  it("drops an unfinished factor that is only in the full list", () => {
+    expect(
+      nextTotpAction([
+        { id: "draft", status: "unverified", factorType: "totp", friendlyName: "ENERSAVE ERP" },
+        { id: "phone", status: "verified", factorType: "phone", friendlyName: "móvil" },
+      ])
+    ).toEqual({ action: "enroll", dropIds: ["draft"] })
   })
 })
 

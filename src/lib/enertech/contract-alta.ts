@@ -50,6 +50,7 @@ export interface EnertechContratoInput {
   viaTipo?: string
   viaNombre?: string
   viaNumero?: string
+  direccionSuministro?: string
   cp?: string
   poblacion?: string
   provincia?: string
@@ -251,9 +252,12 @@ export function buildEnertechContratoBody(input: EnertechContratoInput): Built<R
   if (clave) body.clave_tarifa = clave
   if (typeof idTarifa === "number" && idTarifa > 0) body.id_tarifa = idTarifa
   if (typeof input.idRate === "number" && input.idRate > 0) body.id_rate = input.idRate
-  assignText(body, "via_tipo", input.viaTipo)
-  assignText(body, "via_nombre", input.viaNombre)
-  assignText(body, "via_numero", input.viaNumero)
+  if (text(input.viaTipo) && text(input.viaNombre) && text(input.viaNumero)) {
+    assignText(body, "via_tipo", input.viaTipo)
+    assignText(body, "via_nombre", input.viaNombre)
+    assignText(body, "via_numero", input.viaNumero)
+  }
+  assignText(body, "direccionSuministro", input.direccionSuministro)
   assignText(body, "cp", input.cp)
   assignText(body, "poblacion", input.poblacion)
   assignText(body, "provincia", input.provincia)
@@ -268,6 +272,45 @@ export function buildEnertechContratoBody(input: EnertechContratoInput): Built<R
     body.documentos = documentos.map((doc) => ({ filename: doc.filename, base64: doc.base64 }))
   }
   return { ok: true, value: body }
+}
+
+const VIA_TYPE_PREFIXES: { pattern: RegExp; viaTipo: string }[] = [
+  { pattern: /^(?:c\/|c\.|cl\.?|calle)\b\s*/i, viaTipo: "CALLE" },
+  { pattern: /^(?:avda\.?|av\.?|avenida)\b\s*/i, viaTipo: "AVENIDA" },
+  { pattern: /^(?:pza\.?|plza\.?|plaza)\b\s*/i, viaTipo: "PLAZA" },
+  { pattern: /^(?:pso\.?|paseo)\b\s*/i, viaTipo: "PASEO" },
+  { pattern: /^(?:ctra\.?|crta\.?|cra\.?|carretera)\b\s*/i, viaTipo: "CARRETERA" },
+  { pattern: /^(?:trav\.?|trva\.?|traves[ií]a)\b\s*/i, viaTipo: "TRAVESIA" },
+  { pattern: /^(?:urb\.?|urbanizaci[oó]n)\b\s*/i, viaTipo: "URBANIZACION" },
+  { pattern: /^(?:cmno\.?|camino)\b\s*/i, viaTipo: "CAMINO" },
+  { pattern: /^(?:pol\.?|pol[ií]gono)\b\s*/i, viaTipo: "POLIGONO" },
+]
+
+/** Enertech rechaza el alta si llega `via_nombre` sin tipo y número, y no llega `direccionSuministro`. */
+export function splitSupplyAddress(raw: string): {
+  direccionSuministro: string
+  viaTipo?: string
+  viaNombre?: string
+  viaNumero?: string
+} {
+  const direccionSuministro = text(raw)
+  if (!direccionSuministro) return { direccionSuministro: "" }
+
+  let rest = direccionSuministro
+  let viaTipo = "CALLE"
+  for (const entry of VIA_TYPE_PREFIXES) {
+    const match = rest.match(entry.pattern)
+    if (!match) continue
+    viaTipo = entry.viaTipo
+    rest = rest.slice(match[0].length).trim()
+    break
+  }
+
+  const numberMatch = rest.match(/^(.*?)[,\s]+(?:n[ºo°]\.?|num(?:ero)?\.?)?\s*(\d+\s*[A-Za-z]?)\s*$/i)
+  const viaNombre = numberMatch?.[1]?.replace(/[,]+$/g, "").trim() ?? ""
+  const viaNumero = numberMatch?.[2]?.replace(/\s+/g, "") ?? ""
+  if (!viaNombre || !viaNumero) return { direccionSuministro }
+  return { direccionSuministro, viaTipo, viaNombre, viaNumero }
 }
 
 function assignText(body: Record<string, unknown>, key: string, value: string | undefined) {
@@ -333,6 +376,7 @@ export function mapContractSourceToEnertechAlta(source: EnertechAltaSource): Bui
     if (kw !== undefined) powersKw[period] = kw
   }
 
+  const address = splitSupplyAddress(source.direccionSuministro)
   const contrato: Omit<EnertechContratoInput, "clientId"> = {
     cups: source.cups,
     cnae: source.cnae,
@@ -341,7 +385,10 @@ export function mapContractSourceToEnertechAlta(source: EnertechAltaSource): Bui
     cp: source.codigoPostal,
     poblacion: source.poblacion,
     provincia: source.provincia,
-    viaNombre: source.direccionSuministro,
+    direccionSuministro: address.direccionSuministro,
+    viaTipo: address.viaTipo,
+    viaNombre: address.viaNombre,
+    viaNumero: address.viaNumero,
     iban: source.iban,
     consumption: typeof source.consumoAnual === "number" ? source.consumoAnual : undefined,
     powersKw,

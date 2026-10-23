@@ -4,6 +4,7 @@ import {
   tariffMatchesComparadorAccessTariff,
 } from "../comparador-access-tariff"
 import { collapseTariffsWithSamePrices } from "../tariff-catalog-dedup"
+import { catalogSupplyType } from "../enertech/catalog-supply"
 import { tariffMatchesErpAudience } from "../infer-erp-segment"
 import { getSupabaseClient, isSupabaseConfigured } from "./client"
 import type { TariffPeriodKey, TariffPeriodPrices, TariffPreciosPorPeriodo } from "../tarifa-cost-calculator"
@@ -119,7 +120,11 @@ function pricesFromPayload(payload: Record<string, unknown> | null): TariffPreci
 }
 
 function isGasTariff(payload: Record<string, unknown> | null): boolean {
-  return /gas/i.test(String(payload?.tarifa ?? ""))
+  return catalogSupplyType({
+    producto: payload?.producto,
+    tarifa: payload?.tarifa,
+    campania: payload?.campania,
+  }) === "gas"
 }
 
 function textField(value: unknown): string {
@@ -200,8 +205,9 @@ export async function listTariffsConPrecios(
     .filter((row) => {
       const tarifa = String(row.payload?.tarifa ?? "")
       if (!tariffMatchesComparadorAccessTariff(tarifa, accessTariff)) return false
-      if (!isComparadorGasPeaje(accessTariff) && isGasTariff(row.payload)) return false
-      return true
+      const gas = isGasTariff(row.payload)
+      if (isComparadorGasPeaje(accessTariff)) return gas
+      return !gas
     })
     .filter((row) =>
       tariffMatchesErpAudience(

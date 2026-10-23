@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { ENERTECH_WEBHOOK_EVENTS_DEFAULT_PAGE_SIZE } from "@/lib/enertech-webhook-events"
-import { formatDocumentBytes, outboundResultSummary } from "@/lib/enertech/outbound-audit"
+import { formatDocumentBytes, isOutboundProblem, outboundResultSummary } from "@/lib/enertech/outbound-audit"
+import { filterPillClass } from "@/lib/enersave-ui-theme"
 import {
   listEnertechOutboundEvents,
   type EnertechOutboundEventRow,
@@ -15,13 +16,15 @@ export function LogsOutboundPanel() {
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [problemsOnly, setProblemsOnly] = useState(false)
 
-  const load = useCallback(async (targetPage: number) => {
+  const load = useCallback(async (targetPage: number, onlyProblems: boolean) => {
     setLoading(true)
     setErrorMessage(null)
     const result = await listEnertechOutboundEvents({
       page: targetPage,
       pageSize: ENERTECH_WEBHOOK_EVENTS_DEFAULT_PAGE_SIZE,
+      problemsOnly: onlyProblems,
     })
     setLoading(false)
     if (result.ok === false) {
@@ -36,20 +39,31 @@ export function LogsOutboundPanel() {
   }, [])
 
   useEffect(() => {
-    void load(1)
-  }, [load])
+    void load(1, problemsOnly)
+  }, [load, problemsOnly])
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <LogsPager page={page} loading={loading} hasMore={hasMore} onPage={(next) => void load(next)} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button
+          type="button"
+          className={filterPillClass(problemsOnly)}
+          onClick={() => setProblemsOnly((current) => !current)}
+        >
+          Solo problemas
+        </button>
+        <LogsPager page={page} loading={loading} hasMore={hasMore} onPage={(next) => void load(next, problemsOnly)} />
       </div>
       {loading || errorMessage || events.length === 0 ? (
         <LogsStatus
           loading={loading}
           errorMessage={errorMessage}
           loadingLabel="Cargando altas…"
-          empty="No hay llamadas salientes a Enertech todavía."
+          empty={
+            problemsOnly
+              ? "No hay altas fallidas con contrato creado."
+              : "No hay llamadas salientes a Enertech todavía."
+          }
         />
       ) : (
         <div className="overflow-x-auto">
@@ -84,6 +98,7 @@ export function LogsOutboundPanel() {
 
 function OutboundRow(props: { event: EnertechOutboundEventRow; open: boolean; onToggle: () => void }) {
   const event = props.event
+  const problem = isOutboundProblem(event)
   const http =
     event.documentsRejected && event.httpStatus == null ? "—" : event.httpStatus == null ? "—" : String(event.httpStatus)
   return (
@@ -101,9 +116,9 @@ function OutboundRow(props: { event: EnertechOutboundEventRow; open: boolean; on
             "—"
           )}
         </td>
-        <td className="py-3 px-2 font-mono text-[11px]">{http}</td>
+        <td className={`py-3 px-2 font-mono text-[11px] ${problem ? "text-rose-600 dark:text-rose-400 font-bold" : ""}`}>{http}</td>
         <td className="py-3 px-2 max-w-xs">
-          <p className="leading-snug">{outboundResultSummary(event)}</p>
+          <p className={`leading-snug ${problem ? "text-rose-700 dark:text-rose-300" : ""}`}>{outboundResultSummary(event)}</p>
           <button
             type="button"
             onClick={props.onToggle}

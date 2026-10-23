@@ -46,6 +46,13 @@ const comparadorSchema = z.object({
   }),
   rentMeterCost: z.coerce.number().optional().default(1.84),
   currentBillAmount: z.coerce.number().optional().default(0),
+  diasFacturacion: z.coerce.number().min(1).default(30),
+  reactivaCost: z.coerce.number().optional().default(0),
+  svaCost: z.coerce.number().optional().default(0),
+  descuentoPotenciaPorcentaje: z.coerce.number().min(0).max(100).optional().default(0),
+  descuentoEnergiaPorcentaje: z.coerce.number().min(0).max(100).optional().default(0),
+  porcentajeIEE: z.coerce.number().min(0).default(5.11),
+  porcentajeIVA: z.coerce.number().min(0).default(21),
 });
 
 type FormValues = z.infer<typeof comparadorSchema>;
@@ -72,6 +79,13 @@ export default function ComparadorPage() {
       consumo: { p1: 1200, p2: 900, p3: 1500, p4: 0, p5: 0, p6: 0 },
       rentMeterCost: 1.84,
       currentBillAmount: 85,
+      diasFacturacion: 30,
+      reactivaCost: 0,
+      svaCost: 0,
+      descuentoPotenciaPorcentaje: 0,
+      descuentoEnergiaPorcentaje: 0,
+      porcentajeIEE: 5.11,
+      porcentajeIVA: 21,
     },
   });
 
@@ -415,7 +429,28 @@ export default function ComparadorPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
-                    Alquiler Contador (€/mes)
+                    Días de facturación
+                  </label>
+                  <input
+                    type="number"
+                    {...register("diasFacturacion")}
+                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
+                    Total factura actual (€)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("currentBillAmount")}
+                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-emerald-400 text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
+                    Alquiler contador (€/mes)
                   </label>
                   <input
                     type="number"
@@ -424,16 +459,67 @@ export default function ComparadorPage() {
                     className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
                   />
                 </div>
-
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
-                    Factura Mensual Actual (€)
+                    SVA (€/mes)
                   </label>
                   <input
                     type="number"
                     step="0.01"
-                    {...register("currentBillAmount")}
-                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-emerald-400 text-slate-300"
+                    {...register("svaCost")}
+                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
+                    Reactiva (€)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("reactivaCost")}
+                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
+                    Dto. potencia / energía (%)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register("descuentoPotenciaPorcentaje")}
+                      className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register("descuentoEnergiaPorcentaje")}
+                      className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
+                    IEE (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("porcentajeIEE")}
+                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-300 block font-bold font-mono uppercase">
+                    IVA (%)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    {...register("porcentajeIVA")}
+                    className="w-full px-3 py-2 bg-slate-950 border border-white/10 rounded-lg text-xs font-mono focus:border-cyan-400 text-slate-300"
                   />
                 </div>
               </div>
@@ -516,12 +602,12 @@ export default function ComparadorPage() {
 
                     <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-white/5 text-xs font-mono">
                       <div>
-                        <span className="text-slate-400 block uppercase font-bold text-[9px]">Gasto Anual Actual Cliente:</span>
-                        <span className="text-rose-400 font-extrabold text-sm">{summary.currentAnnualExpense.toLocaleString("es-ES")} €/año</span>
+                        <span className="text-slate-400 block uppercase font-bold text-[9px]">Total factura actual:</span>
+                        <span className="text-rose-400 font-extrabold text-sm">{summary.currentAnnualExpense.toLocaleString("es-ES")} €</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 block uppercase font-bold text-[9px]">Ahorro Neto Conseguido:</span>
-                        <span className="text-emerald-400 font-extrabold text-sm font-black">+{summary.maxAnnualSavings.toLocaleString("es-ES")} €/año</span>
+                        <span className="text-slate-400 block uppercase font-bold text-[9px]">Ahorro en el periodo:</span>
+                        <span className="text-emerald-400 font-extrabold text-sm font-black">{summary.maxAnnualSavings.toLocaleString("es-ES")} €</span>
                       </div>
                     </div>
                   </motion.div>
@@ -571,15 +657,12 @@ export default function ComparadorPage() {
                           </div>
 
                           <div className="mt-2.5">
-                            <span className="text-[10px] font-mono text-slate-500 block uppercase">Costo Estimado Neto</span>
+                            <span className="text-[10px] font-mono text-slate-500 block uppercase">Total del periodo</span>
                             <div className="flex items-baseline space-x-1">
                               <span className="text-2xl font-black text-white font-mono">
-                                {opt.monthlyCost} €
+                                {opt.totalPropuesta} €
                               </span>
-                              <span className="text-xs text-slate-400">/ mes</span>
-                              <span className="text-xs text-slate-500 font-mono ml-2">
-                                ({opt.annualCost.toLocaleString("es-ES")} €/año)
-                              </span>
+                              <span className="text-xs text-slate-400">con impuestos</span>
                             </div>
                           </div>
                         </div>
@@ -587,7 +670,7 @@ export default function ComparadorPage() {
                         <div className="text-left sm:text-right space-y-1 shrink-0 bg-slate-950/40 p-3 rounded-2xl border border-white/5">
                           <span className="text-[10px] font-mono text-slate-500 block uppercase">Ahorro Estimado</span>
                           <span className="text-lg font-black text-emerald-400 block font-mono">
-                            -{opt.savingsAnnual} €/año
+                            {opt.savingsAnnual} €
                           </span>
                           <span className="text-[10px] text-emerald-300 font-mono font-bold block bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">
                             Ahorro del {opt.savingsPercentage}%
@@ -599,15 +682,23 @@ export default function ComparadorPage() {
                       <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px] font-mono text-slate-400 bg-slate-950/20 p-2.5 rounded-xl">
                         <div>
                           <span className="text-[9px] text-slate-500 block uppercase">P. Potencia:</span>
-                          <span className="text-slate-200">{opt.potenciaBreakdown} €/año</span>
+                          <span className="text-slate-200">{opt.subtotalPotencia} €</span>
                         </div>
                         <div>
                           <span className="text-[9px] text-slate-500 block uppercase">P. Energía/Consumo:</span>
-                          <span className="text-slate-200">{opt.consumoBreakdown} €/año</span>
+                          <span className="text-slate-200">{opt.subtotalEnergia} €</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 block uppercase">IEE:</span>
+                          <span className="text-slate-200">{opt.totalIEE} €</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 block uppercase">IVA:</span>
+                          <span className="text-slate-200">{opt.totalIVA} €</span>
                         </div>
                         <div className="col-span-2 sm:col-span-1">
                           <span className="text-[9px] text-slate-500 block uppercase">Coste Alquiler:</span>
-                          <span className="text-slate-200">{opt.rentCostAnnual} €/año</span>
+                          <span className="text-slate-200">{opt.rentCostAnnual} €</span>
                         </div>
                       </div>
 

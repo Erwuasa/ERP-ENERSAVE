@@ -5,12 +5,39 @@ export type MfaStepKind = "none" | "challenge" | "enroll"
 export type MfaResult<T> = { ok: true; data: T } | { ok: false; message: string }
 
 export interface TotpEnrollment {
+  kind: "enroll"
   factorId: string
   qrCode: string
   secret: string
 }
 
+export interface TotpChallengeReady {
+  kind: "challenge"
+  factorId: string
+}
+
+export type TotpStart = TotpEnrollment | TotpChallengeReady
+
 const TOTP_ISSUER = "ENERSAVE ERP"
+
+export interface ListedMfaFactor {
+  id: string
+  status: string
+  factorType: string
+  friendlyName: string
+}
+
+export function nextTotpAction(
+  factors: ListedMfaFactor[]
+): { action: "challenge"; factorId: string } | { action: "enroll"; dropIds: string[] } {
+  const totp = factors.filter((factor) => factor.factorType === "totp")
+  const verified = totp.find((factor) => factor.status === "verified")
+  if (verified) return { action: "challenge", factorId: verified.id }
+  return {
+    action: "enroll",
+    dropIds: totp.filter((factor) => factor.status !== "verified").map((factor) => factor.id),
+  }
+}
 
 export function staffMfaStep(
   currentLevel: string | null | undefined,
@@ -61,6 +88,9 @@ export function mapMfaError(message: string): string {
   }
   if (lower.includes("too many") || lower.includes("rate") || lower.includes("over_email")) {
     return "Demasiados intentos. Espera un momento."
+  }
+  if (lower.includes("already exists") || lower.includes("friendly name")) {
+    return "Esta cuenta ya tiene Google Authenticator. Entra con el código de la app."
   }
   return message
 }
@@ -140,29 +170,48 @@ export async function inspectStaffMfa(): Promise<
 
   const step = staffMfaStep(aal.data.currentLevel, aal.data.nextLevel)
   if (step === "none") return { ok: true, data: { step: "none" } }
-  if (step === "enroll") return { ok: true, data: { step: "enroll" } }
 
   const factors = await resolved.client.auth.mfa.listFactors()
   if (factors.error) return { ok: false, message: mapMfaError(factors.error.message) }
 
-  const factor = factors.data.totp.find((item) => item.status === "verified")
-  if (!factor) {
-    return { ok: false, message: "No hay autenticador verificado. Contacta a un superadmin." }
+  const action = nextTotpAction(factors.data.all.map(toListedMfaFactor))
+  if (action.action === "challenge") {
+    return { ok: true, data: { step: "challenge", factorId: action.factorId } }
   }
+  if (step === "enroll") return { ok: true, data: { step: "enroll" } }
 
-  return { ok: true, data: { step: "challenge", factorId: factor.id } }
+  return { ok: false, message: "No hay autenticador verificado. Contacta a un superadmin." }
 }
 
-export async function startTotpEnrollment(): Promise<MfaResult<TotpEnrollment>> {
+function toListedMfaFactor(factor: {
+  id: string
+  status: string
+  factor_type: string
+  friendly_name?: string
+}): ListedMfaFactor {
+  return {
+    id: factor.id,
+    status: factor.status,
+    factorType: factor.factor_type,
+    friendlyName: factor.friendly_name ?? "",
+  }
+}
+
+export async function startTotpEnrollment(): Promise<MfaResult<TotpStart>> {
   const resolved = resolveSupabaseClient()
   if (resolved.ok === false) return { ok: false, message: resolved.message }
 
   const listed = await resolved.client.auth.mfa.listFactors()
   if (listed.error) return { ok: false, message: mapMfaError(listed.error.message) }
 
-  const unverified = listed.data.totp.filter((factor) => factor.status !== "verified")
-  for (const factor of unverified) {
-    await resolved.client.auth.mfa.unenroll({ factorId: factor.id })
+  const action = nextTotpAction(listed.data.all.map(toListedMfaFactor))
+  if (action.action === "challenge") {
+    return { ok: true, data: { kind: "challenge", factorId: action.factorId } }
+  }
+
+  for (const factorId of action.dropIds) {
+    const removed = await resolved.client.auth.mfa.unenroll({ factorId })
+    if (removed.error) return { ok: false, message: mapMfaError(removed.error.message) }
   }
 
   const enrolled = await resolved.client.auth.mfa.enroll({
@@ -171,12 +220,20 @@ export async function startTotpEnrollment(): Promise<MfaResult<TotpEnrollment>> 
     issuer: TOTP_ISSUER,
   })
   if (enrolled.error || !enrolled.data.totp) {
+    const again = await resolved.client.auth.mfa.listFactors()
+    if (!again.error) {
+      const retry = nextTotpAction(again.data.all.map(toListedMfaFactor))
+      if (retry.action === "challenge") {
+        return { ok: true, data: { kind: "challenge", factorId: retry.factorId } }
+      }
+    }
     return { ok: false, message: mapMfaError(enrolled.error?.message ?? "No se pudo generar el QR.") }
   }
 
   return {
     ok: true,
     data: {
+      kind: "enroll",
       factorId: enrolled.data.id,
       qrCode: enrolled.data.totp.qr_code,
       secret: enrolled.data.totp.secret,

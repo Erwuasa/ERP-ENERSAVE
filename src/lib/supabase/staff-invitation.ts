@@ -50,12 +50,13 @@ export async function sendStaffInvitationEmail(
   })
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null
+    const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null
     return {
       ok: false,
       message:
-        payload?.error ??
-        "No se pudo enviar la invitación. Despliega la Edge Function send-staff-invitation y configura Gmail.",
+        payload?.error ||
+        payload?.message ||
+        "No se pudo enviar la invitación. El correo no salió; vuelve a intentarlo.",
     }
   }
 

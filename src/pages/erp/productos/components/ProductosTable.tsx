@@ -110,7 +110,7 @@ export function ProductosTable({
                           className="mt-0.5 block text-[10px] font-mono text-brand-subtext truncate"
                           title={product.catalogName}
                         >
-                          AT: {product.catalogName}
+                          {product.catalogName}
                         </span>
                       )}
                     </div>

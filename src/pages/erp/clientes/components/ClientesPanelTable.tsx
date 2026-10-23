@@ -106,11 +106,6 @@ export function ClientesPanelTable({
                 <td className={`${CLIENTES_TD} font-semibold text-brand-text`}>
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="truncate">{clientDisplayName(client)}</span>
-                    {client.source === "at" && (
-                      <span className="inline-flex shrink-0 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
-                        AT
-                      </span>
-                    )}
                     {client.rgpdAccepted && (
                       <span className="inline-flex shrink-0 px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
                         RGPD

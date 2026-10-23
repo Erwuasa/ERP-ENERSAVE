@@ -433,7 +433,7 @@ export function ComparadorPage() {
                         : compProposalFilters.length > 0 || compMinSavingsPct > 0
                           ? "Prueba quitando algún filtro, bajando el ahorro mínimo o cambia la tarifa de acceso."
                           : catalogCount === 0
-                            ? "Revisa la conexión con Supabase o el catálogo AT para este peaje y segmento."
+                            ? "Revisa la conexión con Supabase o el catálogo de Enertech para este peaje y segmento."
                             : "Hay tarifas de Enertech para este peaje, pero ninguna tiene precio en todos los periodos que has rellenado. Revisa la potencia y el consumo, o quita filtros."}
                   </p>
                 </div>

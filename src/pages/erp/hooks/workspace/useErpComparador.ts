@@ -22,7 +22,7 @@ import {
   type ComparadorRateOption,
   type ComparadorRateSummary,
 } from '@/lib/erp/comparador-rates';
-import { normalizeComparadorAccessTariff, resolveComparadorCatalogPeajeKey } from '@/lib/comparador-access-tariff';
+import { resolveComparadorCatalogPeajeKey } from '@/lib/comparador-access-tariff';
 import { computeComparadorOffers } from '@/lib/erp/comparador-offers';
 import { formatCurrency } from '@/lib/erp/format-currency';
 import type { CompProposalFilterId } from '@/lib/comparador-proposal-filters';
@@ -30,8 +30,6 @@ import type { ComparadorSortMode } from '@/lib/comparador-sort';
 import { applyComparadorOcrResult } from '@/lib/comparador-ocr-apply';
 import { extractComparadorInvoiceFromFiles } from '@/lib/comparador-invoice-extract';
 import { isInvoiceAiConfigured } from '@/lib/comparador/invoice-ai-client';
-import { listAtComparisons } from '@/lib/supabase/at-comparisons';
-import { isSupabaseConfigured } from '@/lib/supabase/client';
 import type { MarcoRetributivoRow } from '@/lib/supabase/marco-retributivo';
 import {
   formatFechaGeneracion,
@@ -170,36 +168,6 @@ export function useErpComparador({
   const [comparisonsHistory, setComparisonsHistory] = useState<ComparisonHistoryEntry[]>(
     () => loadLocalComparisonHistory()
   );
-
-  useEffect(() => {
-    if (!isSupabaseConfigured()) return;
-    if (
-      currentMenuTab !== 'Comparador' &&
-      currentMenuTab !== 'Comparador de Facturas' &&
-      currentMenuTab !== 'Historial de Comparativas'
-    ) {
-      return;
-    }
-    void listAtComparisons().then((result) => {
-      if (!result.ok) return;
-      const fromAt: ComparisonHistoryEntry[] = result.data.map((row) => ({
-        id: row.id,
-        clientName: row.clientName || row.name,
-        cups: row.cups,
-        accessTariff: normalizeComparadorAccessTariff(row.accessTariff),
-        currentAnnualExpense: row.currentAnnualExpense,
-        maxAnnualSavings: row.maxAnnualSavings,
-        bestTariffName: row.bestTariffName || row.name,
-        date: row.date,
-        source: 'at',
-      }));
-      setComparisonsHistory((prev) => {
-        const local = prev.filter((item) => item.source !== 'at');
-        persistLocalComparisonHistory(local);
-        return [...fromAt, ...local];
-      });
-    });
-  }, [currentMenuTab]);
 
   useEffect(() => {
     persistLocalComparisonHistory(comparisonsHistory);
@@ -389,6 +357,7 @@ export function useErpComparador({
         tarifaActualNombre: compTarifaActual,
         comercializadoraActual: compCompaniaActual,
         companyName: option.companyName,
+        companyLogoUrl: option.companyLogoUrl ?? null,
         monthlyCost: option.monthlyCost,
         annualCost: option.annualCost,
       },
@@ -727,6 +696,7 @@ export function useErpComparador({
             tarifaActualNombre: compTarifaActual,
             comercializadoraActual: compCompaniaActual,
             companyName: matchedOffer.companyName,
+            companyLogoUrl: matchedOffer.companyLogoUrl ?? null,
             monthlyCost: matchedOffer.monthlyCost,
             annualCost: matchedOffer.annualCost,
           }

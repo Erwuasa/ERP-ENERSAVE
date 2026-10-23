@@ -2,7 +2,7 @@ import { contractEstadoFromExternalLabel } from "@/lib/contract-estado"
 import { buildEnertechClienteBody, type EnertechAltaSource, type EnertechClienteInput } from "@/lib/enertech/contract-alta"
 import type { EnertechDocumentoAdjunto } from "@/lib/enertech/documentos-post"
 import { parseEnertechClientePost, type EnertechClientePostResult, type EnertechPostFailure } from "@/lib/enertech/alta-response"
-import { reconciliationStatusAfterAlta, type EnertechReconciliationStatus } from "@/lib/enertech/outbound-audit"
+import { reconciliationStatusAfterAlta, shouldRecordLocalAltaFailure, type EnertechReconciliationStatus } from "@/lib/enertech/outbound-audit"
 import { uploadContractAlta, type EnertechAltaTransport, type EnertechContractUploadFailure, type EnertechContractUploadSuccess } from "@/lib/enertech/upload-contract-alta"
 import { updateTeamContract } from "./contracts"
 import { resolveSupabaseClient, toSupabaseFailure, type SupabaseResult } from "./result"
@@ -114,6 +114,45 @@ export const enertechAltaTransport: EnertechAltaTransport = {
   post: postEnertechAlta,
 }
 
+/** The contract is already in the ERP and the alta never reached Enertech. */
+export async function recordLocalEnertechAltaFailure(input: {
+  contractId: string
+  resource: "clientes" | "contratos"
+  message: string
+  code?: string | null
+}): Promise<string | null> {
+  const message = input.message.trim()
+  if (!message) return null
+  const resolved = resolveSupabaseClient()
+  if (resolved.ok === false) return null
+  const { data: sessionData } = await resolved.client.auth.getSession()
+  const token = sessionData.session?.access_token
+  if (!token) return null
+  try {
+    const response = await fetch(`${envUrl()}/functions/v1/enertech-alta`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: envAnonKey(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        recordOnly: true,
+        resource: input.resource,
+        contractId: input.contractId,
+        body: {},
+        idempotencyKey: "",
+        errorCode: input.code?.trim() || "LOCAL_REJECT",
+        errorMessage: message,
+      }),
+    })
+    const payload = await response.json().catch(() => null)
+    return response.ok ? outboundEventIdOf(payload) : null
+  } catch {
+    return null
+  }
+}
+
 export async function uploadClienteToEnertech(
   input: EnertechClienteInput
 ): Promise<EnertechClientePostResult | EnertechPostFailure> {
@@ -144,11 +183,24 @@ export async function uploadSavedContractToEnertech(input: {
   | EnertechContractUploadFailure
 > {
   const result = await uploadContractAlta({ ...input, transport: enertechAltaTransport })
+  if (result.ok === false && !result.contratoEventId && shouldRecordLocalAltaFailure(result.message)) {
+    const recorded = await recordLocalEnertechAltaFailure({
+      contractId: input.contractId,
+      resource: "contratos",
+      message: result.message,
+    })
+    if (recorded) result.contratoEventId = recorded
+  }
   await closeOutboundEvent({
     eventId: result.clienteEventId,
     status: reconciliationStatusAfterAlta({ resource: "clientes", accepted: true, savedInErp: true }),
   })
   if (result.ok === false || result.skipped) {
+    if (result.ok === false && result.idCustomer) {
+      await updateTeamContract(input.contractId, {}, {
+        mergeWizardMetadata: { enertech_customer_id: result.idCustomer },
+      })
+    }
     return result.ok === false ? result : { ...result, appliedEstado: null }
   }
 
@@ -185,6 +237,7 @@ export async function uploadSavedContractToEnertech(input: {
       message: `${note}${extra}`,
       clienteEventId: result.clienteEventId,
       contratoEventId: result.contratoEventId,
+      idCustomer: result.idCustomer,
     }
   }
   return { ...result, appliedEstado }

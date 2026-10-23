@@ -49,6 +49,9 @@ verify_jwt = false
 [functions.notify-contract-estado-change]
 verify_jwt = false
 
+[functions.notify-contract-created]
+verify_jwt = false
+
 [functions.enertech-sync-comercializadoras]
 verify_jwt = false
 

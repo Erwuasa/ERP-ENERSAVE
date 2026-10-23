@@ -4,7 +4,8 @@ import type { ComparadorPeriodValues } from "./erp/comparador-rates"
 import type { TariffPreciosPorPeriodo } from "./tarifa-cost-calculator"
 import type { ComparadorAccessTariff } from "./erp/comparador-rates"
 
-const STORAGE_KEY = "enersave-comparativas-local-v1"
+const STORAGE_KEY = "enersave-comparativas-local-v2"
+const LEGACY_STORAGE_KEY = "enersave-comparativas-local-v1"
 
 export interface ComparisonHistorySnapshot {
   potencias: ComparadorPeriodValues
@@ -23,6 +24,7 @@ export interface ComparisonHistorySnapshot {
   tarifaActualNombre?: string
   comercializadoraActual?: string
   companyName: string
+  companyLogoUrl?: string | null
   monthlyCost: number
   annualCost: number
 }
@@ -46,8 +48,22 @@ function canUseStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined"
 }
 
+export function comparisonHistoryCompany(entry: ComparisonHistoryEntry): {
+  name: string
+  logoUrl: string | null
+} {
+  const name =
+    entry.snapshot?.companyName?.trim() ||
+    entry.pdfInput?.bestOption.companyName?.trim() ||
+    entry.pdfInput?.summary.bestTariffCompany?.trim() ||
+    ""
+  const logoUrl = entry.snapshot?.companyLogoUrl?.trim() || null
+  return { name, logoUrl }
+}
+
 export function loadLocalComparisonHistory(): ComparisonHistoryEntry[] {
   if (!canUseStorage()) return []
+  window.localStorage.removeItem(LEGACY_STORAGE_KEY)
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return []

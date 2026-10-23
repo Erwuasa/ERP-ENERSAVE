@@ -2,6 +2,7 @@
 // The enertech-sync-* functions are thin wrappers around these definitions.
 
 import { enertechGetAllPages, enertechGetJson } from './enertech-api.ts'
+import { mergeLuzGasCatalogRows } from './enertech-catalog-feed.ts'
 import {
   collectFieldNames,
   extractRows,
@@ -58,6 +59,33 @@ function listFetcher(path: string, itemKeys: string[], query: Record<string, str
   }
 }
 
+/** Luz (`todas=1`) y gas (`producto=gas`) en la misma pasada, para no marcar el otro producto como baja. */
+function luzGasFetcher(path: string, itemKeys: string[]) {
+  return async (): Promise<FetchResult> => {
+    const luzBody = await enertechGetJson(path, { todas: '1' })
+    const luzRows = extractRows(luzBody, itemKeys)
+    let gasRows: JsonRecord[] = []
+    let gasError: string | null = null
+    try {
+      const gasBody = await enertechGetJson(path, { todas: '1', producto: 'gas' })
+      gasRows = extractRows(gasBody, itemKeys)
+    } catch (error) {
+      gasError = error instanceof Error ? error.message : 'gas catalog unavailable'
+    }
+    const rows = mergeLuzGasCatalogRows(luzRows, gasRows)
+    return {
+      rows,
+      meta: {
+        endpoint: `GET ${path}`,
+        luz_rows: luzRows.length,
+        gas_rows: gasRows.length,
+        merged_rows: rows.length,
+        gas_error: gasError,
+      },
+    }
+  }
+}
+
 function pagedFetcher(path: string, query: (params: URLSearchParams, cursor: string | null) => Record<string, string>) {
   return async ({
     supabase,
@@ -99,7 +127,7 @@ export const ENERTECH_ENTITIES: Record<string, EntityDefinition> = {
     job: 'enertech-sync-precios',
     table: { table: 'enertech_precios', keyColumn: 'clave', entity: 'precios', removeMissing: true },
     mapper: mapFeedRow,
-    fetchRows: listFetcher('/precios', ['filas'], { todas: '1' }),
+    fetchRows: luzGasFetcher('/precios', ['filas']),
   },
   'enertech-sync-comisiones': {
     job: 'enertech-sync-comisiones',
@@ -112,7 +140,7 @@ export const ENERTECH_ENTITIES: Record<string, EntityDefinition> = {
       manualSourceColumn: 'source',
     },
     mapper: mapFeedRow,
-    fetchRows: listFetcher('/comisiones', ['filas'], { todas: '1' }),
+    fetchRows: luzGasFetcher('/comisiones', ['filas']),
   },
   'enertech-sync-clientes': {
     job: 'enertech-sync-clientes',

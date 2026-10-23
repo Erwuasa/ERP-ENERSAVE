@@ -1,3 +1,4 @@
+import { catalogSupplyType } from "@/lib/enertech/catalog-supply"
 import { normalizeCompaniaKey } from "@/lib/erp/compania-logos"
 import { tariffMatchesErpAudience } from "@/lib/infer-erp-segment"
 import {
@@ -75,18 +76,24 @@ function priceToken(value: unknown): string {
 }
 
 /**
- * Tarifas de luz distintas a partir del payload de `enertech_precios`.
+ * Tarifas distintas a partir del payload de `enertech_precios`.
  * Misma compañía, nombre, peaje, segmento y precios cuentan una sola vez.
+ * El peaje RL (o `producto=gas`) queda en gas; el resto, en luz.
  */
 export function collapseLuzTariffStubs(
-  rows: Array<{ payload: Record<string, unknown> | null; segment?: string | null }>
+  rows: Array<{ payload: Record<string, unknown> | null; segment?: string | null; producto?: string | null }>
 ): MarcoCompanyTariffStub[] {
   const seen = new Set<string>()
   const stubs: MarcoCompanyTariffStub[] = []
   for (const row of rows) {
     const payload = row.payload ?? {}
     const accessTariff = String(payload.tarifa ?? "").trim()
-    if (!isLuzAccessTariff(accessTariff)) continue
+    if (!accessTariff) continue
+    const supplyType = catalogSupplyType({
+      producto: row.producto ?? payload.producto,
+      tarifa: accessTariff,
+      campania: payload.campania,
+    })
     const providerName = String(payload.comercializadora ?? "").trim()
     if (!providerName) continue
     const name = String(payload.campania ?? "").trim() || accessTariff
@@ -108,7 +115,7 @@ export function collapseLuzTariffStubs(
       name,
       accessTariff,
       segment,
-      supplyType: "luz",
+      supplyType,
     })
   }
   return stubs

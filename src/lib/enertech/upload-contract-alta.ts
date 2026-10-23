@@ -39,6 +39,7 @@ export interface EnertechContractUploadFailure {
   message: string
   clienteEventId: string | null
   contratoEventId: string | null
+  idCustomer: number | null
 }
 
 function uploadFailure(
@@ -50,6 +51,7 @@ function uploadFailure(
     message,
     clienteEventId: events?.clienteEventId ?? null,
     contratoEventId: events?.contratoEventId ?? null,
+    idCustomer: null,
   }
 }
 
@@ -127,7 +129,12 @@ export async function uploadContractAlta(input: {
   })
   const contratoEventId = contratoResponse.outboundEventId ?? null
   const contrato = parseEnertechContratoPost(contratoResponse.status, contratoResponse.body)
-  if (contrato.ok === false) return uploadFailure(contrato.message, { clienteEventId, contratoEventId })
+  if (contrato.ok === false) {
+    return {
+      ...uploadFailure(contrato.message, { clienteEventId, contratoEventId }),
+      idCustomer: cliente.idCustomer,
+    }
+  }
 
   return {
     ok: true,

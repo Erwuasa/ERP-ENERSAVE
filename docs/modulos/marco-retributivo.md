@@ -7,14 +7,15 @@ El módulo `/erp/marco-retributivo` centraliza las condiciones económicas y com
 
 ## 2. Origen de Datos y Reglas de Cruce (Weaving Engine)
 El sistema opera exclusivamente sobre las tablas sincronizadas de Enertech (`enertech_precios`, `enertech_comercializadoras` y `enertech_comisiones`), sin depender de tablas legacy de AT:
-* **Filtro de Comercializadoras:** El selector solo lista compañías que tienen tarifas de luz en `enertech_precios`. Se excluyen comercializadoras sin oferta activa o dedicadas únicamente a placas, baterías o cargadores.
+* **Filtro de Comercializadoras:** El selector lista compañías con tarifas en `enertech_precios`. Luz y gas se separan por el peaje (RL o la palabra «gas» es gas). Se excluyen comercializadoras sin oferta activa o dedicadas únicamente a placas, baterías o cargadores.
 * **Cruce Tarifa ↔ Comisión (`weaveMarcoTariffsWithCommissions`):**
   1. Coincidencia por nombre comercial de campaña y peaje de acceso. Si la comisión carece de peaje explícito, aplica a todos los peajes de esa campaña.
   2. Si el nombre de la comisión es la raíz de la tarifa (ej. `TARIFA NOCHE LUZ ECO` → `Tarifa Noche Luz`) y no existe otra tarifa con el nombre largo, se vinculan automáticamente.
   3. Comisiones por niveles (`BASE`, `ONE`, `SUPRA` en Naturgy Pymes): se asocian a las tarifas cuyo nombre finalice en dicho nivel, aplicando `BASE` al resto.
   4. Homogeneización de nombres: `NEON` y `NEÓN` son la misma compañía; `NORDY` enlaza con `NORDY PYMES` y `NORDY RESIDENCIAL`.
   5. Símbolos como `+` al inicio o textos entre paréntesis (`+Estocolmo I`, `ESTABLE PLUS SUPER (N1)`) no impiden el cruce.
-  6. Tarifas sin registro en `enertech_comisiones` (ej. Gana Energía, Endesa o Iberdrola) se muestran en la tabla con la condición informativa *"Sin comisión Enertech"*.
+  6. Una comisión escrita como alternativas (`HUNTER + / LASAI + / WILD +`) enlaza con la tarifa de cada alternativa (`HUNTER+`). `+` y `++` no se mezclan.
+  7. Tarifas sin registro en `enertech_comisiones` (ej. Gana Energía, Endesa o Iberdrola) se muestran en la tabla con la condición informativa *"Sin comisión Enertech"*.
 
 ---
 

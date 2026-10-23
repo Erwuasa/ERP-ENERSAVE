@@ -27,6 +27,7 @@ Lista `enertech_outbound_events`. Cada `POST /clientes` o `POST /contratos` que 
 - Un DNI inválido, un NIE sin nacionalidad o un CIF sin apoderado lo para el formulario (`buildEnertechClienteBody`) antes de la función. No hay fila. El asistente enseña ese texto en el aviso de error.
 - `POST /clientes` queda `not_applicable`: no se reconcilia con `contratos_equipo`.
 - Un `POST /contratos` que Enertech acepta y el ERP guarda queda `ok`. Si Enertech acepta y `updateTeamContract` falla, queda `orphan`.
+- Si el contrato ya está en la tabla y el alta se rechaza antes de llamar a Enertech (CUPS, CNAE, tarifa, NIF), queda una fila `LOCAL_REJECT` con el contrato del ERP. Un borrador que no debe subirse no deja fila. El chip **Solo problemas** deja los HTTP 4xx, los documentos rechazados, los huérfanos y estos fallos locales.
 
 Al abrir la fila se ve el JSON enviado y el JSON devuelto, ya sin documentos.
 
@@ -34,4 +35,4 @@ Al abrir la fila se ve el JSON enviado y el JSON devuelto, ya sin documentos.
 
 Solo filas `orphan`: Enertech tiene el contrato y el ERP no guardó el id. Para cada una se pide el `idContract`, se escribe en `metadata.enertech_contract_id` del contrato del ERP y la fila pasa a `ok` con la nota `reconciliado manualmente por <email>`.
 
-La tabla ya está en remoto. El RPC `mark_enertech_outbound_reconciliation_v1` de `20261019140000_enertech_outbound_events.sql` no está aplicado: hasta entonces «Marcar reconciliado» no cierra la fila. El registro dentro de `enertech-alta` y la nota del webhook no están desplegados.
+La tabla ya está en remoto. El RPC `mark_enertech_outbound_reconciliation_v1` de `20261019140000_enertech_outbound_events.sql` no está aplicado: hasta entonces «Marcar reconciliado» no cierra la fila. El alta que Enertech rechaza ya deja fila en Salientes. El fallo local `LOCAL_REJECT` entra cuando `enertech-alta` desplegada entiende `recordOnly`.

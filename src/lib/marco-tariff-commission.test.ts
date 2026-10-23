@@ -295,4 +295,72 @@ describe("weaveMarcoTariffsWithCommissions", () => {
     expect(woven.find((row) => row.tarifa === "20ES1 ÚNICA")?.tramos[0]?.comision_base).toBe(48)
     expect(woven.find((row) => row.tarifa === "Tarifa 24 horas")?.hasCommission).toBe(false)
   })
+
+  it("enlaza HUNTER+ con la alternativa de la comisión separada por barras", () => {
+    const woven = weaveMarcoTariffsWithCommissions(
+      [
+        offer({ compania: "Iner Energía", tarifa: "HUNTER+", peaje: "3.0TD" }),
+        offer({ compania: "Iner Energía", tarifa: "HUNTER++", peaje: "3.0TD" }),
+        offer({ compania: "Iner Energía", tarifa: "HUNTER", peaje: "3.0TD" }),
+      ],
+      [
+        commissionSliceFromPayload({
+          compania: "",
+          payload: {
+            campania: "HUNTER + / LASAI + / WILD +",
+            tarifa: "3.0TD",
+            tramo: "",
+            tipo_comision: "fijo_contrato",
+            comision_eur: 80,
+          },
+        })!,
+        commissionSliceFromPayload({
+          compania: "",
+          payload: {
+            campania: "HUNTER ++ / LASAI ++ / WILD ++",
+            tarifa: "3.0TD",
+            tramo: "",
+            tipo_comision: "fijo_contrato",
+            comision_eur: 120,
+          },
+        })!,
+        commissionSliceFromPayload({
+          compania: "",
+          payload: {
+            campania: "HUNTER / LASAI / WILD",
+            tarifa: "3.0TD",
+            tramo: "",
+            tipo_comision: "fijo_contrato",
+            comision_eur: 40,
+          },
+        })!,
+      ]
+    )
+    expect(woven.find((row) => row.tarifa === "HUNTER+")?.tramos[0]?.comision_base).toBe(80)
+    expect(woven.find((row) => row.tarifa === "HUNTER++")?.tramos[0]?.comision_base).toBe(120)
+    expect(woven.find((row) => row.tarifa === "HUNTER")?.tramos[0]?.comision_base).toBe(40)
+  })
+
+  it("aplica BASE y ONE de Naturgy aunque la comisión no traiga compañía", () => {
+    const woven = weaveMarcoTariffsWithCommissions(
+      [
+        offer({ compania: "NATURGY PYMES", tarifa: "Plan Fijo Luz", peaje: "3.0TD" }),
+        offer({ compania: "NATURGY PYMES", tarifa: "Plan Fijo Luz ONE", peaje: "3.0TD" }),
+        offer({ compania: "IBERDROLA", tarifa: "Plan Estable", peaje: "2.0TD" }),
+      ],
+      [
+        commissionSliceFromPayload({
+          compania: "",
+          payload: { campania: "BASE", tarifa: "", tramo: "", tipo_comision: "fijo_contrato", comision_eur: 96 },
+        })!,
+        commissionSliceFromPayload({
+          compania: "",
+          payload: { campania: "ONE", tarifa: "", tramo: "", tipo_comision: "fijo_contrato", comision_eur: 48 },
+        })!,
+      ]
+    )
+    expect(woven.find((row) => row.tarifa === "Plan Fijo Luz")?.tramos[0]?.comision_base).toBe(96)
+    expect(woven.find((row) => row.tarifa === "Plan Fijo Luz ONE")?.tramos[0]?.comision_base).toBe(48)
+    expect(woven.find((row) => row.tarifa === "Plan Estable")?.hasCommission).toBe(false)
+  })
 })

@@ -1,10 +1,12 @@
 import { FileClock, Search, Download, Loader2 } from "lucide-react"
 import {
   comparisonHistoryCanDownloadPdf,
+  comparisonHistoryCompany,
   comparisonHistoryInvoiceTotal,
   comparisonHistorySavingsMonthly,
   type ComparisonHistoryEntry,
 } from "@/lib/comparador-history-storage"
+import { renderCompaniaLogo } from "@/lib/erp/render-compania-logo"
 import { useErpWorkspaceContext } from "@/pages/erp/providers/ErpWorkspaceProvider"
 
 export function HistorialPage() {
@@ -20,11 +22,17 @@ export function HistorialPage() {
     handleDownloadJointHistoryPdf,
   } = useErpWorkspaceContext()
 
-  const filtered = comparisonsHistory.filter(
-    (item) =>
-      item.clientName.toLowerCase().includes(compHistorySearch.toLowerCase()) ||
-      item.cups.toLowerCase().includes(compHistorySearch.toLowerCase())
-  )
+  const query = compHistorySearch.trim().toLowerCase()
+  const filtered = comparisonsHistory.filter((item) => {
+    if (!query) return true
+    const company = comparisonHistoryCompany(item).name.toLowerCase()
+    return (
+      item.clientName.toLowerCase().includes(query) ||
+      item.cups.toLowerCase().includes(query) ||
+      item.bestTariffName.toLowerCase().includes(query) ||
+      company.includes(query)
+    )
+  })
 
   return (
     <div className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-100 font-sans">
@@ -73,13 +81,14 @@ export function HistorialPage() {
 
         {filtered.length === 0 ? (
           <div className="p-12 text-center text-brand-subtext border border-dashed border-brand-border rounded-2xl bg-slate-50/50">
-            <p className="text-xs">No hay comparativas locales ni sincronizadas de AT.</p>
+            <p className="text-xs">No hay comparativas guardadas.</p>
           </div>
         ) : (
           <>
           <div className="space-y-3 md:hidden">
             {filtered.map((item, idx) => {
               const row = historyRowView(item)
+              const company = comparisonHistoryCompany(item)
               const selected = selectedComparisonIds.includes(item.id)
               return (
                 <article
@@ -97,10 +106,10 @@ export function HistorialPage() {
                     <div className="min-w-0 flex-1">
                       <div className="font-mono text-[11px] font-bold text-brand-text break-all">
                         {item.cups || "—"}
-                        {item.source === "at" ? <AtBadge /> : null}
                       </div>
                       <div className="text-[10px] text-brand-subtext font-mono mt-0.5">{item.date}</div>
                     </div>
+                    <CompanyMark name={company.name} logoUrl={company.logoUrl} />
                   </div>
                   <div>
                     <TariffBadge tariff={item.accessTariff} />
@@ -142,6 +151,7 @@ export function HistorialPage() {
                 <tr className="border-b border-brand-border text-[10px] uppercase font-bold tracking-wider font-mono text-brand-subtext">
                   <th className="pb-3 px-2 w-8" />
                   <th className="pb-3 px-2">CUPS</th>
+                  <th className="pb-3 px-2">Compañía</th>
                   <th className="pb-3 px-2">Tarifa de acceso</th>
                   <th className="pb-3 px-2 text-right">Total factura</th>
                   <th className="pb-3 px-2 text-right">Ahorro</th>
@@ -151,6 +161,7 @@ export function HistorialPage() {
               <tbody className="divide-y divide-brand-border">
                 {filtered.map((item, idx) => {
                   const row = historyRowView(item)
+                  const company = comparisonHistoryCompany(item)
                   const selected = selectedComparisonIds.includes(item.id)
                   return (
                     <tr
@@ -169,11 +180,13 @@ export function HistorialPage() {
                       <td className="py-4 px-2">
                         <div className="font-mono text-[11px] font-bold text-brand-text break-all">
                           {item.cups || "—"}
-                          {item.source === "at" ? <AtBadge /> : null}
                         </div>
                         <div className="text-[10px] text-brand-subtext font-mono mt-0.5">
                           {item.date}
                         </div>
+                      </td>
+                      <td className="py-4 px-2">
+                        <CompanyMark name={company.name} logoUrl={company.logoUrl} />
                       </td>
                       <td className="py-4 px-2">
                         <TariffBadge tariff={item.accessTariff} />
@@ -228,11 +241,15 @@ function historyRowView(item: ComparisonHistoryEntry) {
   }
 }
 
-function AtBadge() {
+function CompanyMark({ name, logoUrl }: { name: string; logoUrl: string | null }) {
+  if (!name) return <span className="text-[10px] text-brand-subtext">—</span>
   return (
-    <span className="ml-1.5 inline-flex px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-700 dark:text-cyan-400">
-      AT
-    </span>
+    <div className="flex flex-col items-start gap-1 min-w-[4.5rem]">
+      {renderCompaniaLogo(name, logoUrl, "md")}
+      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-brand-subtext leading-tight">
+        {name}
+      </span>
+    </div>
   )
 }
 

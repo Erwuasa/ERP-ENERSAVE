@@ -126,6 +126,17 @@ async function buildTotpPendingState(
   const enrolled = await startTotpEnrollment()
   if (enrolled.ok === false) return enrolled
 
+  if (enrolled.data.kind === "challenge") {
+    return {
+      ok: true,
+      pending: {
+        kind: "challenge",
+        factorId: enrolled.data.factorId,
+        ...workspace,
+      },
+    }
+  }
+
   return {
     ok: true,
     pending: {

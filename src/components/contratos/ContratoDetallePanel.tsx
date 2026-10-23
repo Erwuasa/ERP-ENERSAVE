@@ -22,12 +22,6 @@ import { ContratoDetalleTabComisiones } from "@/components/contratos/tabs/Contra
 import { ContratoDetalleTabFechas } from "@/components/contratos/tabs/ContratoDetalleTabFechas"
 import { ContratoDetalleTabDocumentos } from "@/components/contratos/tabs/ContratoDetalleTabDocumentos"
 import { ContratoDetalleTabHistorial } from "@/components/contratos/tabs/ContratoDetalleTabHistorial"
-import type {
-  AtContractDocument,
-  AtContractEmail,
-  AtContractEvent,
-  AtContractNote,
-} from "@/types/at-contract-history"
 import type { ProfileOption } from "@/pages/erp/contratos/components/contratos-panel-utils"
 
 const SELF_TITLED_DETALLE_TABS = new Set<ContratoDetalleTab>([
@@ -65,13 +59,6 @@ function renderActiveTab(
     activeUserId: string
     activeUserName: string
     onContractUpdated: (contract: Contract) => void
-    atStatusNote?: string
-    atIncidentAt?: string
-    atNotes?: AtContractNote[]
-    atEvents?: AtContractEvent[]
-    atDocuments?: AtContractDocument[]
-    atEmails?: AtContractEmail[]
-    atNotesLoading?: boolean
     readOnly?: boolean
   }
 ) {
@@ -87,13 +74,7 @@ function renderActiveTab(
   switch (tab) {
     case "incidencias":
       return (
-        <ContratoDetalleTabIncidencias
-          contract={contract}
-          statusNote={options.atStatusNote}
-          incidentAt={options.atIncidentAt}
-          notes={options.atNotes}
-          loading={options.atNotesLoading}
-        />
+        <ContratoDetalleTabIncidencias contract={contract} />
       )
     case "contrato":
       return <ContratoDetalleTabContrato contract={contract} comercialEmail={comercialEmail} />
@@ -125,20 +106,11 @@ function renderActiveTab(
           activeUserId={activeUserId}
           activeUserName={activeUserName}
           onContractUpdated={onContractUpdated}
-          atDocuments={options.atDocuments}
-          atDocumentsLoading={options.atNotesLoading}
           readOnly={options.readOnly}
         />
       )
     case "historial":
-      return (
-        <ContratoDetalleTabHistorial
-          contratoId={contract.id}
-          events={options.atEvents}
-          emails={options.atEmails}
-          loading={options.atNotesLoading}
-        />
-      )
+      return <ContratoDetalleTabHistorial contratoId={contract.id} />
     default:
       return null
   }
@@ -165,8 +137,6 @@ export function ContratoDetallePanel({
   const displayId = resolveContractReferencia(contract)
   const technicalId = formatContractDisplayId(contract.id)
   const isDraft = normalizeContractEstado(contract.estado) === CONTRACT_ESTADO_BORRADOR
-  // AT ya no se sincroniza en vivo (AGENTS.md §9, "congelar con corte limpio"): los campos
-  // at_* del contrato son historial ya guardado, no un refetch contra la API de AT.
   const liveContract: Contract = contract
 
   useLayoutEffect(() => {
@@ -321,7 +291,7 @@ export function ContratoDetallePanel({
             <div className="rounded-lg border border-brand-border/70 bg-brand-bg/40 px-3 py-2">
               <dt className="text-[9px] font-mono uppercase text-brand-subtext tracking-wide">Tarifa</dt>
               <dd className="text-brand-text mt-0.5 break-words">
-                {contract.atRateName || contract.tarifa || "—"}
+                {contract.tarifa || "—"}
               </dd>
             </div>
             <div className="rounded-lg border border-brand-border/70 bg-brand-bg/40 px-3 py-2">
@@ -369,13 +339,6 @@ export function ContratoDetallePanel({
                     activeUserId,
                     activeUserName,
                     onContractUpdated,
-                    atStatusNote: contract.atStatusNote ?? null,
-                    atIncidentAt: contract.atIncidentAt ?? null,
-                    atNotes: contract.atNotes ?? [],
-                    atEvents: contract.atEvents ?? [],
-                    atDocuments: contract.atDocuments ?? [],
-                    atEmails: contract.atEmails ?? [],
-                    atNotesLoading: false,
                     readOnly,
                   })}
                 </section>
@@ -388,8 +351,6 @@ export function ContratoDetallePanel({
               estadoContrato={contract.estado}
               activeUserId={activeUserId}
               activeUserName={activeUserName}
-              atNotes={contract.atNotes ?? []}
-              atNotesLoading={false}
               contract={liveContract}
               renderCompaniaLogo={renderCompaniaLogo}
             />

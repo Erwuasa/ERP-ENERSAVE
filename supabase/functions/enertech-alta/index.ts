@@ -48,9 +48,17 @@ Deno.serve(async (req: Request) => {
     return json(400, { error: 'Idempotency-Key no válida.' })
   }
 
+  const recordOnly = payload.recordOnly === true
+  const localCode = typeof payload.errorCode === 'string' ? payload.errorCode.trim().slice(0, 80) : ''
+  const localMessage = typeof payload.errorMessage === 'string' ? payload.errorMessage.trim().slice(0, 500) : ''
+  if (recordOnly && !localMessage) return json(400, { error: 'Falta el motivo del fallo.' })
+  if (recordOnly && !contractIdOf(payload.contractId)) {
+    return json(400, { error: 'El fallo local necesita el contrato ya creado.' })
+  }
+
   const sanitized = sanitizeEnertechRequestBody(payload.body)
   const limitBytes = documentsLimitBytes()
-  const rejected = sanitized.documentsTotalBytes > limitBytes
+  const rejected = !recordOnly && sanitized.documentsTotalBytes > limitBytes
   const rejectionMessage = documentsRejectedMessage(limitBytes)
 
   let admin: ReturnType<typeof getSupabaseAdmin>
@@ -72,7 +80,8 @@ Deno.serve(async (req: Request) => {
       documents_count: sanitized.documentsCount,
       documents_total_bytes: sanitized.documentsTotalBytes,
       documents_rejected: rejected,
-      error_message: rejected ? rejectionMessage : null,
+      error_code: recordOnly ? localCode || 'LOCAL_REJECT' : null,
+      error_message: rejected ? rejectionMessage : recordOnly ? localMessage : null,
       reconciliation_status: resource === 'clientes' ? 'not_applicable' : 'pending',
     })
     .select('id')
@@ -84,6 +93,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const outboundEventId = String(inserted.id)
+  if (recordOnly) return json(200, { outboundEventId, recorded: true })
   if (rejected) {
     return json(413, { error: rejectionMessage, outboundEventId })
   }

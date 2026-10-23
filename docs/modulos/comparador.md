@@ -10,7 +10,7 @@ La pantalla opera con dos paneles sincronizados: el panel izquierdo para la capt
 ## 2. Panel Izquierdo: Captura y Comportamiento de Entradas
 
 ### 2.1. Selector de suministro y de segmento
-* **Suministro:** `Luz` | `Gas`, con icono y el botón elegido en color sólido (cian o naranja). No hay etiqueta «Suministro», «Segmento» ni «Tarifa de acceso». Luz usa peajes `2.0` a `6.4`. Gas usa `RL1`, `RL2`, `RL3`, `RL4` y `RL5` (también vale `RL.1`). No hay periodos P1–P6: un consumo en kWh, término fijo en €/día y término variable en €/kWh. `RL1` deja el segmento en residencial; `RL2` a `RL5` lo dejan en PYME.
+* **Suministro:** `Luz` | `Gas`, con icono y el botón elegido en color sólido (cian o naranja). No hay etiqueta «Suministro», «Segmento» ni «Tarifa de acceso». Luz usa peajes `2.0` a `6.4`. Gas usa `RL1`, `RL2`, `RL3`, `RL4` y `RL5` (también vale `RL.1`). Una fila es de gas si el peaje es RL, si `producto` es `gas` o si el nombre lleva la palabra «gas». Así una comercializadora solo de gas (CHC) no sale en luz. No hay periodos P1–P6: un consumo en kWh, término fijo en €/día y término variable en €/kWh. `RL1` deja el segmento en residencial; `RL2` a `RL5` lo dejan en PYME.
 * **Segmento:** `Residencial` | `PYME`.
 * **Comportamiento:** Modifica el estado global (`segment`). Filtra el catálogo para admitir únicamente tarifas cuyo segmento coincida o aplique a `AMBOS`. Si la tarifa proviene de Enertech con segmento por defecto, el peaje de acceso manda en la asignación (`2.0TD` → Residencial; `3.0TD` a `6.4TD` → PYME; `RL1` → Residencial; `RL2` a `RL5` → PYME).
 
@@ -106,7 +106,7 @@ El PDF de una oferta usa las mismas fórmulas y los mismos precios que el desglo
 * **Tarifa propuesta:** no incluye «Otros costes / SVA». Sí incluye alquiler, bono social y reactiva. Si el alquiler del formulario está vacío o a 0, el PDF usa 1,84 €/mes, el mismo importe que la tarjeta. El total de la oferta es potencia + energía + alquiler + bono + reactiva + IEE + IVA, el mismo que el total de la tarjeta.
 
 ## 6. Historial de comparativas
-Cada comparativa guardada conserva el CUPS, el peaje, el total de la factura y el ahorro mensual. También guarda los campos del formulario y los precios de esa oferta. El PDF se vuelve a generar con esos datos, sin leer el catálogo actual. Una fila de AT sin precios guardados no se puede descargar.
+Cada comparativa guardada conserva el CUPS, el logo y el nombre de la compañía de la oferta, el peaje, el total de la factura y el ahorro mensual. También guarda los campos del formulario y los precios de esa oferta. El PDF se vuelve a generar con esos datos, sin leer el catálogo actual. El historial solo muestra lo guardado en este navegador. Las comparativas antiguas de AT ya no se listan.
 
 ## 7. Directivas de Implementación Técnica
 * **Precisión Numérica:** Operaciones internas con coma flotante de precisión completa (mínimo 6 decimales). El redondeo a 2 decimales (`0.01 €`) aplica exclusivamente en renderizado de UI y generación de PDFs.

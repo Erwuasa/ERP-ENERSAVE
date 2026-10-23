@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { mergeLuzGasCatalogRows } from "../../../supabase/functions/_shared/enertech-catalog-feed"
 import { entitySyncOptions } from "../../../supabase/functions/_shared/enertech-entities"
 
 type Row = Record<string, unknown>
@@ -159,6 +160,32 @@ describe("enertech-sync-precios", () => {
     expect(tables.enertech_precios!.every((row) => row.removed_at === null)).toBe(true)
   })
 
+  it("keeps a gas tariff that only arrives with producto=gas and does not duplicate luz", async () => {
+    const { tables, client } = createFakeSupabase()
+    mockEnertech({
+      "/precios": (url) => {
+        if (url.searchParams.get("producto") === "gas") {
+          return {
+            filas: [
+              feedRow("tf_1", "2026-10-01", { tarifa: "2.0TD" }),
+              feedRow("tf_gas", "2026-10-01", { tarifa: "RL1", comercializadora: "CHC" }),
+            ],
+          }
+        }
+        return { filas: [feedRow("tf_1", "2026-10-01", { tarifa: "2.0TD" })] }
+      },
+    })
+    const stats = await entitySyncOptions("enertech-sync-precios").runSync({
+      supabase: client,
+      runId: "r",
+      params: new URLSearchParams(),
+    })
+    expect(stats).toMatchObject({ created: 2, skipped: 0 })
+    expect(tables.enertech_precios).toHaveLength(2)
+    const gas = tables.enertech_precios!.find((row) => row.clave === "tf_gas")
+    expect(gas?.payload).toMatchObject({ producto: "gas", tarifa: "RL1" })
+  })
+
   it("counts rows it cannot map instead of failing", async () => {
     const { client } = createFakeSupabase()
     mockEnertech({ "/precios": () => ({ filas: [feedRow("tf_1", "1"), { nombre: "sin clave ni id" }] }) })
@@ -168,6 +195,19 @@ describe("enertech-sync-precios", () => {
       params: new URLSearchParams(),
     })
     expect(stats).toMatchObject({ created: 1, skipped: 1 })
+  })
+})
+
+describe("mergeLuzGasCatalogRows", () => {
+  it("does not relabel an electricity row that the gas call repeats", () => {
+    const merged = mergeLuzGasCatalogRows(
+      [{ clave: "tf_luz", tarifa: "2.0TD" }],
+      [{ clave: "tf_luz", tarifa: "2.0TD" }, { clave: "tf_gas", tarifa: "RL2" }]
+    )
+    expect(merged).toEqual([
+      { clave: "tf_luz", tarifa: "2.0TD", producto: "luz" },
+      { clave: "tf_gas", tarifa: "RL2", producto: "gas" },
+    ])
   })
 })
 

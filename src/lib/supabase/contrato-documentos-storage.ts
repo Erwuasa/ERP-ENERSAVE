@@ -6,6 +6,7 @@ import {
   documentoAlreadyOnContract,
   formatDocumentoSize,
   getDocumentoTipoLabel,
+  contentTypeForContratoFile,
   normalizeDocumentoTipoId,
 } from "@/lib/contrato-documentos"
 import { getSupabaseClient, isSupabaseConfigured } from "@/lib/supabase/client"
@@ -198,11 +199,12 @@ export async function uploadContratoDocumento(
   const safeName = sanitizeFileName(input.file.name)
   const storagePath = `${input.contract.id}/${documentoId}/${safeName}`
 
+  const contentType = contentTypeForContratoFile(input.file)
   const upload = await client.storage
     .from(CONTRATO_DOCUMENTOS_BUCKET)
     .upload(storagePath, input.file, {
       upsert: false,
-      contentType: input.file.type || undefined,
+      contentType,
     })
 
   if (upload.error) {
@@ -220,7 +222,7 @@ export async function uploadContratoDocumento(
     tipo: input.tipoId,
     uploadedAt: new Date().toISOString(),
     storagePath,
-    mimeType: input.file.type || undefined,
+    mimeType: contentType,
   }
 
   const documentos = [...(input.contract.documentos ?? []), nuevoDocumento]

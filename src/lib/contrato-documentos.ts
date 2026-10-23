@@ -275,6 +275,32 @@ export async function filesToContratoArchivos(files: File[]): Promise<ContratoDo
   return results
 }
 
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+}
+
+/** El bucket rechaza `image/jpg` y el tipo vacío. La extensión manda en esos casos. */
+export function contentTypeForContratoFile(file: { name: string; type?: string }): string | undefined {
+  const type = file.type?.trim().toLowerCase() ?? ""
+  if (type === "image/jpg" || type === "image/pjpeg") return "image/jpeg"
+  if (type && type !== "application/octet-stream") return type
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? ""
+  return CONTENT_TYPE_BY_EXTENSION[extension]
+}
+
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

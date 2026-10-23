@@ -4,6 +4,8 @@ import {
   documentsRejectedMessage,
   ENERTECH_OUTBOUND_DOCUMENTS_LIMIT_BYTES,
   formatDocumentBytes,
+  isOutboundProblem,
+  shouldRecordLocalAltaFailure,
   outboundResultSummary,
   readOutboundOutcome,
   reconciliationStatusAfterAlta,
@@ -114,6 +116,46 @@ describe("outboundResultSummary", () => {
         enertechContractId: 90,
       })
     ).toBe("idContract 90")
+  })
+})
+
+describe("shouldRecordLocalAltaFailure", () => {
+  it("records a real reject and skips a draft that never had to be uploaded", () => {
+    expect(shouldRecordLocalAltaFailure("El CUPS del contrato no es válido.")).toBe(true)
+    expect(shouldRecordLocalAltaFailure("En borrador no se sube nada a Enertech.")).toBe(false)
+    expect(shouldRecordLocalAltaFailure("Solo se sube cuando el contrato está en Pendiente de RGPD.")).toBe(false)
+  })
+})
+
+describe("isOutboundProblem", () => {
+  it("marks a rejected alta and a local failure, and leaves a 201 alone", () => {
+    expect(
+      isOutboundProblem({
+        httpStatus: 400,
+        documentsRejected: false,
+        errorCode: "MISSING_FIELD",
+        errorMessage: "Falta la dirección",
+        reconciliationStatus: "pending",
+      })
+    ).toBe(true)
+    expect(
+      isOutboundProblem({
+        httpStatus: null,
+        documentsRejected: false,
+        errorCode: "LOCAL_REJECT",
+        errorMessage: "El CUPS no es válido.",
+        reconciliationStatus: "pending",
+      })
+    ).toBe(true)
+    expect(
+      isOutboundProblem({
+        httpStatus: 201,
+        documentsRejected: false,
+        errorCode: null,
+        errorMessage: "",
+        reconciliationStatus: "ok",
+      })
+    ).toBe(false)
   })
 })
 

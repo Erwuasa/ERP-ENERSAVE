@@ -161,6 +161,10 @@ describe("uploadContractAlta", () => {
             return { status: 201, body: { id_customer: 44, rgpd: "pendiente_sin_email" } }
           }
           expect(input.body.clientId).toBe(44)
+          expect(input.body.direccionSuministro).toBe("Mayor 10")
+          expect(input.body.via_tipo).toBe("CALLE")
+          expect(input.body.via_nombre).toBe("Mayor")
+          expect(input.body.via_numero).toBe("10")
           expect(input.body.documentos).toEqual([{ filename: "dni.pdf", base64: "JVBERg==" }])
           return {
             status: 201,

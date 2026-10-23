@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   comparisonHistoryCanDownloadPdf,
+  comparisonHistoryCompany,
   comparisonHistoryInvoiceTotal,
   comparisonHistorySavingsMonthly,
   comparisonHistoryToEstudioParams,
@@ -48,6 +49,7 @@ describe("comparison history pdf snapshot", () => {
 
     expect(comparisonHistoryInvoiceTotal(saved)).toBeCloseTo(79.62)
     expect(comparisonHistorySavingsMonthly(saved)).toBeCloseTo(10)
+    expect(comparisonHistoryCompany(saved)).toEqual({ name: "Endesa", logoUrl: null })
   })
 
   it("reconstruye el PDF con el precio de la oferta guardado", () => {

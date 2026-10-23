@@ -5,6 +5,7 @@ import {
   assertEnertechTestBaseUrl,
   buildEnertechClienteBody,
   buildEnertechContratoBody,
+  splitSupplyAddress,
   classifySpanishTaxId,
   countDocumentacion,
   createEnertechTestHttp,
@@ -158,6 +159,44 @@ describe("buildEnertechContratoBody", () => {
     })
     expect(built.value).not.toHaveProperty("power_p3")
     expect(built.value).not.toHaveProperty("documentos")
+    expect(built.value).not.toHaveProperty("via_nombre")
+  })
+
+  it("manda la dirección completa y, si puede, tipo, nombre y número juntos", () => {
+    expect(splitSupplyAddress("Calle Mayor 10")).toEqual({
+      direccionSuministro: "Calle Mayor 10",
+      viaTipo: "CALLE",
+      viaNombre: "Mayor",
+      viaNumero: "10",
+    })
+    expect(splitSupplyAddress("Mayor 10")).toEqual({
+      direccionSuministro: "Mayor 10",
+      viaTipo: "CALLE",
+      viaNombre: "Mayor",
+      viaNumero: "10",
+    })
+    expect(splitSupplyAddress("Calle sin numero")).toEqual({
+      direccionSuministro: "Calle sin numero",
+    })
+
+    const built = buildEnertechContratoBody({
+      clientId: 15,
+      cups: CUPS,
+      cnae: "4711",
+      claveTarifa: "tf_prueba",
+      direccionSuministro: "Calle Mayor 10",
+      viaTipo: "CALLE",
+      viaNombre: "Mayor",
+      viaNumero: "10",
+    })
+    expect(built.ok).toBe(true)
+    if (built.ok === false) return
+    expect(built.value).toMatchObject({
+      direccionSuministro: "Calle Mayor 10",
+      via_tipo: "CALLE",
+      via_nombre: "Mayor",
+      via_numero: "10",
+    })
   })
 
   it("adjunta documentos solo cuando hay filename y base64", () => {

@@ -25,13 +25,12 @@ const SPANISH_BANK_ENTITIES: Record<string, string> = {
 }
 
 export function formatContratoCanal(contract: Contract): string | undefined {
-  if (contract.source === "at") return "Alta Tensión"
-  if (contract.source === "manual") return "ENERSAVE"
+  if (contract.source === "manual" || contract.source === "at") return "ENERSAVE"
   return undefined
 }
 
 export function formatContratoPeaje(contract: Contract): string | undefined {
-  const raw = contract.atAccessTariff?.trim() || contract.atr?.trim()
+  const raw = contract.atr?.trim() || contract.atAccessTariff?.trim()
   if (!raw) return undefined
   return normalizePeaje(raw)
 }
@@ -195,12 +194,7 @@ function addMonthsToIsoDate(isoDate: string, months: number): string {
 }
 
 function resolveContratoFirmaDate(contract: Contract): string | null {
-  if (contract.signedAt) return contract.signedAt
-  const signedEvent = contract.atEvents?.find((event) => {
-    const blob = `${event.title ?? ""} ${event.type ?? ""} ${event.toStatus ?? ""}`.toLowerCase()
-    return blob.includes("firm") || blob.includes("sign")
-  })
-  return signedEvent?.createdAt ?? null
+  return contract.signedAt ?? null
 }
 
 function resolveFinClawbackDate(contract: Contract): string | null {

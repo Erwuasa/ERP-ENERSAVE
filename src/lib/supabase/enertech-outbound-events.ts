@@ -43,6 +43,7 @@ export interface ListEnertechOutboundEventsOptions {
   page?: number
   pageSize?: number
   orphansOnly?: boolean
+  problemsOnly?: boolean
 }
 
 function asResource(value: unknown): "clientes" | "contratos" {
@@ -106,6 +107,11 @@ export async function listEnertechOutboundEvents(
 
   let query = resolved.client.from(TABLE).select("*").order("sent_at", { ascending: false })
   if (options.orphansOnly) query = query.eq("reconciliation_status", "orphan")
+  if (options.problemsOnly) {
+    query = query.or(
+      "documents_rejected.eq.true,reconciliation_status.eq.orphan,http_status.gte.400,error_code.not.is.null"
+    )
+  }
 
   const { data, error } = await query.range(range.from, range.to)
   if (error) return toSupabaseFailure(error, TABLE)

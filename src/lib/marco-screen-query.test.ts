@@ -85,10 +85,11 @@ describe("marco screen query", () => {
       { payload: { ...payload, territorio: "peninsula" }, segment: "residencial" },
       { payload: { ...payload, territorio: "canarias" }, segment: "residencial" },
       { payload: { ...payload, e1: 0.2, territorio: "peninsula" }, segment: "residencial" },
-      { payload: { comercializadora: "GANA ENERGIA", campania: "Gas", tarifa: "RL1" }, segment: "residencial" },
+      { payload: { comercializadora: "CHC", campania: "Gas Hogar", tarifa: "RL1" }, segment: "residencial" },
     ])
-    expect(stubs).toHaveLength(2)
-    expect(stubs.every((stub) => stub.providerName === "GANA ENERGIA")).toBe(true)
+    expect(stubs).toHaveLength(3)
+    expect(stubs.filter((stub) => stub.supplyType === "luz")).toHaveLength(2)
+    expect(stubs.find((stub) => stub.providerName === "CHC")?.supplyType).toBe("gas")
   })
 
   it("cuenta las tarifas de cada compañía y respeta el peaje", () => {
